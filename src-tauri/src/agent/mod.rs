@@ -71,12 +71,18 @@ pub struct Snapshot {
 pub struct CapturedImage(PathBuf);
 
 impl CapturedImage {
-    pub fn new(path: PathBuf) -> Self { Self(path) }
-    pub fn path(&self) -> &std::path::Path { &self.0 }
+    pub fn new(path: PathBuf) -> Self {
+        Self(path)
+    }
+    pub fn path(&self) -> &std::path::Path {
+        &self.0
+    }
 }
 
 impl Drop for CapturedImage {
-    fn drop(&mut self) { let _ = std::fs::remove_file(&self.0); }
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 pub enum Control {
@@ -185,7 +191,10 @@ impl AgentRuntime {
         capture: fn(isize) -> Result<CapturedImage, String>,
     ) -> Result<(), String> {
         let state = self.snapshot();
-        if matches!(state.status.as_str(), "starting" | "streaming" | "stopping" | "approvalRequired") {
+        if matches!(
+            state.status.as_str(),
+            "starting" | "streaming" | "stopping" | "approvalRequired"
+        ) {
             return Err("Finish or Stop the current answer before capturing.".into());
         }
         if state.thread_id.is_some() && state.mode != "quickAsk" {
@@ -193,10 +202,13 @@ impl AgentRuntime {
         }
         let ready = self.codex_readiness(Some(&state.cwd)).await;
         if ready.status != "ready" || !ready.image_input {
-            return Err("Codex image input is not confirmed. Open Agent settings and Retry.".into());
+            return Err(
+                "Codex image input is not confirmed. Open Agent settings and Retry.".into(),
+            );
         }
         let image = tokio::task::spawn_blocking(move || capture(hwnd))
-            .await.map_err(|_| "Windows capture failed.".to_string())??;
+            .await
+            .map_err(|_| "Windows capture failed.".to_string())??;
         self.ask_with_capture(
             "Analyze the captured application window. Describe what is visible and answer any apparent question without modifying files.".into(),
             state.cwd,
@@ -208,7 +220,10 @@ impl AgentRuntime {
     #[cfg(windows)]
     pub fn capture_error(&self, reason: &str) {
         mutate(&self.updates, |s| {
-            if !matches!(s.status.as_str(), "starting" | "streaming" | "stopping" | "approvalRequired") {
+            if !matches!(
+                s.status.as_str(),
+                "starting" | "streaming" | "stopping" | "approvalRequired"
+            ) {
                 s.status = "failed".into();
                 s.error = Some(reason.into());
             }
@@ -219,7 +234,13 @@ impl AgentRuntime {
         self.ask_with_capture(text, cwd, mode, None).await
     }
 
-    async fn ask_with_capture(&self, text: String, cwd: String, mode: String, capture: Option<CapturedImage>) -> Result<(), String> {
+    async fn ask_with_capture(
+        &self,
+        text: String,
+        cwd: String,
+        mode: String,
+        capture: Option<CapturedImage>,
+    ) -> Result<(), String> {
         let text = text.trim().to_owned();
         if text.is_empty() || text.len() > 12_000 {
             return Err("Enter a question (up to 12,000 bytes).".into());
@@ -277,7 +298,12 @@ impl AgentRuntime {
                 s.approval = None;
                 s.error = None;
             });
-            permit.send(Control::Ask { text, cwd, run_id, capture });
+            permit.send(Control::Ask {
+                text,
+                cwd,
+                run_id,
+                capture,
+            });
             return Ok(());
         }
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
@@ -298,7 +324,12 @@ impl AgentRuntime {
             providers::codex::run(
                 rx,
                 updates.clone(),
-                Control::Ask { text, cwd, run_id, capture },
+                Control::Ask {
+                    text,
+                    cwd,
+                    run_id,
+                    capture,
+                },
                 mode,
             )
             .await;
