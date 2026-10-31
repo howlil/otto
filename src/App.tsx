@@ -4,9 +4,9 @@ import musicArt from "./assets/music-art.svg";
 import focusArt from "./assets/focus-art.svg";
 import { AgentCapsule, AgentPanel, resolveAgentSurface, useAgent } from "./features/agent";
 import { HomeCard } from "./features/home";
-import { GlobalSettings, resolveSurface, useNotchShell } from "./features/shell";
+import { GlobalSettings, resolveSurface, SurfaceError, useNotchShell } from "./features/shell";
 import { setNotchSurface } from "./platform/tauri";
-import { Eyes, Icon, IconButton, VisuallyHidden } from "./shared/ui";
+import { Eyes, IconButton, VisuallyHidden } from "./shared/ui";
 
 export default function App() {
   const agent = useAgent();
@@ -175,20 +175,7 @@ export default function App() {
           onCollapse={collapse}
         />
       )}
-      {surfaceError && (
-        <div
-          className={
-            expanded
-              ? "pointer-events-none absolute inset-x-2 bottom-1 z-50 truncate rounded-md bg-otto-surface px-2 py-1 text-center text-[10px] text-otto-text"
-              : "pointer-events-none absolute bottom-1 right-1 z-50 text-otto-text"
-          }
-          role="alert"
-          title={surfaceError}
-        >
-          {expanded ? surfaceError : <Icon name="alert" size={12} />}
-          {!expanded && <VisuallyHidden>{surfaceError}</VisuallyHidden>}
-        </div>
-      )}
+      <SurfaceError message={surfaceError} expanded={expanded} />
     </main>
   );
 }

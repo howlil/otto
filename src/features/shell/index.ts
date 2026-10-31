@@ -11,3 +11,4 @@ export {
   type SettingsTab,
 } from "./preferences";
 export { resolveSurface } from "./surface";
+export { SurfaceError } from "./SurfaceError";
