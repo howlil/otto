@@ -16,6 +16,12 @@ pub fn agent_codex_installed(runtime: State<'_, AgentRuntime>) -> bool {
     runtime.codex_installed()
 }
 #[tauri::command]
+pub async fn agent_codex_readiness(
+    runtime: State<'_, AgentRuntime>,
+) -> crate::agent::ProviderReadiness {
+    runtime.codex_readiness().await
+}
+#[tauri::command]
 pub fn agent_subscribe(runtime: State<'_, AgentRuntime>, on_event: Channel<Snapshot>) {
     runtime.subscribe(on_event);
 }
