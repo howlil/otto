@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B11 Codex readiness, reduce inline UI complexity.
+# Verification dispatch: B11 Codex readiness, Rustfmt retry.
 
 'on':
   push:
