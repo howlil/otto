@@ -15,7 +15,7 @@ const SRC = join(ROOT, "src");
 const BASELINE = join(ROOT, ".agents", "frontend-budget.json");
 
 const HEX = /#[0-9a-fA-F]{3,8}\b/g;
-const THEME_BLOCK = /@theme\s*\{[\s\S]*?\n\}/;
+const THEME_BLOCK = /@theme(?:\s+static)?\s*\{[\s\S]*?\n\}/;
 
 function walk(dir) {
   const out = [];

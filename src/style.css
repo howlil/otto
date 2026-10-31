@@ -1,6 +1,6 @@
 @import "tailwindcss";
 /* Tailwind v4 TSX utilities own static layout; CSS retains artwork, state and motion. */
-@theme {
+@theme static {
   --color-otto-surface: #151515;
   --color-otto-text: #fafafa;
   --color-otto-muted: #a3a3a3;
