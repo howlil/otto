@@ -7,7 +7,44 @@
   --color-otto-raised: #292929;
   --color-otto-error-bg: #392525;
   --color-otto-error-text: #ffbbbb;
+  /* Shared palette. Every surface reads these instead of a new literal. */
+  --color-otto-line: #353538;
+  --color-otto-line-strong: #3b3d41;
+  --color-otto-control: #242426;
+  --color-otto-control-hover: #34353a;
+  --color-otto-control-text: #eee;
+  --color-otto-raised-soft: #29292c;
+  --color-otto-selected: #303034;
+  --color-otto-selected-hover: #393b40;
+  --color-otto-nav-bg: #181818;
+  --color-otto-line-soft: #2b2c2f;
+  --color-otto-muted-strong: #a6a6ab;
+  --color-otto-hover-text: #e9e9e9;
+  --color-otto-invert-bg: #f2f2f2;
+  --color-otto-invert-bg-hover: #eaeaea;
+  --color-otto-invert-text: #171717;
+  --color-otto-invert-line: #fff;
+  --color-otto-knob: #f5f5f5;
+  --color-otto-focus: #96b4e1;
+  --color-otto-warn: #e0b978;
+  --color-otto-danger: #d89197;
+  --color-otto-ok: #9cb8a8;
   --font-otto-ui: "Segoe UI", system-ui, sans-serif;
+  --font-otto-mono: Consolas, monospace;
+  /* Type scale: the seven literal sizes in use, named once. */
+  --text-otto-2xs: 9px;
+  --text-otto-xs: 10px;
+  --text-otto-sm: 11px;
+  --text-otto-md: 12px;
+  --text-otto-lg: 13px;
+  --text-otto-xl: 14px;
+  --text-otto-2xl: 15px;
+  /* Radius scale: control, panel, chip, card, launcher. */
+  --radius-otto-control: 9px;
+  --radius-otto-panel: 10px;
+  --radius-otto-chip: 8px;
+  --radius-otto-card: 12px;
+  --radius-otto-launcher: 15px;
   --radius-otto-island: 9999px;
   --ease-otto: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -41,11 +78,11 @@ button:disabled {
 }
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid #96b4e1;
+  outline: 2px solid var(--color-otto-focus);
   outline-offset: 2px;
 }
 .otto-shell {
-  border: 1px solid #353538;
+  border: 1px solid var(--color-otto-line);
   border-radius: 999px;
   transition: border-radius 400ms var(--ease-otto);
 }
@@ -79,7 +116,7 @@ input:focus-visible {
 }
 .otto-eyes i {
   display: block;
-  background: #fafafa;
+  background: var(--color-otto-text);
   border-radius: 7px;
   width: 6px;
   height: 13px;
@@ -105,7 +142,7 @@ input:focus-visible {
   height: 8px;
   width: 11px;
   background: transparent;
-  border: 2.5px solid #fafafa;
+  border: 2.5px solid var(--color-otto-text);
   border-bottom: 0;
   border-radius: 11px 11px 0 0;
 }
@@ -148,7 +185,7 @@ input:focus-visible {
 
 .otto-compact-copy strong {
   display: block;
-  font-size: 12px;
+  font-size: var(--text-otto-md);
   font-weight: 575;
   white-space: nowrap;
   overflow: hidden;
@@ -157,7 +194,7 @@ input:focus-visible {
 .otto-compact-copy small {
   display: block;
   color: #b5b5ba;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
   margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
@@ -165,7 +202,7 @@ input:focus-visible {
 }
 .otto-compact-mark {
   color: #cbd9d0;
-  font-size: 15px;
+  font-size: var(--text-otto-2xl);
   padding: 0 5px;
 }
 .otto-bars {
@@ -208,13 +245,13 @@ input:focus-visible {
 }
 
 .otto-home-head > strong {
-  font-size: 13px;
+  font-size: var(--text-otto-lg);
   font-weight: 520;
 }
 .otto-home-notice {
   margin-left: auto;
   color: #8e8e94;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
   max-width: 188px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -224,9 +261,9 @@ input:focus-visible {
   width: 34px;
   height: 34px;
   border: 0;
-  border-radius: 10px;
-  background: #29292c;
-  color: #eee;
+  border-radius: var(--radius-otto-panel);
+  background: var(--color-otto-raised-soft);
+  color: var(--color-otto-control-text);
   transition:
     background 0.15s,
     transform 0.12s;
@@ -248,7 +285,7 @@ input:focus-visible {
   height: 31px;
   background: transparent;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--radius-otto-control);
   color: #a9a9ae;
   transition:
     background 0.15s,
@@ -256,8 +293,8 @@ input:focus-visible {
     transform 0.12s;
 }
 .otto-gear:hover {
-  background: #29292c;
-  color: #fafafa;
+  background: var(--color-otto-raised-soft);
+  color: var(--color-otto-text);
 }
 
 .otto-choice {
@@ -335,16 +372,16 @@ input:focus-visible {
 
 .otto-settings-head {
   height: 51px;
-  border-bottom: 1px solid #2b2c2f;
+  border-bottom: 1px solid var(--color-otto-line-soft);
   padding: 0 15px;
 }
 .otto-settings-head strong {
-  font-size: 13px;
+  font-size: var(--text-otto-lg);
   font-weight: 550;
 }
 .otto-settings-meta {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
   color: #777;
 }
 .otto-icon-button {
@@ -352,39 +389,39 @@ input:focus-visible {
   height: 29px;
   display: grid;
   place-items: center;
-  border: 1px solid #36373b;
-  background: #242426;
-  color: #eee;
-  border-radius: 9px;
+  border: 1px solid #38383b;
+  background: var(--color-otto-control);
+  color: var(--color-otto-control-text);
+  border-radius: var(--radius-otto-control);
 }
 .otto-icon-button:hover {
-  background: #34353a;
+  background: var(--color-otto-control-hover);
 }
 .otto-settings-layout {
   grid-template-columns: 118px minmax(0, 1fr);
 }
 .otto-settings-nav {
-  background: #181818;
-  border-right: 1px solid #292b2f;
+  background: var(--color-otto-nav-bg);
+  border-right: 1px solid #2b2b2e;
   padding: 13px 8px;
 }
 .otto-settings-nav button {
   height: 35px;
   text-align: left;
-  color: #929292;
+  color: #8e8e94;
   background: transparent;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--radius-otto-control);
   padding: 0 11px;
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
 }
 .otto-settings-nav button:hover {
-  background: #272729;
-  color: #e9e9e9;
+  background: #2b2b2e;
+  color: var(--color-otto-hover-text);
 }
 .otto-settings-nav button.selected {
-  background: #2e3033;
-  color: #fff;
+  background: #2b2b2e;
+  color: var(--color-otto-invert-line);
 }
 .otto-settings-content {
   scrollbar-width: thin;
@@ -392,13 +429,13 @@ input:focus-visible {
   padding: 16px 18px 20px;
 }
 .otto-settings-content h2 {
-  font-size: 14px;
+  font-size: var(--text-otto-xl);
   font-weight: 550;
   margin: 0 0 3px;
 }
 .otto-settings-content > p {
-  font-size: 10px;
-  color: #929396;
+  font-size: var(--text-otto-xs);
+  color: #8e8e94;
   line-height: 1.5;
   margin: 0 0 16px;
 }
@@ -407,51 +444,51 @@ input:focus-visible {
 }
 .otto-setting-group > span {
   display: block;
-  font-size: 10px;
-  color: #b2b2b5;
+  font-size: var(--text-otto-xs);
+  color: #b5b5ba;
   margin: 0 0 8px;
 }
 
 .otto-picks button {
-  color: #b3b3b3;
-  border: 1px solid #39393b;
+  color: #b5b5ba;
+  border: 1px solid #38383b;
   background: #262627;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
   padding: 7px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-otto-chip);
   min-height: 28px;
 }
 .otto-picks button.selected {
-  background: #393b40;
+  background: var(--color-otto-selected-hover);
   border-color: #888a90;
-  color: #fff;
+  color: var(--color-otto-invert-line);
 }
 .otto-picks button:hover {
-  background: #34353a;
+  background: var(--color-otto-control-hover);
 }
 .otto-settings-reset {
   color: #b8bdc9;
   background: transparent;
   border: 0;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
   padding: 4px 0;
 }
 .otto-setting-toggle {
   padding: 9px 0;
   min-height: 51px;
-  border-bottom: 1px solid #2b2b2c;
+  border-bottom: 1px solid #2b2b2e;
 }
 .otto-setting-toggle strong,
 .otto-setting-toggle small {
   display: block;
 }
 .otto-setting-toggle strong {
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
   font-weight: 550;
 }
 .otto-setting-toggle small {
-  color: #8e8e92;
-  font-size: 10px;
+  color: #8e8e94;
+  font-size: var(--text-otto-xs);
   margin-top: 4px;
 }
 .otto-setting-toggle input {
@@ -486,10 +523,10 @@ input:focus-visible {
 }
 .otto-setting-toggle input:checked + i::after {
   transform: translateX(12px);
-  background: #f5f5f5;
+  background: var(--color-otto-knob);
 }
 .otto-setting-toggle input:focus-visible + i {
-  outline: 2px solid #96b4e1;
+  outline: 2px solid var(--color-otto-focus);
   outline-offset: 3px;
 }
 .otto-setting-range {
@@ -500,16 +537,16 @@ input:focus-visible {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
   color: #bdbdc1;
 }
 .otto-setting-range output {
-  color: #8f9198;
+  color: #8e8e94;
 }
 .otto-setting-range input {
   display: block;
   width: 100%;
-  accent-color: #bbc1cc;
+  accent-color: #b8bdc9;
   cursor: pointer;
   height: 17px;
   margin-top: 6px;
@@ -523,11 +560,11 @@ input:focus-visible {
   align-items: center;
   gap: 7px;
   color: #ddd;
-  background: #242527;
-  border: 1px solid #404043;
-  border-radius: 12px;
+  background: #262627;
+  border: 1px solid #3b3d41;
+  border-radius: var(--radius-otto-card);
   padding: 10px 7px;
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
 }
 .otto-placement-grid button.selected {
   border-color: #aaaeb7;
@@ -562,8 +599,8 @@ input:focus-visible {
   border-radius: 0 0 12px 12px;
 }
 .otto-availability {
-  font-size: 10px !important;
-  color: #939397 !important;
+  font-size: var(--text-otto-xs) !important;
+  color: #8e8e94 !important;
   margin-top: 12px !important;
 }
 
@@ -575,7 +612,7 @@ input:focus-visible {
 }
 
 .otto-agent-identity strong {
-  font-size: 12px;
+  font-size: var(--text-otto-md);
   font-weight: 590;
   display: block;
   overflow: hidden;
@@ -585,11 +622,11 @@ input:focus-visible {
 .otto-agent-identity strong em {
   font-style: normal;
   font-weight: 400;
-  color: #86868b;
+  color: #888a90;
 }
 .otto-agent-identity small {
   display: block;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
   margin-top: 4px;
   color: #97979d;
   white-space: nowrap;
@@ -601,24 +638,24 @@ input:focus-visible {
   align-items: center;
   gap: 6px;
   white-space: nowrap;
-  font-size: 10px;
-  color: #b7b7bd;
+  font-size: var(--text-otto-xs);
+  color: #b5b5ba;
 }
 .otto-agent-status i {
   width: 5px;
   height: 5px;
-  background: #9cb8a8;
+  background: var(--color-otto-ok);
   border-radius: 50%;
   flex: none;
 }
 .otto-agent[data-status="approvalRequired"] .otto-agent-status i {
-  background: #e0b978;
+  background: var(--color-otto-warn);
 }
 .otto-agent[data-status="failed"] .otto-agent-status i {
-  background: #d89197;
+  background: var(--color-otto-danger);
 }
 .otto-agent[data-status="stopped"] .otto-agent-status i {
-  background: #97979a;
+  background: #97979d;
 }
 .otto-agent-feed {
   scrollbar-width: none;
@@ -635,24 +672,24 @@ input:focus-visible {
   margin: 0;
   display: flex;
   align-items: center;
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
   color: #83838a;
 }
 .otto-question {
   align-self: flex-end;
   max-width: 87%;
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
   line-height: 1.5;
-  color: #efeff0;
-  background: #29292c;
-  border-radius: 12px 12px 4px 12px;
+  color: #ededed;
+  background: var(--color-otto-raised-soft);
+  border-radius: var(--radius-otto-card) 12px 4px 12px;
   padding: 9px 11px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 .otto-response {
-  color: #ececee;
-  font-size: 12px;
+  color: #ededed;
+  font-size: var(--text-otto-md);
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -662,7 +699,7 @@ input:focus-visible {
 }
 .otto-caret {
   display: inline-block;
-  background: #eee;
+  background: var(--color-otto-control-text);
   width: 4px;
   height: 12px;
   margin-left: 2px;
@@ -675,8 +712,8 @@ input:focus-visible {
   }
 }
 .otto-agent-activity {
-  font-size: 10px;
-  color: #b6b6b9;
+  font-size: var(--text-otto-xs);
+  color: #b5b5ba;
 }
 .otto-agent-activity .otto-bars {
   height: 15px;
@@ -688,8 +725,8 @@ input:focus-visible {
 }
 .otto-agent-hint {
   margin: 0;
-  font-size: 10px;
-  color: #a8a8ad;
+  font-size: var(--text-otto-xs);
+  color: #a9a9ae;
 }
 .otto-response-actions button {
   display: inline-flex;
@@ -698,15 +735,15 @@ input:focus-visible {
   background: transparent;
   border: 0;
   padding: 5px 0;
-  color: #a6a6ab;
-  font-size: 10px;
+  color: var(--color-otto-muted-strong);
+  font-size: var(--text-otto-xs);
 }
 .otto-response-actions button:hover {
-  color: #fafafa;
+  color: var(--color-otto-text);
 }
 .otto-error-card {
   border: 1px solid #68484a;
-  background: #2d2425;
+  background: #262627;
   border-radius: 11px;
   padding: 12px;
 }
@@ -718,11 +755,11 @@ input:focus-visible {
   color: #f2ddc6;
 }
 .otto-approval-head {
-  font-size: 12px;
+  font-size: var(--text-otto-md);
   font-weight: 590;
 }
 .otto-approval p {
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
   color: #c9b7a5;
   line-height: 1.5;
   margin: 8px 0;
@@ -732,7 +769,7 @@ input:focus-visible {
   background: #1e1b19;
   border-radius: 7px;
   padding: 9px;
-  color: #eee;
+  color: var(--color-otto-control-text);
   font:
     10px / 1.5 Consolas,
     monospace;
@@ -752,28 +789,28 @@ input:focus-visible {
   margin-top: 10px;
 }
 .otto-approval-buttons button {
-  background: #eaeaea;
-  color: #171717;
+  background: var(--color-otto-invert-bg-hover);
+  color: var(--color-otto-invert-text);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-otto-chip);
   padding: 8px 12px;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
 }
 .otto-approval-buttons button.secondary {
   background: #433c34;
-  color: #f2f2f2;
+  color: var(--color-otto-invert-bg);
 }
 .otto-compact-marker.warn {
-  color: #e0b978;
+  color: var(--color-otto-warn);
 }
 .otto-compact-marker.error {
-  color: #e3a1a3;
+  color: var(--color-otto-danger);
 }
 .otto-tool {
-  background: #242426;
-  border: 1px solid #333337;
-  border-radius: 9px;
-  color: #c8c8cc;
+  background: var(--color-otto-control);
+  border: 1px solid #2f3034;
+  border-radius: var(--radius-otto-control);
+  color: #c4c4c7;
   font:
     10px / 1.4 Consolas,
     monospace;
@@ -781,22 +818,22 @@ input:focus-visible {
   overflow-wrap: anywhere;
 }
 .otto-error-card strong {
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
   color: #f0d5d6;
 }
 .otto-error-card p {
   color: #d1b1b3;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
   line-height: 1.5;
   margin: 8px 0;
 }
 .otto-error-card button {
-  color: #171717;
-  background: #eaeaea;
+  color: var(--color-otto-invert-text);
+  background: var(--color-otto-invert-bg-hover);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-otto-chip);
   padding: 8px 12px;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
 }
 .otto-agent-compose-wrap {
   padding: 7px 12px 12px;
@@ -805,20 +842,20 @@ input:focus-visible {
   min-height: 50px;
   padding: 5px 7px;
   border: 1px solid transparent;
-  background: #29292b;
+  background: #2b2b2e;
   border-radius: 999px;
   transition:
     border-color 0.16s,
     background 0.16s;
 }
 .otto-agent-composer:hover {
-  background: #2f2f31;
+  background: #2b2b2e;
 }
 .otto-agent-composer:focus-within {
-  border-color: #555760;
+  border-color: #575962;
 }
 .otto-agent-composer textarea {
-  color: #fafafa;
+  color: var(--color-otto-text);
   resize: none;
   border: 0 !important;
   outline: 0 !important;
@@ -830,13 +867,13 @@ input:focus-visible {
   min-height: 22px;
   max-height: 38px;
   line-height: 1.45;
-  font-size: 12px;
+  font-size: var(--text-otto-md);
   padding: 3px 8px;
   overflow-y: auto;
   scrollbar-width: none;
 }
 .otto-agent-composer textarea::placeholder {
-  color: #a8a8ac;
+  color: #a9a9ae;
 }
 .otto-round-action {
   border: 0;
@@ -849,17 +886,17 @@ input:focus-visible {
     transform 0.12s;
 }
 .otto-round-action:hover:not(:disabled) {
-  background: #3d3d40;
+  background: #3b3d41;
 }
 .otto-round-action:active:not(:disabled) {
   transform: scale(0.95);
 }
 .otto-round-action.primary {
   background: #f6f6f6;
-  color: #1b1b1e;
+  color: #1b1d21;
 }
 .otto-round-action.primary:hover:not(:disabled) {
-  background: #e5e5e5;
+  background: #e7e7e9;
 }
 .otto-round-action:disabled {
   opacity: 0.35;
@@ -869,43 +906,43 @@ input:focus-visible {
   scrollbar-width: none;
 }
 .otto-settings-intro {
-  font-size: 10px;
-  color: #a6a6ac;
+  font-size: var(--text-otto-xs);
+  color: #a9a9ae;
   margin: 0 0 14px;
 }
 .otto-field-name {
   display: block;
-  font-size: 10px;
-  color: #a6a6ab;
+  font-size: var(--text-otto-xs);
+  color: var(--color-otto-muted-strong);
   margin-bottom: 7px;
 }
 
 .otto-provider-grid button {
   min-width: 0;
-  background: #242426;
-  color: #e6e6e8;
-  border: 1px solid #39393d;
-  border-radius: 10px;
+  background: var(--color-otto-control);
+  color: #e7e7e9;
+  border: 1px solid #38383b;
+  border-radius: var(--radius-otto-panel);
   padding: 9px 6px;
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
   line-height: 1.2;
 }
 .otto-provider-grid button small {
   display: block;
-  color: #8d8d92;
-  font-size: 9px;
+  color: #8e8e94;
+  font-size: var(--text-otto-2xs);
   margin-top: 6px;
 }
 .otto-provider-grid button.selected {
-  background: #303034;
-  border-color: #85858b;
+  background: var(--color-otto-selected);
+  border-color: #888a90;
 }
 .otto-provider-grid button:disabled {
   opacity: 0.5;
 }
 .otto-settings-divider {
   height: 1px;
-  background: #303033;
+  background: #2f3034;
   margin: 13px 0;
 }
 
@@ -913,30 +950,30 @@ input:focus-visible {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #222224;
-  color: #e9e9e9;
-  border: 1px solid #363639;
-  border-radius: 10px;
+  background: #262627;
+  color: var(--color-otto-hover-text);
+  border: 1px solid #38383b;
+  border-radius: var(--radius-otto-panel);
   padding: 9px 11px;
   width: 100%;
   text-align: left;
 }
 .otto-mode-list button.selected {
-  border-color: #818186;
-  background: #2b2b2f;
+  border-color: #83838a;
+  background: #2b2b2e;
 }
 .otto-mode-list button:disabled {
   opacity: 0.5;
 }
 .otto-mode-list strong {
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
   font-weight: 540;
   display: block;
 }
 .otto-mode-list small {
   display: block;
-  color: #a9a9ad;
-  font-size: 10px;
+  color: #a9a9ae;
+  font-size: var(--text-otto-xs);
   line-height: 1.35;
   margin-top: 3px;
 }
@@ -953,13 +990,13 @@ input:focus-visible {
   content: "";
   width: 6px;
   height: 6px;
-  background: #eee;
+  background: var(--color-otto-control-text);
   border-radius: 50%;
 }
 .otto-project-input {
-  background: #232326;
-  border: 1px solid #3a3a3e;
-  border-radius: 9px;
+  background: #262627;
+  border: 1px solid #38383b;
+  border-radius: var(--radius-otto-control);
   padding: 0 10px;
   color: #aaa;
 }
@@ -967,11 +1004,11 @@ input:focus-visible {
   border-color: #707077;
 }
 .otto-project-input input {
-  color: #f5f5f5;
+  color: var(--color-otto-knob);
   background: transparent;
   outline: 0;
   border: 0;
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
   min-width: 0;
   flex: 1;
   height: 33px;
@@ -980,8 +1017,8 @@ input:focus-visible {
   opacity: 0.65;
 }
 .otto-settings-note {
-  color: #95959b;
-  font-size: 10px;
+  color: #97979d;
+  font-size: var(--text-otto-xs);
   line-height: 1.4;
   margin: 8px 0;
 }
@@ -990,18 +1027,18 @@ input:focus-visible {
   padding-top: 12px;
 }
 .otto-agent-settings-bottom > span {
-  color: #88888f;
-  font-size: 9px;
+  color: #888a90;
+  font-size: var(--text-otto-2xs);
   line-height: 1.4;
 }
 .otto-settings-done {
   flex: none;
-  background: #f2f2f2;
-  color: #1a1a1b;
+  background: var(--color-otto-invert-bg);
+  color: #1b1d21;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--radius-otto-control);
   padding: 8px 14px;
-  font-size: 11px;
+  font-size: var(--text-otto-sm);
 }
 .otto-shell.otto-completed .otto-agent-status i {
   animation: otto-done 0.36s var(--ease-otto);
@@ -1060,11 +1097,11 @@ input:focus-visible {
 .otto-agent-home-link {
   flex: none;
   background: transparent;
-  color: #a6a6ab;
+  color: var(--color-otto-muted-strong);
   border: 0;
   padding: 8px 4px;
-  font-size: 10px;
+  font-size: var(--text-otto-xs);
 }
 .otto-agent-home-link:hover {
-  color: #fafafa;
+  color: var(--color-otto-text);
 }

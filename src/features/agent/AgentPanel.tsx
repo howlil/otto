@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Bars, ChoiceRow, Icon } from "../../shared/ui";
 import { agentStatusLabel } from "./status";
 import type { useAgent } from "./useAgent";
 
@@ -12,70 +13,6 @@ type Props = {
   onCollapse: () => void;
 };
 
-function AgentIcon({
-  name,
-  size = 16,
-}: {
-  name: "settings" | "back" | "camera" | "send" | "stop" | "copy" | "folder" | "alert";
-  size?: number;
-}) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {name === "settings" && (
-        <>
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.7 5.7l1.5 1.5m9.6 9.6 1.5 1.5m0-12.6-1.5 1.5M7.2 16.8l-1.5 1.5" />
-        </>
-      )}
-      {name === "back" && <path d="m15 18-6-6 6-6" />}
-      {name === "camera" && (
-        <>
-          <path d="M3 7h4l2-2h6l2 2h4v12H3z" />
-          <circle cx="12" cy="13" r="3" />
-        </>
-      )}
-      {name === "send" && (
-        <>
-          <path d="M12 19V5m-6 6 6-6 6 6" />
-        </>
-      )}
-      {name === "stop" && <rect x="6" y="6" width="12" height="12" rx="2" />}
-      {name === "copy" && (
-        <>
-          <rect x="8" y="8" width="12" height="12" rx="2" />
-          <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
-        </>
-      )}
-      {name === "folder" && <path d="M3 6h6l2 2h10v11H3z" />}
-      {name === "alert" && (
-        <>
-          <path d="M12 4 2.5 20h19z" />
-          <path d="M12 10v4m0 3v.5" />
-        </>
-      )}
-    </svg>
-  );
-}
-function Bars() {
-  return (
-    <span className="otto-bars live" aria-hidden="true">
-      <i />
-      <i />
-      <i />
-      <i />
-    </span>
-  );
-}
 export function AgentPanel({
   agent,
   settings,
@@ -175,7 +112,7 @@ export function AgentPanel({
             onClick={onSettingsBack}
             aria-label="Back to Agent"
           >
-            <AgentIcon name="back" size={19} />
+            <Icon name="back" size={19} />
           </button>
         ) : (
           <button
@@ -215,7 +152,7 @@ export function AgentPanel({
               onClick={onSettings}
               aria-label="Agent settings"
             >
-              <AgentIcon name="settings" />
+              <Icon name="settings" />
             </button>
           </>
         )}
@@ -248,42 +185,30 @@ export function AgentPanel({
           </div>
           <div className="otto-settings-divider" />
           <span className="otto-field-name">Execution mode</span>
-          <div className="otto-mode-list flex flex-col gap-[6px]">
-            <button
-              type="button"
-              className={mode === "quickAsk" ? "selected" : ""}
-              aria-pressed={mode === "quickAsk"}
-              disabled={locked}
-              title={locked ? "Stop current work before changing mode" : undefined}
-              onClick={() => setMode("quickAsk")}
-            >
-              <i className="otto-mode-radio" />{" "}
-              <span>
-                <strong>Quick Ask</strong>
-                <small>Provider-enforced read-only execution</small>
-              </span>
-            </button>
-            <button
-              type="button"
-              className={mode === "agentSession" ? "selected" : ""}
-              aria-pressed={mode === "agentSession"}
-              disabled={locked}
-              title={locked ? "Stop current work before changing mode" : undefined}
-              onClick={() => setMode("agentSession")}
-            >
-              <i className="otto-mode-radio" />
-              <span>
-                <strong>Agent Session</strong>
-                <small>Workspace write · asks before tools and file changes</small>
-              </span>
-            </button>
-          </div>
+          <ChoiceRow
+            value={mode}
+            disabled={locked}
+            disabledReason="Stop current work before changing mode"
+            onChange={setMode}
+            choices={[
+              {
+                value: "quickAsk",
+                title: "Quick Ask",
+                help: "Provider-enforced read-only execution",
+              },
+              {
+                value: "agentSession",
+                title: "Agent Session",
+                help: "Workspace write · asks before tools and file changes",
+              },
+            ]}
+          />
           <div className="otto-settings-divider" />
           <label className="otto-field-name" htmlFor="otto-project">
             Working project
           </label>
           <div className="otto-project-input flex items-center gap-2">
-            <AgentIcon name="folder" size={15} />
+            <Icon name="folder" size={15} />
             <input
               id="otto-project"
               value={cwd}
@@ -372,7 +297,7 @@ export function AgentPanel({
               {approvalPending && approval && (
                 <div className="otto-approval" role="alertdialog" aria-label="Approval required">
                   <div className="otto-approval-head flex items-center gap-[7px]">
-                    <AgentIcon name="alert" size={15} />
+                    <Icon name="alert" size={15} />
                     Approval required
                   </div>
                   <p>{approval.title}. Codex needs your permission before this continues.</p>
@@ -422,7 +347,7 @@ export function AgentPanel({
               {snapshot.status === "completed" && lastAnswer && (
                 <div className="otto-response-actions">
                   <button type="button" onClick={() => void copy(lastAnswer.text)}>
-                    <AgentIcon name="copy" size={13} /> Copy answer
+                    <Icon name="copy" size={13} /> Copy answer
                   </button>
                 </div>
               )}
@@ -442,7 +367,7 @@ export function AgentPanel({
                 title="Screen capture is not available in this slice"
                 className="otto-round-action grid shrink-0 place-items-center rounded-full"
               >
-                <AgentIcon name="camera" />
+                <Icon name="camera" />
               </button>
               <textarea
                 rows={1}
@@ -467,7 +392,7 @@ export function AgentPanel({
                   onClick={() => void stop()}
                   disabled={snapshot.status === "stopping"}
                 >
-                  <AgentIcon name="stop" />
+                  <Icon name="stop" />
                 </button>
               ) : (
                 <button
@@ -477,7 +402,7 @@ export function AgentPanel({
                   className="otto-round-action primary"
                   disabled={!canSend}
                 >
-                  <AgentIcon name="send" />
+                  <Icon name="send" />
                 </button>
               )}
             </form>

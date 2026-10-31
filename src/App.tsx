@@ -10,9 +10,8 @@ import {
 import agentArt from "./assets/agent-art.svg";
 import musicArt from "./assets/music-art.svg";
 import focusArt from "./assets/focus-art.svg";
-import { AgentPanel } from "./features/agent/AgentPanel";
-import { agentStatusLabel } from "./features/agent/status";
-import { useAgent } from "./features/agent/useAgent";
+import { ChoiceChip, Icon, Range, Toggle } from "./shared/ui";
+import { AgentPanel, agentStatusLabel, useAgent } from "./features/agent";
 import { nativeAvailable, setNotchSurface } from "./platform/tauri";
 
 type Page = "home" | "agent" | "global-settings" | "agent-settings";
@@ -78,30 +77,6 @@ function Eyes({
       <i />
       <i />
     </span>
-  );
-}
-function Icon({ name, size = 17 }: { name: "settings" | "back"; size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.65"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {name === "settings" ? (
-        <>
-          <circle cx="12" cy="12" r="3.5" />
-          <path d="M12 3.8v2m0 12.4v2M20.2 12h-2M5.8 12h-2M17.8 6.2l-1.4 1.4M7.6 16.4l-1.4 1.4m1.4 0-1.4-1.4M7.6 7.6 6.2 6.2" />
-        </>
-      ) : (
-        <path d="m15 18-6-6 6-6" />
-      )}
-    </svg>
   );
 }
 function HomeCard({
@@ -170,87 +145,6 @@ function HomeCard({
   );
 }
 
-function SettingChoices<T extends string>({
-  value,
-  choices,
-  onChange,
-}: {
-  value: T;
-  choices: Array<{ value: T; label: string }>;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className="otto-picks flex flex-wrap gap-[6px]">
-      {choices.map((choice) => (
-        <button
-          type="button"
-          key={choice.value}
-          aria-pressed={value === choice.value}
-          className={value === choice.value ? "selected" : ""}
-          onClick={() => onChange(choice.value)}
-        >
-          {choice.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-function Range({
-  label,
-  value,
-  min,
-  max,
-  unit,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  unit: string;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="otto-setting-range">
-      <span>
-        {label}
-        <output>
-          {value}
-          {unit}
-        </output>
-      </span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-    </label>
-  );
-}
-function SettingToggle({
-  title,
-  help,
-  checked,
-  onChange,
-}: {
-  title: string;
-  help: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="otto-setting-toggle flex cursor-pointer items-center justify-between gap-[10px]">
-      <span>
-        <strong>{title}</strong>
-        <small>{help}</small>
-      </span>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <i aria-hidden="true" />
-    </label>
-  );
-}
 function GlobalSettings({
   prefs,
   change,
@@ -307,7 +201,7 @@ function GlobalSettings({
               <p>Choose how Otto feels while idle.</p>
               <div className="otto-setting-group">
                 <span>Idle expression</span>
-                <SettingChoices
+                <ChoiceChip
                   value={prefs.expression}
                   onChange={(expression) => change({ expression })}
                   choices={[
@@ -320,7 +214,7 @@ function GlobalSettings({
               </div>
               <div className="otto-setting-group">
                 <span>Idle response</span>
-                <SettingChoices
+                <ChoiceChip
                   value={prefs.reactive}
                   onChange={(reactive) => change({ reactive })}
                   choices={[
@@ -342,7 +236,7 @@ function GlobalSettings({
             <>
               <h2>Interaction</h2>
               <p>Decide when the island responds to your pointer.</p>
-              <SettingToggle
+              <Toggle
                 title="Expand on hover"
                 help="Preview without stealing focus"
                 checked={prefs.hoverExpand}
@@ -364,7 +258,7 @@ function GlobalSettings({
                 unit=" ms"
                 onChange={(leaveDelay) => change({ leaveDelay })}
               />
-              <SettingToggle
+              <Toggle
                 title="Close when returning to desktop"
                 help="Escape always closes the panel"
                 checked={prefs.clickOutside}
@@ -378,7 +272,7 @@ function GlobalSettings({
               <p>Reduced motion from Windows always takes priority.</p>
               <div className="otto-setting-group">
                 <span>Motion profile</span>
-                <SettingChoices
+                <ChoiceChip
                   value={prefs.motion}
                   onChange={(motion) => change({ motion })}
                   choices={[
@@ -388,7 +282,7 @@ function GlobalSettings({
                   ]}
                 />
               </div>
-              <SettingToggle
+              <Toggle
                 title="Pointer depth"
                 help="Subtle depth on Home illustrations"
                 checked={prefs.parallax}
@@ -676,20 +570,7 @@ export default function App() {
                   role="status"
                   aria-label="Approval needed"
                 >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.9"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 4 2.5 20h19z" />
-                    <path d="M12 10v4m0 3v.5" />
-                  </svg>
+                  <Icon name="alert" size={14} strokeWidth={1.9} />
                 </span>
               ) : agent.installed === false || agent.snapshot.status === "failed" ? (
                 <span
@@ -697,20 +578,7 @@ export default function App() {
                   role="status"
                   aria-label="Codex unavailable"
                 >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.9"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 4 2.5 20h19z" />
-                    <path d="M12 10v4m0 3v.5" />
-                  </svg>
+                  <Icon name="alert" size={14} strokeWidth={1.9} />
                 </span>
               ) : showAgentBars ? (
                 <span className="otto-bars live" aria-hidden="true">
