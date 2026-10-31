@@ -604,21 +604,26 @@ fn handle_event(
     false
 }
 
+// The requested thread and prompt form one turn's input.
+struct TurnInput<'a> {
+    thread: &'a str,
+    text: &'a str,
+}
+
 async fn begin_turn(
     rpc: &mut Rpc,
-    thread: &str,
-    text: &str,
+    input: TurnInput<'_>,
     run_id: u64,
     mode: InteractionMode,
     approvals: &mut Approvals,
     updates: &watch::Sender<Snapshot>,
     controls: Option<&mut mpsc::Receiver<Control>>,
 ) -> Result<Option<(String, Vec<Value>)>, String> {
-    approvals.prepare_turn(thread, run_id);
+    approvals.prepare_turn(input.thread, run_id);
     let response = rpc
         .request_controlled(
             "turn/start",
-            policy::turn_start(thread, text, mode),
+            policy::turn_start(input.thread, input.text, mode),
             approvals,
             updates,
             controls,
@@ -632,7 +637,7 @@ async fn begin_turn(
         .and_then(Value::as_str)
         .ok_or("Codex returned no turn ID.")?
         .to_owned();
-    approvals.context(thread, &turn, run_id);
+    approvals.context(input.thread, &turn, run_id);
     mutate(updates, |s| {
         if s.run_id != run_id {
             return;
@@ -641,7 +646,7 @@ async fn begin_turn(
         s.messages.push(ChatMessage {
             id: format!("{run_id}:user"),
             role: "user".into(),
-            text: text.to_owned(),
+            text: input.text.to_owned(),
         });
         s.messages.push(ChatMessage {
             id: format!("{run_id}:assistant"),
@@ -755,8 +760,7 @@ pub async fn run(
     // begin_turn binds the thread/run before turn/start, even before the ack.
     let (mut turn, buffered) = match begin_turn(
         &mut rpc,
-        &thread,
-        &text,
+        TurnInput { thread: &thread, text: &text },
         run_id,
         mode,
         &mut approvals,
@@ -832,7 +836,12 @@ pub async fn run(
                     // While turn/start is pending, approvals and Stop remain live;
                     // a decision is never mistaken for a closed control channel.
                     match begin_turn(
-                        &mut rpc, &thread, &text, run_id, mode, &mut approvals, &updates,
+                        &mut rpc,
+                        TurnInput { thread: &thread, text: &text },
+                        run_id,
+                        mode,
+                        &mut approvals,
+                        &updates,
                         Some(&mut controls),
                     ).await {
                         Ok(Some((new_turn, buffered))) => {
