@@ -7,7 +7,10 @@ use serde::Serialize;
 use session::{ApprovalDecision, PendingApproval};
 use std::{
     path::PathBuf,
-    sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
     time::Duration,
 };
 use tauri::ipc::Channel;
@@ -238,7 +241,8 @@ impl AgentRuntime {
             }
         }
         *guard = None;
-        self.next_run_id.fetch_max(current.run_id, Ordering::Relaxed);
+        self.next_run_id
+            .fetch_max(current.run_id, Ordering::Relaxed);
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
         mutate(&self.updates, |s| {
             s.run_id = run_id; // Stale provider events can no longer match.
