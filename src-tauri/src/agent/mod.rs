@@ -97,9 +97,11 @@ impl AgentRuntime {
                 return Err("Working context is fixed for this conversation. Restart Otto to change it.".into());
             }
             let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
-            sender.try_send(Control::Ask { text, cwd, run_id })
+            let permit = sender.try_reserve()
                 .map_err(|_| "Codex is busy. Try again.".to_string())?;
+            // Publish the new run before it becomes visible to the receiver.
             mutate(&self.updates, |s| { s.run_id = run_id; s.status = "starting".into(); s.error = None; });
+            permit.send(Control::Ask { text, cwd, run_id });
             return Ok(());
         }
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
@@ -121,13 +123,19 @@ impl AgentRuntime {
     }
 
     pub async fn stop(&self) -> Result<(), String> {
-        let sender = self.control.lock().await.clone();
+        let guard = self.control.lock().await;
         if !matches!(self.snapshot().status.as_str(), "starting" | "streaming") {
             return Err("No active Codex turn.".into());
         }
-        let sender = sender.ok_or("No active Codex process.")?;
-        sender.try_send(Control::Stop).map_err(|_| "Codex is busy; retry Stop.".to_string())?;
-        mutate(&self.updates, |s| s.status = "stopping".into());
+        let sender = guard.as_ref().ok_or("No active Codex process.")?;
+        let permit = sender.try_reserve().map_err(|_| "Codex is busy; retry Stop.".to_string())?;
+        // A fast Codex response must not be overwritten with a stale "stopping" state.
+        mutate(&self.updates, |s| {
+            if matches!(s.status.as_str(), "starting" | "streaming") {
+                s.status = "stopping".into();
+            }
+        });
+        permit.send(Control::Stop);
         Ok(())
     }
 }
@@ -161,5 +169,16 @@ mod tests {
         fail(&tx, 1, "late failure");
         assert_eq!(tx.borrow().status, "completed");
         assert_eq!(tx.borrow().error, None);
+    }
+
+    #[tokio::test]
+    async fn stopping_is_visible_before_control_can_be_consumed() {
+        let runtime = AgentRuntime::new();
+        let (tx, mut rx) = mpsc::channel(1);
+        *runtime.control.lock().await = Some(tx);
+        mutate(&runtime.updates, |snapshot| snapshot.status = "streaming".into());
+        runtime.stop().await.expect("Stop must be accepted");
+        assert_eq!(runtime.snapshot().status, "stopping");
+        assert!(matches!(rx.try_recv(), Ok(Control::Stop)));
     }
 }
