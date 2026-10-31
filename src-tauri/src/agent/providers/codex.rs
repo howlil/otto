@@ -84,7 +84,17 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
             "Choose a model available to this Codex account, then Retry.",
         );
     };
-    let modalities = model["inputModalities"].as_array();
+    let modalities = match model.get("inputModalities") {
+        None => None,
+        Some(Value::Array(items)) => Some(items),
+        _ => {
+            return ProviderReadiness::new(
+                "unsupported",
+                "Codex returned invalid model input capabilities.",
+                "Update Codex, then Retry.",
+            );
+        }
+    };
     // Codex documents absent inputModalities as legacy text+image support,
     // but Otto does not advertise image capability without explicit evidence.
     let text = modalities.is_none_or(|items| items.iter().any(|v| v == "text"));
@@ -1197,6 +1207,7 @@ mod tests {
             json!({}),
             json!({ "data": [] }),
             json!({ "data": [{ "isDefault": true, "inputModalities": ["image"] }] }),
+            json!({ "data": [{ "isDefault": true, "inputModalities": "text" }] }),
         ] {
             let value = model_readiness(&invalid, None);
             assert_ne!(value.status, "ready");
