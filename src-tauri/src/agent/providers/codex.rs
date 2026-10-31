@@ -69,7 +69,9 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
     };
     let selected = configured.filter(|name| !name.is_empty());
     let model = if let Some(name) = selected {
-        models.iter().find(|m| m["model"].as_str() == Some(name) || m["id"].as_str() == Some(name))
+        models.iter().find(|m| {
+            m["model"].as_str() == Some(name) || m["id"].as_str() == Some(name)
+        })
     } else {
         models.iter().find(|m| m["isDefault"] == true && m["hidden"] != true)
     };
@@ -1133,13 +1135,13 @@ mod tests {
         let ready = model_readiness(&json!({ "data": [
             { "isDefault": false, "inputModalities": ["text", "image"] },
             { "isDefault": true, "inputModalities": ["text"] }
-        ] }));
+        ] }), None);
         assert_eq!(ready.status, "ready");
         assert!(!ready.image_input);
 
         let image = model_readiness(&json!({ "data": [
             { "isDefault": true, "inputModalities": ["text", "image"] }
-        ] }));
+        ] }), None);
         assert_eq!(image.status, "ready");
         assert!(image.image_input);
 
