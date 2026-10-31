@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   askCodex,
   getCodexReadiness,
+  configureCaptureShortcut,
+  nativeAvailable,
   decideAgentApproval,
   getAgentSnapshot,
   nativeAvailable,
@@ -286,6 +288,18 @@ function useNewAgentSession({
 }
 
 export function useAgent() {
+  useEffect(() => {
+    if (!nativeAvailable) return;
+    let shortcut = "Ctrl+Shift+O";
+    try {
+      shortcut = localStorage.getItem("otto.capture.shortcut") || shortcut;
+    } catch {
+      // No persisted preference; the native default remains active.
+    }
+    void configureCaptureShortcut(shortcut).catch(() => {
+      // Native capture reports registration conflicts in the Agent surface.
+    });
+  }, []);
   const [snapshot, setSnapshot] = useState<AgentSnapshot>(initial);
   const [draft, setDraft] = useState("");
   const [cwd, setCwd] = useState("");

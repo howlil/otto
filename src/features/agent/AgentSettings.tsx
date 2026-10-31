@@ -1,4 +1,6 @@
-import { Button, StatusMessage, Text } from "../../shared/ui";
+import { useState } from "react";
+import { Button, StatusMessage, Text, TextField } from "../../shared/ui";
+import { configureCaptureShortcut, nativeAvailable } from "../../platform/tauri";
 import type { AgentMode, AgentStatus, ProviderReadiness } from "../../platform/tauri";
 import { ModeSettings, ProjectSettings, ProviderSettings } from "./AgentSettingsSections";
 import { agentStatusLabel } from "./status";
@@ -36,6 +38,33 @@ export function AgentSettings({
   onBack: () => void;
   onDone: () => void;
 }) {
+  const [shortcut, setShortcut] = useState(() => {
+    try {
+      return localStorage.getItem("otto.capture.shortcut") || "Ctrl+Shift+O";
+    } catch {
+      return "Ctrl+Shift+O";
+    }
+  });
+  const [captureMessage, setCaptureMessage] = useState("");
+  const [savingCapture, setSavingCapture] = useState(false);
+  const saveShortcut = async () => {
+    setSavingCapture(true);
+    try {
+      await configureCaptureShortcut(shortcut);
+      try {
+        localStorage.setItem("otto.capture.shortcut", shortcut);
+      } catch {
+        setCaptureMessage("Shortcut active; preference could not be saved for next launch.");
+        return;
+      }
+      setCaptureMessage("Shortcut active. Focus another app and press it to capture.");
+    } catch (cause) {
+      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSavingCapture(false);
+    }
+  };
+
   const providerStatus =
     readiness.status === "ready"
       ? "Ready"
@@ -62,6 +91,34 @@ export function AgentSettings({
         <ProviderSettings readiness={readiness} providerStatus={providerStatus} onRetry={onRetry} />
         <ModeSettings mode={mode} locked={locked} setMode={setMode} />
         <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />
+        <section className="border-b border-otto-raised-deep py-3">
+          <Text as="label" variant="meta" className="block text-otto-muted-strong" htmlFor="otto-capture-shortcut">
+            Screen capture shortcut
+          </Text>
+          <div className="mt-2 flex items-center gap-2 rounded-otto-control border border-otto-line-mid bg-otto-field-deep px-2">
+            <TextField
+              id="otto-capture-shortcut"
+              value={shortcut}
+              onChange={(event) => setShortcut(event.target.value)}
+              placeholder="Ctrl+Shift+O"
+              disabled={!nativeAvailable || savingCapture}
+              spellCheck={false}
+              className="h-[34px] min-w-0 flex-1 bg-transparent text-otto-sm text-otto-knob outline-none"
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!nativeAvailable || savingCapture}
+              onClick={() => void saveShortcut()}
+            >
+              Apply
+            </Button>
+          </div>
+          <Text as="p" variant="caption" className="mt-1.5 text-otto-text-tertiary">
+            Use Ctrl with Shift or Alt and one letter. Capture works from another application.
+          </Text>
+          {captureMessage && <StatusMessage tone="info" className="mt-2">{captureMessage}</StatusMessage>}
+        </section>
         {hasThread && (
           <div className="mt-px flex items-center justify-between gap-3 pt-[10px]">
             <Text as="span" variant="status" className="m-0 text-otto-text-tertiary">

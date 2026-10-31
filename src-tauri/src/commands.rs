@@ -2,7 +2,7 @@ use crate::agent::{AgentRuntime, Snapshot};
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(not(windows))]
 use tauri::{LogicalSize, PhysicalPosition};
-use tauri::{State, WebviewWindow, ipc::Channel};
+use tauri::{Manager, State, WebviewWindow, ipc::Channel};
 
 #[derive(Default)]
 pub struct NotchMotion {
@@ -57,6 +57,23 @@ pub async fn agent_stop(runtime: State<'_, AgentRuntime>) -> Result<(), String> 
 #[tauri::command]
 pub async fn agent_new_session(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
     runtime.new_session().await
+}
+
+#[tauri::command]
+pub fn agent_configure_capture_shortcut(
+    app: tauri::AppHandle,
+    shortcut: String,
+) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        app.state::<crate::windows::capture::CaptureHotkeys>()
+            .configure(&shortcut)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app, shortcut);
+        Err("Screen capture shortcuts require Windows.".into())
+    }
 }
 
 fn surface_size(surface: &str) -> Option<(u32, u32)> {

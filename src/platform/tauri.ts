@@ -91,6 +91,10 @@ export async function decideAgentApproval(
 ): Promise<void> {
   await invoke("agent_decide_approval", { approvalId, decision });
 }
+export async function configureCaptureShortcut(shortcut: string): Promise<void> {
+  await invoke("agent_configure_capture_shortcut", { shortcut });
+}
+
 export async function stopCodex(): Promise<void> {
   await invoke("agent_stop");
 }

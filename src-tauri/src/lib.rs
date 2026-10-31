@@ -19,11 +19,12 @@ pub fn run() {
             commands::agent_decide_approval,
             commands::agent_stop,
             commands::agent_new_session,
+            commands::agent_configure_capture_shortcut,
             commands::notch_set_surface,
         ])
         .setup(|app| {
             #[cfg(windows)]
-            windows::capture::start_hotkey(app.handle().clone());
+            app.manage(windows::capture::start_hotkey(app.handle().clone()));
             if let Some(window) = app.get_webview_window("main")
                 && let Some(monitor) = window.current_monitor()?
             {
