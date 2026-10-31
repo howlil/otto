@@ -79,6 +79,10 @@ export function AgentSettings({
           </button>
         )}
       </div>
+      <p className="otto-settings-note">
+        Screen analysis: press Ctrl+Shift+O while the target application is focused.
+        Otto does not capture automatically; unsupported windows and models are rejected.
+      </p>
       <div className="otto-settings-divider" />
       <span className="otto-field-name">Execution mode</span>
       <ChoiceRow
