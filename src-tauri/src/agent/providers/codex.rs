@@ -34,11 +34,14 @@ fn account_readiness(value: &Value) -> ProviderReadiness {
                 "Codex needs sign-in.",
                 "Run codex login, then Retry.",
             )
+        } else if value["requiresOpenaiAuth"] == false {
+            // Local/OSS providers explicitly configured without OpenAI auth.
+            ProviderReadiness::new("ready", "Codex does not require OpenAI sign-in.", "")
         } else {
             ProviderReadiness::new(
                 "unsupported",
-                "Codex did not confirm an authenticated account.",
-                "Update Codex or configure its provider, then Retry.",
+                "Codex did not report whether authentication is required.",
+                "Update Codex or check its provider configuration, then Retry.",
             )
         };
     }
@@ -52,6 +55,27 @@ fn account_readiness(value: &Value) -> ProviderReadiness {
             "Update Codex, then Retry.",
         ),
     }
+}
+
+// The default model, not just the signed-in account, must support text.
+// Unknown or malformed catalogs never turn into a false Ready signal.
+fn model_readiness(value: &Value) -> ProviderReadiness {
+    let Some(models) = value["data"].as_array() else {
+        return ProviderReadiness::new("unsupported", "Codex model catalog is unavailable.", "Update Codex, then Retry.");
+    };
+    let Some(model) = models.iter().find(|m| m["isDefault"] == true && m["hidden"] != true) else {
+        return ProviderReadiness::new("unsupported", "Codex did not identify a default model.", "Check your Codex model configuration, then Retry.");
+    };
+    let modalities = model["inputModalities"].as_array();
+    // Codex documents absent inputModalities as legacy text+image support,
+    // but Otto does not advertise image capability without explicit evidence.
+    let text = modalities.is_none_or(|items| items.iter().any(|v| v == "text"));
+    if !text {
+        return ProviderReadiness::new("unsupported", "Codex's default model does not support text.", "Select a text-capable Codex model, then Retry.");
+    }
+    let mut ready = ProviderReadiness::new("ready", "Codex is ready for text requests.", "");
+    ready.image_input = modalities.is_some_and(|items| items.iter().any(|v| v == "image"));
+    ready
 }
 
 // A short-lived owned app-server connection probes authentication without
@@ -101,23 +125,32 @@ pub async fn readiness() -> ProviderReadiness {
         .await?;
         rpc.send(json!({ "method": "initialized", "params": {} }))
             .await?;
-        rpc.request(
+        let (account, _) = rpc.request(
             "account/read",
             json!({ "refreshToken": true }),
             &mut approvals,
             &updates,
-        )
-        .await
-        .map(|(result, _)| result)
+        ).await?;
+        let authentication = account_readiness(&account);
+        if authentication.status != "ready" {
+            return Ok(authentication);
+        }
+        let (models, _) = rpc.request(
+            "model/list",
+            json!({ "limit": 100, "includeHidden": false }),
+            &mut approvals,
+            &updates,
+        ).await?;
+        Ok(model_readiness(&models))
     })
     .await;
     rpc.terminate().await;
     match result {
-        Ok(Ok(account)) => account_readiness(&account),
+        Ok(Ok(readiness)) => readiness,
         Ok(Err(_)) => ProviderReadiness::new(
-            "unsupported",
-            "Codex could not confirm account readiness.",
-            "Update Codex or sign in with codex login, then Retry.",
+            "unavailable",
+            "Codex could not verify authentication or model capabilities.",
+            "Check Codex sign-in and connectivity, then Retry.",
         ),
         Err(_) => ProviderReadiness::new(
             "unavailable",
@@ -1047,7 +1080,7 @@ mod tests {
         );
         assert_eq!(
             account_readiness(&json!({"account": null, "requiresOpenaiAuth": false})).status,
-            "unsupported"
+            "ready"
         );
         assert_eq!(account_readiness(&json!({})).status, "unsupported");
         assert_eq!(
@@ -1059,6 +1092,36 @@ mod tests {
             account_readiness(&json!({"account": {"type": "mystery"}})).status,
             "unsupported"
         );
+    }
+
+    #[test]
+    fn model_capability_is_gated_by_the_default_model() {
+        let ready = model_readiness(&json!({ "data": [
+            { "isDefault": false, "inputModalities": ["text", "image"] },
+            { "isDefault": true, "inputModalities": ["text"] }
+        ] }));
+        assert_eq!(ready.status, "ready");
+        assert!(!ready.image_input);
+
+        let image = model_readiness(&json!({ "data": [
+            { "isDefault": true, "inputModalities": ["text", "image"] }
+        ] }));
+        assert_eq!(image.status, "ready");
+        assert!(image.image_input);
+
+        for invalid in [
+            json!({}),
+            json!({ "data": [] }),
+            json!({ "data": [{ "isDefault": true, "inputModalities": ["image"] }] }),
+        ] {
+            let value = model_readiness(&invalid);
+            assert_ne!(value.status, "ready");
+            assert!(!value.image_input);
+        }
+        // Old catalogs may omit input modalities; never claim image support.
+        let legacy = model_readiness(&json!({ "data": [{ "isDefault": true }] }));
+        assert_eq!(legacy.status, "ready");
+        assert!(!legacy.image_input);
     }
 
     fn snapshot(status: &str, run_id: u64) -> watch::Sender<Snapshot> {
