@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B4 native hotkey after frontend formatter correction.
+# Verification dispatch: formatted B4 native capture and lifecycle.
 
 'on':
   push:
