@@ -26,7 +26,7 @@ export function AgentPanel({
   onBack,
   onCollapse,
 }: Props) {
-  const { snapshot, installed, cwd, setCwd, mode, setMode, locked } = agent;
+  const { snapshot, installed, cwd, setCwd, mode, setMode, locked, busy, newSession } = agent;
   const [denied, setDenied] = useState(false);
   const back = useRef<HTMLButtonElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
@@ -109,6 +109,8 @@ export function AgentPanel({
           cwd={cwd}
           setCwd={setCwd}
           hasThread={snapshot.threadId !== null}
+          busy={busy}
+          onNewSession={() => void newSession()}
           onBack={onBack}
           onDone={onSettingsBack}
         />
