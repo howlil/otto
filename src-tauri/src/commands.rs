@@ -47,23 +47,58 @@ fn surface_size(surface: &str) -> Option<(u32, u32)> {
     }
 }
 
-fn place(window: &WebviewWindow, width: f64, height: f64, top_offset: u32) -> Result<(), String> {
-    window
-        .set_size(LogicalSize::new(width, height))
-        .map_err(|_| "Cannot resize the notch.".to_string())?;
-    let monitor = window
-        .current_monitor()
-        .map_err(|_| "Monitor unavailable.".to_string())?
-        .ok_or("Monitor unavailable.")?;
-    let scale = window.scale_factor().map_err(|_| "DPI unavailable.")?;
-    let bounds = monitor.size();
-    let origin = monitor.position();
-    let physical_width = (width * scale).round() as i32;
-    let x = origin.x + (bounds.width as i32 - physical_width) / 2;
-    let y = origin.y + (f64::from(top_offset) * scale).round() as i32;
-    window
-        .set_position(PhysicalPosition::new(x, y))
-        .map_err(|_| "Cannot position the notch.".to_string())
+// Monitor geometry is stable for the duration of one morph. Querying it per
+// frame (current_monitor + scale_factor) costs several synchronous OS calls
+// every 16 ms and makes the animation stutter, so it is resolved once here.
+struct Frame {
+    origin_x: i32,
+    origin_y: i32,
+    bounds_width: u32,
+    scale: f64,
+    last: Option<(i32, i32, i32, i32)>,
+}
+
+impl Frame {
+    fn capture(window: &WebviewWindow) -> Result<Self, String> {
+        let monitor = window
+            .current_monitor()
+            .map_err(|_| "Monitor unavailable.".to_string())?
+            .ok_or("Monitor unavailable.")?;
+        let scale = window.scale_factor().map_err(|_| "DPI unavailable.")?;
+        let bounds = monitor.size();
+        let origin = monitor.position();
+        Ok(Self {
+            origin_x: origin.x,
+            origin_y: origin.y,
+            bounds_width: bounds.width,
+            scale,
+            last: None,
+        })
+    }
+
+    // Skip the OS round-trip when nothing changed since the previous frame.
+    fn apply(
+        &mut self,
+        window: &WebviewWindow,
+        width: f64,
+        height: f64,
+        top_offset: u32,
+    ) -> Result<(), String> {
+        let physical_width = (width * self.scale).round() as i32;
+        let physical_height = (height * self.scale).round() as i32;
+        let x = self.origin_x + (self.bounds_width as i32 - physical_width) / 2;
+        let y = self.origin_y + (f64::from(top_offset) * self.scale).round() as i32;
+        if self.last == Some((physical_width, physical_height, x, y)) {
+            return Ok(());
+        }
+        self.last = Some((physical_width, physical_height, x, y));
+        window
+            .set_size(LogicalSize::new(width, height))
+            .map_err(|_| "Cannot resize the notch.".to_string())?;
+        window
+            .set_position(PhysicalPosition::new(x, y))
+            .map_err(|_| "Cannot position the notch.".to_string())
+    }
 }
 
 #[tauri::command]
@@ -80,17 +115,21 @@ pub async fn notch_set_surface(
     }
     // A new surface request interrupts an in-flight morph; no stale geometry can win.
     let token = motion.epoch.fetch_add(1, Ordering::SeqCst) + 1;
-    let scale = window.scale_factor().map_err(|_| "DPI unavailable.")?;
+    let mut frame = Frame::capture(&window)?;
+    let scale = frame.scale;
     let current = window.outer_size().map_err(|_| "Notch size unavailable.")?;
     let start_w = f64::from(current.width) / scale;
     let start_h = f64::from(current.height) / scale;
     let target_w = f64::from(width);
     let target_h = f64::from(height);
     if !animate || ((start_w - target_w).abs() < 1.0 && (start_h - target_h).abs() < 1.0) {
-        return place(&window, target_w, target_h, top_offset);
+        return frame.apply(&window, target_w, target_h, top_offset);
     }
     let start = tokio::time::Instant::now();
     let duration = std::time::Duration::from_millis(420);
+    let mut tick = tokio::time::interval(std::time::Duration::from_millis(16));
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    tick.tick().await;
     loop {
         if motion.epoch.load(Ordering::SeqCst) != token {
             return Ok(());
@@ -100,13 +139,14 @@ pub async fn notch_set_surface(
         let eased = 1.0 - (1.0 - progress).powi(3);
         let w = start_w + (target_w - start_w) * eased;
         let h = start_h + (target_h - start_h) * eased;
-        place(&window, w, h, top_offset)?;
+        frame.apply(&window, w, h, top_offset)?;
         if progress >= 1.0 {
             break;
         }
-        tokio::time::sleep(std::time::Duration::from_millis(16)).await;
+        tick.tick().await;
     }
-    Ok(())
+    // Land exactly on the target even if the last frame was skipped.
+    frame.apply(&window, target_w, target_h, top_offset)
 }
 
 #[cfg(test)]
