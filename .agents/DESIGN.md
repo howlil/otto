@@ -15,7 +15,7 @@ Identity: idle Compact shows only paired robot eyes; active modules use task-spe
 Per-surface moments and interaction graphs belong in the current PR/task, not in this durable file.
 
 ## Guardrails
-- Tailwind CSS v4 is the default styling system: put static layout, alignment, spacing, and token colors in complete TSX utility classes; preserve custom notch geometry, SVG art, state selectors and motion in `src/style.css`. Do not duplicate layout declarations or construct utility names at runtime.
+- Tailwind CSS v4 is the default styling system: put static layout, alignment, spacing, and token colors in complete TSX utility classes; keep theme tokens and shared notch geometry in `src/style.css`, with Home, Settings and Agent state/motion rules in `src/styles/{home,settings,agent}.css` (imported in that order). Do not duplicate layout declarations or construct utility names at runtime.
 - `src/style.css` Tailwind `@theme` is the executable token source: surface/text/muted, `--font-otto-ui`, `--radius-otto-island`, `--ease-otto`. Reuse tokens and Tailwind's 4px spacing scale; do not scatter semantic literals in components. Add accent, controls or extra scales only with real usage.
 - UIArc is a visual reference, not a dependency. Prioritize real provider/session/status content over ornamental effects; never simulate successful AI, media, or capture states.
 - Floating and top-attached placements preserve the same available tasks; neither may create an invisible hit area that blocks unrelated desktop actions.
@@ -88,7 +88,7 @@ src/platform/      typed Tauri transport
 - **Icons**: real icon set, `lucide-react` pinned by the lockfile. `shared/ui` maps a role name (`settings`, `alert`, `terminal`) to the component; features never import lucide directly and never draw an `<svg>`.
 - **Accessible names**: an icon-only control carries real text, hidden with `VisuallyHidden` (or `IconButton`, which pairs both). Do not use `aria-label`; a dialog or region is named by its visible heading via `aria-labelledby`. Icons are `aria-hidden` decorative glyphs — the name belongs to the control.
 - **Status text** is derived in one place (`features/agent/status.ts`, `surface.ts`), not by nested ternaries at each render site.
-- **Styling**: static layout/spacing/token colors are Tailwind utilities in TSX; `src/style.css` keeps geometry, state selectors, artwork and motion. Semantic colors come from `@theme`; add a token rather than a new literal.
+- **Styling**: static layout/spacing/token colors are Tailwind utilities in TSX; `src/style.css` owns executable theme tokens and shared geometry; `src/styles/` owns feature-level selectors, artwork and motion. Semantic colors come from `@theme`; add a token rather than a new literal.
 
 ## Quality targets
 | Gate | Metric / target | Evidence |
