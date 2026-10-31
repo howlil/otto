@@ -26,7 +26,7 @@ export function AgentPanel({
   onBack,
   onCollapse,
 }: Props) {
-  const { snapshot, installed, cwd, setCwd, mode, setMode, locked, busy, newSession } = agent;
+  const { snapshot, installed, readiness, cwd, setCwd, mode, setMode, locked, busy, newSession } = agent;
   const [denied, setDenied] = useState(false);
   const back = useRef<HTMLButtonElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
@@ -102,7 +102,8 @@ export function AgentPanel({
       </header>
       {settings ? (
         <AgentSettings
-          installed={installed}
+          readiness={readiness}
+          onRetry={() => void agent.refreshProvider()}
           mode={mode}
           setMode={setMode}
           locked={locked}
