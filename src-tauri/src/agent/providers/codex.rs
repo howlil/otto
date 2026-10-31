@@ -113,8 +113,15 @@ impl Rpc {
 }
 
 fn is_for_turn(value: &Value, thread: &str, turn: &str) -> bool {
-    value["params"]["threadId"].as_str() == Some(thread)
-        && value["params"]["turnId"].as_str() == Some(turn)
+    // turn/completed carries the terminal turn in params.turn.id;
+    // delta notifications use params.turnId instead.
+    let turn_matches = value["params"]["turnId"].as_str() == Some(turn)
+        || value["params"]["turn"]["id"].as_str() == Some(turn);
+    let thread_matches = match value["params"]["threadId"].as_str() {
+        Some(id) => id == thread,
+        None => value["method"].as_str() == Some("turn/completed") && turn_matches,
+    };
+    turn_matches && thread_matches
 }
 
 fn handle_event(value: &Value, thread: &str, turn: &str, run_id: u64, updates: &watch::Sender<Snapshot>) -> bool {
@@ -321,7 +328,7 @@ mod tests {
         });
         let completed = json!({
             "method": "turn/completed",
-            "params": { "threadId": "thread", "turnId": "turn", "turn": { "status": "completed" } }
+            "params": { "threadId": "thread", "turn": { "id": "turn", "status": "completed" } }
         });
         assert!(handle_event(&completed, "thread", "turn", 7, &tx));
         assert_eq!(tx.borrow().status, "stopped");
