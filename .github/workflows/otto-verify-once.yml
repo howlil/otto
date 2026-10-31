@@ -9,7 +9,7 @@ name: Otto Windows verification (on demand)
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: otto-windows-verification
@@ -24,6 +24,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Resolve frontend dependencies
         run: bun install
+      - name: Apply frontend formatting
+        run: bun run format
       - name: TypeScript and frontend build
         id: frontend
         continue-on-error: true
@@ -35,6 +37,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Apply Rust formatting
+        run: cargo fmt --all --manifest-path src-tauri/Cargo.toml
       - name: Rust format
         id: rustfmt
         continue-on-error: true
@@ -51,6 +55,18 @@ jobs:
         id: clippy
         continue-on-error: true
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - name: Commit formatter output after passing checks
+        if: ${{ steps.frontend.outcome == 'success' && steps.lint.outcome == 'success' && steps.rustfmt.outcome == 'success' && steps.cargo.outcome == 'success' && steps.tests.outcome == 'success' && steps.clippy.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          git add -- src src-tauri/src vite.config.ts
+          $changed = git diff --cached --name-only
+          if ($changed) {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "style: apply Biome and rustfmt verified by Windows runner"
+            git push origin HEAD:feat/tauri-foundation
+          }
       - name: Fail if any verification failed
         if: always()
         shell: pwsh

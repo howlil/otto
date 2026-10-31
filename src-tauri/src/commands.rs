@@ -1,5 +1,5 @@
 use crate::agent::{AgentRuntime, Snapshot};
-use tauri::{ipc::Channel, LogicalSize, Manager, PhysicalPosition, State, WebviewWindow};
+use tauri::{ipc::Channel, LogicalSize, PhysicalPosition, State, WebviewWindow};
 
 #[tauri::command]
 pub fn agent_snapshot(runtime: State<'_, AgentRuntime>) -> Snapshot {

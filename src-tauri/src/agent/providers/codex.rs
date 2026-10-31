@@ -62,7 +62,7 @@ impl Rpc {
         let mut json = serde_json::to_vec(&value).map_err(|_| "Cannot encode Codex request.")?;
         json.push(b'\n');
         self.stdin.write_all(&json).await.map_err(|_| "Codex connection closed.")?;
-        self.stdin.flush().await.map_err(|_| "Codex connection closed.")
+        self.stdin.flush().await.map_err(|_| "Codex connection closed.".to_string())
     }
 
     async fn read(&mut self) -> Result<Value, String> {
