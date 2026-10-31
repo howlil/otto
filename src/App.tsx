@@ -1,15 +1,16 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import agentArt from "./assets/agent-art.svg";
 import musicArt from "./assets/music-art.svg";
 import focusArt from "./assets/focus-art.svg";
-import { AgentCapsule, AgentPanel, useAgent } from "./features/agent";
+import { AgentCapsule, AgentPanel, resolveAgentSurface, useAgent } from "./features/agent";
 import { HomeCard } from "./features/home";
 import { GlobalSettings, resolveSurface, useNotchShell } from "./features/shell";
 import { setNotchSurface } from "./platform/tauri";
-import { Eyes, IconButton, VisuallyHidden } from "./shared/ui";
+import { Eyes, Icon, IconButton, VisuallyHidden } from "./shared/ui";
 
 export default function App() {
   const agent = useAgent();
+  const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const shell = useNotchShell();
   const {
     page,
@@ -39,9 +40,7 @@ export default function App() {
     expanded,
     isAgent,
     page,
-    installed: agent.installed,
-    error: agent.error,
-    snapshot: agent.snapshot,
+    agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
   });
   const artProps = {
     parallax: prefs.parallax,
@@ -52,10 +51,18 @@ export default function App() {
   };
 
   useEffect(() => {
-    void setNotchSurface(surface, prefs.topOffset, !reducedMotion).catch(() => {
-      setNotice("Notch resizing is unavailable in this Windows session.");
-    });
-  }, [surface, prefs.topOffset, reducedMotion, setNotice]);
+    let active = true;
+    void setNotchSurface(surface, prefs.topOffset, !reducedMotion)
+      .then(() => {
+        if (active) setSurfaceError(null);
+      })
+      .catch(() => {
+        if (active) setSurfaceError("Notch resizing is unavailable in this Windows session.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [surface, prefs.topOffset, reducedMotion]);
 
   // Event motion: one-shot feedback for a real state change, never a loop.
   const lastStatus = useRef(agent.snapshot.status);
@@ -167,6 +174,20 @@ export default function App() {
           onBack={() => open("home")}
           onCollapse={collapse}
         />
+      )}
+      {surfaceError && (
+        <div
+          className={
+            expanded
+              ? "pointer-events-none absolute inset-x-2 bottom-1 z-50 truncate rounded-md bg-otto-surface px-2 py-1 text-center text-[10px] text-otto-text"
+              : "pointer-events-none absolute bottom-1 right-1 z-50 text-otto-text"
+          }
+          role="alert"
+          title={surfaceError}
+        >
+          {expanded ? surfaceError : <Icon name="alert" size={12} />}
+          {!expanded && <VisuallyHidden>{surfaceError}</VisuallyHidden>}
+        </div>
       )}
     </main>
   );

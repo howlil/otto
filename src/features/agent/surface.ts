@@ -1,9 +1,21 @@
-import type { AgentSnapshot, ProviderReadiness } from "../../platform/tauri";
+import type { AgentSnapshot, NotchSurface, ProviderReadiness } from "../../platform/tauri";
 import { agentStatusLabel } from "./status";
 
-// Resolve the notch surface from the shell page and the run state. One owner
-// for the decision, so both the window size and the rendered content agree.
-// The Rust side only knows sizes; this mapping must not drift from it.
+// Agent owns the mapping from CLI state to its own expanded surface.
+// Shell chooses the active page and whether the island is compact.
+export function resolveAgentSurface(
+  snapshot: AgentSnapshot,
+  installed: boolean | null,
+  error: string | null,
+): NotchSurface {
+  // A waiting approval must stay reachable even when a transient error exists.
+  if (snapshot.status === "approvalRequired") return "agentApproval";
+  if (installed === false || snapshot.status === "failed" || error) return "agentError";
+  if (snapshot.status === "starting") return "agentThinking";
+  if (snapshot.status === "streaming" || snapshot.status === "stopping") return "agentFull";
+  return snapshot.messages.length === 0 ? "agentReady" : "agentFull";
+}
+
 // Derive the compact capsule copy from the run state in one place.
 export function compactLabel(snapshot: AgentSnapshot, installed: boolean | null): string {
   if (installed === false) return "Unavailable";
