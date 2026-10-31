@@ -1,4 +1,4 @@
-import type { CSSProperties, PointerEvent } from "react";
+import { useEffect, useRef, type CSSProperties, type PointerEvent } from "react";
 
 // One launcher card. Render-only: it takes the artwork and pointer settings as
 // props and reports the open intent. The parallax offsets are visual state, so
@@ -24,24 +24,52 @@ export function HomeCard({
   tilt: number;
   gradient: number;
 }) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const pointerFrame = useRef<number | null>(null);
+  const pending = useRef<[number, number]>([0, 0]);
+
+  useEffect(() => {
+    if (!parallax || reduced) {
+      const button = buttonRef.current;
+      if (button) {
+        button.dataset.tracking = "false";
+        button.style.setProperty("--dx", "0px");
+        button.style.setProperty("--dy", "0px");
+      }
+    }
+    return () => {
+      if (pointerFrame.current !== null) cancelAnimationFrame(pointerFrame.current);
+      pointerFrame.current = null;
+    };
+  }, [parallax, reduced]);
+
   const move = (event: PointerEvent<HTMLButtonElement>) => {
     if (!parallax || reduced) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    event.currentTarget.style.setProperty(
-      "--dx",
-      ((event.clientX - rect.left) / rect.width - 0.5) * amount + "px",
-    );
-    event.currentTarget.style.setProperty(
-      "--dy",
-      ((event.clientY - rect.top) / rect.height - 0.5) * amount * 0.7 + "px",
-    );
+    const button = event.currentTarget;
+    const rect = button.getBoundingClientRect();
+    pending.current = [
+      ((event.clientX - rect.left) / rect.width - 0.5) * amount,
+      ((event.clientY - rect.top) / rect.height - 0.5) * amount * 0.7,
+    ];
+    button.dataset.tracking = "true";
+    if (pointerFrame.current !== null) return;
+    pointerFrame.current = requestAnimationFrame(() => {
+      pointerFrame.current = null;
+      const [dx, dy] = pending.current;
+      button.style.setProperty("--dx", `${dx.toFixed(2)}px`);
+      button.style.setProperty("--dy", `${dy.toFixed(2)}px`);
+    });
   };
   const reset = (event: PointerEvent<HTMLButtonElement>) => {
+    if (pointerFrame.current !== null) cancelAnimationFrame(pointerFrame.current);
+    pointerFrame.current = null;
+    event.currentTarget.dataset.tracking = "false";
     event.currentTarget.style.setProperty("--dx", "0px");
     event.currentTarget.style.setProperty("--dy", "0px");
   };
   return (
     <button
+      ref={buttonRef}
       type="button"
       className={`otto-choice otto-choice-${name.toLowerCase()} relative isolate block min-w-0 overflow-hidden text-left text-otto-text`}
       onClick={onClick}
