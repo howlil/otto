@@ -1,4 +1,5 @@
-import { ChoiceRow, Icon } from "../../shared/ui";
+import { Icon } from "../../shared/ui";
+import { ChoiceRow } from "./AgentControls";
 import type { AgentMode, ProviderReadiness } from "../../platform/tauri";
 
 // The secondary in-island settings surface for the agent. It owns no state:

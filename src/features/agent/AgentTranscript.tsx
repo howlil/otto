@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Bars, Icon, VisuallyHidden } from "../../shared/ui";
+import { Icon, VisuallyHidden } from "../../shared/ui";
+import { Bars } from "./AgentControls";
 import type { AgentSnapshot } from "../../platform/tauri";
 import { ApprovalCard } from "./ApprovalCard";
 import { providerIssue, providerIssueTitle } from "./status";

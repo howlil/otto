@@ -1,5 +1,6 @@
 import type { AgentSnapshot, ProviderReadiness } from "../../platform/tauri";
-import { Bars, Icon, VisuallyHidden } from "../../shared/ui";
+import { Icon, VisuallyHidden } from "../../shared/ui";
+import { Bars } from "./AgentControls";
 import { compactDetail, compactLabel } from "./surface";
 
 // The agent's Compact capsule. It only renders observed state; it never

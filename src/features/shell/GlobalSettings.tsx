@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ChoiceChip, Icon, Range, Toggle, VisuallyHidden } from "../../shared/ui";
+import { Icon, VisuallyHidden } from "../../shared/ui";
+import { ChoiceChip, Range, Toggle } from "./SettingsControls";
 import { defaults, type Preferences, type SettingsTab } from "./preferences";
 
 export function GlobalSettings({
