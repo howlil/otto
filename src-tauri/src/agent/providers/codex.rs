@@ -1,6 +1,6 @@
 use crate::agent::policy::{self, InteractionMode};
 use crate::agent::session::{self, ApprovalDecision, PendingApproval, ToolActivity};
-use crate::agent::{ChatMessage, Control, Snapshot, fail, mutate};
+use crate::agent::{ChatMessage, Control, ProviderReadiness, Snapshot, fail, mutate};
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
 use tokio::{
@@ -21,6 +21,101 @@ pub fn executable() -> Option<PathBuf> {
         }
     }
     None
+}
+
+// Account readiness is validated using Codex's own JSON-RPC protocol, never
+// by parsing the CLI's human-readable login output. Do not expose account data.
+fn account_readiness(value: &Value) -> ProviderReadiness {
+    let account = &value["account"];
+    if account.is_null() {
+        return if value["requiresOpenaiAuth"] == true {
+            ProviderReadiness::new("authRequired", "Codex needs sign-in.", "Run codex login, then Retry.")
+        } else {
+            ProviderReadiness::new(
+                "unsupported",
+                "Codex did not confirm an authenticated account.",
+                "Update Codex or configure its provider, then Retry.",
+            )
+        };
+    }
+    match account["type"].as_str() {
+        Some("chatgpt" | "apiKey" | "apikey" | "amazonBedrock" | "gcp") => {
+            ProviderReadiness::new("ready", "Codex account is configured.", "")
+        }
+        _ => ProviderReadiness::new(
+            "unsupported",
+            "Codex returned an unrecognized account type.",
+            "Update Codex, then Retry.",
+        ),
+    }
+}
+
+// A short-lived owned app-server connection probes authentication without
+// opening a browser or submitting a user prompt. Always kill its process tree.
+pub async fn readiness() -> ProviderReadiness {
+    if executable().is_none() {
+        return ProviderReadiness::new(
+            "missing",
+            "Codex CLI was not found in PATH.",
+            "Install Codex CLI, then Retry.",
+        );
+    }
+    let Ok(cwd) = std::env::current_dir() else {
+        return ProviderReadiness::new("unavailable", "Cannot inspect local working directory.", "Retry.");
+    };
+    let Ok(mut rpc) = Rpc::launch(&cwd) else {
+        return ProviderReadiness::new(
+            "unavailable",
+            "Codex App Server could not start.",
+            "Check your Codex installation, then Retry.",
+        );
+    };
+    let result = timeout(Duration::from_secs(12), async {
+        let (updates, _) = watch::channel(Snapshot {
+            run_id: 0,
+            seq: 0,
+            status: "idle".into(),
+            mode: "quickAsk".into(),
+            cwd: String::new(),
+            thread_id: None,
+            messages: Vec::new(),
+            activity: None,
+            approval: None,
+            error: None,
+        });
+        let mut approvals = Approvals::for_mode(InteractionMode::QuickAsk, 0);
+        rpc.request(
+            "initialize",
+            json!({ "clientInfo": { "name": "otto", "title": "Otto", "version": "0.1.0" } }),
+            &mut approvals,
+            &updates,
+        )
+        .await?;
+        rpc.send(json!({ "method": "initialized", "params": {} })).await?;
+        rpc.request(
+            "account/read",
+            json!({ "refreshToken": true }),
+            &mut approvals,
+            &updates,
+        )
+        .await
+        .map(|(result, _)| result)
+    })
+    .await;
+    rpc.terminate().await;
+    match result {
+        Ok(Ok(account)) => account_readiness(&account),
+        Ok(Err(_)) => ProviderReadiness::new(
+            "unsupported",
+            "Codex could not confirm account readiness.",
+            "Update Codex or sign in with codex login, then Retry.",
+        ),
+        Err(_) => ProviderReadiness::new(
+            "unavailable",
+            "Codex readiness check timed out.",
+            "Retry after checking your Codex connection.",
+        ),
+    }
 }
 
 struct Rpc {
@@ -934,6 +1029,28 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn readiness_requires_explicit_account_evidence() {
+        assert_eq!(
+            account_readiness(&json!({"account": null, "requiresOpenaiAuth": true})).status,
+            "authRequired"
+        );
+        assert_eq!(
+            account_readiness(&json!({"account": null, "requiresOpenaiAuth": false})).status,
+            "unsupported"
+        );
+        assert_eq!(account_readiness(&json!({})).status, "unsupported");
+        assert_eq!(
+            account_readiness(&json!({"account": {"type": "chatgpt"}, "requiresOpenaiAuth": true})).status,
+            "ready"
+        );
+        assert_eq!(
+            account_readiness(&json!({"account": {"type": "mystery"}})).status,
+            "unsupported"
+        );
+    }
+
 
     fn snapshot(status: &str, run_id: u64) -> watch::Sender<Snapshot> {
         let (tx, _) = watch::channel(Snapshot {
