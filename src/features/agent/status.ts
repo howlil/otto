@@ -13,7 +13,12 @@ export const agentStatusLabels: Record<AgentStatus, string> = {
   failed: "Disconnected",
 };
 
-export function agentStatusLabel(status: AgentStatus): string {
+export function agentStatusLabel(
+  status: AgentStatus,
+  readiness?: ProviderReadiness["status"],
+): string {
+  if (status === "idle" && readiness === "checking") return "Checking";
+  if (status === "idle" && readiness && readiness !== "ready") return "Setup required";
   return agentStatusLabels[status] ?? status;
 }
 
