@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: lossless CSS tokenization and feature stylesheet split.
+# Verification dispatch: formatted feature CSS and reduced theme debt on current PR.
 
 'on':
   push:
