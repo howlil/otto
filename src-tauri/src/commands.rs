@@ -1,21 +1,24 @@
 use crate::agent::{AgentRuntime, Snapshot};
+use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{LogicalSize, PhysicalPosition, State, WebviewWindow, ipc::Channel};
+
+#[derive(Default)]
+pub struct NotchMotion {
+    epoch: AtomicU64,
+}
 
 #[tauri::command]
 pub fn agent_snapshot(runtime: State<'_, AgentRuntime>) -> Snapshot {
     runtime.snapshot()
 }
-
 #[tauri::command]
 pub fn agent_codex_installed(runtime: State<'_, AgentRuntime>) -> bool {
     runtime.codex_installed()
 }
-
 #[tauri::command]
 pub fn agent_subscribe(runtime: State<'_, AgentRuntime>, on_event: Channel<Snapshot>) {
     runtime.subscribe(on_event);
 }
-
 #[tauri::command]
 pub async fn agent_ask(
     runtime: State<'_, AgentRuntime>,
@@ -24,36 +27,97 @@ pub async fn agent_ask(
 ) -> Result<(), String> {
     runtime.ask(text, cwd).await
 }
-
 #[tauri::command]
 pub async fn agent_stop(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
     runtime.stop().await
 }
 
-#[tauri::command]
-pub fn notch_set_surface(window: WebviewWindow, surface: String) -> Result<(), String> {
-    let (width, height) = match surface.as_str() {
-        "idle" => (92_u32, 42_u32),
-        "agentCompact" => (228, 50),
-        "home" => (452, 148),
-        "agent" => (526, 326),
-        _ => return Err("Invalid notch surface.".into()),
-    };
+fn surface_size(surface: &str) -> Option<(u32, u32)> {
+    match surface {
+        "idle" => Some((92, 42)),
+        "agentCompact" => Some((228, 50)),
+        "home" => Some((452, 148)),
+        "homeSettings" => Some((452, 314)),
+        "agentReady" => Some((526, 170)),
+        "agentThinking" => Some((526, 236)),
+        "agentFull" => Some((526, 346)),
+        "agentError" => Some((526, 270)),
+        "agentSettings" => Some((526, 466)),
+        _ => None,
+    }
+}
+
+fn place(window: &WebviewWindow, width: f64, height: f64, top_offset: u32) -> Result<(), String> {
     window
-        .set_size(LogicalSize::new(width as f64, height as f64))
-        .map_err(|_| "Cannot resize the notch.")?;
-    if let Some(monitor) = window
+        .set_size(LogicalSize::new(width, height))
+        .map_err(|_| "Cannot resize the notch.".to_string())?;
+    let monitor = window
         .current_monitor()
-        .map_err(|_| "Monitor unavailable.")?
-    {
-        let bounds = monitor.size();
-        let origin = monitor.position();
-        let scale = window.scale_factor().map_err(|_| "DPI unavailable.")?;
-        let physical_width = (width as f64 * scale).round() as i32;
-        let x = origin.x + ((bounds.width as i32 - physical_width) / 2);
-        window
-            .set_position(PhysicalPosition::new(x, origin.y + 12))
-            .map_err(|_| "Cannot position the notch.")?;
+        .map_err(|_| "Monitor unavailable.".to_string())?
+        .ok_or("Monitor unavailable.")?;
+    let scale = window.scale_factor().map_err(|_| "DPI unavailable.")?;
+    let bounds = monitor.size();
+    let origin = monitor.position();
+    let physical_width = (width * scale).round() as i32;
+    let x = origin.x + (bounds.width as i32 - physical_width) / 2;
+    let y = origin.y + (f64::from(top_offset) * scale).round() as i32;
+    window
+        .set_position(PhysicalPosition::new(x, y))
+        .map_err(|_| "Cannot position the notch.".to_string())
+}
+
+#[tauri::command]
+pub async fn notch_set_surface(
+    window: WebviewWindow,
+    motion: State<'_, NotchMotion>,
+    surface: String,
+    top_offset: u32,
+    animate: bool,
+) -> Result<(), String> {
+    let (width, height) = surface_size(&surface).ok_or("Invalid notch surface.")?;
+    if top_offset > 64 {
+        return Err("Top offset must be between 0 and 64 px.".to_string());
+    }
+    // A new surface request interrupts an in-flight morph; no stale geometry can win.
+    let token = motion.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let scale = window.scale_factor().map_err(|_| "DPI unavailable.")?;
+    let current = window.outer_size().map_err(|_| "Notch size unavailable.")?;
+    let start_w = f64::from(current.width) / scale;
+    let start_h = f64::from(current.height) / scale;
+    let target_w = f64::from(width);
+    let target_h = f64::from(height);
+    if !animate || ((start_w - target_w).abs() < 1.0 && (start_h - target_h).abs() < 1.0) {
+        return place(&window, target_w, target_h, top_offset);
+    }
+    let start = tokio::time::Instant::now();
+    let duration = std::time::Duration::from_millis(420);
+    loop {
+        if motion.epoch.load(Ordering::SeqCst) != token {
+            return Ok(());
+        }
+        let progress = (start.elapsed().as_secs_f64() / duration.as_secs_f64()).min(1.0);
+        // Close to the approved cubic ease-out, without overshoot or a giant hit region.
+        let eased = 1.0 - (1.0 - progress).powi(3);
+        let w = start_w + (target_w - start_w) * eased;
+        let h = start_h + (target_h - start_h) * eased;
+        place(&window, w, h, top_offset)?;
+        if progress >= 1.0 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(16)).await;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn approved_home_agent_and_settings_sizes() {
+        assert_eq!(surface_size("home"), Some((452, 148)));
+        assert_eq!(surface_size("agentReady"), Some((526, 170)));
+        assert_eq!(surface_size("agentFull"), Some((526, 346)));
+        assert_eq!(surface_size("agentSettings"), Some((526, 466)));
+        assert_eq!(surface_size("unknown"), None);
+    }
 }
