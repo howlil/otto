@@ -7,7 +7,7 @@ use serde::Serialize;
 use session::{ApprovalDecision, PendingApproval};
 use std::{
     path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}},
     time::Duration,
 };
 use tauri::ipc::Channel;
@@ -48,7 +48,10 @@ pub enum Control {
         run_id: u64,
     },
     Stop,
-    Close { finished: oneshot::Sender<()> },
+    Close {
+        claimed: Arc<AtomicBool>,
+        finished: oneshot::Sender<()>,
+    },
     Decide {
         approval_id: String,
         decision: ApprovalDecision,
@@ -206,14 +209,33 @@ impl AgentRuntime {
         if let Some(sender) = guard.as_ref()
             && !sender.is_closed()
         {
-            let (finished, closed) = oneshot::channel();
+            let (finished, mut closed) = oneshot::channel();
+            // Both sides race to claim the Close token. If the timeout wins,
+            // a queued Close is invalidated; it cannot kill the old session later.
+            let claimed = Arc::new(AtomicBool::new(false));
             sender
-                .try_send(Control::Close { finished })
+                .try_send(Control::Close {
+                    claimed: Arc::clone(&claimed),
+                    finished,
+                })
                 .map_err(|_| "Codex is busy. Try again.".to_string())?;
-            timeout(Duration::from_secs(5), closed)
-                .await
-                .map_err(|_| "Codex did not close in time; session was not reset.".to_string())?
-                .map_err(|_| "Codex closed unexpectedly; session was not reset.".to_string())?;
+            match timeout(Duration::from_secs(5), &mut closed).await {
+                Ok(Ok(())) => {}
+                Ok(Err(_)) => {
+                    return Err("Codex closed unexpectedly; session was not reset.".into());
+                }
+                Err(_) if !claimed.swap(true, Ordering::SeqCst) => {
+                    return Err("Codex did not accept session close; session was not reset.".into());
+                }
+                Err(_) => {
+                    // The adapter claimed Close before the deadline. Do not
+                    // abandon a shutdown already in progress or show success
+                    // before its process has actually terminated.
+                    closed
+                        .await
+                        .map_err(|_| "Codex closed unexpectedly; session was not reset.")?;
+                }
+            }
         }
         *guard = None;
         self.next_run_id.fetch_max(current.run_id, Ordering::Relaxed);
@@ -429,9 +451,10 @@ mod tests {
         let (close_seen, observed) = oneshot::channel();
         let (may_finish, proceed) = oneshot::channel();
         let worker = tokio::spawn(async move {
-            let Some(Control::Close { finished }) = receiver.recv().await else {
+            let Some(Control::Close { claimed, finished }) = receiver.recv().await else {
                 panic!("new session must close the existing process");
             };
+            assert!(!claimed.swap(true, Ordering::SeqCst));
             close_seen.send(()).unwrap();
             proceed.await.unwrap();
             finished.send(()).unwrap();
@@ -456,6 +479,15 @@ mod tests {
         assert!(snapshot.messages.is_empty());
         assert!(runtime.control.lock().await.is_none());
         assert!(snapshot.run_id > 8);
+    }
+
+    #[test]
+    fn timed_out_close_is_not_executed_late() {
+        let claimed = AtomicBool::new(false);
+        // Simulate timeout winning the claim before a queued Close is read.
+        assert!(!claimed.swap(true, Ordering::SeqCst));
+        // The provider sees that a prior actor claimed/cancelled this close.
+        assert!(claimed.swap(true, Ordering::SeqCst));
     }
 
     #[tokio::test]
