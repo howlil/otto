@@ -6,7 +6,6 @@ import { ApprovalCard } from "./ApprovalCard";
 import { providerIssue, providerIssueTitle } from "./status";
 import type { AgentTranscriptModel } from "./view-model";
 
-
 export function AgentTranscript({
   agent,
   denied,
