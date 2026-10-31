@@ -21,6 +21,8 @@ pub fn executable() -> Option<PathBuf> {
 }
 
 struct Rpc {
+    #[cfg(windows)]
+    job: super::job::Job,
     child: Child,
     stdin: ChildStdin,
     stdout: Lines<BufReader<ChildStdout>>,
@@ -38,9 +40,22 @@ impl Rpc {
             .stderr(Stdio::null())
             .kill_on_drop(true);
         let mut child = cmd.spawn().map_err(|_| "Cannot start Codex CLI.")?;
+        #[cfg(windows)]
+        let job = match child.id().and_then(|pid| super::job::Job::attach(pid).ok()) {
+            Some(job) => job,
+            None => {
+                // Do not leave a process running without lifecycle containment.
+                let _ = child.start_kill();
+                return Err("Cannot isolate the Codex process tree on Windows.".into());
+            }
+        };
         let stdin = child.stdin.take().ok_or("Codex stdin unavailable.")?;
         let stdout = child.stdout.take().ok_or("Codex stdout unavailable.")?;
-        Ok(Self { child, stdin, stdout: BufReader::new(stdout).lines(), next_id: 0 })
+        Ok(Self {
+            #[cfg(windows)]
+            job,
+            child, stdin, stdout: BufReader::new(stdout).lines(), next_id: 0,
+        })
     }
 
     async fn send(&mut self, value: Value) -> Result<(), String> {
@@ -95,20 +110,11 @@ impl Rpc {
     }
 
     async fn terminate(&mut self) {
-        // On Windows, stop the owned wrapper and its child tree (npm may launch codex via .cmd).
-        // A native Windows Job Object is still required for a crash-proof descendant guarantee.
         #[cfg(windows)]
-        if let Some(pid) = self.child.id() {
-            let _ = timeout(Duration::from_secs(3),
-                Command::new("taskkill.exe")
-                    .args(["/PID", &pid.to_string(), "/T", "/F"])
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status()
-            ).await;
-        }
+        self.job.terminate();
         let _ = self.child.kill().await;
         let _ = self.child.wait().await;
+        // The Job Object handle is closed on Rpc drop, including process exit.
     }
 }
 
