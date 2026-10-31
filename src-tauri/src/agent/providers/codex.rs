@@ -1165,7 +1165,7 @@ mod tests {
             assert!(!value.image_input);
         }
         // Old catalogs may omit input modalities; never claim image support.
-        let legacy = model_readiness(&json!({ "data": [{ "isDefault": true }] }, None));
+        let legacy = model_readiness(&json!({ "data": [{ "isDefault": true }] }), None);
         assert_eq!(legacy.status, "ready");
         assert!(!legacy.image_input);
         let override_model = model_readiness(
