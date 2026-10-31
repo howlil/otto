@@ -27,6 +27,25 @@ pub struct ChatMessage {
     pub text: String,
 }
 
+// No credential or account identifier crosses the Tauri IPC boundary.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderReadiness {
+    pub status: String,
+    pub message: String,
+    pub recovery: String,
+}
+
+impl ProviderReadiness {
+    pub fn new(status: &str, message: &str, recovery: &str) -> Self {
+        Self {
+            status: status.into(),
+            message: message.into(),
+            recovery: recovery.into(),
+        }
+    }
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
@@ -118,6 +137,10 @@ impl AgentRuntime {
         providers::codex::executable().is_some()
     }
 
+    pub async fn codex_readiness(&self) -> ProviderReadiness {
+        providers::codex::readiness().await
+    }
+
     pub async fn ask(&self, text: String, cwd: String, mode: String) -> Result<(), String> {
         let text = text.trim().to_owned();
         if text.is_empty() || text.len() > 12_000 {
@@ -169,6 +192,12 @@ impl AgentRuntime {
             });
             permit.send(Control::Ask { text, cwd, run_id });
             return Ok(());
+        }
+        // Verify the local provider before accepting the first turn. The UI's
+        // previously observed ready state is not an authorization boundary.
+        let readiness = providers::codex::readiness().await;
+        if readiness.status != "ready" {
+            return Err(format!("{} {}", readiness.message, readiness.recovery));
         }
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
         mutate(&self.updates, |s| {
