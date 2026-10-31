@@ -336,6 +336,15 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, updates: watch::Sender<S
             }
         }
     }
+
+    // A follow-up may have been accepted just before the transport closed.
+    // Never leave the visible run indefinitely in "starting" or "streaming".
+    let state = updates.borrow().clone();
+    match state.status.as_str() {
+        "starting" | "streaming" => fail(&updates, state.run_id, "Codex connection closed before the answer finished."),
+        "stopping" => mutate(&updates, |s| s.status = "stopped".into()),
+        _ => {}
+    }
 }
 
 #[cfg(test)]
