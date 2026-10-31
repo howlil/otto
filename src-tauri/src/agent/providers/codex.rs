@@ -108,17 +108,24 @@ impl Approvals {
             return;
         }
         let item = &params["item"];
-        let Some(id) = item["id"].as_str() else { return };
+        let Some(id) = item["id"].as_str() else {
+            return;
+        };
         match event["method"].as_str() {
             Some("item/completed") => self.file_change_items.retain(|(key, _)| key != id),
             Some("item/started") if item["type"].as_str() == Some("fileChange") => {
-                let Some(changes) = item["changes"].as_array() else { return };
+                let Some(changes) = item["changes"].as_array() else {
+                    return;
+                };
                 if changes.is_empty() || changes.len() > 8 {
                     return;
                 }
                 let mut paths = Vec::with_capacity(changes.len());
                 for change in changes {
-                    let Some(path) = change["path"].as_str().filter(|p| !p.trim().is_empty()) else {
+                    let Some(path) = change["path"]
+                        .as_str()
+                        .filter(|p| !p.trim().is_empty())
+                    else {
                         return;
                     };
                     paths.push(path);
@@ -170,9 +177,7 @@ impl Approvals {
         }
         // Otto currently supports per-action accept only. Unknown extended
         // permissions or unsupported decisions must not receive a generic Allow.
-        if params["additionalPermissions"].as_object().is_some()
-            || !params["additionalPermissions"].is_null()
-        {
+        if !params["additionalPermissions"].is_null() {
             return ServerRequest::Decline;
         }
         if let Some(choices) = params["availableDecisions"].as_array() {
@@ -186,7 +191,10 @@ impl Approvals {
             "item/commandExecution/requestApproval" => {
                 if !params["networkApprovalContext"].is_null() {
                     let context = &params["networkApprovalContext"];
-                    let Some(host) = context["host"].as_str().filter(|s| !s.trim().is_empty()) else {
+                    let Some(host) = context["host"]
+                        .as_str()
+                        .filter(|s| !s.trim().is_empty())
+                    else {
                         return ServerRequest::Decline;
                     };
                     let Some(protocol) = context["protocol"].as_str().filter(|s| {
@@ -200,7 +208,10 @@ impl Approvals {
                     }
                     Some(("network", "Allow network access", detail))
                 } else {
-                    let Some(command) = params["command"].as_str().filter(|s| !s.trim().is_empty()) else {
+                    let Some(command) = params["command"]
+                        .as_str()
+                        .filter(|s| !s.trim().is_empty())
+                    else {
                         return ServerRequest::Decline;
                     };
                     let cwd = params["cwd"].as_str().unwrap_or("");
@@ -224,7 +235,8 @@ impl Approvals {
                 let Some(id) = params["itemId"].as_str() else {
                     return ServerRequest::Decline;
                 };
-                self.file_change_items.iter()
+                self.file_change_items
+                    .iter()
                     .find(|(key, _)| key == id)
                     .map(|(_, detail)| ("fileChange", "Change files", detail.clone()))
             }
