@@ -261,7 +261,6 @@ async fn read_frame<R: AsyncBufRead + Unpin>(
     serde_json::from_str(&line).map_err(|_| "Invalid Codex protocol response.".into())
 }
 
-
 enum ServerRequest {
     // A supported approval was recorded; no reply is sent until the user decides.
     Recorded,
