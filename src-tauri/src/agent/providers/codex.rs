@@ -137,25 +137,25 @@ fn handle_event(value: &Value, thread: &str, turn: &str, run_id: u64, updates: &
             if let Some(delta) = value["params"]["delta"].as_str() {
                 mutate(updates, |s| {
                     if s.run_id != run_id || s.status != "streaming" { return; }
-                    if let Some(message) = s.messages.last_mut().filter(|m| m.role == "assistant") {
-                        if message.text.len().saturating_add(delta.len()) <= 128_000 {
-                            message.text.push_str(delta);
-                        }
+                    if let Some(message) = s.messages.last_mut().filter(|m| {
+                        m.role == "assistant" && m.text.len().saturating_add(delta.len()) <= 128_000
+                    }) {
+                        message.text.push_str(delta);
                     }
                 });
             }
         }
         Some("item/completed") => {
             let item = &value["params"]["item"];
-            if item["type"].as_str() == Some("agentMessage") {
-                if let Some(text) = item["text"].as_str() {
-                    mutate(updates, |s| {
+            if item["type"].as_str() == Some("agentMessage")
+                && let Some(text) = item["text"].as_str()
+            {
+                mutate(updates, |s| {
                         if s.run_id != run_id || s.status != "streaming" { return; }
                         if let Some(m) = s.messages.last_mut().filter(|m| m.role == "assistant") {
                             m.text = text.chars().take(128_000).collect();
                         }
                     });
-                }
             }
         }
         Some("turn/completed") => {
@@ -260,7 +260,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, updates: watch::Sender<S
                     }
                 }
                 Some(Control::Ask { text, cwd, run_id }) if active.is_none() => {
-                    if cwd != PathBuf::from(&updates.borrow().cwd) {
+                    if cwd.as_path() != std::path::Path::new(&updates.borrow().cwd) {
                         fail(&updates, run_id, "Working context changed. Restart Otto.");
                         continue;
                     }
@@ -324,8 +324,10 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, updates: watch::Sender<S
                                 rpc.terminate().await;
                                 break;
                             }
-                        } else if let Some(id) = active {
-                            if handle_event(&msg, &thread, &turn, id, &updates) { active = None; }
+                        } else if let Some(id) = active
+                            && handle_event(&msg, &thread, &turn, id, &updates)
+                        {
+                            active = None;
                         }
                     }
                     _ => {

@@ -15,8 +15,9 @@ pub fn run() {
             commands::notch_set_surface,
         ])
         .setup(|app| {
-            if let Some(window) = app.get_webview_window("main") {
-                if let Some(monitor) = window.current_monitor()? {
+            if let Some(window) = app.get_webview_window("main")
+                && let Some(monitor) = window.current_monitor()?
+            {
                     let size = window.outer_size()?;
                     let bounds = monitor.size();
                     let origin = monitor.position();
@@ -24,7 +25,6 @@ pub fn run() {
                         origin.x + (bounds.width.saturating_sub(size.width) / 2) as i32,
                         origin.y + 12,
                     ))?;
-                }
             }
             Ok(())
         })

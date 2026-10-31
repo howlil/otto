@@ -1,5 +1,5 @@
 name: Otto Windows verification (on demand)
-# Retry with stable message IDs after fixing Biome diagnostics.
+# Retry after resolving six Clippy diagnostics on native Quick Ask code.
 
 'on':
   push:

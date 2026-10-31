@@ -94,7 +94,7 @@ impl AgentRuntime {
             return Err("An answer is already running.".into());
         }
         if let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
-            if PathBuf::from(&current.cwd) != cwd {
+            if std::path::Path::new(&current.cwd) != cwd.as_path() {
                 return Err("Working context is fixed for this conversation. Restart Otto to change it.".into());
             }
             let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
