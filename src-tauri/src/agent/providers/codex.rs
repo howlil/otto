@@ -307,6 +307,7 @@ fn classify_startup_control(
 ) -> Result<StartupControl, String> {
     match command {
         Some(Control::Stop) => Ok(StartupControl::Stop),
+        Some(Control::Close { .. }) => Err("Cannot close Codex while starting a turn.".into()),
         Some(Control::Decide { approval_id, decision }) => {
             if let Some(reply) = approvals.decide(&approval_id, decision) {
                 Ok(StartupControl::Reply(reply))
@@ -784,6 +785,13 @@ pub async fn run(
     loop {
         tokio::select! {
             command = controls.recv() => match command {
+                Some(Control::Close { finished }) => {
+                    // A New Session command is only accepted after the last run
+                    // reached a terminal state; the ack follows process cleanup.
+                    rpc.terminate().await;
+                    let _ = finished.send(());
+                    break;
+                }
                 Some(Control::Stop) => {
                     if let Some(id) = active {
                         let _ = timeout(Duration::from_secs(5),
