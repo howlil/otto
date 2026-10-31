@@ -4,7 +4,7 @@ use crate::agent::{ChatMessage, Control, ProviderReadiness, Snapshot, fail, muta
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
     process::{Child, ChildStdin, ChildStdout, Command},
     sync::{mpsc, watch},
     time::timeout,
@@ -239,6 +239,28 @@ struct PendingRequest {
     provider_id: Value,
     approval: PendingApproval,
 }
+
+// Codex can wait for a human decision before acknowledging turn/start.
+// Preserve the ordinary protocol inactivity timeout, but do not time out a
+// user who is still reviewing a pending approval card.
+async fn read_frame<R: AsyncBufRead + Unpin>(
+    lines: &mut Lines<R>,
+    idle_timeout: Duration,
+    awaiting_user_decision: bool,
+) -> Result<Value, String> {
+    let next = if awaiting_user_decision {
+        lines.next_line().await
+    } else {
+        timeout(idle_timeout, lines.next_line())
+            .await
+            .map_err(|_| "Codex did not respond in time.")?
+    };
+    let line = next
+        .map_err(|_| "Codex output failed.")?
+        .ok_or("Codex process disconnected.")?;
+    serde_json::from_str(&line).map_err(|_| "Invalid Codex protocol response.".into())
+}
+
 
 enum ServerRequest {
     // A supported approval was recorded; no reply is sent until the user decides.
@@ -568,13 +590,13 @@ impl Rpc {
             .map_err(|_| "Codex connection closed.".to_string())
     }
 
-    async fn read(&mut self) -> Result<Value, String> {
-        let line = timeout(Duration::from_secs(45), self.stdout.next_line())
-            .await
-            .map_err(|_| "Codex did not respond in time.")?
-            .map_err(|_| "Codex output failed.")?
-            .ok_or("Codex process disconnected.")?;
-        serde_json::from_str(&line).map_err(|_| "Invalid Codex protocol response.".into())
+    async fn read(&mut self, awaiting_user_decision: bool) -> Result<Value, String> {
+        read_frame(
+            &mut self.stdout,
+            Duration::from_secs(45),
+            awaiting_user_decision,
+        )
+        .await
     }
 
     // One stdout reader owns the request/response exchange. For the initial
@@ -610,7 +632,7 @@ impl Rpc {
                 // Drop the competing read future before writing a decision
                 // back through the same Rpc owner.
                 let next = tokio::select! {
-                    incoming = self.read() => Ok(incoming?),
+                    incoming = self.read(approvals.pending.is_some()) => Ok(incoming?),
                     control = receiver.recv() => Err(control),
                 };
                 match next {
@@ -625,7 +647,7 @@ impl Rpc {
                     }
                 }
             } else {
-                self.read().await?
+                self.read(false).await?
             };
             if value.get("id").and_then(Value::as_u64) == Some(id) && value.get("method").is_none()
             {
@@ -1135,6 +1157,39 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn approval_can_wait_longer_than_the_normal_rpc_idle_timeout() {
+        let (mut writer, reader) = tokio::io::duplex(512);
+        let mut frames = BufReader::new(reader).lines();
+        let delayed_frame = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(35)).await;
+            writer
+                .write_all(b"{\"id\":1,\"result\":{}}\\n")
+                .await
+                .unwrap();
+        });
+        let got = timeout(
+            Duration::from_secs(1),
+            read_frame(&mut frames, Duration::from_millis(5), true),
+        )
+        .await
+        .expect("pending approval remains available")
+        .expect("valid frame");
+        delayed_frame.await.unwrap();
+        assert_eq!(got["id"], 1);
+    }
+
+    #[tokio::test]
+    async fn ordinary_rpc_read_still_has_an_idle_timeout() {
+        let (writer, reader) = tokio::io::duplex(256);
+        let _keep_writer_open = writer;
+        let mut frames = BufReader::new(reader).lines();
+        let error = read_frame(&mut frames, Duration::from_millis(5), false)
+            .await
+            .unwrap_err();
+        assert_eq!(error, "Codex did not respond in time.");
+    }
 
     #[test]
     fn readiness_requires_explicit_account_evidence() {
