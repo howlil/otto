@@ -1,4 +1,4 @@
-import type { AgentSnapshot } from "../../platform/tauri";
+import type { AgentSnapshot, ProviderReadiness } from "../../platform/tauri";
 import { Bars, Icon, VisuallyHidden } from "../../shared/ui";
 import { compactDetail, compactLabel } from "./surface";
 
@@ -7,11 +7,13 @@ import { compactDetail, compactLabel } from "./surface";
 export function AgentCapsule({
   snapshot,
   installed,
+  readiness,
   buttonRef,
   onOpen,
 }: {
   snapshot: AgentSnapshot;
   installed: boolean | null;
+  readiness: ProviderReadiness;
   buttonRef: React.Ref<HTMLButtonElement>;
   onOpen: () => void;
 }) {
@@ -28,7 +30,7 @@ export function AgentCapsule({
       </span>
       <span className="otto-compact-copy min-w-0 flex-1">
         <strong>{compactLabel(snapshot, installed)}</strong>
-        <small>{compactDetail(snapshot, installed)}</small>
+        <small>{compactDetail(snapshot, installed, readiness)}</small>
       </span>
       <VisuallyHidden>Open Agent</VisuallyHidden>
       {snapshot.status === "approvalRequired" ? (
@@ -39,7 +41,7 @@ export function AgentCapsule({
       ) : installed === false || snapshot.status === "failed" ? (
         <span className="otto-compact-marker error" role="status">
           <Icon name="unavailable" size={14} strokeWidth={1.9} />
-          <VisuallyHidden>Codex unavailable</VisuallyHidden>
+          <VisuallyHidden>{readiness.message}</VisuallyHidden>
         </span>
       ) : thinking ? (
         <Bars />
