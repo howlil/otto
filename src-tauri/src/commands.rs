@@ -24,8 +24,17 @@ pub async fn agent_ask(
     runtime: State<'_, AgentRuntime>,
     text: String,
     cwd: String,
+    mode: String,
 ) -> Result<(), String> {
-    runtime.ask(text, cwd).await
+    runtime.ask(text, cwd, mode).await
+}
+#[tauri::command]
+pub async fn agent_decide_approval(
+    runtime: State<'_, AgentRuntime>,
+    approval_id: String,
+    decision: String,
+) -> Result<(), String> {
+    runtime.decide_approval(approval_id, decision).await
 }
 #[tauri::command]
 pub async fn agent_stop(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
@@ -41,6 +50,7 @@ fn surface_size(surface: &str) -> Option<(u32, u32)> {
         "agentReady" => Some((526, 170)),
         "agentThinking" => Some((526, 236)),
         "agentFull" => Some((526, 346)),
+        "agentApproval" => Some((526, 336)),
         "agentError" => Some((526, 270)),
         "agentSettings" => Some((526, 466)),
         _ => None,
@@ -157,6 +167,7 @@ mod tests {
         assert_eq!(surface_size("home"), Some((452, 148)));
         assert_eq!(surface_size("agentReady"), Some((526, 170)));
         assert_eq!(surface_size("agentFull"), Some((526, 346)));
+        assert_eq!(surface_size("agentApproval"), Some((526, 336)));
         assert_eq!(surface_size("agentSettings"), Some((526, 466)));
         assert_eq!(surface_size("unknown"), None);
     }

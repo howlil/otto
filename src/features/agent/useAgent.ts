@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   askCodex,
   codexInstalled,
+  decideAgentApproval,
   getAgentSnapshot,
   nativeAvailable,
   stopCodex,
   subscribeAgent,
+  type AgentMode,
   type AgentSnapshot,
 } from "../../platform/tauri";
 
@@ -13,6 +15,7 @@ const initial: AgentSnapshot = {
   runId: 0,
   seq: 0,
   status: "idle",
+  mode: "quickAsk",
   cwd: "",
   threadId: null,
   messages: [],
@@ -24,6 +27,8 @@ export function useAgent() {
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [draft, setDraft] = useState("");
   const [cwd, setCwd] = useState("");
+  // UI-local settings draft. The effective mode after submit comes from Rust.
+  const [mode, setMode] = useState<AgentMode>("quickAsk");
   const [error, setError] = useState<string | null>(null);
   const submitted = useRef<string | null>(null);
   const subscription = useRef<Awaited<ReturnType<typeof subscribeAgent>> | null>(null);
@@ -57,7 +62,11 @@ export function useAgent() {
     void getAgentSnapshot()
       .then((value) => {
         receive(value);
-        if (mounted) setCwd((old) => old || value.cwd);
+        if (mounted) {
+          setCwd((old) => old || value.cwd);
+          // A resumed conversation keeps its fixed mode; the UI draft follows it.
+          setMode(value.threadId ? value.mode : "quickAsk");
+        }
       })
       .catch(() => {
         if (mounted) setError("Cannot connect to the Otto desktop process.");
@@ -82,7 +91,9 @@ export function useAgent() {
     }
   }, [snapshot.status, snapshot.messages]);
 
-  const busy = ["starting", "streaming", "stopping"].includes(snapshot.status);
+  const busy = ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status);
+  // Mode and working folder are locked once the conversation exists.
+  const locked = busy || snapshot.threadId !== null;
 
   const send = async () => {
     const question = draft.trim();
@@ -90,7 +101,7 @@ export function useAgent() {
     setError(null);
     submitted.current = question;
     try {
-      await askCodex(question, cwd);
+      await askCodex(question, cwd, mode);
       setDraft("");
     } catch (reason) {
       submitted.current = null;
@@ -107,6 +118,17 @@ export function useAgent() {
     }
   };
 
+  const decide = async (approvalId: string, decision: "allowOnce" | "deny") => {
+    setError(null);
+    try {
+      await decideAgentApproval(approvalId, decision);
+      return true;
+    } catch (reason) {
+      setError(String(reason));
+      return false;
+    }
+  };
+
   return {
     snapshot,
     installed,
@@ -114,10 +136,14 @@ export function useAgent() {
     setDraft,
     cwd,
     setCwd,
+    mode,
+    setMode,
+    locked,
     error: error ?? snapshot.error,
     busy,
     send,
     stop,
+    decide,
     refreshProvider,
   };
 }

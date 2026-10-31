@@ -1,7 +1,10 @@
 mod policy;
 mod providers;
+pub mod session;
 
+use policy::InteractionMode;
 use serde::Serialize;
+use session::{ApprovalDecision, PendingApproval};
 use std::{
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
@@ -23,9 +26,14 @@ pub struct Snapshot {
     pub run_id: u64,
     pub seq: u64,
     pub status: String,
+    pub mode: String,
     pub cwd: String,
     pub thread_id: Option<String>,
     pub messages: Vec<ChatMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activity: Option<session::ToolActivity>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approval: Option<PendingApproval>,
     pub error: Option<String>,
 }
 
@@ -36,6 +44,10 @@ pub enum Control {
         run_id: u64,
     },
     Stop,
+    Decide {
+        approval_id: String,
+        decision: ApprovalDecision,
+    },
 }
 
 pub struct AgentRuntime {
@@ -53,9 +65,12 @@ impl AgentRuntime {
             run_id: 0,
             seq: 0,
             status: "idle".into(),
+            mode: InteractionMode::QuickAsk.as_str().into(),
             cwd,
             thread_id: None,
             messages: Vec::new(),
+            activity: None,
+            approval: None,
             error: None,
         });
         Self {
@@ -92,11 +107,12 @@ impl AgentRuntime {
         providers::codex::executable().is_some()
     }
 
-    pub async fn ask(&self, text: String, cwd: String) -> Result<(), String> {
+    pub async fn ask(&self, text: String, cwd: String, mode: String) -> Result<(), String> {
         let text = text.trim().to_owned();
         if text.is_empty() || text.len() > 12_000 {
             return Err("Enter a question (up to 12,000 bytes).".into());
         }
+        let mode = InteractionMode::parse(&mode)?;
         let cwd =
             std::fs::canonicalize(cwd).map_err(|_| "Working folder does not exist.".to_string())?;
         if !cwd.is_dir() {
@@ -109,7 +125,7 @@ impl AgentRuntime {
         let current = self.snapshot();
         if matches!(
             current.status.as_str(),
-            "starting" | "streaming" | "stopping"
+            "starting" | "streaming" | "stopping" | "approvalRequired"
         ) {
             return Err("An answer is already running.".into());
         }
@@ -117,6 +133,14 @@ impl AgentRuntime {
             if std::path::Path::new(&current.cwd) != cwd.as_path() {
                 return Err(
                     "Working context is fixed for this conversation. Restart Otto to change it."
+                        .into(),
+                );
+            }
+            // Mode is fixed once the conversation exists; changing it would
+            // silently escalate or drop the approval policy of a live thread.
+            if current.mode != mode.as_str() {
+                return Err(
+                    "Execution mode is fixed for this conversation. Start a new session to change it."
                         .into(),
                 );
             }
@@ -128,6 +152,8 @@ impl AgentRuntime {
             mutate(&self.updates, |s| {
                 s.run_id = run_id;
                 s.status = "starting".into();
+                s.activity = None;
+                s.approval = None;
                 s.error = None;
             });
             permit.send(Control::Ask { text, cwd, run_id });
@@ -137,6 +163,9 @@ impl AgentRuntime {
         mutate(&self.updates, |s| {
             s.run_id = run_id;
             s.status = "starting".into();
+            s.mode = mode.as_str().into();
+            s.activity = None;
+            s.approval = None;
             s.error = None;
             s.cwd = cwd.to_string_lossy().into_owned();
             s.thread_id = None;
@@ -145,15 +174,65 @@ impl AgentRuntime {
         let (tx, rx) = mpsc::channel(4);
         let updates = self.updates.clone();
         tauri::async_runtime::spawn(async move {
-            providers::codex::run(rx, updates.clone(), Control::Ask { text, cwd, run_id }).await;
+            providers::codex::run(
+                rx,
+                updates.clone(),
+                Control::Ask { text, cwd, run_id },
+                mode,
+            )
+            .await;
         });
         *guard = Some(tx);
         Ok(())
     }
 
+    // R7/G8: a decision is only valid for the approval currently pending on
+    // the current run. Stale, duplicate or mismatched decisions fail closed.
+    pub async fn decide_approval(
+        &self,
+        approval_id: String,
+        decision: String,
+    ) -> Result<(), String> {
+        let decision = ApprovalDecision::parse(&decision)?;
+        let guard = self.control.lock().await;
+        let current = self.snapshot();
+        if current.status != "approvalRequired" {
+            return Err("There is no approval waiting for a decision.".into());
+        }
+        let pending = current
+            .approval
+            .as_ref()
+            .ok_or("There is no approval waiting for a decision.")?;
+        if pending.approval_id != approval_id || pending.run_id != current.run_id {
+            return Err("That approval is no longer current. Ignored.".into());
+        }
+        let sender = guard.as_ref().ok_or("No active Codex process.")?;
+        let permit = sender
+            .try_reserve()
+            .map_err(|_| "Codex is busy. Try again.".to_string())?;
+        // The turn is already in progress, so resolving an approval resumes
+        // streaming directly. Marking it "starting" would drop resumed deltas,
+        // which the adapter only appends while "streaming".
+        mutate(&self.updates, |s| {
+            if s.status == "approvalRequired" {
+                s.status = "streaming".into();
+                s.approval = None;
+                s.activity = None;
+            }
+        });
+        permit.send(Control::Decide {
+            approval_id,
+            decision,
+        });
+        Ok(())
+    }
+
     pub async fn stop(&self) -> Result<(), String> {
         let guard = self.control.lock().await;
-        if !matches!(self.snapshot().status.as_str(), "starting" | "streaming") {
+        if !matches!(
+            self.snapshot().status.as_str(),
+            "starting" | "streaming" | "approvalRequired"
+        ) {
             return Err("No active Codex turn.".into());
         }
         let sender = guard.as_ref().ok_or("No active Codex process.")?;
@@ -162,8 +241,13 @@ impl AgentRuntime {
             .map_err(|_| "Codex is busy; retry Stop.".to_string())?;
         // A fast Codex response must not be overwritten with a stale "stopping" state.
         mutate(&self.updates, |s| {
-            if matches!(s.status.as_str(), "starting" | "streaming") {
+            if matches!(
+                s.status.as_str(),
+                "starting" | "streaming" | "approvalRequired"
+            ) {
                 s.status = "stopping".into();
+                s.approval = None;
+                s.activity = None;
             }
         });
         permit.send(Control::Stop);
@@ -197,9 +281,12 @@ mod tests {
             run_id: 2,
             seq: 4,
             status: "completed".into(),
+            mode: "quickAsk".into(),
             cwd: String::new(),
             thread_id: None,
             messages: vec![],
+            activity: None,
+            approval: None,
             error: None,
         });
         fail(&tx, 1, "late failure");
@@ -218,5 +305,83 @@ mod tests {
         runtime.stop().await.expect("Stop must be accepted");
         assert_eq!(runtime.snapshot().status, "stopping");
         assert!(matches!(rx.try_recv(), Ok(Control::Stop)));
+    }
+
+    #[tokio::test]
+    async fn stale_or_unknown_approval_is_rejected() {
+        let runtime = AgentRuntime::new();
+        let (tx, mut rx) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(tx);
+        // No approval pending: nothing may be forwarded to the adapter.
+        assert!(
+            runtime
+                .decide_approval("appr-1".into(), "allowOnce".into())
+                .await
+                .is_err()
+        );
+        mutate(&runtime.updates, |s| {
+            s.status = "approvalRequired".into();
+            s.run_id = 4;
+            s.approval = Some(session::PendingApproval {
+                approval_id: "appr-1".into(),
+                run_id: 4,
+                kind: "command".into(),
+                title: "Run command".into(),
+                detail: "npm test".into(),
+                reason: None,
+            });
+        });
+        // Wrong id and wrong decision verb are both refused.
+        assert!(
+            runtime
+                .decide_approval("appr-9".into(), "allowOnce".into())
+                .await
+                .is_err()
+        );
+        assert!(
+            runtime
+                .decide_approval("appr-1".into(), "accept".into())
+                .await
+                .is_err()
+        );
+        assert!(rx.try_recv().is_err());
+        // The valid decision clears the pending approval and forwards once.
+        runtime
+            .decide_approval("appr-1".into(), "deny".into())
+            .await
+            .expect("valid decision");
+        assert_eq!(runtime.snapshot().status, "streaming");
+        assert!(runtime.snapshot().approval.is_none());
+        assert!(matches!(rx.try_recv(), Ok(Control::Decide { .. })));
+        // A duplicate click can no longer resolve the same request.
+        assert!(
+            runtime
+                .decide_approval("appr-1".into(), "deny".into())
+                .await
+                .is_err()
+        );
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn mode_is_fixed_for_an_existing_conversation() {
+        let runtime = AgentRuntime::new();
+        let (tx, _rx) = mpsc::channel(4);
+        *runtime.control.lock().await = Some(tx);
+        mutate(&runtime.updates, |s| {
+            s.mode = "quickAsk".into();
+            s.cwd = std::env::current_dir()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+        });
+        let cwd = std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let escalated = runtime
+            .ask("edit files".into(), cwd, "agentSession".into())
+            .await;
+        assert!(escalated.is_err());
     }
 }

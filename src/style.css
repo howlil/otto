@@ -611,6 +611,9 @@ input:focus-visible {
   border-radius: 50%;
   flex: none;
 }
+.otto-agent[data-status="approvalRequired"] .otto-agent-status i {
+  background: #e0b978;
+}
 .otto-agent[data-status="failed"] .otto-agent-status i {
   background: #d89197;
 }
@@ -706,6 +709,76 @@ input:focus-visible {
   background: #2d2425;
   border-radius: 11px;
   padding: 12px;
+}
+.otto-approval {
+  border: 1px solid #574936;
+  background: #28241f;
+  border-radius: 11px;
+  padding: 12px;
+  color: #f2ddc6;
+}
+.otto-approval-head {
+  font-size: 12px;
+  font-weight: 590;
+}
+.otto-approval p {
+  font-size: 10px;
+  color: #c9b7a5;
+  line-height: 1.5;
+  margin: 8px 0;
+}
+.otto-approval code {
+  display: block;
+  background: #1e1b19;
+  border-radius: 7px;
+  padding: 9px;
+  color: #eee;
+  font:
+    10px / 1.5 Consolas,
+    monospace;
+  overflow-wrap: anywhere;
+  max-height: 96px;
+  overflow-y: auto;
+}
+.otto-approval .otto-approval-reason {
+  color: #d8c4ad;
+  margin: 6px 0 0;
+}
+.otto-approval .otto-approval-scope {
+  color: #a3947f;
+  margin: 8px 0 0;
+}
+.otto-approval-buttons {
+  margin-top: 10px;
+}
+.otto-approval-buttons button {
+  background: #eaeaea;
+  color: #171717;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 10px;
+}
+.otto-approval-buttons button.secondary {
+  background: #433c34;
+  color: #f2f2f2;
+}
+.otto-compact-marker.warn {
+  color: #e0b978;
+}
+.otto-compact-marker.error {
+  color: #e3a1a3;
+}
+.otto-tool {
+  background: #242426;
+  border: 1px solid #333337;
+  border-radius: 9px;
+  color: #c8c8cc;
+  font:
+    10px / 1.4 Consolas,
+    monospace;
+  padding: 9px 10px;
+  overflow-wrap: anywhere;
 }
 .otto-error-card strong {
   font-size: 11px;
@@ -935,6 +1008,22 @@ input:focus-visible {
 }
 .otto-shell.otto-failed > .otto-agent {
   animation: otto-shake 0.35s ease-out;
+}
+.otto-shell.otto-nudge > section,
+.otto-shell.otto-nudge > .otto-compact {
+  animation: otto-nudge 0.42s var(--ease-otto);
+}
+@keyframes otto-nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  42% {
+    transform: translateY(-2px);
+  }
+  75% {
+    transform: translateY(1px);
+  }
 }
 @keyframes otto-done {
   50% {

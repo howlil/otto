@@ -11,6 +11,7 @@ import agentArt from "./assets/agent-art.svg";
 import musicArt from "./assets/music-art.svg";
 import focusArt from "./assets/focus-art.svg";
 import { AgentPanel } from "./features/agent/AgentPanel";
+import { agentStatusLabel } from "./features/agent/status";
 import { useAgent } from "./features/agent/useAgent";
 import { nativeAvailable, setNotchSurface } from "./platform/tauri";
 
@@ -482,15 +483,19 @@ export default function App() {
         ? "agentSettings"
         : page === "home"
           ? "home"
-          : agent.installed === false || agent.error || agent.snapshot.status === "failed"
+          : agent.installed === false || agent.snapshot.status === "failed"
             ? "agentError"
-            : agent.snapshot.status === "starting"
-              ? "agentThinking"
-              : agent.snapshot.status === "streaming" || agent.snapshot.status === "stopping"
-                ? "agentFull"
-                : agent.snapshot.messages.length === 0
-                  ? "agentReady"
-                  : "agentFull";
+            : agent.snapshot.status === "approvalRequired"
+              ? "agentApproval"
+              : agent.error
+                ? "agentError"
+                : agent.snapshot.status === "starting"
+                  ? "agentThinking"
+                  : agent.snapshot.status === "streaming" || agent.snapshot.status === "stopping"
+                    ? "agentFull"
+                    : agent.snapshot.messages.length === 0
+                      ? "agentReady"
+                      : "agentFull";
 
   const clearTimers = useCallback(() => {
     if (enterTimer.current) clearTimeout(enterTimer.current);
@@ -559,6 +564,13 @@ export default function App() {
     if (current === "completed" || current === "failed") {
       setEventMotion(current === "completed" ? "otto-completed" : "otto-failed");
       const timer = setTimeout(() => setEventMotion(""), 460);
+      return () => clearTimeout(timer);
+    }
+    // Approval and denial are waiting interactions: a one-shot attention cue
+    // (never a loop), suppressed under reduced motion by CSS.
+    if (current === "approvalRequired") {
+      setEventMotion("otto-nudge");
+      const timer = setTimeout(() => setEventMotion(""), 470);
       return () => clearTimeout(timer);
     }
   }, [agent.snapshot.status]);
@@ -645,7 +657,9 @@ export default function App() {
                     ? "Unavailable"
                     : agent.snapshot.status === "completed"
                       ? "Answer ready"
-                      : "Codex"}
+                      : agent.snapshot.status === "approvalRequired"
+                        ? "Approval needed"
+                        : "Codex"}
                 </strong>
                 <small>
                   {agent.snapshot.cwd.split(/[\\/]/).filter(Boolean).pop() || "Local CLI"} ·{" "}
@@ -653,10 +667,52 @@ export default function App() {
                     ? "Codex not found"
                     : agent.snapshot.status === "idle"
                       ? "Ready"
-                      : agent.snapshot.status}
+                      : agentStatusLabel(agent.snapshot.status)}
                 </small>
               </span>
-              {showAgentBars ? (
+              {agent.snapshot.status === "approvalRequired" ? (
+                <span
+                  className="otto-compact-marker warn"
+                  role="status"
+                  aria-label="Approval needed"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 4 2.5 20h19z" />
+                    <path d="M12 10v4m0 3v.5" />
+                  </svg>
+                </span>
+              ) : agent.installed === false || agent.snapshot.status === "failed" ? (
+                <span
+                  className="otto-compact-marker error"
+                  role="status"
+                  aria-label="Codex unavailable"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 4 2.5 20h19z" />
+                    <path d="M12 10v4m0 3v.5" />
+                  </svg>
+                </span>
+              ) : showAgentBars ? (
                 <span className="otto-bars live" aria-hidden="true">
                   <i />
                   <i />

@@ -4,18 +4,35 @@ export type AgentStatus =
   | "idle"
   | "starting"
   | "streaming"
+  | "approvalRequired"
   | "stopping"
   | "completed"
   | "stopped"
   | "failed";
 
+export type AgentMode = "quickAsk" | "agentSession";
+
+export type AgentApproval = {
+  approvalId: string;
+  runId: number;
+  kind: "command" | "fileChange";
+  title: string;
+  detail: string;
+  reason: string | null;
+};
+
+export type AgentActivity = { kind: "command" | "fileChange"; summary: string };
+
 export type AgentSnapshot = {
   runId: number;
   seq: number;
   status: AgentStatus;
+  mode: AgentMode;
   cwd: string;
   threadId: string | null;
   messages: Array<{ id: string; role: "user" | "assistant"; text: string }>;
+  activity?: AgentActivity;
+  approval?: AgentApproval;
   error: string | null;
 };
 
@@ -26,6 +43,7 @@ export type NotchSurface =
   | "agentCompact"
   | "agentReady"
   | "agentThinking"
+  | "agentApproval"
   | "agentFull"
   | "agentError"
   | "agentSettings";
@@ -46,8 +64,14 @@ export async function subscribeAgent(
   await invoke("agent_subscribe", { onEvent: channel });
   return channel;
 }
-export async function askCodex(text: string, cwd: string): Promise<void> {
-  await invoke("agent_ask", { text, cwd });
+export async function askCodex(text: string, cwd: string, mode: AgentMode): Promise<void> {
+  await invoke("agent_ask", { text, cwd, mode });
+}
+export async function decideAgentApproval(
+  approvalId: string,
+  decision: "allowOnce" | "deny",
+): Promise<void> {
+  await invoke("agent_decide_approval", { approvalId, decision });
 }
 export async function stopCodex(): Promise<void> {
   await invoke("agent_stop");

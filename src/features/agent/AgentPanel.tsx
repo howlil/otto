@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { agentStatusLabel } from "./status";
 import type { useAgent } from "./useAgent";
 
 type AgentController = ReturnType<typeof useAgent>;
@@ -10,20 +11,12 @@ type Props = {
   onBack: () => void;
   onCollapse: () => void;
 };
-const labels: Record<string, string> = {
-  idle: "Ready",
-  starting: "Thinking",
-  streaming: "Responding",
-  stopping: "Stopping",
-  completed: "Answer ready",
-  stopped: "Stopped",
-  failed: "Disconnected",
-};
+
 function AgentIcon({
   name,
   size = 16,
 }: {
-  name: "settings" | "back" | "camera" | "send" | "stop" | "copy" | "folder";
+  name: "settings" | "back" | "camera" | "send" | "stop" | "copy" | "folder" | "alert";
   size?: number;
 }) {
   return (
@@ -64,6 +57,12 @@ function AgentIcon({
         </>
       )}
       {name === "folder" && <path d="M3 6h6l2 2h10v11H3z" />}
+      {name === "alert" && (
+        <>
+          <path d="M12 4 2.5 20h19z" />
+          <path d="M12 10v4m0 3v.5" />
+        </>
+      )}
     </svg>
   );
 }
@@ -92,13 +91,18 @@ export function AgentPanel({
     setCwd,
     draft,
     setDraft,
+    mode,
+    setMode,
+    locked,
     error,
     busy,
     send,
     stop,
+    decide,
     refreshProvider,
   } = agent;
   const [notice, setNotice] = useState("");
+  const [denied, setDenied] = useState(false);
   const feed = useRef<HTMLDivElement>(null);
   const back = useRef<HTMLButtonElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
@@ -107,14 +111,33 @@ export function AgentPanel({
   const project =
     (snapshot.threadId ? snapshot.cwd : cwd || snapshot.cwd).split(/[\\/]/).filter(Boolean).pop() ||
     "Workspace";
-  const locked = busy || snapshot.threadId !== null;
+  const approval = snapshot.approval;
+  const approvalPending = snapshot.status === "approvalRequired" && Boolean(approval);
   const canSend = !busy && installed === true && draft.trim().length > 0;
+  // The effective mode after submit is Rust's; the draft only drives the label
+  // before a thread exists.
+  const effectiveMode = snapshot.threadId ? snapshot.mode : mode;
+  const scopeLabel =
+    effectiveMode === "agentSession"
+      ? "Agent Session · Workspace write"
+      : "Quick Ask · Read-only sandbox";
+  // Design keeps a distinct "Using tool" state; in production it is the
+  // streaming phase with real tool activity, never a timer or simulation.
+  const headerStatus =
+    snapshot.status === "streaming" && snapshot.activity
+      ? "Using tool"
+      : agentStatusLabel(snapshot.status);
 
   useEffect(() => {
     if (settings) back.current?.focus({ preventScroll: true });
     else if (previousSettings.current) gear.current?.focus({ preventScroll: true });
     previousSettings.current = settings;
   }, [settings]);
+  useEffect(() => {
+    // A new turn clears the previous outcome; Deny itself passes through
+    // "streaming" before the turn terminalises as "stopped".
+    if (snapshot.status === "starting") setDenied(false);
+  }, [snapshot.status]);
   useEffect(() => {
     if (snapshot.seq > 0 && nearBottom.current && !settings)
       feed.current?.scrollTo({ top: feed.current.scrollHeight });
@@ -177,13 +200,13 @@ export function AgentPanel({
               </>
             )}
           </strong>
-          <small>{settings ? "Local CLI configuration" : "Quick Ask · Read-only sandbox"}</small>
+          <small>{settings ? "Local CLI configuration" : scopeLabel}</small>
         </div>
         {!settings && (
           <>
             <span className="otto-agent-status" aria-live="polite">
               <i />
-              {labels[snapshot.status]}
+              {headerStatus}
             </span>
             <button
               type="button"
@@ -226,7 +249,14 @@ export function AgentPanel({
           <div className="otto-settings-divider" />
           <span className="otto-field-name">Execution mode</span>
           <div className="otto-mode-list flex flex-col gap-[6px]">
-            <button type="button" className="selected" aria-pressed="true">
+            <button
+              type="button"
+              className={mode === "quickAsk" ? "selected" : ""}
+              aria-pressed={mode === "quickAsk"}
+              disabled={locked}
+              title={locked ? "Stop current work before changing mode" : undefined}
+              onClick={() => setMode("quickAsk")}
+            >
               <i className="otto-mode-radio" />{" "}
               <span>
                 <strong>Quick Ask</strong>
@@ -235,14 +265,16 @@ export function AgentPanel({
             </button>
             <button
               type="button"
-              disabled
-              aria-pressed="false"
-              title="Agent Session is not available yet"
+              className={mode === "agentSession" ? "selected" : ""}
+              aria-pressed={mode === "agentSession"}
+              disabled={locked}
+              title={locked ? "Stop current work before changing mode" : undefined}
+              onClick={() => setMode("agentSession")}
             >
               <i className="otto-mode-radio" />
               <span>
                 <strong>Agent Session</strong>
-                <small>Tools and file changes · not yet supported</small>
+                <small>Workspace write · asks before tools and file changes</small>
               </span>
             </button>
           </div>
@@ -322,10 +354,62 @@ export function AgentPanel({
                     ? "Reading context"
                     : snapshot.status === "stopping"
                       ? "Stopping request"
-                      : "Writing response"}
+                      : snapshot.status === "approvalRequired"
+                        ? "Waiting for your approval"
+                        : snapshot.activity
+                          ? snapshot.activity.kind === "fileChange"
+                            ? "Changing files"
+                            : "Inspecting workspace"
+                          : "Writing response"}
                 </div>
               )}
-              {snapshot.status === "stopped" && <p className="otto-agent-hint">Request stopped</p>}
+              {busy && snapshot.activity && (
+                <div className="otto-tool">
+                  {snapshot.activity.kind === "fileChange" ? "Write" : "Run"} ·{" "}
+                  {snapshot.activity.summary}
+                </div>
+              )}
+              {approvalPending && approval && (
+                <div className="otto-approval" role="alertdialog" aria-label="Approval required">
+                  <div className="otto-approval-head flex items-center gap-[7px]">
+                    <AgentIcon name="alert" size={15} />
+                    Approval required
+                  </div>
+                  <p>{approval.title}. Codex needs your permission before this continues.</p>
+                  <code>{approval.detail}</code>
+                  {approval.reason && (
+                    <p className="otto-approval-reason">Reason: {approval.reason}</p>
+                  )}
+                  <p className="otto-approval-scope">
+                    Agent Session · Workspace write — allowing runs this action once only.
+                  </p>
+                  <div className="otto-approval-buttons flex gap-[7px]">
+                    <button
+                      type="button"
+                      onClick={() => void decide(approval.approvalId, "allowOnce")}
+                    >
+                      Allow once
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={async () => {
+                        // Deny maps to the provider's `cancel`: the turn is
+                        // interrupted, so the outcome must be distinguishable
+                        // from a plain Stop, exactly as design/agent.html shows.
+                        if (await decide(approval.approvalId, "deny")) setDenied(true);
+                      }}
+                    >
+                      Deny
+                    </button>
+                  </div>
+                </div>
+              )}
+              {snapshot.status === "stopped" && (
+                <p className="otto-agent-hint">
+                  {denied ? "Approval denied. No file was changed." : "Request stopped"}
+                </p>
+              )}
               {issue && (
                 <div className="otto-error-card" role="alert">
                   <strong>Codex unavailable</strong>
@@ -366,7 +450,7 @@ export function AgentPanel({
                 placeholder="Ask Codex…"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                disabled={busy}
+                disabled={busy || approvalPending}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault();

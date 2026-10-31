@@ -12,6 +12,7 @@ pub fn run() {
             commands::agent_codex_installed,
             commands::agent_subscribe,
             commands::agent_ask,
+            commands::agent_decide_approval,
             commands::agent_stop,
             commands::notch_set_surface,
         ])
