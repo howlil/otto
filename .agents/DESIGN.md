@@ -2,7 +2,7 @@
 colors: {surface: "#151515", text: "#FAFAFA", muted: "#A3A3A3"}
 typography: {body: {family: "Segoe UI, system-ui, sans-serif", size: "14px"}}
 spacing: {base: "4px"}
-radius: {island: "9999px"}
+radius: {island: "9999px", expanded_card_reference: "28px", attached_shoulder_reference: "12px"}
 motion: {ease: "cubic-bezier(0.22, 1, 0.36, 1)", reduced: "disable nonessential motion"}
 ---
 # Design — Otto
@@ -11,7 +11,7 @@ motion: {ease: "cubic-bezier(0.22, 1, 0.36, 1)", reduced: "disable nonessential 
 Product: a Windows desktop notch that lets someone ask a locally installed AI CLI for help without leaving the active task; music and Pomodoro are secondary modes.
 Character: quiet, precise, gently expressive.
 World: a small, dark instrument at the top edge of the working desktop; the surrounding window stays transparent.
-Identity: paired robot eyes identify idle Otto, not every state. Keep the surrounding chrome restrained; no decorative gradients, gratuitous glow, or generic card layouts.
+Identity: idle Compact shows only paired robot eyes; active modules use task-specific identity. Keep the surrounding chrome restrained; no decorative gradients, gratuitous glow, or generic card layouts.
 Per-surface moments and interaction graphs belong in the current PR/task, not in this durable file.
 
 ## Guardrails
@@ -23,6 +23,16 @@ Per-surface moments and interaction graphs belong in the current PR/task, not in
 - Compact/expanded morphs preserve identity and content continuity; any gesture has a visible and keyboard-operable equivalent. No mandatory animation blocks an action.
 - Do not reuse public-web LCP/INP/CLS as desktop quality targets. Observe Windows/WebView2 input, frame pacing, and resource behavior under representative conditions.
 
+## Frontend visual baseline
+- Canonical visual/interaction reference: `design/otto-v9-baseline.html`. Standalone HTML/CSS/JS is a **prototype**, not the React implementation or evidence of native integration. Use it to compare silhouettes, spacing, module composition, and transitions; do not copy mock agent/media/capture success into production.
+- Every module (Home, Agent, Music, Focus) supports **Compact capsule** and **Expanded rounded card**. Home Compact is **only two eyes**, with no wordmark. Expanded Home is a 3-action launcher, not permanent navigation. Only the relevant module appears inside the notch; no always-visible tab bar or explicit Expand button.
+- Floating: centered below the screen top edge. Attached: connected to the top edge through symmetric concave shoulders and rounded bottom corners, not a capsule simply cut off at the top. Keep the same information and actions in either placement; preserve an accurate native click/hit region. The reference adds ~12px shoulder per side, subject to Windows verification.
+- **Reference sizes (logical/CSS px; tune against WebView2/DPI, not Apple point measurements):** Home 92×42 → 452×148; Agent 228×50 → 526×142–326 (content-dependent); Music 264×54 → 444×178; Focus 224×52 → 408×174. Arrows mean Compact → Expanded. Attached shoulder width is additional to the content body.
+- Spacing: follow 4px rhythm; Compact horizontal padding around 10–12px, content-to-control gaps 8–12px; Expanded outer padding around 16–20px, group gaps 8–12px. Preserve icon/text baseline, use tabular countdown digits, and constrain conversation overflow inside the card. Circular Compact icons and album cover; approximately 32px icon controls with accessible hit targets. No countdown progress ring, gratuitous nested borders, filler subtitles, or oversized empty panels.
+- Agent: Compact reports the observed CLI state; animate activity bars **only** during a real thinking/streaming run, then stop at completed/stopped/approval/error. Expanded: one capsule composer containing provider selector, input, explicit capture and Send/Stop. No fixed Quick Ask/Agent Session tabs or visible folder picker; selected working context and permission scope must still be discoverable **before** submission. Privileged Agent Session/action needs an explicit user choice and runtime authorization; hiding a mode tab never weakens policy or auto-approves tools.
+- Music: Compact has a circular cover, track and artist, and a spectrum-style activity indicator only while **real** playback is active; no invented audio-reactive waveform. Expanded may show larger artwork, media controls, and linear progress; lyrics only if sourced. Focus: Compact shows remaining time, rounded control icon, and a **linear remaining-time timeline** that updates from the authoritative timer. Expanded adds duration/phase configuration, not a ring.
+- Motion: top-center anchor, coherent silhouette width/height/radius interpolation, delayed content reveal, interruptible collapse/expand, minimal overshoot. Prototype spring-like ease and ~420ms shell morph, ~150ms hover intent, ~340ms pointer-leave delay are tuning references, not Windows performance claims. Hover may expand without stealing focus; explicit click/keyboard activation pins an interactive card until dismiss/Escape. Respect reduced motion.
+
 ## State
 - UI-local: hovered/expanded state, active feature, input draft and local focus intent. Keep these near the owning feature, not in a global catch-all store.
 - Native: placement, bounds, foreground/capture capability and focus policy are Rust-owned; UI reflects observed capability, not presumed success.
@@ -31,9 +41,9 @@ Per-surface moments and interaction graphs belong in the current PR/task, not in
 - Async variants are truthful and actionable: pending retains meaningful context; errors preserve drafts and explain recovery; denied/unsupported is distinct from success; stopped/interrupted is distinct from completed. Never render invented lyrics, answers, or recoveries.
 
 ## Patterns
-- Entry: idle → non-activating compact preview → explicitly activated expanded feature → dismiss/back to idle. Treat the top-edge island as a desktop overlay, not a normal web route.
+- Entry: Compact idle/activity → non-focusing hover morph to Expanded → explicit click/keyboard activation pins the interactive card → dismiss/Escape to Compact. The hover-only card closes after pointer leave without stealing focus; required actions have a keyboard path. Treat the top-edge island as a desktop overlay, not a normal web route.
 - Feature switching is user-directed and preserves independent background activity; show a provider/context label before AI submission.
-- Quick Ask and Agent Session must have distinct affordances and explicit permission context. Tool approval is a waiting interaction, never an implicit confirmation.
+- Quick Ask and Agent Session remain distinct *capability/permission states*, even without permanent mode buttons; explicit escalation and approval are required when an action may modify files. Tool approval is a waiting interaction, never an implicit confirmation.
 - Use an expanded interactive surface for sustained reading, editing or approvals. Use non-interactive status for passive completion; it must not steal focus.
 - Error and empty states name the unavailable capability and offer the next valid action (retry, configure, choose provider, or dismiss). Disable a temporarily unavailable action with a reason; hide actions that can never apply.
 - Per-feature U/M/ST/V/N graph and X# recovery mapping stay in the implementing PR. Do not turn this file into a screen-by-screen specification.
