@@ -1,4 +1,4 @@
-import type { AgentSnapshot } from "../../platform/tauri";
+import type { AgentSnapshot, ProviderReadiness } from "../../platform/tauri";
 import { agentStatusLabel } from "./status";
 
 // Resolve the notch surface from the shell page and the run state. One owner
@@ -12,9 +12,10 @@ export function compactLabel(snapshot: AgentSnapshot, installed: boolean | null)
   return "Codex";
 }
 
-export function compactDetail(snapshot: AgentSnapshot, installed: boolean | null): string {
+export function compactDetail(snapshot: AgentSnapshot, installed: boolean | null, readiness: ProviderReadiness): string {
   const project = snapshot.cwd.split(/[\\/]/).filter(Boolean).pop() || "Local CLI";
-  if (installed === false) return `${project} · Codex not found`;
+  if (installed === false) return `${project} · ${readiness.message}`;
+  if (readiness.status === "checking") return `${project} · Checking Codex`;
   if (snapshot.status === "idle") return `${project} · Ready`;
   return `${project} · ${agentStatusLabel(snapshot.status)}`;
 }
