@@ -24,6 +24,7 @@ export function useNotchShell() {
   const [eventMotion, setEventMotion] = useState("");
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const morphUntil = useRef(0);
   const previousPage = useRef<Page>(page);
   const compactButton = useRef<HTMLButtonElement>(null);
   const homeGear = useRef<HTMLButtonElement>(null);
@@ -42,6 +43,7 @@ export function useNotchShell() {
   }, []);
   const collapse = useCallback(() => {
     clearTimers();
+    morphUntil.current = 0;
     setMode("compact");
     setPage((p) => (p === "global-settings" ? "home" : p === "agent-settings" ? "agent" : p));
   }, [clearTimers]);
@@ -97,9 +99,16 @@ export function useNotchShell() {
 
   const handleEnter = (event: PointerEvent<HTMLElement>) => {
     if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
-    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    if (leaveTimer.current) {
+      clearTimeout(leaveTimer.current);
+      leaveTimer.current = null;
+    }
+    // Native resizing can produce extra enter events; only one intent timer wins.
+    if (enterTimer.current) clearTimeout(enterTimer.current);
     if (!pinned && !expanded && prefs.hoverExpand) {
       enterTimer.current = setTimeout(() => {
+        enterTimer.current = null;
+        morphUntil.current = performance.now() + (reducedMotion ? 0 : prefs.motion === "gentle" ? 300 : 420);
         setMode("preview");
         setNotice("");
       }, prefs.hoverDelay);
@@ -107,9 +116,15 @@ export function useNotchShell() {
   };
   const handleLeave = (event: PointerEvent<HTMLElement>) => {
     if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
-    if (enterTimer.current) clearTimeout(enterTimer.current);
+    if (enterTimer.current) {
+      clearTimeout(enterTimer.current);
+      enterTimer.current = null;
+    }
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
     if (!pinned && expanded) {
-      leaveTimer.current = setTimeout(() => collapse(), prefs.leaveDelay);
+      // Don't collapse during a transient pointer leave while the HWND expands.
+      const settling = Math.max(0, morphUntil.current - performance.now());
+      leaveTimer.current = setTimeout(() => collapse(), prefs.leaveDelay + settling);
     }
   };
   const handleEscape = (event: KeyboardEvent) => {
