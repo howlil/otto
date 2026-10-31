@@ -1,4 +1,5 @@
 name: Otto Windows verification (on demand)
+# Verify consistent LF source checkouts on Windows.
 
 'on':
   push:

@@ -1,0 +1,9 @@
+# Keep source line endings identical on Windows and Unix.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.rs text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
