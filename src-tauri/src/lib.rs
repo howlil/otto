@@ -10,6 +10,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::agent_snapshot,
             commands::agent_codex_installed,
+            commands::agent_codex_readiness,
             commands::agent_subscribe,
             commands::agent_ask,
             commands::agent_decide_approval,
