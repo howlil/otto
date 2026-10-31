@@ -53,7 +53,9 @@ function validPreference(key: keyof Preferences, value: unknown): boolean {
   if (typeof value !== typeof defaults[key]) return false;
   if (typeof value === "number") {
     const range = limits[key];
-    return Number.isFinite(value) && Boolean(range && value >= range[0] && value <= range[1]);
+    return Number.isFinite(value) &&
+      (key !== "topOffset" || Number.isInteger(value)) &&
+      Boolean(range && value >= range[0] && value <= range[1]);
   }
   if (typeof value === "string") return choices[key]?.includes(value) ?? false;
   return typeof value === "boolean";
