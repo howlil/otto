@@ -77,7 +77,14 @@ function Bars() {
     </span>
   );
 }
-export function AgentPanel({ agent, settings, onSettings, onSettingsBack, onBack, onCollapse }: Props) {
+export function AgentPanel({
+  agent,
+  settings,
+  onSettings,
+  onSettingsBack,
+  onBack,
+  onCollapse,
+}: Props) {
   const {
     snapshot,
     installed,

@@ -1,5 +1,5 @@
 name: Otto Windows verification (on demand)
-# Opt-in by editing this workflow in a feature branch, or dispatch manually. No source-push CI spam.
+# Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
 
 'on':
   push:
