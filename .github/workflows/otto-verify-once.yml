@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: Home motion — native atomic resize, reference easing and layout continuity.
+# Verification dispatch: final Home motion fix including fully hidden content reveal.
 
 'on':
   push:
