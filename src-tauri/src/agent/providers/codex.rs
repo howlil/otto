@@ -150,7 +150,7 @@ pub async fn readiness() -> ProviderReadiness {
             .await?;
         let authentication = account_readiness(&account);
         if authentication.status != "ready" {
-            return Ok(authentication);
+            return Ok::<ProviderReadiness, String>(authentication);
         }
         let (models, _) = rpc
             .request(
