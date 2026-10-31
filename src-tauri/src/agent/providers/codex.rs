@@ -73,7 +73,9 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
             m["model"].as_str() == Some(name) || m["id"].as_str() == Some(name)
         })
     } else {
-        models.iter().find(|m| m["isDefault"] == true && m["hidden"] != true)
+        models
+            .iter()
+            .find(|m| m["isDefault"] == true && m["hidden"] != true)
     };
     let Some(model) = model else {
         return ProviderReadiness::new(
@@ -163,11 +165,13 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         let selected = match &config["config"]["model"] {
             Value::Null => None,
             Value::String(name) if !name.trim().is_empty() => Some(name.as_str()),
-            _ => return Ok(ProviderReadiness::new(
-                "unsupported",
-                "Codex returned an invalid model configuration.",
-                "Inspect your Codex model setting, then Retry.",
-            )),
+            _ => {
+                return Ok(ProviderReadiness::new(
+                    "unsupported",
+                    "Codex returned an invalid model configuration.",
+                    "Inspect your Codex model setting, then Retry.",
+                ));
+            }
         };
         let (models, _) = rpc
             .request(
@@ -1158,15 +1162,21 @@ mod tests {
         let legacy = model_readiness(&json!({ "data": [{ "isDefault": true }] }, None));
         assert_eq!(legacy.status, "ready");
         assert!(!legacy.image_input);
-        let override_model = model_readiness(&json!({ "data": [
-            { "model": "default", "isDefault": true, "inputModalities": ["text", "image"] },
-            { "model": "custom", "isDefault": false, "hidden": true, "inputModalities": ["text"] }
-        ] }), Some("custom"));
+        let override_model = model_readiness(
+            &json!({ "data": [
+                { "model": "default", "isDefault": true, "inputModalities": ["text", "image"] },
+                { "model": "custom", "isDefault": false, "hidden": true, "inputModalities": ["text"] }
+            ] }),
+            Some("custom"),
+        );
         assert_eq!(override_model.status, "ready");
         assert!(!override_model.image_input);
-        let unknown = model_readiness(&json!({ "data": [
-            { "model": "default", "isDefault": true, "inputModalities": ["text", "image"] }
-        ] }), Some("not-listed"));
+        let unknown = model_readiness(
+            &json!({ "data": [
+                { "model": "default", "isDefault": true, "inputModalities": ["text", "image"] }
+            ] }),
+            Some("not-listed"),
+        );
         assert_eq!(unknown.status, "unsupported");
         assert!(!unknown.image_input);
     }
