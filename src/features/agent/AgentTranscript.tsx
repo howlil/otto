@@ -30,9 +30,11 @@ export function AgentTranscript({
 
   const canSend = !busy && readiness.status === "ready" && draft.trim().length > 0;
   const approval = snapshot.approval;
-  const issue = error || (["ready", "checking"].includes(readiness.status)
-    ? ""
-    : `${readiness.message} ${readiness.recovery}`);
+  const issue =
+    error ||
+    (["ready", "checking"].includes(readiness.status)
+      ? ""
+      : `${readiness.message} ${readiness.recovery}`);
   const lastAnswer = [...snapshot.messages]
     .reverse()
     .find((message) => message.role === "assistant" && message.text.length > 0);
@@ -115,7 +117,11 @@ export function AgentTranscript({
           )}
           {issue && (
             <div className="otto-error-card" role="alert">
-              <strong>{readiness.status === "authRequired" ? "Codex sign-in required" : "Codex unavailable"}</strong>
+              <strong>
+                {readiness.status === "authRequired"
+                  ? "Codex sign-in required"
+                  : "Codex unavailable"}
+              </strong>
               <p>{issue}</p>
               <button type="button" onClick={() => void refreshProvider()}>
                 Retry
