@@ -7,7 +7,7 @@ Windows-first Tauri 2, Rust edition 2024, React 19, Vite 8, TypeScript 6, Tailwi
 Install: `bun install`; dev frontend: `bun run dev`; desktop: `bun run tauri dev`.
 Frontend: `bun run check` (Biome), `bun run format` (fix), `bun run build` (TS/Vite).
 Rust: `cd src-tauri && cargo fmt --all -- --check`; `cargo clippy --all-targets -- -D warnings`; `cargo check` on Windows MSVC.
-Tests: TBD — no feature suite for static bootstrap. Commit both `bun.lock` and `src-tauri/Cargo.lock` after real resolution; CI uses `bun ci` and locked Cargo.
+Tests: TBD — no feature suite for static bootstrap. Generate/commit Bun and Cargo locks when dependency resolution becomes available for a reproducible build; do not fabricate locks.
 
 ## Verification gate
 Use the cheapest proof for changed behavior; don't call Windows native functionality verified without Windows run. Stage map: `.agents/engineering.md` ## Verification.
@@ -20,7 +20,7 @@ TypeScript/React: `PascalCase` components/types, `useX` Hooks, `camelCase` funct
 The concrete target tree, module public entries, dependency direction and K1–K5 boundaries live in `.agents/engineering.md` `## Structure`. Do not pre-create planned directories or duplicate that specification here.
 
 ## Development workflow
-- Recover from GitHub first: inspect default `master`, the open PR for this outcome, its exact HEAD/checks, and only the relevant `.agents/` contract. "Next" resumes unfinished work in the existing PR, not a new branch.
+- ChatGPT Web + GitHub is the active development environment. Recover the open PR for this outcome, its HEAD, files and available checks first; "Next" continues the same PR. Do not require local machine setup to document or implement reviewable changes; never claim builds or runtime verification that did not happen.
 - One coherent vertical slice per feature PR; use `feat/`, `fix/`, or `chore/` only when a branch is needed. Fix failures on the same branch; no Issue/branch/PR per file, skill, retry, trivial edit, or speculative milestone.
 - PR body stays current: `Behavior`, `Verification` (`green @SHA`, `red @SHA`, or `not run`), material `Risks` if any, and one `Next` action. Replace stale evidence, never append progress logs.
 - Use the cheapest faithful checks for changed risks, review the actual diff and engineering contracts, and do not merge with failing/missing required proof or Major/Critical findings. Merge only after explicit owner authorization; prefer squash and delete merged branches. Repository settings are not yet an enforced gate.

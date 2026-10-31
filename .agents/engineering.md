@@ -129,12 +129,12 @@ otto/
 - F1: no frontend-to-shell/Win32 or privileged side effects outside bounded Tauri/Rust commands | signal: import/usage review for `src/` and Tauri capabilities | tool: TS static scan + capability inspection | pass: none | cadence: PR | mode: enforce when first privileged command lands; exceptions -> D#.
 - F2: feature modules import sibling features only via public entries | signal: illegal module import | tool: TS dependency scan | pass: none | cadence: PR once feature modules exist | mode: enforce then; exceptions -> D#.
 - F3: UI uses shared semantic design tokens from `src/style.css`, not new hard-coded palette values per component | signal: changed CSS/TSX | tool: targeted diff review (automate only if drift appears) | pass: no duplicated semantic literals | cadence: PR | mode: review; exceptions -> D#.
-- `bun run check` handles frontend formatting/linting; one Windows CI job now covers frontend/Rust checks but does not enforce architectural F1/F2/F3 automatically. Add targeted boundary checks only when they have real implementation paths.
+- `bun run check` is an available frontend lint/format command, not proof until executed. F1/F2/F3 remain review rules without automated enforcement; add executable checks only when a real boundary needs them.
 
 ## Verification
 - `iter` (affected local edits): `bun run check`, relevant TypeScript/build or Rust fmt/Clippy and focused unit checks; no routine installer, manual QA, or browser E2E per iteration.
 - `pr`: validate the exact PR HEAD with `bun run check`, `bun run build`, and when Rust/native is affected on Windows MSVC, `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo check`. Add the cheapest faithful P#/G#/X# proof; report `green @SHA`, `red @SHA`, or `not run` (never reuse an older SHA).
-- `merge`: `.github/workflows/ci.yml` checks PRs and `master` with one Windows job, a timeout and superseded PR cancellation; missing Bun/Cargo lockfiles fail closed. Enable one required `Windows foundation` check on `master` only after a green run (GitHub setting not yet applied). No installer/E2E job.
+- `merge`: no automated CI/required check is configured in this Web + GitHub phase. Review the actual diff, contracts and available proof; report missing build/runtime verification explicitly, never as green. Add CI only with an explicit need and a runnable, verified job.
 - `release`: once per release candidate, verify NSIS install/startup, overlay/critical user path and recovery on representative Windows. One manual exploratory pass at release; frontend compilation alone cannot prove native behavior.
 
 ## Release
