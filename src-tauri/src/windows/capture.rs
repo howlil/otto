@@ -295,12 +295,12 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
             }
         }
         if message.message == WM_HOTKEY && message.wParam == HOTKEY_ID as usize {
-            let foreground = unsafe { GetForegroundWindow() };
+            let window = unsafe { GetForegroundWindow() } as isize;
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 let runtime = handle.state::<AgentRuntime>();
                 if let Err(reason) = runtime
-                    .capture_hotkey(foreground as isize, capture_foreground)
+                    .capture_hotkey(window, capture_foreground)
                     .await
                 {
                     runtime.capture_error(&reason);
