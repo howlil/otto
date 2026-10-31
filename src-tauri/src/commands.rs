@@ -1,8 +1,8 @@
 use crate::agent::{AgentRuntime, Snapshot};
 use std::sync::atomic::{AtomicU64, Ordering};
-use tauri::{State, WebviewWindow, ipc::Channel};
 #[cfg(not(windows))]
 use tauri::{LogicalSize, PhysicalPosition};
+use tauri::{State, WebviewWindow, ipc::Channel};
 
 #[derive(Default)]
 pub struct NotchMotion {
