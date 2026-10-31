@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   askCodex,
-  codexInstalled,
+  getCodexReadiness,
   decideAgentApproval,
   getAgentSnapshot,
   nativeAvailable,
@@ -10,6 +10,7 @@ import {
   subscribeAgent,
   type AgentMode,
   type AgentSnapshot,
+  type ProviderReadiness,
 } from "../../platform/tauri";
 
 const initial: AgentSnapshot = {
@@ -25,7 +26,13 @@ const initial: AgentSnapshot = {
 
 export function useAgent() {
   const [snapshot, setSnapshot] = useState<AgentSnapshot>(initial);
-  const [installed, setInstalled] = useState<boolean | null>(null);
+  const [readiness, setReadiness] = useState<ProviderReadiness>({
+    status: "checking",
+    message: "Checking Codex…",
+    recovery: "",
+  });
+  const installed =
+    readiness.status === "checking" ? null : readiness.status === "ready";
   const [draft, setDraft] = useState("");
   const [cwd, setCwd] = useState("");
   // UI-local settings draft. The effective mode after submit comes from Rust.
@@ -35,14 +42,23 @@ export function useAgent() {
   const subscription = useRef<Awaited<ReturnType<typeof subscribeAgent>> | null>(null);
 
   const refreshProvider = useCallback(async () => {
+    setReadiness({ status: "checking", message: "Checking Codex…", recovery: "" });
     if (!nativeAvailable) {
-      setInstalled(false);
+      setReadiness({
+        status: "unavailable",
+        message: "Codex readiness requires the Otto desktop app.",
+        recovery: "Open Otto on Windows.",
+      });
       return;
     }
     try {
-      setInstalled(await codexInstalled());
+      setReadiness(await getCodexReadiness());
     } catch {
-      setInstalled(false);
+      setReadiness({
+        status: "unavailable",
+        message: "Could not check Codex readiness.",
+        recovery: "Retry the connection.",
+      });
     }
   }, []);
 
@@ -107,6 +123,7 @@ export function useAgent() {
     } catch (reason) {
       submitted.current = null;
       setError(String(reason));
+      void refreshProvider();
     }
   };
 
@@ -148,6 +165,7 @@ export function useAgent() {
   return {
     snapshot,
     installed,
+    readiness,
     draft,
     setDraft,
     cwd,
