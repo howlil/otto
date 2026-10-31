@@ -82,6 +82,7 @@ impl Approvals {
     fn prepare_turn(&mut self, thread: &str, run_id: u64) {
         self.thread = Some(thread.to_owned());
         self.previous_turn = self.turn.take();
+        self.file_change_items.clear();
         self.run_id = run_id;
     }
 
@@ -96,6 +97,14 @@ impl Approvals {
     fn note_item(&mut self, event: &Value) {
         let params = &event["params"];
         if params["threadId"].as_str() != self.thread.as_deref() {
+            return;
+        }
+        let turn = params["turnId"].as_str();
+        if let Some(current) = self.turn.as_deref() {
+            if turn != Some(current) {
+                return;
+            }
+        } else if turn.is_none() || turn == self.previous_turn.as_deref() {
             return;
         }
         let item = &params["item"];
@@ -995,6 +1004,29 @@ mod tests {
         request["params"]["networkApprovalContext"] = json!({"host": "", "protocol": "https"});
         assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
         assert!(approvals.pending.is_none());
+    }
+
+    #[test]
+    fn prior_turn_file_paths_are_not_reused_on_followup() {
+        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
+        approvals.context("thread", "old", 9);
+        let event = json!({
+            "method": "item/started",
+            "params": { "threadId": "thread", "turnId": "old",
+                "item": { "id": "same", "type": "fileChange",
+                    "changes": [{ "path": "secret.txt" }] } }
+        });
+        approvals.note_item(&event);
+        assert_eq!(approvals.file_change_items.len(), 1);
+        approvals.prepare_turn("thread", 10);
+        assert!(approvals.file_change_items.is_empty());
+        approvals.note_item(&event);
+        assert!(approvals.file_change_items.is_empty());
+        let request = json!({
+            "id": 31, "method": "item/fileChange/requestApproval",
+            "params": { "threadId": "thread", "turnId": "new", "itemId": "same" }
+        });
+        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
     }
 
     #[test]
