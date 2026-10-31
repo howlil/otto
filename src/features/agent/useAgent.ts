@@ -42,8 +42,11 @@ export function useAgent() {
   const [error, setError] = useState<string | null>(null);
   const submitted = useRef<string | null>(null);
   const subscription = useRef<Awaited<ReturnType<typeof subscribeAgent>> | null>(null);
+  const projectRef = useRef("");
+  const providerProbe = useRef(0);
 
   const refreshProvider = useCallback(async () => {
+    const probe = ++providerProbe.current;
     setReadiness(checking);
     if (!nativeAvailable) {
       setReadiness({
@@ -55,14 +58,17 @@ export function useAgent() {
       return;
     }
     try {
-      setReadiness(await getCodexReadiness());
+      const status = await getCodexReadiness(projectRef.current || undefined);
+      if (providerProbe.current === probe) setReadiness(status);
     } catch {
-      setReadiness({
-        status: "unavailable",
-        message: "Could not check Codex readiness.",
-        recovery: "Retry the connection.",
-        imageInput: false,
-      });
+      if (providerProbe.current === probe) {
+        setReadiness({
+          status: "unavailable",
+          message: "Could not check Codex readiness.",
+          recovery: "Retry the connection.",
+          imageInput: false,
+        });
+      }
     }
   }, []);
 
@@ -92,12 +98,21 @@ export function useAgent() {
       .catch(() => {
         if (mounted) setError("Cannot connect to the Otto desktop process.");
       });
-    void refreshProvider();
     return () => {
       mounted = false;
       subscription.current = null;
     };
   }, [refreshProvider]);
+
+  // A project setting can alter the model catalog. Debounce edits and ignore
+  // responses from a previously selected working directory.
+  useEffect(() => {
+    projectRef.current = cwd;
+    providerProbe.current += 1;
+    setReadiness(checking);
+    const timer = setTimeout(() => void refreshProvider(), 350);
+    return () => clearTimeout(timer);
+  }, [cwd, refreshProvider]);
 
   useEffect(() => {
     if (snapshot.status === "failed" && submitted.current) {
