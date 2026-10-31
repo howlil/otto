@@ -253,17 +253,9 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
     let mut message: MSG = unsafe { std::mem::zeroed() };
     unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_NOREMOVE) };
     let _ = ready.send(unsafe { GetCurrentThreadId() });
-    let default = parse_shortcut("Ctrl+Shift+O").expect("valid default capture shortcut");
-    let mut registered = if register(default) {
-        Some(default)
-    } else {
-        None
-    };
-    if registered.is_none() {
-        app.state::<AgentRuntime>().capture_error(
-            "Ctrl+Shift+O conflicts with another shortcut. Choose a new one in Agent settings.",
-        );
-    }
+    // Do not register a default that may differ from the user's saved shortcut.
+    // The React agent owner restores the chosen shortcut on startup.
+    let mut registered: Option<Shortcut> = None;
     loop {
         if unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } <= 0 {
             break;
