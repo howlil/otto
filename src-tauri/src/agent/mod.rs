@@ -140,8 +140,26 @@ impl AgentRuntime {
         providers::codex::executable().is_some()
     }
 
-    pub async fn codex_readiness(&self) -> ProviderReadiness {
-        providers::codex::readiness().await
+    pub async fn codex_readiness(&self, requested_cwd: Option<&str>) -> ProviderReadiness {
+        let snapshot = self.snapshot();
+        let directory = requested_cwd
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(&snapshot.cwd);
+        let Ok(cwd) = std::fs::canonicalize(directory) else {
+            return ProviderReadiness::new(
+                "unavailable",
+                "Working project folder does not exist.",
+                "Select a valid project folder, then Retry.",
+            );
+        };
+        if !cwd.is_dir() {
+            return ProviderReadiness::new(
+                "unavailable",
+                "Working project must be a folder.",
+                "Select a valid project folder, then Retry.",
+            );
+        }
+        providers::codex::readiness(&cwd).await
     }
 
     pub async fn ask(&self, text: String, cwd: String, mode: String) -> Result<(), String> {
@@ -168,7 +186,7 @@ impl AgentRuntime {
         }
         // Authentication can expire between turns, not just before session start.
         // A previously ready UI state never authorizes a new request.
-        let readiness = providers::codex::readiness().await;
+        let readiness = providers::codex::readiness(&cwd).await;
         if readiness.status != "ready" {
             return Err(format!("{} {}", readiness.message, readiness.recovery));
         }
