@@ -92,7 +92,12 @@ export function AgentSettings({
         <ModeSettings mode={mode} locked={locked} setMode={setMode} />
         <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />
         <section className="border-b border-otto-raised-deep py-3">
-          <Text as="label" variant="meta" className="block text-otto-muted-strong" htmlFor="otto-capture-shortcut">
+          <Text
+            as="label"
+            variant="meta"
+            className="block text-otto-muted-strong"
+            htmlFor="otto-capture-shortcut"
+          >
             Screen capture shortcut
           </Text>
           <div className="mt-2 flex items-center gap-2 rounded-otto-control border border-otto-line-mid bg-otto-field-deep px-2">
@@ -117,7 +122,11 @@ export function AgentSettings({
           <Text as="p" variant="caption" className="mt-1.5 text-otto-text-tertiary">
             Use Ctrl with Shift or Alt and one letter. Capture works from another application.
           </Text>
-          {captureMessage && <StatusMessage tone="info" className="mt-2">{captureMessage}</StatusMessage>}
+          {captureMessage && (
+            <StatusMessage tone="info" className="mt-2">
+              {captureMessage}
+            </StatusMessage>
+          )}
         </section>
         {hasThread && (
           <div className="mt-px flex items-center justify-between gap-3 pt-[10px]">
