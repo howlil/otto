@@ -31,8 +31,7 @@ export function useAgent() {
     message: "Checking Codex…",
     recovery: "",
   });
-  const installed =
-    readiness.status === "checking" ? null : readiness.status === "ready";
+  const installed = readiness.status === "checking" ? null : readiness.status === "ready";
   const [draft, setDraft] = useState("");
   const [cwd, setCwd] = useState("");
   // UI-local settings draft. The effective mode after submit comes from Rust.
