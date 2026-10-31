@@ -11,13 +11,13 @@
 Primary journey: working in another app → B1 idle availability → B2 invoke → B11 provider ready → B9 context and interaction mode → B3 ask/receive answer → B8 collapse/reopen if needed → B10 discreet completion → resume original task.
 Alternate context path: B2 → B4 user-triggered screen capture → B3 answer. Supporting modes: B5 music and B6 timer; B7 placement applies to all surfaces.
 
-- B1: Otto stays available as a compact robot-eye or date/battery/network/status notch while the user works elsewhere.
-- B2: Hover reveals a compact preview without stealing keyboard focus; click/keyboard action opens an interactive view; two-finger horizontal gesture or visible control changes features; dismiss restores compact mode.
+- B1: Otto defaults to an eyes-only Compact idle capsule while the user works elsewhere; other ambient information may be explicitly selected as a later idle presentation.
+- B2: Every module has Compact and Expanded presentations. Hover morphs Compact into a non-focusing Expanded preview; explicit click/keyboard activation pins it for interaction. Expanded Home provides the module entry points, with an operable keyboard alternative to any gesture; dismiss/Escape returns to Compact.
 - B3: User chooses an installed Codex, Agy, Pi, or OpenCode CLI, asks a question, sees partial/final responses, can follow up in the same provider session, and can explicitly stop the current request.
 - B4: A configured hotkey intentionally captures the last focused non-Otto window without flash/selection UI, sends that image to a selected CLI with image support, and shows the analysis; full-screen capture is an explicit alternative.
-- B5: Music displays now-playing and playback actions in compact/expanded states; lyrics appear only when a source provides them.
-- B6: Pomodoro allows focus/break duration configuration, start/pause/resume/reset, and visible remaining time.
-- B7: User selects floating or top-attached placement; idle/compact/expanded states morph smoothly without trapping or unexpectedly obscuring interaction.
+- B5: Music Compact shows circular artwork, song/artist, and playback-linked activity spectrum; Expanded adds playback details/actions. The spectrum stops when playback stops; lyrics appear only when a source provides them.
+- B6: Pomodoro Compact shows remaining time, a linear remaining-time timeline, and a primary control; Expanded enables focus/break duration configuration, start/pause/resume/reset.
+- B7: User selects floating or top-attached placement; the capsule morphs into a rounded Expanded card. Attached uses curved shoulders connected to the screen edge; both placements preserve interaction without trapping or obscuring unrelated desktop actions.
 - B8: Collapsing Otto, switching feature, or returning focus to another app does not cancel an active AI request; reopening reveals ongoing output or its completed answer. Explicit Stop cancels; exiting Otto ends owned active work.
 - B9: Before starting agent work, user can see the selected provider and working project/context. Quick Ask is the default, with no file-changing actions; entering an Agent Session or approving a tool action requires an explicit user choice. An approval request visibly waits for a valid decision.
 - B10: Background AI, music, or timer updates never switch the active feature or seize keyboard focus; completed AI work appears as a quiet 'Answer ready' status that can be opened on demand.
@@ -57,11 +57,11 @@ Material breaks:
 
 ## Proof
 - P1 (B1,B7,X5): Given a supported Windows session, when Otto starts/changes placement, it remains accessible at the selected top location; capture-protection limitations are accurately communicated.
-- P2 (B2): Given idle Otto, hover/click/keyboard or supported horizontal gesture reveals the intended view; dismiss returns compact, with a keyboard alternative and no focus theft on hover.
+- P2 (B2): Given any Compact module, hover reveals its Expanded preview without focus theft; click/keyboard activation pins the card; exiting/Escape restores Compact, and Expanded Home exposes all module entries without mandatory gesture navigation.
 - P3 (B3,X1,X4): Given a ready CLI, asking produces a real partial/final answer and follow-up; a missing/failed CLI keeps the draft recoverable; explicit Stop/exit ends owned work without a stale answer.
 - P4 (B4,X2,X6,Q5): Given a valid last-focused window and capable provider, only an intentional hotkey sends its image and returns analysis; denied, unsupported, missing or ambiguous targets send nothing and offer recovery.
-- P5 (B5,X3): Given an active media session, playback actions reflect observed state; absent sessions/lyrics display unavailable rather than fabricated details.
-- P6 (B6): Given configured focus/break durations, start, pause, resume, and reset show the correct remaining time and preserve selected durations.
+- P5 (B5,X3): Given an active media session, Compact shows song/artist, circular cover and a spectrum only during playback; controls reflect observed state, and absent sessions/lyrics do not display fabricated data.
+- P6 (B6): Given configured focus/break durations, Compact displays the correct countdown and linear remaining-time timeline while start, pause, resume, reset and Expanded settings preserve selected durations.
 - P7 (Q1,Q2): Given a representative Windows build, record idle resource use and interaction/frame timing while a CLI executes; gestures/navigation and Stop remain responsive, with no invented benchmark pass.
 - P8 (B8): Given streaming AI output, when Otto collapses or another feature opens, the run continues and reopening restores the same session and available output; only Stop/exit terminates owned work.
 - P9 (B9,X7,C7): Given a selected provider/context, the user can distinguish Quick Ask from Agent Session; when approval is required, execution visibly waits and cannot continue without a valid approval path.
