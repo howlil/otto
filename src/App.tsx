@@ -141,7 +141,7 @@ function HomeCard({
   return (
     <button
       type="button"
-      className={"otto-choice otto-choice-" + name.toLowerCase()}
+      className={"otto-choice relative isolate block min-w-0 overflow-hidden text-left text-otto-text otto-choice-" + name.toLowerCase()}
       onClick={onClick}
       onPointerMove={move}
       onPointerLeave={reset}
@@ -152,11 +152,11 @@ function HomeCard({
         } as CSSProperties
       }
     >
-      <span className="otto-choice-copy">
+      <span className="otto-choice-copy pointer-events-none relative z-[3] flex h-full flex-col justify-center whitespace-nowrap">
         <strong>{name}</strong>
         <small>{subtitle}</small>
       </span>
-      <img className="otto-choice-art" src={artwork} alt="" draggable={false} />
+      <img className="otto-choice-art pointer-events-none absolute z-0 select-none object-contain" src={artwork} alt="" draggable={false} />
     </button>
   );
 }
@@ -171,7 +171,7 @@ function SettingChoices<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="otto-picks">
+    <div className="otto-picks flex flex-wrap gap-[6px]">
       {choices.map((choice) => (
         <button
           type="button"
@@ -232,7 +232,7 @@ function SettingToggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="otto-setting-toggle">
+    <label className="otto-setting-toggle flex cursor-pointer items-center justify-between gap-[10px]">
       <span>
         <strong>{title}</strong>
         <small>{help}</small>
@@ -257,8 +257,8 @@ function GlobalSettings({
     back.current?.focus({ preventScroll: true });
   }, []);
   return (
-    <section className="otto-global-settings" aria-label="Otto settings">
-      <header className="otto-settings-head">
+    <section className="otto-global-settings flex h-full min-h-0 flex-col" aria-label="Otto settings">
+      <header className="otto-settings-head flex shrink-0 items-center gap-[10px]">
         <button
           className="otto-icon-button"
           ref={back}
@@ -271,8 +271,8 @@ function GlobalSettings({
         <strong>Settings</strong>
         <span className="otto-settings-meta">Otto</span>
       </header>
-      <div className="otto-settings-layout">
-        <nav aria-label="Settings sections" className="otto-settings-nav">
+      <div className="otto-settings-layout grid min-h-0 flex-1">
+        <nav aria-label="Settings sections" className="otto-settings-nav flex flex-col items-stretch gap-1">
           {(["general", "interaction", "motion", "placement"] as SettingsTab[]).map((name) => (
             <button
               type="button"
@@ -285,7 +285,7 @@ function GlobalSettings({
             </button>
           ))}
         </nav>
-        <div className="otto-settings-content">
+        <div className="otto-settings-content min-h-0 overflow-y-auto text-otto-text">
           {tab === "general" && (
             <>
               <h2>General</h2>
@@ -401,7 +401,7 @@ function GlobalSettings({
             <>
               <h2>Placement</h2>
               <p>Position Otto relative to the top of the screen.</p>
-              <div className="otto-placement-grid">
+              <div className="otto-placement-grid grid grid-cols-2 gap-2">
                 <button type="button" aria-pressed="true" className="selected">
                   <span className="otto-place-graphic">
                     <i />
@@ -586,7 +586,7 @@ export default function App() {
   return (
     <main
       className={
-        "otto-shell " +
+        "otto-shell relative w-full h-full overflow-hidden bg-otto-surface text-otto-text " +
         (expanded ? "is-expanded " : "") +
         (reducedMotion ? "is-reduced " : "") +
         eventMotion
@@ -601,14 +601,14 @@ export default function App() {
       {!expanded ? (
         <button
           ref={compactButton}
-          className={"otto-compact " + (isAgent ? "is-agent" : "")}
+          className={"otto-compact flex items-center justify-center w-full h-full bg-transparent text-left " + (isAgent ? "is-agent" : "")}
           type="button"
           onClick={() => open(isAgent ? "agent" : "home")}
           aria-label={isAgent ? "Open Agent" : "Open Otto"}
         >
           {isAgent ? (
             <>
-              <span className="otto-agent-avatar">
+              <span className="otto-agent-avatar grid place-items-center shrink-0 rounded-full">
                 <svg
                   viewBox="0 0 24 24"
                   width="16"
@@ -622,7 +622,7 @@ export default function App() {
                   <path d="m7 9 3 3-3 3m6 0h4" />
                 </svg>
               </span>
-              <span className="otto-compact-copy">
+              <span className="otto-compact-copy min-w-0 flex-1">
                 <strong>
                   {agent.installed === false
                     ? "Unavailable"
@@ -655,10 +655,10 @@ export default function App() {
           )}
         </button>
       ) : page === "home" ? (
-        <section className="otto-home" aria-label="Otto Home">
-          <header className="otto-home-head">
+        <section className="otto-home flex h-full flex-col gap-[10px]" aria-label="Otto Home">
+          <header className="otto-home-head flex h-6 shrink-0 items-center gap-2">
             <button
-              className="otto-eye-button"
+              className="otto-eye-button grid shrink-0 place-items-center"
               type="button"
               aria-label="Collapse Otto"
               onClick={collapse}
@@ -670,7 +670,7 @@ export default function App() {
               {notice}
             </span>
             <button
-              className="otto-gear"
+              className="otto-gear grid shrink-0 place-items-center"
               ref={homeGear}
               type="button"
               onClick={() => open("global-settings")}
@@ -679,7 +679,7 @@ export default function App() {
               <Icon name="settings" />
             </button>
           </header>
-          <div className="otto-cards">
+          <div className="otto-cards grid min-h-0 flex-1 grid-cols-3 gap-[9px]">
             <HomeCard
               name="Agent"
               subtitle="Ask your CLI"

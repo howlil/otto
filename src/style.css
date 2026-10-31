@@ -1,4 +1,5 @@
 @import "tailwindcss";
+/* Tailwind v4 TSX utilities own static layout; CSS retains artwork, state and motion. */
 @theme {
   --color-otto-surface: #151515;
   --color-otto-text: #fafafa;
@@ -44,12 +45,6 @@ input:focus-visible {
   outline-offset: 2px;
 }
 .otto-shell {
-  background: var(--color-otto-surface);
-  color: var(--color-otto-text);
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
   border: 1px solid #353538;
   border-radius: 999px;
   transition: border-radius 400ms var(--ease-otto);
@@ -136,17 +131,10 @@ input:focus-visible {
   height: 12px;
 }
 .otto-compact {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 9px;
-  width: 100%;
-  height: 100%;
   padding: 0 11px;
-  background: transparent;
   color: inherit;
   border: 0;
-  text-align: left;
 }
 .otto-compact.is-agent {
   justify-content: flex-start;
@@ -154,17 +142,10 @@ input:focus-visible {
 .otto-agent-avatar {
   height: 31px;
   width: 31px;
-  border-radius: 50%;
   background: #2b2b2e;
-  display: grid;
-  place-items: center;
-  flex: none;
   color: #e7e7e9;
 }
-.otto-compact-copy {
-  min-width: 0;
-  flex: 1;
-}
+
 .otto-compact-copy strong {
   display: block;
   font-size: 12px;
@@ -223,19 +204,9 @@ input:focus-visible {
 }
 
 .otto-home {
-  height: 100%;
   padding: 15px 17px 17px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
-.otto-home-head {
-  height: 24px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-}
+
 .otto-home-head > strong {
   font-size: 13px;
   font-weight: 520;
@@ -255,10 +226,7 @@ input:focus-visible {
   border: 0;
   border-radius: 10px;
   background: #29292c;
-  display: grid;
-  place-items: center;
   color: #eee;
-  flex: none;
   transition:
     background 0.15s,
     transform 0.12s;
@@ -278,13 +246,10 @@ input:focus-visible {
 .otto-gear {
   width: 31px;
   height: 31px;
-  display: grid;
-  place-items: center;
   background: transparent;
   border: 0;
   border-radius: 9px;
   color: #a9a9ae;
-  flex: none;
   transition:
     background 0.15s,
     color 0.15s,
@@ -294,22 +259,9 @@ input:focus-visible {
   background: #29292c;
   color: #fafafa;
 }
-.otto-cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
-  flex: 1;
-  min-height: 0;
-}
+
 .otto-choice {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  display: block;
-  min-width: 0;
-  text-align: left;
   background: linear-gradient(118deg, #292a2c 0%, #25272b 51%, #202123 100%);
-  color: #fafafa;
   border: 1px solid #3b3d41;
   border-radius: 15px;
   padding: 11px 10px 11px 13px;
@@ -351,15 +303,7 @@ input:focus-visible {
   transform: scale(0.985);
 }
 .otto-choice-copy {
-  z-index: 3;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  height: 100%;
   max-width: 81%;
-  pointer-events: none;
-  white-space: nowrap;
 }
 .otto-choice-copy strong {
   font-size: 12px;
@@ -371,16 +315,11 @@ input:focus-visible {
   margin-top: 6px;
 }
 .otto-choice-art {
-  position: absolute;
-  z-index: 0;
   right: -7px;
   top: -23px;
   height: 132px;
   width: 148px;
   opacity: 0.91;
-  pointer-events: none;
-  user-select: none;
-  object-fit: contain;
   transform: perspective(380px) rotateY(calc(-1 * var(--art-tilt))) rotateZ(-6deg)
     translate3d(var(--dx), var(--dy), 0);
   transform-origin: 60% 50%;
@@ -393,19 +332,10 @@ input:focus-visible {
 }
 
 /* Global settings are a native-sized in-island surface, not a detached modal. */
-.otto-global-settings {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
+
 .otto-settings-head {
   height: 51px;
-  flex: none;
   border-bottom: 1px solid #2b2c2f;
-  display: flex;
-  align-items: center;
-  gap: 10px;
   padding: 0 15px;
 }
 .otto-settings-head strong {
@@ -431,19 +361,12 @@ input:focus-visible {
   background: #34353a;
 }
 .otto-settings-layout {
-  display: grid;
   grid-template-columns: 118px minmax(0, 1fr);
-  flex: 1;
-  min-height: 0;
 }
 .otto-settings-nav {
   background: #181818;
   border-right: 1px solid #292b2f;
   padding: 13px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: stretch;
 }
 .otto-settings-nav button {
   height: 35px;
@@ -464,12 +387,9 @@ input:focus-visible {
   color: #fff;
 }
 .otto-settings-content {
-  min-height: 0;
-  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #444 transparent;
   padding: 16px 18px 20px;
-  color: #fafafa;
 }
 .otto-settings-content h2 {
   font-size: 14px;
@@ -491,11 +411,7 @@ input:focus-visible {
   color: #b2b2b5;
   margin: 0 0 8px;
 }
-.otto-picks {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
+
 .otto-picks button {
   color: #b3b3b3;
   border: 1px solid #39393b;
@@ -521,14 +437,9 @@ input:focus-visible {
   padding: 4px 0;
 }
 .otto-setting-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
   padding: 9px 0;
   min-height: 51px;
   border-bottom: 1px solid #2b2b2c;
-  cursor: pointer;
 }
 .otto-setting-toggle strong,
 .otto-setting-toggle small {
@@ -604,9 +515,6 @@ input:focus-visible {
   margin-top: 6px;
 }
 .otto-placement-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
   margin-bottom: 15px;
 }
 .otto-placement-grid button {
@@ -660,24 +568,12 @@ input:focus-visible {
 }
 
 /* Agent compact/expanded, based on design/agent.html */
-.otto-agent {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
+
 .otto-agent-head {
   height: 53px;
-  flex: none;
   padding: 9px 15px 5px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
 }
-.otto-agent-identity {
-  flex: 1;
-  min-width: 0;
-}
+
 .otto-agent-identity strong {
   font-size: 12px;
   font-weight: 590;
@@ -722,11 +618,6 @@ input:focus-visible {
   background: #97979a;
 }
 .otto-agent-feed {
-  min-width: 0;
-  min-height: 0;
-  flex: 1;
-  overflow-x: hidden;
-  overflow-y: auto;
   scrollbar-width: none;
   overscroll-behavior: contain;
   padding: 7px 18px 9px;
@@ -735,12 +626,7 @@ input:focus-visible {
 .otto-agent-settings::-webkit-scrollbar {
   width: 0;
 }
-.otto-feed-stack {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-}
+
 .otto-empty-agent {
   height: 30px;
   margin: 0;
@@ -788,9 +674,6 @@ input:focus-visible {
 .otto-agent-activity {
   font-size: 10px;
   color: #b6b6b9;
-  display: flex;
-  align-items: center;
-  gap: 7px;
 }
 .otto-agent-activity .otto-bars {
   height: 15px;
@@ -843,14 +726,10 @@ input:focus-visible {
   font-size: 10px;
 }
 .otto-agent-compose-wrap {
-  flex: none;
   padding: 7px 12px 12px;
 }
 .otto-agent-composer {
   min-height: 50px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
   padding: 5px 7px;
   border: 1px solid transparent;
   background: #29292b;
@@ -892,10 +771,6 @@ input:focus-visible {
   color: #d3d3d6;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  flex: none;
   transition:
     background 0.14s,
     transform 0.12s;
@@ -917,12 +792,7 @@ input:focus-visible {
   opacity: 0.35;
 }
 .otto-agent-settings {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
   padding: 1px 18px 15px;
-  overflow-y: auto;
   scrollbar-width: none;
 }
 .otto-settings-intro {
@@ -936,11 +806,7 @@ input:focus-visible {
   color: #a6a6ab;
   margin-bottom: 7px;
 }
-.otto-provider-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
-}
+
 .otto-provider-grid button {
   min-width: 0;
   background: #242426;
@@ -969,11 +835,7 @@ input:focus-visible {
   background: #303033;
   margin: 13px 0;
 }
-.otto-mode-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+
 .otto-mode-list button {
   display: flex;
   align-items: center;
@@ -1022,9 +884,6 @@ input:focus-visible {
   border-radius: 50%;
 }
 .otto-project-input {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   background: #232326;
   border: 1px solid #3a3a3e;
   border-radius: 9px;
@@ -1056,10 +915,6 @@ input:focus-visible {
 .otto-agent-settings-bottom {
   margin-top: auto;
   padding-top: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }
 .otto-agent-settings-bottom > span {
   color: #88888f;

@@ -138,8 +138,8 @@ export function AgentPanel({
     error ||
     (installed === false ? "Codex CLI not found. Install Codex or check PATH, then retry." : "");
   return (
-    <section className="otto-agent" aria-label="Otto Agent" data-status={snapshot.status}>
-      <header className="otto-agent-head">
+    <section className="otto-agent flex h-full min-h-0 flex-col" aria-label="Otto Agent" data-status={snapshot.status}>
+      <header className="otto-agent-head flex shrink-0 items-center gap-[9px]">
         {settings ? (
           <button
             className="otto-eye-button"
@@ -163,7 +163,7 @@ export function AgentPanel({
             </span>
           </button>
         )}
-        <div className="otto-agent-identity">
+        <div className="otto-agent-identity min-w-0 flex-1">
           <strong>
             {settings ? (
               "Agent settings"
@@ -195,10 +195,10 @@ export function AgentPanel({
       </header>
 
       {settings ? (
-        <div className="otto-agent-settings">
+        <div className="otto-agent-settings flex min-h-0 flex-1 flex-col overflow-y-auto">
           <p className="otto-settings-intro">Choose what Otto uses when you send a request.</p>
           <span className="otto-field-name">Provider</span>
-          <div className="otto-provider-grid">
+          <div className="otto-provider-grid grid grid-cols-4 gap-[7px]">
             {(["Codex", "Agy", "Pi", "OpenCode"] as const).map((name) => (
               <button
                 type="button"
@@ -221,7 +221,7 @@ export function AgentPanel({
           </div>
           <div className="otto-settings-divider" />
           <span className="otto-field-name">Execution mode</span>
-          <div className="otto-mode-list">
+          <div className="otto-mode-list flex flex-col gap-[6px]">
             <button type="button" className="selected" aria-pressed="true">
               <i className="otto-mode-radio" />{" "}
               <span>
@@ -246,7 +246,7 @@ export function AgentPanel({
           <label className="otto-field-name" htmlFor="otto-project">
             Working project
           </label>
-          <div className="otto-project-input">
+          <div className="otto-project-input flex items-center gap-2">
             <AgentIcon name="folder" size={15} />
             <input
               id="otto-project"
@@ -262,7 +262,7 @@ export function AgentPanel({
               This conversation's working folder is locked until a new session.
             </p>
           )}
-          <div className="otto-agent-settings-bottom">
+          <div className="otto-agent-settings-bottom flex items-center justify-between gap-[10px]">
             <button type="button" className="otto-agent-home-link" onClick={onBack}>
               Home
             </button>
@@ -279,7 +279,7 @@ export function AgentPanel({
       ) : (
         <>
           <div
-            className="otto-agent-feed"
+            className="otto-agent-feed min-w-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
             ref={feed}
             role="log"
             aria-live="polite"
@@ -289,7 +289,7 @@ export function AgentPanel({
               nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
             }}
           >
-            <div className="otto-feed-stack">
+            <div className="otto-feed-stack flex min-w-0 flex-col gap-[11px]">
               {snapshot.messages.length === 0 && !busy && (
                 <p className="otto-empty-agent">Ask Codex about your current task</p>
               )}
@@ -312,7 +312,7 @@ export function AgentPanel({
                 ),
               )}
               {busy && (
-                <div className="otto-agent-activity">
+                <div className="otto-agent-activity flex items-center gap-[7px]">
                   <Bars />
                   {snapshot.status === "starting"
                     ? "Reading context"
@@ -345,14 +345,14 @@ export function AgentPanel({
               )}
             </div>
           </div>
-          <div className="otto-agent-compose-wrap">
-            <form className="otto-agent-composer" onSubmit={submit}>
+          <div className="otto-agent-compose-wrap shrink-0">
+            <form className="otto-agent-composer flex items-center gap-[5px]" onSubmit={submit}>
               <button
                 type="button"
                 disabled
                 aria-label="Capture not available yet"
                 title="Screen capture is not available in this slice"
-                className="otto-round-action"
+                className="otto-round-action grid shrink-0 place-items-center rounded-full"
               >
                 <AgentIcon name="camera" />
               </button>

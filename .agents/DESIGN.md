@@ -15,6 +15,7 @@ Identity: idle Compact shows only paired robot eyes; active modules use task-spe
 Per-surface moments and interaction graphs belong in the current PR/task, not in this durable file.
 
 ## Guardrails
+- Tailwind CSS v4 is the default styling system: put static layout, alignment, spacing, and token colors in complete TSX utility classes; preserve custom notch geometry, SVG art, state selectors and motion in `src/style.css`. Do not duplicate layout declarations or construct utility names at runtime.
 - `src/style.css` Tailwind `@theme` is the executable token source: surface/text/muted, `--font-otto-ui`, `--radius-otto-island`, `--ease-otto`. Reuse tokens and Tailwind's 4px spacing scale; do not scatter semantic literals in components. Add accent, controls or extra scales only with real usage.
 - UIArc is a visual reference, not a dependency. Prioritize real provider/session/status content over ornamental effects; never simulate successful AI, media, or capture states.
 - Floating and top-attached placements preserve the same available tasks; neither may create an invisible hit area that blocks unrelated desktop actions.

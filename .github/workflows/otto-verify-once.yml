@@ -5,6 +5,7 @@ name: Otto Windows verification (on demand)
   push:
     branches:
       - 'feat/*'
+      - master
     paths:
       - .github/workflows/otto-verify-once.yml
   workflow_dispatch:
