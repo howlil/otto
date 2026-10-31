@@ -61,17 +61,32 @@ fn account_readiness(value: &Value) -> ProviderReadiness {
 // Unknown or malformed catalogs never turn into a false Ready signal.
 fn model_readiness(value: &Value) -> ProviderReadiness {
     let Some(models) = value["data"].as_array() else {
-        return ProviderReadiness::new("unsupported", "Codex model catalog is unavailable.", "Update Codex, then Retry.");
+        return ProviderReadiness::new(
+            "unsupported",
+            "Codex model catalog is unavailable.",
+            "Update Codex, then Retry.",
+        );
     };
-    let Some(model) = models.iter().find(|m| m["isDefault"] == true && m["hidden"] != true) else {
-        return ProviderReadiness::new("unsupported", "Codex did not identify a default model.", "Check your Codex model configuration, then Retry.");
+    let Some(model) = models
+        .iter()
+        .find(|m| m["isDefault"] == true && m["hidden"] != true)
+    else {
+        return ProviderReadiness::new(
+            "unsupported",
+            "Codex did not identify a default model.",
+            "Check your Codex model configuration, then Retry.",
+        );
     };
     let modalities = model["inputModalities"].as_array();
     // Codex documents absent inputModalities as legacy text+image support,
     // but Otto does not advertise image capability without explicit evidence.
     let text = modalities.is_none_or(|items| items.iter().any(|v| v == "text"));
     if !text {
-        return ProviderReadiness::new("unsupported", "Codex's default model does not support text.", "Select a text-capable Codex model, then Retry.");
+        return ProviderReadiness::new(
+            "unsupported",
+            "Codex's default model does not support text.",
+            "Select a text-capable Codex model, then Retry.",
+        );
     }
     let mut ready = ProviderReadiness::new("ready", "Codex is ready for text requests.", "");
     ready.image_input = modalities.is_some_and(|items| items.iter().any(|v| v == "image"));
@@ -125,22 +140,26 @@ pub async fn readiness() -> ProviderReadiness {
         .await?;
         rpc.send(json!({ "method": "initialized", "params": {} }))
             .await?;
-        let (account, _) = rpc.request(
-            "account/read",
-            json!({ "refreshToken": true }),
-            &mut approvals,
-            &updates,
-        ).await?;
+        let (account, _) = rpc
+            .request(
+                "account/read",
+                json!({ "refreshToken": true }),
+                &mut approvals,
+                &updates,
+            )
+            .await?;
         let authentication = account_readiness(&account);
         if authentication.status != "ready" {
             return Ok(authentication);
         }
-        let (models, _) = rpc.request(
-            "model/list",
-            json!({ "limit": 100, "includeHidden": false }),
-            &mut approvals,
-            &updates,
-        ).await?;
+        let (models, _) = rpc
+            .request(
+                "model/list",
+                json!({ "limit": 100, "includeHidden": false }),
+                &mut approvals,
+                &updates,
+            )
+            .await?;
         Ok(model_readiness(&models))
     })
     .await;
