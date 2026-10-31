@@ -10,7 +10,7 @@ bun install
 bun run tauri dev
 ```
 
-Frontend-only: `bun run dev`. Checks after dependency install: `bun run build` and `cd src-tauri; cargo check`.
+Frontend-only: `bun run dev`. After installing dependencies: `bun run check` (Biome), `bun run build` (TypeScript/Vite), then `cd src-tauri; cargo fmt --all -- --check; cargo clippy --all-targets -- -D warnings; cargo check` on Windows MSVC.
 
 Commit the generated `bun.lock` after the first successful dependency resolution; use `bun install --frozen-lockfile` for reproducible CI installs.
 

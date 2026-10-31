@@ -13,6 +13,8 @@ Existing code implements only the static idle React view and initial top-center 
 - K5 Rust Windows host (future): positioning/focus, hotkeys, screenshot, content protection, media; never decide AI permission policy.
 - Feature-owned timer logic and media presentation stay with their feature when introduced; no new crate/service/store for the scaffold.
 - Direction: K1 -> K2 -> K3; K4 implements K3's provider contract; K2/K3 -> K5 for OS capabilities. No frontend -> subprocess/Win32 or cross-feature internal imports.
+- Conventions: PascalCase React components/types, camelCase JS/TS values and Hooks prefixed `use`, kebab-case feature folders, snake_case Rust modules/functions and PascalCase Rust types; follow Rustfmt/Clippy. Feature public entry points appear only when multiple consumers need them.
+- Principles: one owner per responsibility/state (SRP), dependency inversion at K3/K4 provider boundary, composition before inheritance; use Adapter for real CLI protocol mismatches, state transitions for agent lifecycle, not speculative Factory/Repository/DI layers.
 
 ## Responsibilities
 - R1 (B1,B2,B10): present idle/compact/expanded state, navigation, active feature, drafts, unobtrusive completion and keyboard/focus intent.
@@ -89,10 +91,11 @@ Existing code implements only the static idle React view and initial top-center 
 ## Fitness
 - F1: no frontend-to-shell/Win32 or privileged side effects outside bounded Tauri/Rust commands | signal: import/usage review for `src/` and Tauri capabilities | tool: TS static scan + capability inspection | pass: none | cadence: PR | mode: enforce when first privileged command lands; exceptions -> D#.
 - F2: feature modules import sibling features only via public entries | signal: illegal module import | tool: TS dependency scan | pass: none | cadence: PR once feature modules exist | mode: enforce then; exceptions -> D#.
-- Current scaffold has no CI enforcement for F1/F2. These are proposed contract checks, **not a locked boundary or passed gate**; reuse a future existing CI job, do not create workflow per fitness rule.
+- F3: UI uses shared semantic design tokens from `src/style.css`, not new hard-coded palette values per component | signal: changed CSS/TSX | tool: targeted diff review (automate only if drift appears) | pass: no duplicated semantic literals | cadence: PR | mode: review; exceptions -> D#.
+- Existing `bun run check` handles frontend formatting/linting, not F1/F2/F3 architecture enforcement. No CI workflow exists; reuse a future check job if needed, never claim these boundaries enforced until checked.
 
 ## Verification
-- Existing frontend: `bun run build` (TypeScript/Vite); Windows Rust: `cd src-tauri && cargo check` (commands specified, not run).
+- Frontend: `bun run check` (Biome) and `bun run build` (TypeScript/Vite); Rust: `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo check` under `src-tauri` on Windows MSVC (commands specified, not run).
 - First Codex slice: prove real streaming/terminal behavior, fail-closed Quick Ask, run-id cancellation and one missing-provider recovery at the cheapest faithful boundary; precise PF/stage selection belongs to test-engineering.
 - Windows-only overlay/capture/frame/child-tree behavior requires representative Windows observation; do not treat frontend compilation as runtime proof.
 

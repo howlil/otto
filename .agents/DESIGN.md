@@ -3,7 +3,7 @@ colors: {surface: "#151515", text: "#FAFAFA", muted: "#A3A3A3"}
 typography: {body: {family: "Segoe UI, system-ui, sans-serif", size: "14px"}}
 spacing: {base: "4px"}
 radius: {island: "9999px"}
-motion: {reduced: "disable nonessential motion"}
+motion: {ease: "cubic-bezier(0.22, 1, 0.36, 1)", reduced: "disable nonessential motion"}
 ---
 # Design — Otto
 
@@ -15,7 +15,7 @@ Identity: paired robot eyes identify idle Otto, not every state. Keep the surrou
 Per-surface moments and interaction graphs belong in the current PR/task, not in this durable file.
 
 ## Guardrails
-- `src/style.css` and its Tailwind theme are the token source of truth. Reuse named colors, the spacing scale, and shared shape/type decisions; do not scatter raw color values through components. Add an accent token only when it exists in the implementation.
+- `src/style.css` Tailwind `@theme` is the executable token source: surface/text/muted, `--font-otto-ui`, `--radius-otto-island`, `--ease-otto`. Reuse tokens and Tailwind's 4px spacing scale; do not scatter semantic literals in components. Add accent, controls or extra scales only with real usage.
 - UIArc is a visual reference, not a dependency. Prioritize real provider/session/status content over ornamental effects; never simulate successful AI, media, or capture states.
 - Floating and top-attached placements preserve the same available tasks; neither may create an invisible hit area that blocks unrelated desktop actions.
 - Hover can reveal a preview but never takes keyboard focus. Only an explicit activation opens the interactive surface; dismissal returns attention to the prior desktop task.
