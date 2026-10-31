@@ -12,6 +12,8 @@ export function AgentSettings({
   cwd,
   setCwd,
   hasThread,
+  busy,
+  onNewSession,
   onBack,
   onDone,
 }: {
@@ -22,6 +24,8 @@ export function AgentSettings({
   cwd: string;
   setCwd: (cwd: string) => void;
   hasThread: boolean;
+  busy: boolean;
+  onNewSession: () => void;
   onBack: () => void;
   onDone: () => void;
 }) {
@@ -87,9 +91,19 @@ export function AgentSettings({
         />
       </div>
       {hasThread && (
-        <p className="otto-settings-note">
-          This conversation's working folder is locked until a new session.
-        </p>
+        <div className="otto-settings-session flex items-center justify-between gap-3">
+          <p className="otto-settings-note">
+            Mode and project are fixed for this conversation. New Session clears its transcript.
+          </p>
+          <button
+            type="button"
+            className="otto-settings-done"
+            disabled={busy}
+            onClick={onNewSession}
+          >
+            New Session
+          </button>
+        </div>
       )}
       <div className="otto-agent-settings-bottom flex items-center justify-between gap-[10px]">
         <button type="button" className="otto-agent-home-link" onClick={onBack}>
