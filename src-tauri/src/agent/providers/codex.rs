@@ -1025,7 +1025,7 @@ pub async fn run(
     for msg in buffered {
         if handle_event(&msg, &thread, &turn, run_id, &updates) {
             active = None;
-            active_capture = None;
+            drop(active_capture.take());
         }
     }
 
@@ -1070,10 +1070,10 @@ pub async fn run(
                     // Reuse the same single-reader control path as the first turn.
                     // While turn/start is pending, approvals and Stop remain live;
                     // a decision is never mistaken for a closed control channel.
-                    let next_capture = capture;
+                    active_capture = capture;
                     match begin_turn(
                         &mut rpc,
-                        TurnInput { thread: &thread, text: &text, image: next_capture.as_ref().map(|image| image.path()) },
+                        TurnInput { thread: &thread, text: &text, image: active_capture.as_ref().map(|image| image.path()) },
                         run_id,
                         mode,
                         &mut approvals,
@@ -1083,11 +1083,10 @@ pub async fn run(
                         Ok(Some((new_turn, buffered))) => {
                             turn = new_turn;
                             active = Some(run_id);
-                            active_capture = next_capture;
                             for msg in buffered {
                                 if handle_event(&msg, &thread, &turn, run_id, &updates) {
                                     active = None;
-                                    active_capture = None;
+                                    drop(active_capture.take());
                                 }
                             }
                         }
@@ -1138,7 +1137,7 @@ pub async fn run(
                             && handle_event(&msg, &thread, &turn, id, &updates)
                         {
                             active = None;
-                            active_capture = None;
+                            drop(active_capture.take());
                         }
                     }
                     _ => {
