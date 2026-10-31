@@ -138,7 +138,11 @@ export function AgentPanel({
     error ||
     (installed === false ? "Codex CLI not found. Install Codex or check PATH, then retry." : "");
   return (
-    <section className="otto-agent flex h-full min-h-0 flex-col" aria-label="Otto Agent" data-status={snapshot.status}>
+    <section
+      className="otto-agent flex h-full min-h-0 flex-col"
+      aria-label="Otto Agent"
+      data-status={snapshot.status}
+    >
       <header className="otto-agent-head flex shrink-0 items-center gap-[9px]">
         {settings ? (
           <button

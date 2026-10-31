@@ -141,7 +141,10 @@ function HomeCard({
   return (
     <button
       type="button"
-      className={"otto-choice relative isolate block min-w-0 overflow-hidden text-left text-otto-text otto-choice-" + name.toLowerCase()}
+      className={
+        "otto-choice relative isolate block min-w-0 overflow-hidden text-left text-otto-text otto-choice-" +
+        name.toLowerCase()
+      }
       onClick={onClick}
       onPointerMove={move}
       onPointerLeave={reset}
@@ -156,7 +159,12 @@ function HomeCard({
         <strong>{name}</strong>
         <small>{subtitle}</small>
       </span>
-      <img className="otto-choice-art pointer-events-none absolute z-0 select-none object-contain" src={artwork} alt="" draggable={false} />
+      <img
+        className="otto-choice-art pointer-events-none absolute z-0 select-none object-contain"
+        src={artwork}
+        alt=""
+        draggable={false}
+      />
     </button>
   );
 }
@@ -257,7 +265,10 @@ function GlobalSettings({
     back.current?.focus({ preventScroll: true });
   }, []);
   return (
-    <section className="otto-global-settings flex h-full min-h-0 flex-col" aria-label="Otto settings">
+    <section
+      className="otto-global-settings flex h-full min-h-0 flex-col"
+      aria-label="Otto settings"
+    >
       <header className="otto-settings-head flex shrink-0 items-center gap-[10px]">
         <button
           className="otto-icon-button"
@@ -272,7 +283,10 @@ function GlobalSettings({
         <span className="otto-settings-meta">Otto</span>
       </header>
       <div className="otto-settings-layout grid min-h-0 flex-1">
-        <nav aria-label="Settings sections" className="otto-settings-nav flex flex-col items-stretch gap-1">
+        <nav
+          aria-label="Settings sections"
+          className="otto-settings-nav flex flex-col items-stretch gap-1"
+        >
           {(["general", "interaction", "motion", "placement"] as SettingsTab[]).map((name) => (
             <button
               type="button"
@@ -601,7 +615,10 @@ export default function App() {
       {!expanded ? (
         <button
           ref={compactButton}
-          className={"otto-compact flex items-center justify-center w-full h-full bg-transparent text-left " + (isAgent ? "is-agent" : "")}
+          className={
+            "otto-compact flex items-center justify-center w-full h-full bg-transparent text-left " +
+            (isAgent ? "is-agent" : "")
+          }
           type="button"
           onClick={() => open(isAgent ? "agent" : "home")}
           aria-label={isAgent ? "Open Agent" : "Open Otto"}
