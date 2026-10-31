@@ -14,6 +14,7 @@ pub fn run() {
             commands::agent_ask,
             commands::agent_decide_approval,
             commands::agent_stop,
+            commands::agent_new_session,
             commands::notch_set_surface,
         ])
         .setup(|app| {
