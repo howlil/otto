@@ -99,6 +99,7 @@ export default function App() {
           <AgentCapsule
             snapshot={agent.snapshot}
             installed={agent.installed}
+            readiness={agent.readiness}
             buttonRef={compactButton}
             onOpen={() => open("agent")}
           />
