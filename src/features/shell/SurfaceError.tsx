@@ -1,13 +1,7 @@
 import { Icon, VisuallyHidden } from "../../shared/ui";
 
 // All Shell surfaces retain recoverable feedback from native geometry errors.
-export function SurfaceError({
-  message,
-  expanded,
-}: {
-  message: string | null;
-  expanded: boolean;
-}) {
+export function SurfaceError({ message, expanded }: { message: string | null; expanded: boolean }) {
   if (!message) return null;
   return (
     <div
