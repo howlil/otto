@@ -87,12 +87,23 @@ mod tests {
     #[test]
     fn screenshot_is_a_separate_local_image_input_not_part_of_prompt() {
         let image = std::path::Path::new("C:/Users/test/AppData/Local/Temp/otto.png");
-        let request = turn_start_with_image("thread", "Analyze this", InteractionMode::QuickAsk, Some(image));
+        let request = turn_start_with_image(
+            "thread",
+            "Analyze this",
+            InteractionMode::QuickAsk,
+            Some(image),
+        );
         assert_eq!(request["input"][0]["type"], "text");
         assert_eq!(request["input"][1]["type"], "localImage");
-        assert_eq!(request["input"][1]["path"], image.to_string_lossy().as_ref());
+        assert_eq!(
+            request["input"][1]["path"],
+            image.to_string_lossy().as_ref()
+        );
         assert_eq!(request["sandboxPolicy"]["type"], "readOnly");
-        assert_eq!(turn_start_with_image("thread", "Hi", InteractionMode::QuickAsk, None), turn_start("thread", "Hi", InteractionMode::QuickAsk));
+        assert_eq!(
+            turn_start_with_image("thread", "Hi", InteractionMode::QuickAsk, None),
+            turn_start("thread", "Hi", InteractionMode::QuickAsk)
+        );
     }
 
     #[test]
