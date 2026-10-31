@@ -917,7 +917,13 @@ pub async fn run(
     initial: Control,
     mode: InteractionMode,
 ) {
-    let Control::Ask { text, cwd, run_id, capture } = initial else {
+    let Control::Ask {
+        text,
+        cwd,
+        run_id,
+        capture,
+    } = initial
+    else {
         return;
     };
     let mut active_capture = capture;
