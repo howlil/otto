@@ -122,9 +122,7 @@ impl Approvals {
                 }
                 let mut paths = Vec::with_capacity(changes.len());
                 for change in changes {
-                    let Some(path) = change["path"]
-                        .as_str()
-                        .filter(|p| !p.trim().is_empty())
+                    let Some(path) = change["path"].as_str().filter(|p| !p.trim().is_empty())
                     else {
                         return;
                     };
@@ -181,7 +179,10 @@ impl Approvals {
             return ServerRequest::Decline;
         }
         if let Some(choices) = params["availableDecisions"].as_array() {
-            if !choices.iter().any(|choice| choice.as_str() == Some("accept")) {
+            if !choices
+                .iter()
+                .any(|choice| choice.as_str() == Some("accept"))
+            {
                 return ServerRequest::Decline;
             }
         } else if !params["availableDecisions"].is_null() {
@@ -191,15 +192,14 @@ impl Approvals {
             "item/commandExecution/requestApproval" => {
                 if !params["networkApprovalContext"].is_null() {
                     let context = &params["networkApprovalContext"];
-                    let Some(host) = context["host"]
-                        .as_str()
-                        .filter(|s| !s.trim().is_empty())
+                    let Some(host) = context["host"].as_str().filter(|s| !s.trim().is_empty())
                     else {
                         return ServerRequest::Decline;
                     };
-                    let Some(protocol) = context["protocol"].as_str().filter(|s| {
-                        matches!(*s, "http" | "https" | "socks5Tcp" | "socks5Udp")
-                    }) else {
+                    let Some(protocol) = context["protocol"]
+                        .as_str()
+                        .filter(|s| matches!(*s, "http" | "https" | "socks5Tcp" | "socks5Udp"))
+                    else {
                         return ServerRequest::Decline;
                     };
                     let detail = format!("{protocol} · {host}");
@@ -208,9 +208,7 @@ impl Approvals {
                     }
                     Some(("network", "Allow network access", detail))
                 } else {
-                    let Some(command) = params["command"]
-                        .as_str()
-                        .filter(|s| !s.trim().is_empty())
+                    let Some(command) = params["command"].as_str().filter(|s| !s.trim().is_empty())
                     else {
                         return ServerRequest::Decline;
                     };
@@ -308,7 +306,10 @@ fn classify_startup_control(
     match command {
         Some(Control::Stop) => Ok(StartupControl::Stop),
         Some(Control::Close { .. }) => Err("Cannot close Codex while starting a turn.".into()),
-        Some(Control::Decide { approval_id, decision }) => {
+        Some(Control::Decide {
+            approval_id,
+            decision,
+        }) => {
             if let Some(reply) = approvals.decide(&approval_id, decision) {
                 Ok(StartupControl::Reply(reply))
             } else {
@@ -425,8 +426,7 @@ impl Rpc {
             } else {
                 self.read().await?
             };
-            if value.get("id").and_then(Value::as_u64) == Some(id)
-                && value.get("method").is_none()
+            if value.get("id").and_then(Value::as_u64) == Some(id) && value.get("method").is_none()
             {
                 if value.get("error").is_some() {
                     return Err(format!(
@@ -754,9 +754,17 @@ pub async fn run(
     };
     // begin_turn binds the thread/run before turn/start, even before the ack.
     let (mut turn, buffered) = match begin_turn(
-        &mut rpc, &thread, &text, run_id, mode, &mut approvals, &updates,
+        &mut rpc,
+        &thread,
+        &text,
+        run_id,
+        mode,
+        &mut approvals,
+        &updates,
         Some(&mut controls),
-    ).await {
+    )
+    .await
+    {
         Ok(Some(value)) => value,
         Ok(None) => {
             mutate(&updates, |s| {
@@ -1332,7 +1340,10 @@ mod tests {
         publish_approval(&approvals, &updates);
         let snap = updates.borrow();
         assert_eq!(snap.status, "approvalRequired");
-        let approval = snap.approval.as_ref().expect("follow-up approval is visible");
+        let approval = snap
+            .approval
+            .as_ref()
+            .expect("follow-up approval is visible");
         assert_eq!(approval.run_id, 5);
         let approval_id = approval.approval_id.clone();
         drop(snap);
@@ -1349,7 +1360,10 @@ mod tests {
         let StartupControl::Reply(reply) = action else {
             panic!("follow-up approval must not terminate the session");
         };
-        assert_eq!(reply, json!({ "id": 12, "result": { "decision": "accept" } }));
+        assert_eq!(
+            reply,
+            json!({ "id": 12, "result": { "decision": "accept" } })
+        );
 
         approvals.context("thread", "next-turn", 5);
         assert!(matches!(
@@ -1376,7 +1390,13 @@ mod tests {
         ));
         let tx = snapshot("approvalRequired", 9);
         publish_approval(&approvals, &tx);
-        let approval_id = approvals.pending.as_ref().unwrap().approval.approval_id.clone();
+        let approval_id = approvals
+            .pending
+            .as_ref()
+            .unwrap()
+            .approval
+            .approval_id
+            .clone();
         let action = classify_startup_control(
             Some(Control::Decide {
                 approval_id,
@@ -1384,11 +1404,15 @@ mod tests {
             }),
             &mut approvals,
             &tx,
-        ).unwrap();
+        )
+        .unwrap();
         let StartupControl::Reply(reply) = action else {
             panic!("an approval must reply to Codex without stopping startup");
         };
-        assert_eq!(reply, json!({ "id": 1, "result": { "decision": "accept" } }));
+        assert_eq!(
+            reply,
+            json!({ "id": 1, "result": { "decision": "accept" } })
+        );
         assert!(approvals.pending.is_none());
         assert!(matches!(
             classify_startup_control(Some(Control::Stop), &mut approvals, &tx).unwrap(),
@@ -1412,10 +1436,10 @@ mod tests {
             }),
             &mut approvals,
             &tx,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(matches!(action, StartupControl::Continue));
         assert!(approvals.pending.is_some());
         assert_eq!(tx.borrow().status, "approvalRequired");
     }
-
 }
