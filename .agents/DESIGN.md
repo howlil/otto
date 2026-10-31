@@ -53,6 +53,27 @@ Per-surface moments and interaction graphs belong in the current PR/task, not in
 - Error and empty states name the unavailable capability and offer the next valid action (retry, configure, choose provider, or dismiss). Disable a temporarily unavailable action with a reason; hide actions that can never apply.
 - Per-feature U/M/ST/V/N graph and X# recovery mapping stay in the implementing PR. Do not turn this file into a screen-by-screen specification.
 
+## Frontend composition rules
+
+Enforced by `bun run check` → `scripts/frontend-rules.mjs` against `.agents/frontend-budget.json`. The budget is a **ratchet**: a change may lower a number, never raise it. Fix the violation; do not edit the baseline upward.
+
+```text
+R1  no raw color literal in any src/**/*.{ts,tsx}       0
+R2  no color literal in CSS outside the @theme block    <=153 (shrink as modules are tokenized)
+R3  largest component file, lines                       <=794
+R4  features missing a public index.ts entry            <=1
+R5  total Biome diagnostics                             <=33
+```
+
+Build every screen block by block, component by component, from shared primitives; do not grow one file into a screen.
+
+- **Layers**: `ui` (render-only, props in / events out) ← `feature` (state, effects, IPC) ← `data` (`src/platform`). `ui` never imports `feature`; components never call the Tauri transport directly.
+- **Shared primitives** live in `src/shared/ui` and appear at the third real reuse, not the second. A repeated control (icon button, choice chip, range, toggle, status marker) is a component, not a copy of the same CSS rule and inline SVG.
+- **Feature modules**: one directory per capability with a public `index.ts`; import a sibling feature only through that entry.
+- **File size**: a component file that stops being a component gets split by responsibility (panel, card, controls), never by line count. `noExcessiveLinesPerFunction` / `noExcessiveCognitiveComplexity` are Biome warnings that count toward R5 — extract, do not suppress.
+- **Status text** is derived in one place (`features/agent/status.ts`), not by nested ternaries at each render site.
+- **Styling**: static layout/spacing/token colors are Tailwind utilities in TSX; `src/style.css` keeps geometry, state selectors, artwork and motion. Semantic colors come from `@theme`; add a token rather than a new literal.
+
 ## Quality targets
 | Gate | Metric / target | Evidence |
 | --- | --- | --- |

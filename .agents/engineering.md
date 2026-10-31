@@ -131,8 +131,9 @@ otto/
 ## Fitness
 - F1: no frontend-to-shell/Win32 or privileged side effects outside bounded Tauri/Rust commands | signal: import/usage review for `src/` and Tauri capabilities | tool: TS static scan + capability inspection | pass: none | cadence: PR | mode: enforce when first privileged command lands; exceptions -> D#.
 - F2: feature modules import sibling features only via public entries | signal: illegal module import | tool: TS dependency scan | pass: none | cadence: PR once feature modules exist | mode: enforce then; exceptions -> D#.
-- F3: UI uses shared semantic design tokens from `src/style.css`, not new hard-coded palette values per component | signal: changed CSS/TSX | tool: targeted diff review (automate only if drift appears) | pass: no duplicated semantic literals | cadence: PR | mode: review; exceptions -> D#.
-- `bun run check` is an available frontend lint/format command, not proof until executed. F1/F2/F3 remain review rules without automated enforcement; add executable checks only when a real boundary needs them.
+- F3: UI uses shared semantic design tokens from `src/style.css`, not new hard-coded palette values per component | signal: changed CSS/TSX | tool: `scripts/frontend-rules.mjs` R1/R2 | pass: no raw color literal in TS, none in CSS outside `@theme` | cadence: PR | mode: enforce (ratchet vs `.agents/frontend-budget.json`); exceptions -> D#.
+- F4: the frontend does not grow more complex than the recorded budget | signal: largest component file, features missing a public entry, total Biome diagnostics | tool: `scripts/frontend-rules.mjs` R3/R4/R5 | pass: each metric ≤ its baseline | cadence: PR | mode: enforce as a ratchet — lower it freely, never raise it to pass; exceptions -> D#.
+- `bun run check` runs Biome and then the ratchet, so F1–F4 are executed at PR cadence and are proof when it exits 0. Baseline lives in `.agents/frontend-budget.json`; regenerate it only after a real reduction with `bun run lint:frontend -- --write-baseline`.
 
 ## Verification
 - `iter` (affected local edits): `bun run check`, relevant TypeScript/build or Rust fmt/Clippy and focused unit checks; no routine installer, manual QA, or browser E2E per iteration.

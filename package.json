@@ -8,8 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "check": "biome check src vite.config.ts",
-    "format": "biome check --write src vite.config.ts"
+    "check": "biome check src vite.config.ts && node scripts/frontend-rules.mjs",
+    "format": "biome check --write src vite.config.ts",
+    "lint:frontend": "node scripts/frontend-rules.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
