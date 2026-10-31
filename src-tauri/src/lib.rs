@@ -1,5 +1,7 @@
 mod agent;
 mod commands;
+#[cfg(windows)]
+mod windows;
 
 use tauri::{Manager, PhysicalPosition};
 
@@ -19,6 +21,8 @@ pub fn run() {
             commands::notch_set_surface,
         ])
         .setup(|app| {
+            #[cfg(windows)]
+            windows::capture::start_hotkey(app.handle().clone());
             if let Some(window) = app.get_webview_window("main")
                 && let Some(monitor) = window.current_monitor()?
             {
