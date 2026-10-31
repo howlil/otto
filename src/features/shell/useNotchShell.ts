@@ -54,7 +54,10 @@ export function useNotchShell() {
     },
     [clearTimers],
   );
-  const pin = useCallback(() => setMode((current) => current === "preview" ? "pinned" : current), []);
+  const pin = useCallback(
+    () => setMode((current) => (current === "preview" ? "pinned" : current)),
+    [],
+  );
   const change = useCallback(
     (patch: Partial<Preferences>) => setPrefs((old) => ({ ...old, ...patch })),
     [],
