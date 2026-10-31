@@ -102,7 +102,7 @@ export function useAgent() {
       mounted = false;
       subscription.current = null;
     };
-  }, [refreshProvider]);
+  }, []);
 
   // A project setting can alter the model catalog. Debounce edits and ignore
   // responses from a previously selected working directory.
