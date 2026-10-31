@@ -117,11 +117,7 @@ export function AgentTranscript({
           )}
           {issue && (
             <div className="otto-error-card" role="alert">
-              <strong>
-                {readiness.status === "authRequired"
-                  ? "Codex sign-in required"
-                  : "Codex unavailable"}
-              </strong>
+              <strong>{readiness.status === "authRequired" ? "Sign in required" : "Unavailable"}</strong>
               <p>{issue}</p>
               <button type="button" onClick={() => void refreshProvider()}>
                 Retry
@@ -196,8 +192,6 @@ export function AgentTranscript({
   );
 }
 
-// One place derives the activity sentence from the run state, instead of a
-// nested ternary at the render site.
 function activityLabel(snapshot: AgentSnapshot): string {
   if (snapshot.status === "starting") return "Reading context";
   if (snapshot.status === "stopping") return "Stopping request";
