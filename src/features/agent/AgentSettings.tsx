@@ -13,6 +13,7 @@ export function AgentSettings({
   setCwd,
   hasThread,
   busy,
+  error,
   onNewSession,
   onBack,
   onDone,
@@ -25,6 +26,7 @@ export function AgentSettings({
   setCwd: (cwd: string) => void;
   hasThread: boolean;
   busy: boolean;
+  error: string | null;
   onNewSession: () => void;
   onBack: () => void;
   onDone: () => void;
@@ -60,7 +62,7 @@ export function AgentSettings({
       <ChoiceRow
         value={mode}
         disabled={locked}
-        disabledReason="Stop current work before changing mode"
+        disabledReason="Start a new session to change mode or project"
         onChange={setMode}
         choices={[
           {
@@ -105,6 +107,7 @@ export function AgentSettings({
           </button>
         </div>
       )}
+      {error && <p className="otto-settings-note" role="alert">{error}</p>}
       <div className="otto-agent-settings-bottom flex items-center justify-between gap-[10px]">
         <button type="button" className="otto-agent-home-link" onClick={onBack}>
           Home
