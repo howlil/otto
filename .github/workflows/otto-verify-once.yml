@@ -1,5 +1,5 @@
 name: Otto Windows verification (on demand)
-# Verify consistent LF source checkouts on Windows.
+# Verify Rust build script formatting and full exact-head Windows checks.
 
 'on':
   push:
