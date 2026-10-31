@@ -1,0 +1,162 @@
+.otto-home {
+  /* Stable reference dimensions eliminate card reflow during native resizing. */
+  width: 452px;
+  height: 148px;
+  padding: 15px 17px 17px;
+}
+/* The face stays mounted across both states; only its bounds move. */
+.otto-home-face {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  transition:
+    left 420ms var(--ease-otto),
+    top 420ms var(--ease-otto),
+    width 420ms var(--ease-otto),
+    height 420ms var(--ease-otto);
+}
+.otto-shell.is-expanded .otto-home-face {
+  left: 16px;
+  top: 15px;
+  width: 34px;
+  height: 28px;
+}
+.otto-home-head {
+  padding-left: 37px;
+}
+
+.otto-home-head > strong {
+  font-size: var(--text-otto-lg);
+  font-weight: 520;
+}
+.otto-home-notice {
+  margin-left: auto;
+  color: var(--color-otto-label-muted);
+  font-size: var(--text-otto-xs);
+  max-width: 188px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.otto-eye-button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: var(--radius-otto-panel);
+  background: var(--color-otto-raised-soft);
+  color: var(--color-otto-control-text);
+  transition:
+    background 0.15s,
+    transform 0.12s;
+}
+.otto-home-head .otto-eye-button {
+  width: 28px;
+  height: 26px;
+  background: transparent;
+}
+.otto-eye-button:hover {
+  background: var(--color-otto-line-mid);
+}
+.otto-eye-button:active,
+.otto-gear:active {
+  transform: scale(0.96);
+}
+.otto-gear {
+  width: 31px;
+  height: 31px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-otto-control);
+  color: var(--color-otto-text-subtle);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.12s;
+}
+.otto-gear:hover {
+  background: var(--color-otto-raised-soft);
+  color: var(--color-otto-text);
+}
+
+.otto-choice {
+  background: linear-gradient(118deg, var(--color-otto-art-agent-start) 0%, var(--color-otto-art-agent-middle) 51%, var(--color-otto-art-agent-end) 100%);
+  border: 1px solid var(--color-otto-line-strong);
+  border-radius: 15px;
+  padding: 11px 10px 11px 13px;
+  --dx: 0px;
+  --dy: 0px;
+  --art-tilt: 43deg;
+  --shimmer: 0.8;
+  transition:
+    transform 260ms var(--ease-otto),
+    border-color 180ms,
+    background 160ms;
+}
+.otto-choice-agent {
+  background: linear-gradient(118deg, var(--color-otto-art-music-start) 0%, var(--color-otto-art-music-middle) 51%, var(--color-otto-art-music-end) 100%);
+}
+.otto-choice-music {
+  background: linear-gradient(118deg, var(--color-otto-selected) 0%, var(--color-otto-art-focus-middle) 55%, var(--color-otto-art-focus-end) 100%);
+}
+.otto-choice-focus {
+  background: linear-gradient(118deg, var(--color-otto-art-alt-start) 0%, var(--color-otto-art-alt-middle) 53%, var(--color-otto-art-alt-end) 100%);
+}
+.otto-choice::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: var(--shimmer);
+  background: radial-gradient(ellipse 120px 100px at 78% 30%, var(--color-otto-art-halo), transparent 70%);
+  mix-blend-mode: screen;
+  transition: opacity 250ms;
+}
+.otto-choice:hover,
+.otto-choice:focus-visible {
+  border-color: var(--color-otto-line-hover);
+  transform: translateY(-1px);
+}
+.otto-choice:active {
+  transform: scale(0.985);
+}
+.otto-choice-copy {
+  max-width: 81%;
+}
+.otto-choice-copy strong {
+  font-size: 12px;
+  font-weight: 540;
+}
+.otto-choice-copy small {
+  font-size: 10px;
+  color: var(--color-otto-text-floating-muted);
+  margin-top: 6px;
+}
+.otto-choice-art {
+  right: -7px;
+  top: -23px;
+  height: 132px;
+  width: 148px;
+  opacity: 0.91;
+  transform: perspective(380px) rotateY(calc(-1 * var(--art-tilt))) rotateZ(-6deg)
+    translate3d(var(--dx), var(--dy), 0);
+  transform-origin: 60% 50%;
+  transition:
+    transform 370ms var(--ease-otto),
+    opacity 240ms;
+}
+.otto-choice:hover .otto-choice-art {
+  opacity: 1;
+}
+/* Pointer depth updates at most once per animation frame. */
+.otto-choice[data-tracking="true"] .otto-choice-art {
+  transition: opacity 240ms;
+}
