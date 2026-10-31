@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Bars, Icon } from "../../shared/ui";
+import { Bars, Icon, VisuallyHidden } from "../../shared/ui";
 import type { AgentSnapshot } from "../../platform/tauri";
 import { ApprovalCard } from "./ApprovalCard";
 import type { useAgent } from "./useAgent";
@@ -142,15 +142,16 @@ export function AgentTranscript({
           <button
             type="button"
             disabled
-            aria-label="Capture not available yet"
             title="Screen capture is not available in this slice"
             className="otto-round-action grid shrink-0 place-items-center rounded-full"
           >
             <Icon name="camera" />
+            <VisuallyHidden>Capture not available yet</VisuallyHidden>
           </button>
+          <VisuallyHidden htmlFor="otto-prompt">Question for Codex</VisuallyHidden>
           <textarea
+            id="otto-prompt"
             rows={1}
-            aria-label="Question for Codex"
             placeholder="Ask Codex…"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -165,23 +166,23 @@ export function AgentTranscript({
           {busy ? (
             <button
               type="button"
-              aria-label="Stop Codex"
               title="Stop"
               className="otto-round-action primary"
               onClick={() => void stop()}
               disabled={snapshot.status === "stopping"}
             >
               <Icon name="stop" />
+              <VisuallyHidden>Stop Codex</VisuallyHidden>
             </button>
           ) : (
             <button
               type="submit"
-              aria-label="Send prompt"
               title="Send"
               className="otto-round-action primary"
               disabled={!canSend}
             >
               <Icon name="send" />
+              <VisuallyHidden>Send prompt</VisuallyHidden>
             </button>
           )}
         </form>

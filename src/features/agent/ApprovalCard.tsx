@@ -10,11 +10,13 @@ export function ApprovalCard({
   approval: AgentApproval;
   onDecide: (decision: "allowOnce" | "deny") => void;
 }) {
+  // The dialog is named by its visible heading, not by a duplicated
+  // aria-label, so the spoken name always matches the rendered text.
   return (
-    <div className="otto-approval" role="alertdialog" aria-label="Approval required">
+    <div className="otto-approval" role="alertdialog" aria-labelledby="otto-approval-title">
       <div className="otto-approval-head flex items-center gap-[7px]">
         <Icon name="alert" size={15} />
-        Approval required
+        <span id="otto-approval-title">Approval required</span>
       </div>
       <p>{approval.title}. Codex needs your permission before this continues.</p>
       <code>{approval.detail}</code>

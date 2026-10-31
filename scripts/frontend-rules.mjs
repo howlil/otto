@@ -54,7 +54,19 @@ const featuresWithoutEntry = features.filter(
   (d) => !existsSync(join(featuresDir, d, "index.ts")) && !existsSync(join(featuresDir, d, "index.tsx")),
 ).length;
 
-// R5 — the number of Biome warnings may only go down. Legacy code already
+// R6 — an accessible name is rendered text, never an aria-label attribute.
+// Icon-only controls use VisuallyHidden / IconButton from shared/ui.
+const ariaLabelCount = tsFiles.reduce(
+  (n, f) => n + (read(f).match(/aria-label=/g)?.length ?? 0),
+  0,
+);
+
+// R7 — no hand-drawn <svg> in a feature or the shell; icons come from
+// shared/ui (lucide-react).
+const inlineSvgCount = [...tsFiles, ...css].reduce((n, f) => {
+  if (f.startsWith("src/shared/ui/")) return n;
+  return n + (read(f).match(/<svg/g)?.length ?? 0);
+}, 0);
 // violates the complexity rules; the ratchet makes sure it never gets worse.
 function biomeWarnings() {
   // Windows ships a .cmd shim, which execFileSync refuses without a shell;
@@ -83,6 +95,8 @@ const actual = {
   cssHexOutsideTheme,
   maxTsxLines,
   featuresWithoutEntry,
+  ariaLabelCount,
+  inlineSvgCount,
   biomeWarnings: biomeWarnings(),
 };
 
@@ -103,6 +117,8 @@ const RISK = {
   cssHexOutsideTheme: "color literal outside @theme — add a token or reuse one",
   maxTsxLines: "largest component file grew — split by responsibility, not by line count",
   featuresWithoutEntry: "a feature is missing its public entry (index.ts) — internals must not leak",
+  ariaLabelCount: "aria-label used — render the name with VisuallyHidden or IconButton instead",
+  inlineSvgCount: "hand-drawn <svg> outside shared/ui — use an icon from shared/ui (lucide-react)",
   biomeWarnings: "Biome warning count grew — fix the new warning instead of adding one",
 };
 

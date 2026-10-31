@@ -59,16 +59,19 @@ Enforced by `bun run check` → `scripts/frontend-rules.mjs` against `.agents/fr
 
 ```text
 R1  no raw color literal in any src/**/*.{ts,tsx}       0
-R2  no color literal in CSS outside the @theme block    <=153 (shrink as modules are tokenized)
-R3  largest component file, lines                       <=794
-R4  features missing a public index.ts entry            <=1
-R5  total Biome diagnostics                             <=33
+R2  no color literal in CSS outside the @theme block    <=107 (shrink as modules are tokenized)
+R3  largest component file, lines                       <=205
+R4  features missing a public index.ts entry            0
+R5  total Biome diagnostics                             <=29
+R6  aria-label attributes                               0 (render the name instead)
+R7  hand-drawn <svg> outside src/shared/ui              0 (use shared/ui icons)
 ```
 
 Build every screen block by block, component by component, from shared primitives; do not grow one file into a screen.
 
 ```text
-src/shared/ui/     Icon, Eyes, Bars, ChoiceChip, ChoiceRow, Range, Toggle
+src/shared/ui/     Icon (lucide), IconButton, VisuallyHidden, Eyes,
+                   Bars, ChoiceChip, ChoiceRow, Range, Toggle
 src/features/
   shell/           preferences, useNotchShell, GlobalSettings
   home/            HomeCard
@@ -82,7 +85,9 @@ src/platform/      typed Tauri transport
 - **Shared primitives** live in `src/shared/ui` and appear at the third real reuse, not the second. A repeated control (icon button, choice chip, range, toggle, status marker) is a component, not a copy of the same CSS rule and inline SVG.
 - **Feature modules**: one directory per capability with a public `index.ts`; import a sibling feature only through that entry.
 - **File size**: a component file that stops being a component gets split by responsibility (panel, card, controls), never by line count. `noExcessiveLinesPerFunction` / `noExcessiveCognitiveComplexity` are Biome warnings that count toward R5 — extract, do not suppress.
-- **Status text** is derived in one place (`features/agent/status.ts`), not by nested ternaries at each render site.
+- **Icons**: real icon set, `lucide-react` pinned by the lockfile. `shared/ui` maps a role name (`settings`, `alert`, `terminal`) to the component; features never import lucide directly and never draw an `<svg>`.
+- **Accessible names**: an icon-only control carries real text, hidden with `VisuallyHidden` (or `IconButton`, which pairs both). Do not use `aria-label`; a dialog or region is named by its visible heading via `aria-labelledby`. Icons are `aria-hidden` decorative glyphs — the name belongs to the control.
+- **Status text** is derived in one place (`features/agent/status.ts`, `surface.ts`), not by nested ternaries at each render site.
 - **Styling**: static layout/spacing/token colors are Tailwind utilities in TSX; `src/style.css` keeps geometry, state selectors, artwork and motion. Semantic colors come from `@theme`; add a token rather than a new literal.
 
 ## Quality targets

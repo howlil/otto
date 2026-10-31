@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChoiceChip, Icon, Range, Toggle } from "../../shared/ui";
+import { ChoiceChip, Icon, Range, Toggle, VisuallyHidden } from "../../shared/ui";
 import { defaults, type Preferences, type SettingsTab } from "./preferences";
 
 export function GlobalSettings({
@@ -17,28 +17,23 @@ export function GlobalSettings({
     back.current?.focus({ preventScroll: true });
   }, []);
   return (
-    <section
-      className="otto-global-settings flex h-full min-h-0 flex-col"
-      aria-label="Otto settings"
-    >
+    <section className="otto-global-settings flex h-full min-h-0 flex-col">
       <header className="otto-settings-head flex shrink-0 items-center gap-[10px]">
-        <button
-          className="otto-icon-button"
-          ref={back}
-          type="button"
-          onClick={onBack}
-          aria-label="Back to Home"
-        >
+        <button className="otto-icon-button" ref={back} type="button" onClick={onBack}>
           <Icon name="back" />
+          <VisuallyHidden>Back to Home</VisuallyHidden>
         </button>
         <strong>Settings</strong>
         <span className="otto-settings-meta">Otto</span>
       </header>
       <div className="otto-settings-layout grid min-h-0 flex-1">
         <nav
-          aria-label="Settings sections"
+          aria-labelledby="otto-settings-sections"
           className="otto-settings-nav flex flex-col items-stretch gap-1"
         >
+          <span id="otto-settings-sections" className="sr-only">
+            Settings sections
+          </span>
           {(["general", "interaction", "motion", "placement"] as SettingsTab[]).map((name) => (
             <button
               type="button"

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "../../shared/ui";
+import { Eyes, Icon, IconButton, VisuallyHidden } from "../../shared/ui";
 import { AgentSettings } from "./AgentSettings";
 import { AgentTranscript } from "./AgentTranscript";
 import { agentStatusLabel } from "./status";
@@ -57,33 +57,17 @@ export function AgentPanel({
   }, [settings]);
 
   return (
-    <section
-      className="otto-agent flex h-full min-h-0 flex-col"
-      aria-label="Otto Agent"
-      data-status={snapshot.status}
-    >
+    <section className="otto-agent flex h-full min-h-0 flex-col" data-status={snapshot.status}>
       <header className="otto-agent-head flex shrink-0 items-center gap-[9px]">
         {settings ? (
-          <button
-            className="otto-eye-button"
-            type="button"
-            ref={back}
-            onClick={onSettingsBack}
-            aria-label="Back to Agent"
-          >
+          <button className="otto-eye-button" type="button" ref={back} onClick={onSettingsBack}>
             <Icon name="back" size={19} />
+            <VisuallyHidden>Back to Agent</VisuallyHidden>
           </button>
         ) : (
-          <button
-            className="otto-eye-button"
-            type="button"
-            onClick={onCollapse}
-            aria-label="Collapse Agent"
-          >
-            <span className="otto-eyes mini" aria-hidden="true">
-              <i />
-              <i />
-            </span>
+          <button className="otto-eye-button" type="button" onClick={onCollapse}>
+            <Eyes mini />
+            <VisuallyHidden>Collapse Agent</VisuallyHidden>
           </button>
         )}
         <div className="otto-agent-identity min-w-0 flex-1">
@@ -106,15 +90,13 @@ export function AgentPanel({
                 ? "Using tool"
                 : agentStatusLabel(snapshot.status)}
             </span>
-            <button
-              type="button"
-              className="otto-gear"
+            <IconButton
+              icon="settings"
+              label="Agent settings"
               ref={gear}
+              className="otto-gear"
               onClick={onSettings}
-              aria-label="Agent settings"
-            >
-              <Icon name="settings" />
-            </button>
+            />
           </>
         )}
       </header>

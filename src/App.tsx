@@ -6,7 +6,7 @@ import { AgentCapsule, AgentPanel, resolveSurface, useAgent } from "./features/a
 import { HomeCard } from "./features/home";
 import { GlobalSettings, useNotchShell } from "./features/shell";
 import { setNotchSurface } from "./platform/tauri";
-import { Eyes, Icon } from "./shared/ui";
+import { Eyes, IconButton, VisuallyHidden } from "./shared/ui";
 
 export default function App() {
   const agent = useAgent();
@@ -108,35 +108,33 @@ export default function App() {
             className="otto-compact flex items-center justify-center w-full h-full bg-transparent text-left"
             type="button"
             onClick={() => open("home")}
-            aria-label="Open Otto"
           >
             <Eyes expression={prefs.expression} reactive={prefs.reactive} />
+            <VisuallyHidden>Open Otto</VisuallyHidden>
           </button>
         )
       ) : page === "home" ? (
-        <section className="otto-home flex h-full flex-col gap-[10px]" aria-label="Otto Home">
+        <section className="otto-home flex h-full flex-col gap-[10px]">
           <header className="otto-home-head flex h-6 shrink-0 items-center gap-2">
             <button
               className="otto-eye-button grid shrink-0 place-items-center"
               type="button"
-              aria-label="Collapse Otto"
               onClick={collapse}
             >
               <Eyes expression={prefs.expression} />
+              <VisuallyHidden>Collapse Otto</VisuallyHidden>
             </button>
             <strong>Otto</strong>
             <span className="otto-home-notice" role="status">
               {notice}
             </span>
-            <button
-              className="otto-gear grid shrink-0 place-items-center"
+            <IconButton
+              icon="settings"
+              label="Open Otto settings"
               ref={homeGear}
-              type="button"
+              className="otto-gear grid shrink-0 place-items-center"
               onClick={() => open("global-settings")}
-              aria-label="Open Otto settings"
-            >
-              <Icon name="settings" />
-            </button>
+            />
           </header>
           <div className="otto-cards grid min-h-0 flex-1 grid-cols-3 gap-[9px]">
             <HomeCard

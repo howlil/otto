@@ -5,13 +5,15 @@ export type Expression = "calm" | "curious" | "sleepy" | "happy";
 export function Eyes({
   expression = "calm",
   reactive = "quiet",
+  mini = false,
 }: {
   expression?: Expression;
   reactive?: "quiet" | "alive";
+  mini?: boolean;
 }) {
   return (
     <span
-      className={`otto-eyes${reactive === "alive" ? " alive" : ""}`}
+      className={`otto-eyes${reactive === "alive" ? " alive" : ""}${mini ? " mini" : ""}`}
       data-expression={expression}
       aria-hidden="true"
     >
