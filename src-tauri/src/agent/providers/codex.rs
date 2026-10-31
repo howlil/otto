@@ -74,6 +74,15 @@ impl Approvals {
         }
     }
 
+    // Before turn/start, bind the next Otto run and forget the old turn ID.
+    // The provider assigns the new turn ID only in its acknowledgment, but
+    // approval requests for this run can arrive earlier.
+    fn prepare_turn(&mut self, thread: &str, run_id: u64) {
+        self.thread = Some(thread.to_owned());
+        self.turn = None;
+        self.run_id = run_id;
+    }
+
     fn context(&mut self, thread: &str, turn: &str, run_id: u64) {
         self.thread = Some(thread.to_owned());
         self.turn = Some(turn.to_owned());
@@ -492,6 +501,7 @@ async fn begin_turn(
     updates: &watch::Sender<Snapshot>,
     controls: Option<&mut mpsc::Receiver<Control>>,
 ) -> Result<Option<(String, Vec<Value>)>, String> {
+    approvals.prepare_turn(thread, run_id);
     let response = rpc
         .request_controlled(
             "turn/start",
@@ -629,9 +639,7 @@ pub async fn run(
             return;
         }
     };
-    // Bind the thread before turn/start: approval may arrive before its ack.
-    approvals.thread = Some(thread.clone());
-    approvals.turn = None;
+    // begin_turn binds the thread/run before turn/start, even before the ack.
     let (mut turn, buffered) = match begin_turn(
         &mut rpc, &thread, &text, run_id, mode, &mut approvals, &updates,
         Some(&mut controls),
@@ -688,50 +696,35 @@ pub async fn run(
                         fail(&updates, run_id, "Working context changed. Restart Otto.");
                         continue;
                     }
-                    // A follow-up can be waiting for turn/start to acknowledge while
-                    // the user presses Stop. The control receiver must remain live.
-                    enum FollowUp {
-                        Started(Result<(String, Vec<Value>), String>),
-                        Stop,
-                        Closed,
-                    }
-                    let outcome = tokio::select! {
-                        result = begin_turn(&mut rpc, &thread, &text, run_id, mode, &mut approvals, &updates, None) => FollowUp::Started(result),
-                        command = controls.recv() => match command {
-                            Some(Control::Stop) => FollowUp::Stop,
-                            _ => FollowUp::Closed,
-                        },
-                    };
-                    match outcome {
-                        FollowUp::Started(Ok(Some((new_turn, buffered)))) => {
+                    // Reuse the same single-reader control path as the first turn.
+                    // While turn/start is pending, approvals and Stop remain live;
+                    // a decision is never mistaken for a closed control channel.
+                    match begin_turn(
+                        &mut rpc, &thread, &text, run_id, mode, &mut approvals, &updates,
+                        Some(&mut controls),
+                    ).await {
+                        Ok(Some((new_turn, buffered))) => {
                             turn = new_turn;
                             active = Some(run_id);
                             for msg in buffered {
-                                if handle_event(&msg, &thread, &turn, run_id, &updates) { active = None; }
+                                if handle_event(&msg, &thread, &turn, run_id, &updates) {
+                                    active = None;
+                                }
                             }
                         }
-                        FollowUp::Started(Ok(None)) => {
-                            // Only the first turn receives startup controls.
-                            fail(&updates, run_id, "Unexpected cancelled follow-up.");
-                            rpc.terminate().await;
-                            break;
-                        }
-                        FollowUp::Started(Err(error)) => {
-                            fail(&updates, run_id, &error);
-                            rpc.terminate().await;
-                            break;
-                        }
-                        FollowUp::Stop => {
+                        Ok(None) => {
                             mutate(&updates, |s| {
-                                if s.run_id == run_id && s.status == "stopping" {
+                                if s.run_id == run_id {
                                     s.status = "stopped".into();
+                                    s.approval = None;
+                                    s.activity = None;
                                 }
                             });
                             rpc.terminate().await;
                             break;
                         }
-                        FollowUp::Closed => {
-                            fail(&updates, run_id, "Codex control channel closed.");
+                        Err(error) => {
+                            fail(&updates, run_id, &error);
                             rpc.terminate().await;
                             break;
                         }
@@ -1109,6 +1102,49 @@ mod tests {
         assert_eq!(tx.borrow().status, "stopped");
         assert!(tx.borrow().approval.is_none());
     }
+    #[test]
+    fn followup_approval_before_ack_is_bound_to_new_run() {
+        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 4);
+        approvals.context("thread", "previous-turn", 4);
+        let updates = snapshot("starting", 5);
+
+        approvals.prepare_turn("thread", 5);
+        assert_eq!(approvals.turn, None);
+        assert_eq!(approvals.run_id, 5);
+        assert!(matches!(
+            approvals.parse(&command_request(12, "thread", "next-turn")),
+            ServerRequest::Recorded
+        ));
+
+        publish_approval(&approvals, &updates);
+        let snap = updates.borrow();
+        assert_eq!(snap.status, "approvalRequired");
+        let approval = snap.approval.as_ref().expect("follow-up approval is visible");
+        assert_eq!(approval.run_id, 5);
+        let approval_id = approval.approval_id.clone();
+        drop(snap);
+
+        let action = classify_startup_control(
+            Some(Control::Decide {
+                approval_id,
+                decision: ApprovalDecision::AllowOnce,
+            }),
+            &mut approvals,
+            &updates,
+        )
+        .expect("decision must remain available before the ack");
+        let StartupControl::Reply(reply) = action else {
+            panic!("follow-up approval must not terminate the session");
+        };
+        assert_eq!(reply, json!({ "id": 12, "result": { "decision": "accept" } }));
+
+        approvals.context("thread", "next-turn", 5);
+        assert!(matches!(
+            approvals.parse(&command_request(13, "thread", "previous-turn")),
+            ServerRequest::Decline
+        ));
+    }
+
     #[test]
     fn startup_approval_decision_is_not_stop() {
         let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
