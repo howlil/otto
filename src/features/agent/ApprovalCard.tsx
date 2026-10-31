@@ -22,7 +22,9 @@ export function ApprovalCard({
       <code>{approval.detail}</code>
       {approval.reason && <p className="otto-approval-reason">Reason: {approval.reason}</p>}
       <p className="otto-approval-scope">
-        Agent Session · Workspace write — allowing runs this action once only.
+        {approval.kind === "network"
+          ? "Agent Session · Network access — allow this request once."
+          : "Agent Session · Allow this action once only."}
       </p>
       <div className="otto-approval-buttons flex gap-[7px]">
         <button type="button" onClick={() => onDecide("allowOnce")}>
