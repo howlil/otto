@@ -57,6 +57,7 @@ struct Approvals {
     thread: Option<String>,
     turn: Option<String>,
     previous_turn: Option<String>,
+    file_change_items: Vec<(String, String)>,
     run_id: u64,
     // Quick Ask is read-only and never-approval: an approval request there is a
     // contract violation and is declined without ever reaching the UI.
@@ -90,6 +91,43 @@ impl Approvals {
         self.run_id = run_id;
     }
 
+    // File approvals carry only itemId, not changed paths. Read the real
+    // item/started notification; never invent a file list from a generic root.
+    fn note_item(&mut self, event: &Value) {
+        let params = &event["params"];
+        if params["threadId"].as_str() != self.thread.as_deref() {
+            return;
+        }
+        let item = &params["item"];
+        let Some(id) = item["id"].as_str() else { return };
+        match event["method"].as_str() {
+            Some("item/completed") => self.file_change_items.retain(|(key, _)| key != id),
+            Some("item/started") if item["type"].as_str() == Some("fileChange") => {
+                let Some(changes) = item["changes"].as_array() else { return };
+                if changes.is_empty() || changes.len() > 8 {
+                    return;
+                }
+                let mut paths = Vec::with_capacity(changes.len());
+                for change in changes {
+                    let Some(path) = change["path"].as_str().filter(|p| !p.trim().is_empty()) else {
+                        return;
+                    };
+                    paths.push(path);
+                }
+                let detail = format!("Modify files:\n{}", paths.join("\n"));
+                if detail.chars().count() > session::MAX_DETAIL {
+                    return;
+                }
+                self.file_change_items.retain(|(key, _)| key != id);
+                if self.file_change_items.len() == 16 {
+                    self.file_change_items.remove(0);
+                }
+                self.file_change_items.push((id.to_owned(), detail));
+            }
+            _ => {}
+        }
+    }
+
     fn parse(&mut self, value: &Value) -> ServerRequest {
         let method = value["method"].as_str().unwrap_or_default();
         let params = &value["params"];
@@ -121,22 +159,68 @@ impl Approvals {
             // the previous turn (or one with no identity at all).
             return ServerRequest::Decline;
         }
+        // Otto currently supports per-action accept only. Unknown extended
+        // permissions or unsupported decisions must not receive a generic Allow.
+        if params["additionalPermissions"].as_object().is_some()
+            || !params["additionalPermissions"].is_null()
+        {
+            return ServerRequest::Decline;
+        }
+        if let Some(choices) = params["availableDecisions"].as_array() {
+            if !choices.iter().any(|choice| choice.as_str() == Some("accept")) {
+                return ServerRequest::Decline;
+            }
+        } else if !params["availableDecisions"].is_null() {
+            return ServerRequest::Decline;
+        }
         let built = match method {
-            "item/commandExecution/requestApproval" => Some(("command", "Run command", {
-                let command = params["command"].as_str().unwrap_or("a shell command");
-                let cwd = params["cwd"].as_str().unwrap_or("");
-                if cwd.is_empty() {
-                    command.to_owned()
+            "item/commandExecution/requestApproval" => {
+                if !params["networkApprovalContext"].is_null() {
+                    let context = &params["networkApprovalContext"];
+                    let Some(host) = context["host"].as_str().filter(|s| !s.trim().is_empty()) else {
+                        return ServerRequest::Decline;
+                    };
+                    let Some(protocol) = context["protocol"].as_str().filter(|s| {
+                        matches!(*s, "http" | "https" | "socks5Tcp" | "socks5Udp")
+                    }) else {
+                        return ServerRequest::Decline;
+                    };
+                    let detail = format!("{protocol} · {host}");
+                    if detail.chars().count() > session::MAX_DETAIL {
+                        return ServerRequest::Decline;
+                    }
+                    Some(("network", "Allow network access", detail))
                 } else {
-                    format!("{command}\n(cwd: {cwd})")
+                    let Some(command) = params["command"].as_str().filter(|s| !s.trim().is_empty()) else {
+                        return ServerRequest::Decline;
+                    };
+                    let cwd = params["cwd"].as_str().unwrap_or("");
+                    let detail = if cwd.is_empty() {
+                        command.to_owned()
+                    } else {
+                        format!("{command}\n(cwd: {cwd})")
+                    };
+                    if detail.chars().count() > session::MAX_DETAIL {
+                        return ServerRequest::Decline;
+                    }
+                    Some(("command", "Run command", detail))
                 }
-            })),
-            "item/fileChange/requestApproval" => Some(("fileChange", "Change files", {
-                let root = params["grantRoot"].as_str().unwrap_or("the workspace");
-                format!("Modify files under {root}")
-            })),
-            // permissions/requestApproval, legacy exec/patch approvals, and any
-            // future approval method carry a wider contract than this slice.
+            }
+            "item/fileChange/requestApproval" => {
+                // grantRoot can request broader session-scoped write access:
+                // it is not equivalent to Otto's Allow once policy.
+                if !params["grantRoot"].is_null() {
+                    return ServerRequest::Decline;
+                }
+                let Some(id) = params["itemId"].as_str() else {
+                    return ServerRequest::Decline;
+                };
+                self.file_change_items.iter()
+                    .find(|(key, _)| key == id)
+                    .map(|(_, detail)| ("fileChange", "Change files", detail.clone()))
+            }
+            // Permission grants and legacy approval methods have different
+            // contracts and remain unsupported.
             _ => None,
         };
         let Some((kind, title, detail)) = built else {
@@ -332,6 +416,7 @@ impl Rpc {
                     notifications,
                 )));
             }
+            approvals.note_item(&value);
             if value.get("id").is_some() && value.get("method").is_some() {
                 match approvals.parse(&value) {
                     ServerRequest::Recorded => publish_approval(approvals, updates),
@@ -747,6 +832,7 @@ pub async fn run(
                             rpc.terminate().await;
                             break;
                         };
+                        approvals.note_item(&msg);
                         if msg.get("method").is_some() && msg.get("id").is_some() {
                             let reply = match approvals.parse(&msg) {
                                 ServerRequest::Recorded => { publish_approval(&approvals, &updates); None }
@@ -873,6 +959,66 @@ mod tests {
         assert_eq!(approval.kind, "command");
         assert_eq!(approval.detail, "npm test\n(cwd: C:/p)");
         assert_eq!(approval.run_id, 9);
+    }
+
+    #[test]
+    fn network_approval_displays_actual_destination() {
+        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
+        approvals.context("thread", "turn", 9);
+        let request = json!({
+            "id": 10, "method": "item/commandExecution/requestApproval",
+            "params": { "threadId": "thread", "turnId": "turn",
+                "networkApprovalContext": { "host": "api.example.org:443", "protocol": "https" },
+                "availableDecisions": ["accept", "decline"] }
+        });
+        assert!(matches!(approvals.parse(&request), ServerRequest::Recorded));
+        let info = &approvals.pending.as_ref().unwrap().approval;
+        assert_eq!(info.kind, "network");
+        assert_eq!(info.title, "Allow network access");
+        assert_eq!(info.detail, "https · api.example.org:443");
+    }
+
+    #[test]
+    fn ambiguous_or_expanded_approval_is_declined() {
+        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
+        approvals.context("thread", "turn", 9);
+        let mut request = command_request(1, "thread", "turn");
+        request["params"]["command"] = Value::Null;
+        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
+        request["params"]["command"] = json!("curl example.org");
+        request["params"]["additionalPermissions"] = json!({"network": {"enabled": true}});
+        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
+        request["params"]["additionalPermissions"] = Value::Null;
+        request["params"]["availableDecisions"] = json!(["decline", "acceptForSession"]);
+        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
+        request["params"]["availableDecisions"] = Value::Null;
+        request["params"]["networkApprovalContext"] = json!({"host": "", "protocol": "https"});
+        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
+        assert!(approvals.pending.is_none());
+    }
+
+    #[test]
+    fn file_change_approval_requires_item_paths_and_no_session_grant() {
+        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
+        approvals.context("thread", "turn", 9);
+        let mut request = json!({
+            "id": 11, "method": "item/fileChange/requestApproval",
+            "params": { "threadId": "thread", "turnId": "turn", "itemId": "item1" }
+        });
+        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
+        approvals.note_item(&json!({
+            "method": "item/started",
+            "params": { "threadId": "thread", "turnId": "turn",
+                "item": { "id": "item1", "type": "fileChange",
+                    "changes": [{ "path": "src/a.rs" }, { "path": "src/b.rs" }] } }
+        }));
+        request["params"]["grantRoot"] = json!("C:/repo");
+        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
+        request["params"]["grantRoot"] = Value::Null;
+        assert!(matches!(approvals.parse(&request), ServerRequest::Recorded));
+        let pending = &approvals.pending.as_ref().unwrap().approval;
+        assert_eq!(pending.kind, "fileChange");
+        assert_eq!(pending.detail, "Modify files:\nsrc/a.rs\nsrc/b.rs");
     }
 
     #[test]
