@@ -6,6 +6,7 @@ use tauri::{Manager, PhysicalPosition};
 pub fn run() {
     tauri::Builder::default()
         .manage(agent::AgentRuntime::new())
+        .manage(commands::NotchMotion::default())
         .invoke_handler(tauri::generate_handler![
             commands::agent_snapshot,
             commands::agent_codex_installed,
@@ -23,7 +24,7 @@ pub fn run() {
                 let origin = monitor.position();
                 window.set_position(PhysicalPosition::new(
                     origin.x + (bounds.width.saturating_sub(size.width) / 2) as i32,
-                    origin.y + 12,
+                    origin.y + 20,
                 ))?;
             }
             Ok(())

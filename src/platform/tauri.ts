@@ -19,16 +19,25 @@ export type AgentSnapshot = {
   error: string | null;
 };
 
+export type NotchSurface =
+  | "idle"
+  | "home"
+  | "homeSettings"
+  | "agentCompact"
+  | "agentReady"
+  | "agentThinking"
+  | "agentFull"
+  | "agentError"
+  | "agentSettings";
+
 export const nativeAvailable = isTauri();
 
 export async function getAgentSnapshot(): Promise<AgentSnapshot> {
   return invoke<AgentSnapshot>("agent_snapshot");
 }
-
 export async function codexInstalled(): Promise<boolean> {
   return invoke<boolean>("agent_codex_installed");
 }
-
 export async function subscribeAgent(
   onSnapshot: (snapshot: AgentSnapshot) => void,
 ): Promise<Channel<AgentSnapshot>> {
@@ -37,17 +46,16 @@ export async function subscribeAgent(
   await invoke("agent_subscribe", { onEvent: channel });
   return channel;
 }
-
 export async function askCodex(text: string, cwd: string): Promise<void> {
   await invoke("agent_ask", { text, cwd });
 }
-
 export async function stopCodex(): Promise<void> {
   await invoke("agent_stop");
 }
-
 export async function setNotchSurface(
-  surface: "idle" | "home" | "agent" | "agentCompact",
+  surface: NotchSurface,
+  topOffset = 20,
+  animate = true,
 ): Promise<void> {
-  if (nativeAvailable) await invoke("notch_set_surface", { surface });
+  if (nativeAvailable) await invoke("notch_set_surface", { surface, topOffset, animate });
 }
