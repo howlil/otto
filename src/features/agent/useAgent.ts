@@ -26,6 +26,7 @@ export function useAgent() {
   const [cwd, setCwd] = useState("");
   const [error, setError] = useState<string | null>(null);
   const submitted = useRef<string | null>(null);
+  const subscription = useRef<Awaited<ReturnType<typeof subscribeAgent>> | null>(null);
 
   const refreshProvider = useCallback(async () => {
     if (!nativeAvailable) {
@@ -46,7 +47,9 @@ export function useAgent() {
       if (!mounted) return;
       setSnapshot((prev) => (next.seq >= prev.seq ? next : prev));
     };
-    void subscribeAgent(receive).catch(() => {
+    void subscribeAgent(receive).then((channel) => {
+      if (mounted) subscription.current = channel;
+    }).catch(() => {
       if (mounted) setError("Cannot listen to Codex events.");
     });
     void getAgentSnapshot().then((value) => {
@@ -56,7 +59,7 @@ export function useAgent() {
       if (mounted) setError("Cannot connect to the Otto desktop process.");
     });
     void refreshProvider();
-    return () => { mounted = false; };
+    return () => { mounted = false; subscription.current = null; };
   }, [refreshProvider]);
 
   useEffect(() => {

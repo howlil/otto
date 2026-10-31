@@ -54,12 +54,12 @@ export default function App() {
             <button type="button" onClick={collapse} aria-label="Collapse Otto" className="rounded-lg px-2 text-otto-muted hover:text-otto-text">×</button>
           </header>
           <div className="mt-3 grid flex-1 grid-cols-3 gap-2">
-            <button type="button" onClick={agentOpen} className="rounded-xl bg-[#292929] px-2 py-2 text-xs font-medium focus-visible:outline">
+            <button type="button" onClick={agentOpen} className="rounded-xl bg-otto-raised px-2 py-2 text-xs font-medium focus-visible:outline">
               Codex
               <span className="mt-1 block text-[10px] font-normal text-otto-muted">Quick Ask</span>
             </button>
-            <button type="button" disabled className="rounded-xl bg-[#292929] px-2 py-2 text-xs text-otto-muted opacity-50">Music</button>
-            <button type="button" disabled className="rounded-xl bg-[#292929] px-2 py-2 text-xs text-otto-muted opacity-50">Focus</button>
+            <button type="button" disabled className="rounded-xl bg-otto-raised px-2 py-2 text-xs text-otto-muted opacity-50">Music</button>
+            <button type="button" disabled className="rounded-xl bg-otto-raised px-2 py-2 text-xs text-otto-muted opacity-50">Focus</button>
           </div>
         </section>
       )}

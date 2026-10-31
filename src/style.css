@@ -4,6 +4,9 @@
   --color-otto-surface: #151515;
   --color-otto-text: #fafafa;
   --color-otto-muted: #a3a3a3;
+  --color-otto-raised: #292929;
+  --color-otto-error-bg: #392525;
+  --color-otto-error-text: #ffbbbb;
 
   --font-otto-ui: "Segoe UI", system-ui, sans-serif;
   --radius-otto-island: 9999px;

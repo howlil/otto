@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
-import type { ReturnTypeOfUseAgent } from "./types";
+import { useEffect, useRef, type FormEvent } from "react";
+import type { useAgent } from "./useAgent";
 
-export function AgentPanel({ agent, onBack }: { agent: ReturnTypeOfUseAgent; onBack: () => void }) {
+type AgentController = ReturnType<typeof useAgent>;
+
+export function AgentPanel({ agent, onBack }: { agent: AgentController; onBack: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { snapshot, installed, cwd, setCwd, draft, setDraft, error, busy, send, stop, refreshProvider } = agent;
@@ -10,7 +12,7 @@ export function AgentPanel({ agent, onBack }: { agent: ReturnTypeOfUseAgent; onB
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "auto" });
   }, [snapshot.seq]);
 
-  const onSubmit = (event: React.FormEvent) => {
+  const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     void send();
   };
@@ -37,7 +39,7 @@ export function AgentPanel({ agent, onBack }: { agent: ReturnTypeOfUseAgent; onB
           value={cwd}
           onChange={(event) => setCwd(event.target.value)}
           disabled={busy || snapshot.threadId !== null}
-          className="min-w-0 flex-1 rounded-lg bg-[#292929] px-2 py-1 text-otto-text outline-offset-2 focus-visible:outline"
+          className="min-w-0 flex-1 rounded-lg bg-otto-raised px-2 py-1 text-otto-text outline-offset-2 focus-visible:outline"
           placeholder="Absolute project folder"
         />
       </label>
@@ -50,7 +52,7 @@ export function AgentPanel({ agent, onBack }: { agent: ReturnTypeOfUseAgent; onB
           </p>
         )}
         {snapshot.messages.map((message, index) => (
-          <div key={index} className={message.role === "user" ? "ml-8 rounded-xl bg-[#292929] p-2.5" : "mr-3 rounded-xl p-2.5"}>
+          <div key={index} className={message.role === "user" ? "ml-8 rounded-xl bg-otto-raised p-2.5" : "mr-3 rounded-xl p-2.5"}>
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-otto-muted">{message.role === "user" ? "You" : "Codex"}</p>
             <div className="whitespace-pre-wrap break-words">{message.text || (busy ? "Thinking…" : "")}</div>
             {message.role === "assistant" && message.text && snapshot.status === "completed" && index === snapshot.messages.length - 1 && (
@@ -62,12 +64,12 @@ export function AgentPanel({ agent, onBack }: { agent: ReturnTypeOfUseAgent; onB
       </div>
 
       {error && (
-        <div role="alert" className="mb-2 shrink-0 rounded-lg bg-[#392525] px-2 py-1.5 text-xs text-[#ffbbbb]">
+        <div role="alert" className="mb-2 shrink-0 rounded-lg bg-otto-error-bg px-2 py-1.5 text-xs text-otto-error-text">
           {error} {installed === false && "Install Codex CLI or check PATH, then retry."}
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="flex shrink-0 items-end gap-2 rounded-2xl bg-[#292929] p-2">
+      <form onSubmit={onSubmit} className="flex shrink-0 items-end gap-2 rounded-2xl bg-otto-raised p-2">
         <textarea
           ref={inputRef}
           rows={2}

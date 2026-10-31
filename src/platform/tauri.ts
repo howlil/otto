@@ -29,10 +29,11 @@ export async function codexInstalled(): Promise<boolean> {
   return invoke<boolean>("agent_codex_installed");
 }
 
-export async function subscribeAgent(onSnapshot: (snapshot: AgentSnapshot) => void): Promise<void> {
+export async function subscribeAgent(onSnapshot: (snapshot: AgentSnapshot) => void): Promise<Channel<AgentSnapshot>> {
   const channel = new Channel<AgentSnapshot>();
   channel.onmessage = onSnapshot;
   await invoke("agent_subscribe", { onEvent: channel });
+  return channel;
 }
 
 export async function askCodex(text: string, cwd: string): Promise<void> {
