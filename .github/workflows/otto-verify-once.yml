@@ -1,10 +1,10 @@
 name: Otto Windows verification (on demand)
-# Verify Rust build script formatting and full exact-head Windows checks.
+# Opt-in by editing this workflow in a feature branch, or dispatch manually. No source-push CI spam.
 
 'on':
   push:
     branches:
-      - feat/tauri-foundation
+      - 'feat/*'
     paths:
       - .github/workflows/otto-verify-once.yml
   workflow_dispatch:
