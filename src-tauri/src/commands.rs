@@ -34,6 +34,7 @@ pub async fn agent_stop(runtime: State<'_, AgentRuntime>) -> Result<(), String> 
 pub fn notch_set_surface(window: WebviewWindow, surface: String) -> Result<(), String> {
     let (width, height) = match surface.as_str() {
         "idle" => (92_u32, 42_u32),
+        "agentCompact" => (228, 50),
         "home" => (452, 148),
         "agent" => (526, 326),
         _ => return Err("Invalid notch surface.".into()),
