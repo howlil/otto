@@ -59,7 +59,7 @@ fn account_readiness(value: &Value) -> ProviderReadiness {
 
 // The default model, not just the signed-in account, must support text.
 // Unknown or malformed catalogs never turn into a false Ready signal.
-fn model_readiness(value: &Value) -> ProviderReadiness {
+fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness {
     let Some(models) = value["data"].as_array() else {
         return ProviderReadiness::new(
             "unsupported",
@@ -67,14 +67,17 @@ fn model_readiness(value: &Value) -> ProviderReadiness {
             "Update Codex, then Retry.",
         );
     };
-    let Some(model) = models
-        .iter()
-        .find(|m| m["isDefault"] == true && m["hidden"] != true)
-    else {
+    let selected = configured.filter(|name| !name.is_empty());
+    let model = if let Some(name) = selected {
+        models.iter().find(|m| m["model"].as_str() == Some(name) || m["id"].as_str() == Some(name))
+    } else {
+        models.iter().find(|m| m["isDefault"] == true && m["hidden"] != true)
+    };
+    let Some(model) = model else {
         return ProviderReadiness::new(
             "unsupported",
-            "Codex did not identify a default model.",
-            "Check your Codex model configuration, then Retry.",
+            "Codex could not verify the configured model.",
+            "Choose a model available to this Codex account, then Retry.",
         );
     };
     let modalities = model["inputModalities"].as_array();
@@ -95,7 +98,7 @@ fn model_readiness(value: &Value) -> ProviderReadiness {
 
 // A short-lived owned app-server connection probes authentication without
 // opening a browser or submitting a user prompt. Always kill its process tree.
-pub async fn readiness() -> ProviderReadiness {
+pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
     if executable().is_none() {
         return ProviderReadiness::new(
             "missing",
@@ -103,14 +106,7 @@ pub async fn readiness() -> ProviderReadiness {
             "Install Codex CLI, then Retry.",
         );
     }
-    let Ok(cwd) = std::env::current_dir() else {
-        return ProviderReadiness::new(
-            "unavailable",
-            "Cannot inspect local working directory.",
-            "Retry.",
-        );
-    };
-    let Ok(mut rpc) = Rpc::launch(&cwd) else {
+    let Ok(mut rpc) = Rpc::launch(cwd) else {
         return ProviderReadiness::new(
             "unavailable",
             "Codex App Server could not start.",
@@ -152,15 +148,34 @@ pub async fn readiness() -> ProviderReadiness {
         if authentication.status != "ready" {
             return Ok::<ProviderReadiness, String>(authentication);
         }
-        let (models, _) = rpc
+        // The recommended default differs from a project/user model override.
+        // Read effective configuration for the actual target working directory.
+        let (config, _) = rpc
             .request(
-                "model/list",
-                json!({ "limit": 100, "includeHidden": false }),
+                "config/read",
+                json!({ "cwd": cwd.to_string_lossy(), "includeLayers": false }),
                 &mut approvals,
                 &updates,
             )
             .await?;
-        Ok(model_readiness(&models))
+        let selected = match &config["config"]["model"] {
+            Value::Null => None,
+            Value::String(name) if !name.trim().is_empty() => Some(name.as_str()),
+            _ => return Ok(ProviderReadiness::new(
+                "unsupported",
+                "Codex returned an invalid model configuration.",
+                "Inspect your Codex model setting, then Retry.",
+            )),
+        };
+        let (models, _) = rpc
+            .request(
+                "model/list",
+                json!({ "limit": 100, "includeHidden": true }),
+                &mut approvals,
+                &updates,
+            )
+            .await?;
+        Ok(model_readiness(&models, selected))
     })
     .await;
     rpc.terminate().await;
@@ -1133,14 +1148,25 @@ mod tests {
             json!({ "data": [] }),
             json!({ "data": [{ "isDefault": true, "inputModalities": ["image"] }] }),
         ] {
-            let value = model_readiness(&invalid);
+            let value = model_readiness(&invalid, None);
             assert_ne!(value.status, "ready");
             assert!(!value.image_input);
         }
         // Old catalogs may omit input modalities; never claim image support.
-        let legacy = model_readiness(&json!({ "data": [{ "isDefault": true }] }));
+        let legacy = model_readiness(&json!({ "data": [{ "isDefault": true }] }, None));
         assert_eq!(legacy.status, "ready");
         assert!(!legacy.image_input);
+        let override_model = model_readiness(&json!({ "data": [
+            { "model": "default", "isDefault": true, "inputModalities": ["text", "image"] },
+            { "model": "custom", "isDefault": false, "hidden": true, "inputModalities": ["text"] }
+        ] }), Some("custom"));
+        assert_eq!(override_model.status, "ready");
+        assert!(!override_model.image_input);
+        let unknown = model_readiness(&json!({ "data": [
+            { "model": "default", "isDefault": true, "inputModalities": ["text", "image"] }
+        ] }), Some("not-listed"));
+        assert_eq!(unknown.status, "unsupported");
+        assert!(!unknown.image_input);
     }
 
     fn snapshot(status: &str, run_id: u64) -> watch::Sender<Snapshot> {
