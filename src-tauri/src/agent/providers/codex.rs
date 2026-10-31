@@ -100,6 +100,27 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
     ready
 }
 
+// Effective configuration is a trust boundary: a missing or malformed
+// config/read payload cannot authorize the catalog's recommended model.
+fn configured_model(value: &Value) -> Result<Option<&str>, ProviderReadiness> {
+    let Some(config) = value.get("config").and_then(Value::as_object) else {
+        return Err(ProviderReadiness::new(
+            "unsupported",
+            "Codex did not return effective model configuration.",
+            "Update Codex and Retry.",
+        ));
+    };
+    match config.get("model") {
+        Some(Value::Null) => Ok(None),
+        Some(Value::String(name)) if !name.trim().is_empty() => Ok(Some(name.as_str())),
+        _ => Err(ProviderReadiness::new(
+            "unsupported",
+            "Codex returned an invalid model configuration.",
+            "Inspect your Codex model setting, then Retry.",
+        )),
+    }
+}
+
 // A short-lived owned app-server connection probes authentication without
 // opening a browser or submitting a user prompt. Always kill its process tree.
 pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
@@ -162,16 +183,9 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
                 &updates,
             )
             .await?;
-        let selected = match &config["config"]["model"] {
-            Value::Null => None,
-            Value::String(name) if !name.trim().is_empty() => Some(name.as_str()),
-            _ => {
-                return Ok(ProviderReadiness::new(
-                    "unsupported",
-                    "Codex returned an invalid model configuration.",
-                    "Inspect your Codex model setting, then Retry.",
-                ));
-            }
+        let selected = match configured_model(&config) {
+            Ok(model) => model,
+            Err(status) => return Ok(status),
         };
         let (models, _) = rpc
             .request(
@@ -1131,6 +1145,27 @@ mod tests {
         assert_eq!(
             account_readiness(&json!({"account": {"type": "mystery"}})).status,
             "unsupported"
+        );
+    }
+
+    #[test]
+    fn malformed_codex_config_never_falls_back_to_default() {
+        for payload in [
+            json!({}),
+            json!({ "config": null }),
+            json!({ "config": [] }),
+            json!({ "config": {} }),
+            json!({ "config": { "model": "" } }),
+            json!({ "config": { "model": 123 } }),
+        ] {
+            let status = configured_model(&payload).unwrap_err();
+            assert_eq!(status.status, "unsupported");
+            assert!(!status.image_input);
+        }
+        assert_eq!(configured_model(&json!({ "config": { "model": null } })).unwrap(), None);
+        assert_eq!(
+            configured_model(&json!({ "config": { "model": "custom" } })).unwrap(),
+            Some("custom")
         );
     }
 
