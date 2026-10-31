@@ -831,6 +831,7 @@ fn handle_event(
 struct TurnInput<'a> {
     thread: &'a str,
     text: &'a str,
+    image: Option<&'a std::path::Path>,
 }
 
 async fn begin_turn(
@@ -846,7 +847,7 @@ async fn begin_turn(
     let response = rpc
         .request_controlled(
             "turn/start",
-            policy::turn_start(input.thread, input.text, mode),
+            policy::turn_start_with_image(input.thread, input.text, mode, input.image),
             approvals,
             updates,
             controls,
@@ -917,9 +918,10 @@ pub async fn run(
     initial: Control,
     mode: InteractionMode,
 ) {
-    let Control::Ask { text, cwd, run_id } = initial else {
+    let Control::Ask { text, cwd, run_id, capture } = initial else {
         return;
     };
+    let mut active_capture = capture;
     let mut approvals = Approvals::for_mode(mode, run_id);
     let mut rpc = match Rpc::launch(&cwd) {
         Ok(rpc) => rpc,
@@ -986,6 +988,7 @@ pub async fn run(
         TurnInput {
             thread: &thread,
             text: &text,
+            image: active_capture.as_ref().map(|image| image.path()),
         },
         run_id,
         mode,
@@ -1017,6 +1020,7 @@ pub async fn run(
     for msg in buffered {
         if handle_event(&msg, &thread, &turn, run_id, &updates) {
             active = None;
+            active_capture = None;
         }
     }
 
@@ -1053,7 +1057,7 @@ pub async fn run(
                 Some(Control::Decide { approval_id, decision }) => {
                     resolve_approval(&mut rpc, &mut approvals, &approval_id, decision, &updates).await;
                 }
-                Some(Control::Ask { text, cwd, run_id }) if active.is_none() => {
+                Some(Control::Ask { text, cwd, run_id, capture }) if active.is_none() => {
                     if cwd.as_path() != std::path::Path::new(&updates.borrow().cwd) {
                         fail(&updates, run_id, "Working context changed. Restart Otto.");
                         continue;
@@ -1061,9 +1065,10 @@ pub async fn run(
                     // Reuse the same single-reader control path as the first turn.
                     // While turn/start is pending, approvals and Stop remain live;
                     // a decision is never mistaken for a closed control channel.
+                    let next_capture = capture;
                     match begin_turn(
                         &mut rpc,
-                        TurnInput { thread: &thread, text: &text },
+                        TurnInput { thread: &thread, text: &text, image: next_capture.as_ref().map(|image| image.path()) },
                         run_id,
                         mode,
                         &mut approvals,
@@ -1073,9 +1078,11 @@ pub async fn run(
                         Ok(Some((new_turn, buffered))) => {
                             turn = new_turn;
                             active = Some(run_id);
+                            active_capture = next_capture;
                             for msg in buffered {
                                 if handle_event(&msg, &thread, &turn, run_id, &updates) {
                                     active = None;
+                                    active_capture = None;
                                 }
                             }
                         }
@@ -1126,6 +1133,7 @@ pub async fn run(
                             && handle_event(&msg, &thread, &turn, id, &updates)
                         {
                             active = None;
+                            active_capture = None;
                         }
                     }
                     _ => {
