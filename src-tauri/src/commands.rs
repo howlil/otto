@@ -41,6 +41,11 @@ pub async fn agent_stop(runtime: State<'_, AgentRuntime>) -> Result<(), String> 
     runtime.stop().await
 }
 
+#[tauri::command]
+pub async fn agent_new_session(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
+    runtime.new_session().await
+}
+
 fn surface_size(surface: &str) -> Option<(u32, u32)> {
     match surface {
         "idle" => Some((92, 42)),
