@@ -6,8 +6,6 @@ import type { useAgent } from "./useAgent";
 
 type AgentController = ReturnType<typeof useAgent>;
 
-// The transcript plus its composer. They share one scroll owner, so they stay
-// together: one state owner, not two.
 export function AgentTranscript({
   agent,
   denied,
