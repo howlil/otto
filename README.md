@@ -15,6 +15,6 @@ Frontend-only: `bun run dev`. After installing dependencies: `bun run check` (Bi
 Current development is coordinated through ChatGPT Web + GitHub; no CI workflow or mandatory local setup gate is configured. Native builds are unverified until actually executed. When preparing a reproducible build or release, generate and commit `bun.lock` with Bun and `src-tauri/Cargo.lock` with Cargo from real dependency resolution (never synthesize lockfile contents).
 
 ## Current implementation
-Only the static idle notch and native Tauri window setup are scaffolded. The window requests always-on-top and capture protection, but exclusion from all capture software cannot be guaranteed. AI chat, hotkey screenshot, streaming CLI adapters, morphing, music, Pomodoro, and two-finger navigation are **not implemented**.
+The current feature branch contains a **candidate, not Windows-verified** Codex Quick Ask vertical slice: Compact/Expanded shell, typed IPC, Codex app-server via stdio, read-only/fail-closed policy, in-memory streaming/follow-up, Stop, and bounded native window resizing. Requires a locally installed, authenticated Codex CLI on PATH and an explicit working directory. Native focus behavior, sandbox effectiveness, CLI process-tree cleanup, and compilation still require Windows proof. Other providers, screenshot, music, Pomodoro, attached-notch shoulder geometry, and gesture navigation are **not implemented**.
 
 Project contracts: `.agents/product.md`, `.agents/engineering.md`, `.agents/DESIGN.md`.

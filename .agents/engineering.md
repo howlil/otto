@@ -3,7 +3,7 @@
 ## System
 Windows-first Tauri 2 modular monolith, not a cloud service:
 React presentation (K1) -> narrow Tauri controller (K2) -> Rust agent/use-case owner (K3) <- provider adapters (K4); native Windows host (K5) handles window/capture/media integrations. Bun builds the frontend. WebView2 is part of the desktop runtime.
-Existing code implements only the static idle React view and initial top-center Tauri window. All agent, capture, media, timer, gestures, and motion flows below are contracts, **not implemented behavior**.
+Current feature branch implements the first Codex Quick Ask code path (React shell, typed IPC, Rust session + app-server adapter), **not Windows-verified**. Screenshot, music, timer, attached placement and gestures remain contracts, not implemented behavior.
 
 ## Structure
 Target layout below is a **design**, not a claim that directories exist. Present now: `src/{main.tsx,App.tsx,style.css}`, `src-tauri/src/{main.rs,lib.rs}`, Tauri configuration/capabilities, and root project files. Create future files only with the behavior that uses them.
@@ -133,7 +133,7 @@ otto/
 
 ## Verification
 - `iter` (affected local edits): `bun run check`, relevant TypeScript/build or Rust fmt/Clippy and focused unit checks; no routine installer, manual QA, or browser E2E per iteration.
-- `pr`: validate the exact PR HEAD with `bun run check`, `bun run build`, and when Rust/native is affected on Windows MSVC, `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo check`. Add the cheapest faithful P#/G#/X# proof; report `green @SHA`, `red @SHA`, or `not run` (never reuse an older SHA).
+- `pr`: verify exact HEAD with `bun run check`, `bun run build`, Rustfmt, Clippy, Cargo on Windows MSVC when available; never call missing checks green. PF1 (P3/P9,G6): fail-closed Quick Ask policy unit test; PF2 (P3/P8,G7): ordered events/stop-vs-completion targeted Rust tests; PF3 (P3/P8/P13,G2): real Codex + Windows session, lifecycle and process-tree proof at release stage.
 - `merge`: no automated CI/required check is configured in this Web + GitHub phase. Review the actual diff, contracts and available proof; report missing build/runtime verification explicitly, never as green. Add CI only with an explicit need and a runnable, verified job.
 - `release`: once per release candidate, verify NSIS install/startup, overlay/critical user path and recovery on representative Windows. One manual exploratory pass at release; frontend compilation alone cannot prove native behavior.
 

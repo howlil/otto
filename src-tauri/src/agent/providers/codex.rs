@@ -300,4 +300,26 @@ mod tests {
         }), "real", "turn", 5, &tx);
         assert!(tx.borrow().messages[0].text.is_empty());
     }
+
+    #[test]
+    fn stop_wins_race_against_completed_notification() {
+        let (tx, _) = watch::channel(Snapshot {
+            run_id: 7, seq: 1, status: "stopping".into(), cwd: String::new(),
+            thread_id: Some("thread".into()),
+            messages: vec![ChatMessage { role: "assistant".into(), text: String::new() }],
+            error: None,
+        });
+        let completed = json!({
+            "method": "turn/completed",
+            "params": { "threadId": "thread", "turnId": "turn", "turn": { "status": "completed" } }
+        });
+        assert!(handle_event(&completed, "thread", "turn", 7, &tx));
+        assert_eq!(tx.borrow().status, "stopped");
+        let late = json!({
+            "method": "item/agentMessage/delta",
+            "params": { "threadId": "thread", "turnId": "turn", "delta": "late" }
+        });
+        handle_event(&late, "thread", "turn", 7, &tx);
+        assert!(tx.borrow().messages[0].text.is_empty());
+    }
 }
