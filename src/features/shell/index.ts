@@ -10,3 +10,4 @@ export {
   type Preferences,
   type SettingsTab,
 } from "./preferences";
+export { resolveSurface } from "./surface";

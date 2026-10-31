@@ -2,6 +2,5 @@
 // from here, not from the module internals.
 export { AgentPanel } from "./AgentPanel";
 export { AgentCapsule } from "./AgentCapsule";
-export { resolveSurface } from "./surface";
 export { useAgent } from "./useAgent";
 export { agentStatusLabel } from "./status";

@@ -2,9 +2,9 @@ import { useEffect, useRef } from "react";
 import agentArt from "./assets/agent-art.svg";
 import musicArt from "./assets/music-art.svg";
 import focusArt from "./assets/focus-art.svg";
-import { AgentCapsule, AgentPanel, resolveSurface, useAgent } from "./features/agent";
+import { AgentCapsule, AgentPanel, useAgent } from "./features/agent";
 import { HomeCard } from "./features/home";
-import { GlobalSettings, useNotchShell } from "./features/shell";
+import { GlobalSettings, resolveSurface, useNotchShell } from "./features/shell";
 import { setNotchSurface } from "./platform/tauri";
 import { Eyes, IconButton, VisuallyHidden } from "./shared/ui";
 
