@@ -7,7 +7,7 @@ Windows-first Tauri 2, Rust edition 2024, React 19, Vite 8, TypeScript 6, Tailwi
 Install: `bun install`; dev frontend: `bun run dev`; desktop: `bun run tauri dev`.
 Frontend: `bun run check` (Biome), `bun run format` (fix), `bun run build` (TS/Vite).
 Rust: `cd src-tauri && cargo fmt --all -- --check`; `cargo clippy --all-targets -- -D warnings`; `cargo check` on Windows MSVC.
-Tests: TBD — no new suite for static bootstrap. Commit `bun.lock` once generated; use `bun install --frozen-lockfile` in CI.
+Tests: TBD — no feature suite for static bootstrap. Commit both `bun.lock` and `src-tauri/Cargo.lock` after real resolution; CI uses `bun ci` and locked Cargo.
 
 ## Verification gate
 Use the cheapest proof for changed behavior; don't call Windows native functionality verified without Windows run. Stage map: `.agents/engineering.md` ## Verification.

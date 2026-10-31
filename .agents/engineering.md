@@ -129,12 +129,12 @@ otto/
 - F1: no frontend-to-shell/Win32 or privileged side effects outside bounded Tauri/Rust commands | signal: import/usage review for `src/` and Tauri capabilities | tool: TS static scan + capability inspection | pass: none | cadence: PR | mode: enforce when first privileged command lands; exceptions -> D#.
 - F2: feature modules import sibling features only via public entries | signal: illegal module import | tool: TS dependency scan | pass: none | cadence: PR once feature modules exist | mode: enforce then; exceptions -> D#.
 - F3: UI uses shared semantic design tokens from `src/style.css`, not new hard-coded palette values per component | signal: changed CSS/TSX | tool: targeted diff review (automate only if drift appears) | pass: no duplicated semantic literals | cadence: PR | mode: review; exceptions -> D#.
-- Existing `bun run check` handles frontend formatting/linting, not F1/F2/F3 architecture enforcement. No CI workflow exists; reuse a future check job if needed, never claim these boundaries enforced until checked.
+- `bun run check` handles frontend formatting/linting; one Windows CI job now covers frontend/Rust checks but does not enforce architectural F1/F2/F3 automatically. Add targeted boundary checks only when they have real implementation paths.
 
 ## Verification
 - `iter` (affected local edits): `bun run check`, relevant TypeScript/build or Rust fmt/Clippy and focused unit checks; no routine installer, manual QA, or browser E2E per iteration.
 - `pr`: validate the exact PR HEAD with `bun run check`, `bun run build`, and when Rust/native is affected on Windows MSVC, `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo check`. Add the cheapest faithful P#/G#/X# proof; report `green @SHA`, `red @SHA`, or `not run` (never reuse an older SHA).
-- `merge`: full existing checks on `master` when CI is configured. Planned single `ci` workflow: PR + main safety net without duplicate identical runs, superseded PR cancellation, lockfile-based cache, bounded timeout. Do not enable a required check before lockfiles/commands and the job are verified; none is configured now.
+- `merge`: `.github/workflows/ci.yml` checks PRs and `master` with one Windows job, a timeout and superseded PR cancellation; missing Bun/Cargo lockfiles fail closed. Enable one required `Windows foundation` check on `master` only after a green run (GitHub setting not yet applied). No installer/E2E job.
 - `release`: once per release candidate, verify NSIS install/startup, overlay/critical user path and recovery on representative Windows. One manual exploratory pass at release; frontend compilation alone cannot prove native behavior.
 
 ## Release
