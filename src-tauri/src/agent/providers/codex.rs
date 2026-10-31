@@ -189,21 +189,31 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, updates: watch::Sender<S
         Ok(rpc) => rpc,
         Err(e) => { fail(&updates, run_id, &e); return; }
     };
-    let result = async {
-        rpc.request("initialize", json!({
-            "clientInfo": { "name": "otto", "title": "Otto", "version": "0.1.0" }
-        })).await?;
-        rpc.send(json!({ "method": "initialized", "params": {} })).await?;
-        let (thread_response, _) = rpc.request("thread/start", policy::thread_start(&cwd.to_string_lossy())).await?;
-        if !policy::thread_is_read_only(&thread_response) {
-            return Err("Codex cannot confirm read-only sandbox. Quick Ask is unavailable.".into());
+    // Allow Stop to cancel initialization/auth checks before the first turn exists.
+    let result = tokio::select! {
+        result = async {
+            rpc.request("initialize", json!({
+                "clientInfo": { "name": "otto", "title": "Otto", "version": "0.1.0" }
+            })).await?;
+            rpc.send(json!({ "method": "initialized", "params": {} })).await?;
+            let (thread_response, _) = rpc.request("thread/start", policy::thread_start(&cwd.to_string_lossy())).await?;
+            if !policy::thread_is_read_only(&thread_response) {
+                return Err("Codex cannot confirm read-only sandbox. Quick Ask is unavailable.".into());
+            }
+            let thread = thread_response.pointer("/thread/id").and_then(Value::as_str)
+                .ok_or("Codex returned no thread ID.")?.to_owned();
+            mutate(&updates, |s| s.thread_id = Some(thread.clone()));
+            let (turn, buffered) = begin_turn(&mut rpc, &thread, &text, run_id, &updates).await?;
+            Ok::<_, String>((thread, turn, buffered))
+        } => result,
+        _ = controls.recv() => {
+            mutate(&updates, |s| {
+                if s.run_id == run_id { s.status = "stopped".into(); }
+            });
+            rpc.terminate().await;
+            return;
         }
-        let thread = thread_response.pointer("/thread/id").and_then(Value::as_str)
-            .ok_or("Codex returned no thread ID.")?.to_owned();
-        mutate(&updates, |s| s.thread_id = Some(thread.clone()));
-        let (turn, buffered) = begin_turn(&mut rpc, &thread, &text, run_id, &updates).await?;
-        Ok::<_, String>((thread, turn, buffered))
-    }.await;
+    };
     let (thread, mut turn, buffered) = match result {
         Ok(value) => value,
         Err(error) => {

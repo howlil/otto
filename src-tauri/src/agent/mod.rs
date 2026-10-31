@@ -61,7 +61,12 @@ impl AgentRuntime {
         let mut rx = self.updates.subscribe();
         tauri::async_runtime::spawn(async move {
             if channel.send(rx.borrow_and_update().clone()).is_err() { return; }
+            // Coalesce token deltas so long answers do not resend the full transcript
+            // for every individual token; 20 updates/sec is enough for a notch.
+            let mut cadence = tokio::time::interval(std::time::Duration::from_millis(50));
+            cadence.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             while rx.changed().await.is_ok() {
+                cadence.tick().await;
                 if channel.send(rx.borrow_and_update().clone()).is_err() { break; }
             }
         });
