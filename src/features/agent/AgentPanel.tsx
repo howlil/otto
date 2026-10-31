@@ -3,7 +3,7 @@ import { Eyes, IconButton, Text, VisuallyHidden } from "../../shared/ui";
 import type { AgentStatus, ProviderReadiness } from "../../platform/tauri";
 import { AgentSettings } from "./AgentSettings";
 import { AgentTranscript } from "./AgentTranscript";
-import { agentStatusLabel } from "./status";
+import { agentStatusColor, agentStatusLabel } from "./status";
 import type { AgentPanelModel } from "./view-model";
 
 type Props = {
@@ -112,14 +112,7 @@ function AgentHeader({
   const back = useRef<HTMLButtonElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
   const previousSettings = useRef(settings);
-  const statusColor =
-    status === "approvalRequired"
-      ? "bg-otto-warn"
-      : status === "failed"
-        ? "bg-otto-danger"
-        : status === "stopped"
-          ? "bg-otto-text-tertiary"
-          : "bg-otto-ok";
+  const statusColor = agentStatusColor(status, readiness);
   const statusMotion = eventMotion === "otto-completed" ? "motion-safe:animate-otto-done" : "";
   const scopeLabel =
     mode === "agentSession" ? "Agent Session · Workspace write" : "Quick Ask · Read-only sandbox";

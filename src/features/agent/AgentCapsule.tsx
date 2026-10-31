@@ -2,6 +2,7 @@ import type { AgentSnapshot, ProviderReadiness } from "../../platform/tauri";
 import { Icon, Text, VisuallyHidden } from "../../shared/ui";
 import { Bars } from "./AgentControls";
 import { compactDetail, compactLabel } from "./surface";
+import { agentIsWorking } from "./status";
 
 export function AgentCapsule({
   snapshot,
@@ -20,7 +21,7 @@ export function AgentCapsule({
   onOpen: () => void;
   motionClass?: string;
 }) {
-  const thinking = ["starting", "streaming"].includes(snapshot.status);
+  const thinking = agentIsWorking(snapshot.status);
   return (
     <button
       ref={buttonRef}

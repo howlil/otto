@@ -53,6 +53,11 @@ Per-surface moments and interaction graphs belong in the current PR/task, not in
 - Error and empty states name the unavailable capability and offer the next valid action (retry, configure, choose provider, or dismiss). Disable a temporarily unavailable action with a reason; hide actions that can never apply.
 - Per-feature U/M/ST/V/N graph and X# recovery mapping stay in the implementing PR. Do not turn this file into a screen-by-screen specification.
 
+## Component reuse and motion source
+- Use [Arc UI](https://uiarc.dev/) as the preferred **component and interaction-motion source**, not a replacement for Otto's visual identity. Before creating reusable controls, inspect the upstream component and reuse its maintained, compatible source when that reduces duplication; adapt appearance through Otto tokens and the approved `design/<module>.html` reference. Respect upstream licensing and dependency lockfiles. Do not introduce a parallel design system.
+- Prefer Arc's documented snappy / smooth / morph / responsive motion presets once adopted. State changes drive animation; preserve interruptibility and reduced-motion behavior. Keep motion configuration at its owner rather than scattering magic durations across JSX.
+- Provider and lifecycle states are backend contracts, not free-form strings. Render labels, tones and motion through feature-owned presentation policies; capability availability comes from the provider adapter, never from a visual-only provider enum or a pretend success.
+
 ## Frontend composition rules
 
 Enforced by `bun run check` → `scripts/frontend-rules.mjs` against `.agents/frontend-budget.json`. The budget is a **ratchet**: a change may lower a number, never raise it. Fix the violation; do not edit the baseline upward.

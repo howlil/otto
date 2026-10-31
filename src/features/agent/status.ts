@@ -29,3 +29,20 @@ export function providerIssue(readiness: ProviderReadiness, error: string | null
 export function providerIssueTitle(readiness: ProviderReadiness): string {
   return readiness.status === "authRequired" ? "Sign in required" : "Unavailable";
 }
+
+export function agentIsWorking(status: AgentStatus): boolean {
+  return status === "starting" || status === "streaming";
+}
+
+export function agentStatusColor(
+  status: AgentStatus,
+  readiness: ProviderReadiness["status"],
+): string {
+  if (status === "failed") return "bg-otto-danger";
+  if (status === "approvalRequired") return "bg-otto-warn";
+  if (status === "stopping" || status === "stopped" || status === "starting")
+    return "bg-otto-text-tertiary";
+  if (status === "idle" && readiness !== "ready")
+    return readiness === "checking" ? "bg-otto-text-tertiary" : "bg-otto-warn";
+  return "bg-otto-ok";
+}

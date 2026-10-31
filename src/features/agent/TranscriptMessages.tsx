@@ -1,6 +1,7 @@
 import { Text } from "../../shared/ui";
 import type { AgentSnapshot } from "../../platform/tauri";
 import { Bars } from "./AgentControls";
+import { agentIsWorking } from "./status";
 
 export function TranscriptMessages({ snapshot, busy }: { snapshot: AgentSnapshot; busy: boolean }) {
   return (
@@ -44,7 +45,7 @@ export function TranscriptMessages({ snapshot, busy }: { snapshot: AgentSnapshot
       )}
       {busy && (
         <div className="flex items-center gap-[7px] text-otto-text-secondary">
-          <Bars />
+          {agentIsWorking(snapshot.status) && <Bars />}
           <Text as="span" variant="status">
             {activityLabel(snapshot)}
           </Text>
