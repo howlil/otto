@@ -1,53 +1,67 @@
 import type { AgentSnapshot, ProviderReadiness } from "../../platform/tauri";
-import { Icon, VisuallyHidden } from "../../shared/ui";
+import { Icon, Text, VisuallyHidden } from "../../shared/ui";
 import { Bars } from "./AgentControls";
 import { compactDetail, compactLabel } from "./surface";
 
-// The agent's Compact capsule. It only renders observed state; it never
-// invents progress or completion.
 export function AgentCapsule({
   snapshot,
   installed,
   readiness,
+  error,
   buttonRef,
   onOpen,
+  motionClass = "",
 }: {
   snapshot: AgentSnapshot;
   installed: boolean | null;
   readiness: ProviderReadiness;
+  error: string | null;
   buttonRef: React.Ref<HTMLButtonElement>;
   onOpen: () => void;
+  motionClass?: string;
 }) {
   const thinking = ["starting", "streaming"].includes(snapshot.status);
   return (
     <button
       ref={buttonRef}
-      className="otto-compact is-agent flex items-center justify-center w-full h-full bg-transparent text-left"
+      className={`flex h-full w-full items-center justify-start gap-[9px] border-0 bg-transparent px-[11px] text-left text-inherit ${motionClass}`}
       type="button"
       onClick={onOpen}
     >
-      <span className="otto-agent-avatar grid place-items-center shrink-0 rounded-full">
+      <span className="grid h-[31px] w-[31px] shrink-0 place-items-center rounded-full bg-otto-control-deep text-otto-text-bright">
         <Icon name="terminal" size={16} />
       </span>
-      <span className="otto-compact-copy min-w-0 flex-1">
-        <strong>{compactLabel(snapshot, installed)}</strong>
-        <small>{compactDetail(snapshot, installed, readiness)}</small>
+      <span className="min-w-0 flex-1">
+        <Text
+          as="strong"
+          variant="title"
+          className="block overflow-hidden text-ellipsis whitespace-nowrap"
+        >
+          {compactLabel(snapshot, installed, error, readiness.status)}
+        </Text>
+        <Text
+          as="small"
+          variant="meta"
+          className="mt-0.5 block overflow-hidden text-ellipsis whitespace-nowrap text-otto-text-secondary"
+        >
+          {compactDetail(snapshot, installed, readiness, error)}
+        </Text>
       </span>
       <VisuallyHidden>Open Agent</VisuallyHidden>
       {snapshot.status === "approvalRequired" ? (
-        <span className="otto-compact-marker warn" role="status">
+        <span className="text-otto-warn" role="status">
           <Icon name="alert" size={14} strokeWidth={1.9} />
           <VisuallyHidden>Approval needed</VisuallyHidden>
         </span>
-      ) : installed === false || snapshot.status === "failed" ? (
-        <span className="otto-compact-marker error" role="status">
+      ) : error || installed === false || snapshot.status === "failed" ? (
+        <span className="text-otto-danger" role="status">
           <Icon name="unavailable" size={14} strokeWidth={1.9} />
-          <VisuallyHidden>{readiness.message}</VisuallyHidden>
+          <VisuallyHidden>{error || readiness.message}</VisuallyHidden>
         </span>
       ) : thinking ? (
         <Bars />
       ) : snapshot.status === "completed" ? (
-        <span className="otto-compact-mark">✓</span>
+        <span className="px-[5px] text-otto-2xl text-otto-completion-soft">✓</span>
       ) : null}
     </button>
   );

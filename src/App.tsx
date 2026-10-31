@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import agentArt from "./assets/agent-art.svg";
-import musicArt from "./assets/music-art.svg";
-import focusArt from "./assets/focus-art.svg";
-import { AgentCapsule, AgentPanel, resolveAgentSurface, useAgent } from "./features/agent";
-import { HomeCard } from "./features/home";
-import { GlobalSettings, resolveSurface, SurfaceError, useNotchShell } from "./features/shell";
+import { ShellView } from "./AppView";
+import { agentStatusLabel, resolveAgentSurface, useAgent } from "./features/agent";
+import { resolveSurface, useNotchShell } from "./features/shell";
 import { setNotchSurface } from "./platform/tauri";
-import { Eyes, IconButton, VisuallyHidden } from "./shared/ui";
+import type { AgentSnapshot, ProviderReadiness } from "./platform/tauri";
+
+function hasAmbientAgent(isAgent: boolean, snapshot: AgentSnapshot, error: string | null) {
+  return isAgent || snapshot.status !== "idle" || Boolean(error) || snapshot.messages.length > 0;
+}
+
+function agentHomeSubtitle(
+  snapshot: AgentSnapshot,
+  readiness: ProviderReadiness,
+  error: string | null,
+) {
+  if (error) return "Connection issue";
+  if (snapshot.status !== "idle") return agentStatusLabel(snapshot.status, readiness.status);
+  if (readiness.status === "checking") return "Checking Codex";
+  if (readiness.status !== "ready") return "Setup required";
+  return snapshot.messages.length > 0 ? "Continue session" : "Ask your CLI";
+}
 
 function motionCue(status: string): string | null {
   switch (status) {
@@ -25,29 +38,7 @@ export default function App() {
   const agent = useAgent();
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const shell = useNotchShell();
-  const {
-    page,
-    setPage,
-    expanded,
-    pinned,
-    pin,
-    prefs,
-    change,
-    notice,
-    setNotice,
-    eventMotion,
-    setEventMotion,
-    reducedMotion,
-    isAgent,
-    compactButton,
-    homeGear,
-    collapse,
-    open,
-    back,
-    handleEnter,
-    handleLeave,
-    handleEscape,
-  } = shell;
+  const { page, expanded, prefs, reducedMotion, isAgent, setEventMotion } = shell;
 
   const surface = resolveSurface({
     expanded,
@@ -55,6 +46,8 @@ export default function App() {
     page,
     agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
   });
+  const ambientAgent = hasAmbientAgent(isAgent, agent.snapshot, agent.error);
+  const agentHomeCopy = agentHomeSubtitle(agent.snapshot, agent.readiness, agent.error);
   const artProps = {
     parallax: prefs.parallax,
     reduced: reducedMotion || prefs.motion === "reduced",
@@ -77,7 +70,6 @@ export default function App() {
     };
   }, [surface, prefs.topOffset, reducedMotion]);
 
-  // Event motion: one-shot feedback for a real state change, never a loop.
   const lastStatus = useRef(agent.snapshot.status);
   useEffect(() => {
     const previous = lastStatus.current;
@@ -93,95 +85,13 @@ export default function App() {
   }, [agent.snapshot.status, setEventMotion]);
 
   return (
-    <main
-      className={
-        "otto-shell relative w-full h-full overflow-hidden bg-otto-surface text-otto-text " +
-        (expanded ? "is-expanded " : "") +
-        (reducedMotion ? "is-reduced " : "") +
-        eventMotion
-      }
-      onPointerEnter={handleEnter}
-      onPointerLeave={handleLeave}
-      onKeyDown={handleEscape}
-      onPointerDown={() => {
-        if (expanded && !pinned) pin();
-      }}
-    >
-      {/* One persistent pair of eyes travels between Idle and Home. */}
-      {!isAgent && page === "home" && (
-        <button
-          ref={compactButton}
-          className="otto-home-face"
-          type="button"
-          aria-expanded={expanded}
-          onClick={() => (expanded ? collapse() : open("home"))}
-        >
-          <Eyes expression={prefs.expression} reactive={prefs.reactive} />
-          <VisuallyHidden>{expanded ? "Collapse Otto" : "Open Otto"}</VisuallyHidden>
-        </button>
-      )}
-      {!expanded ? (
-        isAgent ? (
-          <AgentCapsule
-            snapshot={agent.snapshot}
-            installed={agent.installed}
-            readiness={agent.readiness}
-            buttonRef={compactButton}
-            onOpen={() => open("agent")}
-          />
-        ) : null
-      ) : page === "home" ? (
-        <section className="otto-home flex h-full flex-col gap-[10px]">
-          <header className="otto-home-head flex h-6 shrink-0 items-center gap-2">
-            <strong>Otto</strong>
-            <span className="otto-home-notice" role="status">
-              {notice}
-            </span>
-            <IconButton
-              icon="settings"
-              label="Open Otto settings"
-              ref={homeGear}
-              className="otto-gear grid shrink-0 place-items-center"
-              onClick={() => open("global-settings")}
-            />
-          </header>
-          <div className="otto-cards grid min-h-0 flex-1 grid-cols-3 gap-[9px]">
-            <HomeCard
-              name="Agent"
-              subtitle="Ask your CLI"
-              artwork={agentArt}
-              {...artProps}
-              onClick={() => open("agent")}
-            />
-            <HomeCard
-              name="Music"
-              subtitle="Playback"
-              artwork={musicArt}
-              {...artProps}
-              onClick={() => setNotice("Music is not available yet.")}
-            />
-            <HomeCard
-              name="Focus"
-              subtitle="Pomodoro"
-              artwork={focusArt}
-              {...artProps}
-              onClick={() => setNotice("Focus is not available yet.")}
-            />
-          </div>
-        </section>
-      ) : page === "global-settings" ? (
-        <GlobalSettings prefs={prefs} change={change} onBack={back} />
-      ) : (
-        <AgentPanel
-          agent={agent}
-          settings={page === "agent-settings"}
-          onSettings={() => open("agent-settings")}
-          onSettingsBack={() => setPage("agent")}
-          onBack={() => open("home")}
-          onCollapse={collapse}
-        />
-      )}
-      <SurfaceError message={surfaceError} expanded={expanded} />
-    </main>
+    <ShellView
+      agent={agent}
+      shell={shell}
+      surfaceError={surfaceError}
+      ambientAgent={ambientAgent}
+      agentHomeCopy={agentHomeCopy}
+      artProps={artProps}
+    />
   );
 }

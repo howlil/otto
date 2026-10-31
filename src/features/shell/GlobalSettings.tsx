@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon, VisuallyHidden } from "../../shared/ui";
-import { ChoiceChip, Range, Toggle } from "./SettingsControls";
+import { Button, IconButton, Range, SegmentedControl, Text, Toggle } from "../../shared/ui";
 import { defaults, type Preferences, type SettingsTab } from "./preferences";
+import { PlacementSettings } from "./PlacementSettings";
 
 export function GlobalSettings({
   prefs,
   change,
   onBack,
+  motionClass = "",
 }: {
   prefs: Preferences;
   change: (patch: Partial<Preferences>) => void;
   onBack: () => void;
+  motionClass?: string;
 }) {
   const [tab, setTab] = useState<SettingsTab>("general");
   const back = useRef<HTMLButtonElement>(null);
@@ -18,19 +20,17 @@ export function GlobalSettings({
     back.current?.focus({ preventScroll: true });
   }, []);
   return (
-    <section className="otto-global-settings flex h-full min-h-0 flex-col">
-      <header className="otto-settings-head flex shrink-0 items-center gap-[10px]">
-        <button className="otto-icon-button" ref={back} type="button" onClick={onBack}>
-          <Icon name="back" />
-          <VisuallyHidden>Back to Home</VisuallyHidden>
-        </button>
-        <strong>Settings</strong>
-        <span className="otto-settings-meta">Otto</span>
+    <section className={`flex h-full min-h-0 flex-col ${motionClass}`}>
+      <header className="flex h-[51px] shrink-0 items-center gap-[10px] border-b border-otto-line-soft px-[15px]">
+        <IconButton icon="back" label="Back to Home" ref={back} onClick={onBack} />
+        <Text as="strong" variant="display">
+          Settings
+        </Text>
       </header>
-      <div className="otto-settings-layout grid min-h-0 flex-1">
+      <main className="grid min-h-0 flex-1 grid-cols-[118px_minmax(0,1fr)]">
         <nav
           aria-labelledby="otto-settings-sections"
-          className="otto-settings-nav flex flex-col items-stretch gap-1"
+          className="flex flex-col items-stretch gap-1 border-r border-otto-control-deep bg-otto-nav-bg px-2 py-[13px]"
         >
           <span id="otto-settings-sections" className="sr-only">
             Settings sections
@@ -39,7 +39,7 @@ export function GlobalSettings({
             <button
               type="button"
               key={name}
-              className={tab === name ? "selected" : ""}
+              className={`h-[35px] rounded-otto-control border-0 bg-transparent px-[11px] text-left text-otto-sm text-otto-label-muted hover:bg-otto-control-deep hover:text-otto-hover-text ${tab === name ? "bg-otto-control-deep text-otto-invert-line" : ""}`}
               aria-current={tab === name ? "page" : undefined}
               onClick={() => setTab(name)}
             >
@@ -47,14 +47,17 @@ export function GlobalSettings({
             </button>
           ))}
         </nav>
-        <div className="otto-settings-content min-h-0 overflow-y-auto text-otto-text">
+        <div className="min-h-0 overflow-y-auto px-[18px] pb-5 pt-4 text-otto-text [scrollbar-color:var(--color-otto-scrollbar-track)_transparent] [scrollbar-width:thin] [&>h2]:m-0 [&>h2]:mb-[3px] [&>p]:m-0 [&>p]:mb-4">
           {tab === "general" && (
             <>
-              <h2>General</h2>
-              <p>Choose how Otto feels while idle.</p>
-              <div className="otto-setting-group">
-                <span>Idle expression</span>
-                <ChoiceChip
+              <Text as="h2" variant="heading" className="m-0 mb-[3px]">
+                General
+              </Text>
+              <div className="mb-[14px]">
+                <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
+                  Idle expression
+                </Text>
+                <SegmentedControl
                   value={prefs.expression}
                   onChange={(expression) => change({ expression })}
                   choices={[
@@ -65,9 +68,11 @@ export function GlobalSettings({
                   ]}
                 />
               </div>
-              <div className="otto-setting-group">
-                <span>Idle response</span>
-                <ChoiceChip
+              <div className="mb-[14px]">
+                <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
+                  Idle response
+                </Text>
+                <SegmentedControl
                   value={prefs.reactive}
                   onChange={(reactive) => change({ reactive })}
                   choices={[
@@ -76,19 +81,21 @@ export function GlobalSettings({
                   ]}
                 />
               </div>
-              <button
-                className="otto-settings-reset"
-                type="button"
+              <Button
+                variant="quiet"
+                size="link"
+                className="justify-start"
                 onClick={() => change(defaults)}
               >
                 Restore defaults
-              </button>
+              </Button>
             </>
           )}
           {tab === "interaction" && (
             <>
-              <h2>Interaction</h2>
-              <p>Decide when the island responds to your pointer.</p>
+              <Text as="h2" variant="heading" className="m-0 mb-[3px]">
+                Interaction
+              </Text>
               <Toggle
                 title="Expand on hover"
                 help="Preview without stealing focus"
@@ -121,11 +128,17 @@ export function GlobalSettings({
           )}
           {tab === "motion" && (
             <>
-              <h2>Motion</h2>
-              <p>Reduced motion from Windows always takes priority.</p>
-              <div className="otto-setting-group">
-                <span>Motion profile</span>
-                <ChoiceChip
+              <Text as="h2" variant="heading" className="m-0 mb-[3px]">
+                Motion
+              </Text>
+              <Text as="p" variant="meta" className="m-0 mb-4 leading-[1.5] text-otto-label-muted">
+                Reduced motion from Windows always takes priority.
+              </Text>
+              <div className="mb-[14px]">
+                <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
+                  Motion profile
+                </Text>
+                <SegmentedControl
                   value={prefs.motion}
                   onChange={(motion) => change({ motion })}
                   choices={[
@@ -159,43 +172,9 @@ export function GlobalSettings({
               />
             </>
           )}
-          {tab === "placement" && (
-            <>
-              <h2>Placement</h2>
-              <p>Position Otto relative to the top of the screen.</p>
-              <div className="otto-placement-grid grid grid-cols-2 gap-2">
-                <button type="button" aria-pressed="true" className="selected">
-                  <span className="otto-place-graphic">
-                    <i />
-                  </span>
-                  Floating
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  title="Attached placement needs Windows-native hit-region support"
-                >
-                  <span className="otto-place-graphic attached">
-                    <i />
-                  </span>
-                  Attached
-                </button>
-              </div>
-              <Range
-                label="Top offset"
-                value={prefs.topOffset}
-                min={0}
-                max={64}
-                unit=" px"
-                onChange={(topOffset) => change({ topOffset })}
-              />
-              <p className="otto-availability">
-                Attached requires native hit-region verification and is not available in this slice.
-              </p>
-            </>
-          )}
+          {tab === "placement" && <PlacementSettings prefs={prefs} change={change} />}
         </div>
-      </div>
+      </main>
     </section>
   );
 }

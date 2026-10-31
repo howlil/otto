@@ -13,6 +13,7 @@
     "lint:frontend": "node scripts/frontend-rules.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
     "@tauri-apps/api": "^2",
     "lucide-react": "^1.66.0",
     "react": "^19.1.0",

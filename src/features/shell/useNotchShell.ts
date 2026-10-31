@@ -9,9 +9,6 @@ import {
 import { nativeAvailable, onNotchFocusChanged } from "../../platform/tauri";
 import { readPreferences, type Page, type Preferences } from "./preferences";
 
-// Shell behavior for the notch: page/expand/pin, the hover-intent timers,
-// focus restoration, preference persistence and the surface request. It owns
-// this state so the App component stays a composition, not a hook dump.
 type ShellMode = "compact" | "preview" | "pinned";
 
 export function useNotchShell() {
@@ -57,7 +54,6 @@ export function useNotchShell() {
     [clearTimers],
   );
   const pin = useCallback(() => {
-    // Explicit activation wins over any pending hover-leave dismissal.
     clearTimers();
     setMode((current) => (current === "preview" ? "pinned" : current));
   }, [clearTimers]);
@@ -70,12 +66,13 @@ export function useNotchShell() {
   useEffect(() => {
     try {
       localStorage.setItem("otto.preferences.v1", JSON.stringify(prefs));
-    } catch {
-      /* optional */
-    }
+    } catch {}
   }, [prefs]);
   useEffect(() => {
-    if (previousPage.current === "global-settings" && page === "home")
+    if (
+      (previousPage.current === "global-settings" || previousPage.current === "agent-settings") &&
+      page === "home"
+    )
       homeGear.current?.focus({ preventScroll: true });
     previousPage.current = page;
   }, [page]);
@@ -104,7 +101,7 @@ export function useNotchShell() {
       clearTimeout(leaveTimer.current);
       leaveTimer.current = null;
     }
-    // Native resizing can produce extra enter events; only one intent timer wins.
+
     if (enterTimer.current) clearTimeout(enterTimer.current);
     if (!pinned && !expanded && prefs.hoverExpand) {
       enterTimer.current = setTimeout(() => {
@@ -124,7 +121,6 @@ export function useNotchShell() {
     }
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
     if (!pinned && expanded) {
-      // Don't collapse during a transient pointer leave while the HWND expands.
       const settling = Math.max(0, morphUntil.current - performance.now());
       leaveTimer.current = setTimeout(() => collapse(), prefs.leaveDelay + settling);
     }

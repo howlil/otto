@@ -1,6 +1,5 @@
 use serde_json::{Value, json};
 
-// K2 -> K3: Quick Ask vs Agent Session is a policy decision here, not a UI label.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum InteractionMode {
     QuickAsk,
@@ -24,7 +23,6 @@ impl InteractionMode {
     }
 }
 
-// thread/start takes SandboxMode (string) + AskForApproval (string).
 pub fn thread_start(cwd: &str, mode: InteractionMode) -> Value {
     let (sandbox, approval) = match mode {
         InteractionMode::QuickAsk => ("read-only", "never"),
@@ -38,7 +36,6 @@ pub fn thread_start(cwd: &str, mode: InteractionMode) -> Value {
     })
 }
 
-// turn/start takes SandboxPolicy (tagged object) + AskForApproval (string).
 pub fn turn_start(thread_id: &str, text: &str, mode: InteractionMode) -> Value {
     let (sandbox_policy, approval) = match mode {
         InteractionMode::QuickAsk => (json!({ "type": "readOnly" }), "never"),
@@ -52,7 +49,6 @@ pub fn turn_start(thread_id: &str, text: &str, mode: InteractionMode) -> Value {
     })
 }
 
-// Only a Rust-owned capture can supply this path. No IPC path is accepted.
 pub fn turn_start_with_image(
     thread_id: &str,
     text: &str,
@@ -68,7 +64,6 @@ pub fn turn_start_with_image(
     request
 }
 
-// Unknown/missing effective sandbox metadata is not permission to run.
 pub fn thread_matches_policy(response: &Value, mode: InteractionMode) -> bool {
     let sandbox = response.pointer("/sandbox/type").and_then(Value::as_str);
     let approval = response.get("approvalPolicy").and_then(Value::as_str);
@@ -136,12 +131,12 @@ mod tests {
             &json!({ "sandbox": { "type": "workspaceWrite" }, "approvalPolicy": "on-request" }),
             InteractionMode::AgentSession
         ));
-        // A read-only thread must not be treated as an approval-capable session.
+
         assert!(!thread_matches_policy(
             &json!({ "sandbox": { "type": "readOnly" }, "approvalPolicy": "on-request" }),
             InteractionMode::AgentSession
         ));
-        // Fail closed when the provider silently widens approval.
+
         assert!(!thread_matches_policy(
             &json!({ "sandbox": { "type": "workspaceWrite" }, "approvalPolicy": "never" }),
             InteractionMode::AgentSession

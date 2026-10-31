@@ -1,8 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type PointerEvent } from "react";
+import { Text } from "../../shared/ui";
 
-// One launcher card. Render-only: it takes the artwork and pointer settings as
-// props and reports the open intent. The parallax offsets are visual state, so
-// they stay on the element, never in a store.
 export function HomeCard({
   name,
   subtitle,
@@ -13,6 +11,7 @@ export function HomeCard({
   amount,
   tilt,
   gradient,
+  entryMotion = "",
 }: {
   name: string;
   subtitle: string;
@@ -23,6 +22,7 @@ export function HomeCard({
   amount: number;
   tilt: number;
   gradient: number;
+  entryMotion?: string;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const pointerFrame = useRef<number | null>(null);
@@ -67,22 +67,32 @@ export function HomeCard({
     event.currentTarget.style.setProperty("--dx", "0px");
     event.currentTarget.style.setProperty("--dy", "0px");
   };
+  const backgroundClass =
+    name === "Agent"
+      ? "bg-[linear-gradient(118deg,var(--color-otto-art-music-start)_0%,var(--color-otto-art-music-middle)_51%,var(--color-otto-art-music-end)_100%)]"
+      : name === "Music"
+        ? "bg-[linear-gradient(118deg,var(--color-otto-selected)_0%,var(--color-otto-art-focus-middle)_55%,var(--color-otto-art-focus-end)_100%)]"
+        : "bg-[linear-gradient(118deg,var(--color-otto-art-alt-start)_0%,var(--color-otto-art-alt-middle)_53%,var(--color-otto-art-alt-end)_100%)]";
   return (
     <button
       ref={buttonRef}
       type="button"
-      className={`otto-choice otto-choice-${name.toLowerCase()} relative isolate block min-w-0 overflow-hidden text-left text-otto-text`}
+      className={`group relative isolate block min-w-0 overflow-hidden rounded-[15px] border border-otto-line-strong px-[13px] py-[11px] text-left text-otto-text transition-[transform,border-color,background] duration-[260ms] ease-otto [--art-tilt:43deg] [--dx:0px] [--dy:0px] [--shimmer:0.8] before:pointer-events-none before:absolute before:inset-0 before:z-[1] before:bg-[radial-gradient(ellipse_120px_100px_at_78%_30%,var(--color-otto-art-halo),transparent_70%)] before:opacity-[var(--shimmer)] before:mix-blend-screen before:transition-opacity before:duration-[250ms] hover:-translate-y-px hover:border-otto-line-hover focus-visible:-translate-y-px focus-visible:border-otto-line-hover active:scale-[0.985] ${backgroundClass} ${entryMotion}`}
       onClick={onClick}
       onPointerMove={move}
       onPointerLeave={reset}
       style={{ "--art-tilt": `${tilt}deg`, "--shimmer": String(gradient / 100) } as CSSProperties}
     >
-      <span className="otto-choice-copy pointer-events-none relative z-[3] flex h-full flex-col justify-center whitespace-nowrap">
-        <strong>{name}</strong>
-        <small>{subtitle}</small>
+      <span className="pointer-events-none relative z-[3] flex h-full max-w-[81%] flex-col justify-center whitespace-nowrap">
+        <Text as="strong" variant="title">
+          {name}
+        </Text>
+        <Text as="small" variant="meta" className="mt-1.5 text-otto-text-floating-muted">
+          {subtitle}
+        </Text>
       </span>
       <img
-        className="otto-choice-art pointer-events-none absolute z-0 select-none object-contain"
+        className="pointer-events-none absolute right-[-7px] top-[-23px] z-0 h-[132px] w-[148px] select-none object-contain opacity-[0.91] [transform:perspective(380px)_rotateY(calc(-1*var(--art-tilt)))_rotateZ(-6deg)_translate3d(var(--dx),var(--dy),0)] [transform-origin:60%_50%] transition-[transform,opacity] duration-[370ms] ease-otto group-hover:opacity-100 group-data-[tracking=true]:transition-opacity group-data-[tracking=true]:duration-[240ms]"
         src={artwork}
         alt=""
         draggable={false}

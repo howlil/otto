@@ -10,8 +10,37 @@ import {
   subscribeAgent,
   type AgentMode,
   type AgentSnapshot,
+  type AgentSubscription,
   type ProviderReadiness,
 } from "../../platform/tauri";
+
+export type AgentErrorKind = "connection" | "request" | null;
+type AgentChannel = AgentSubscription;
+
+async function subscribeToAgentEvents(
+  isCurrent: () => boolean,
+  receive: (next: AgentSnapshot) => void,
+): Promise<{ subscription: AgentChannel | null; error: string | null }> {
+  try {
+    const channel = await subscribeAgent((next) => {
+      if (isCurrent()) receive(next);
+    });
+    return { subscription: channel, error: null };
+  } catch {
+    return { subscription: null, error: "Cannot listen to Codex events." };
+  }
+}
+
+async function readAgentSnapshot(): Promise<{
+  value: AgentSnapshot | null;
+  error: string | null;
+}> {
+  try {
+    return { value: await getAgentSnapshot(), error: null };
+  } catch {
+    return { value: null, error: "Cannot connect to the Otto desktop process." };
+  }
+}
 
 const initial: AgentSnapshot = {
   runId: 0,
@@ -31,22 +60,13 @@ const checking: ProviderReadiness = {
   imageInput: false,
 };
 
-export function useAgent() {
-  const [snapshot, setSnapshot] = useState<AgentSnapshot>(initial);
+function useProviderReadiness(cwd: string) {
   const [readiness, setReadiness] = useState<ProviderReadiness>(checking);
-  const installed = readiness.status === "checking" ? null : readiness.status === "ready";
-  const [draft, setDraft] = useState("");
-  const [cwd, setCwd] = useState("");
-  // UI-local settings draft. The effective mode after submit comes from Rust.
-  const [mode, setMode] = useState<AgentMode>("quickAsk");
-  const [error, setError] = useState<string | null>(null);
-  const submitted = useRef<string | null>(null);
-  const subscription = useRef<Awaited<ReturnType<typeof subscribeAgent>> | null>(null);
   const projectRef = useRef("");
-  const providerProbe = useRef(0);
+  const probeRef = useRef(0);
 
   const refreshProvider = useCallback(async () => {
-    const probe = ++providerProbe.current;
+    const probe = ++probeRef.current;
     setReadiness(checking);
     if (!nativeAvailable) {
       setReadiness({
@@ -59,9 +79,9 @@ export function useAgent() {
     }
     try {
       const status = await getCodexReadiness(projectRef.current || undefined);
-      if (providerProbe.current === probe) setReadiness(status);
+      if (probeRef.current === probe) setReadiness(status);
     } catch {
-      if (providerProbe.current === probe) {
+      if (probeRef.current === probe) {
         setReadiness({
           status: "unavailable",
           message: "Could not check Codex readiness.",
@@ -73,46 +93,90 @@ export function useAgent() {
   }, []);
 
   useEffect(() => {
-    if (!nativeAvailable) return;
-    let mounted = true;
-    const receive = (next: AgentSnapshot) => {
-      if (!mounted) return;
-      setSnapshot((prev) => (next.seq >= prev.seq ? next : prev));
-    };
-    void subscribeAgent(receive)
-      .then((channel) => {
-        if (mounted) subscription.current = channel;
-      })
-      .catch(() => {
-        if (mounted) setError("Cannot listen to Codex events.");
-      });
-    void getAgentSnapshot()
-      .then((value) => {
-        receive(value);
-        if (mounted) {
-          setCwd((old) => old || value.cwd);
-          // A resumed conversation keeps its fixed mode; the UI draft follows it.
-          setMode(value.threadId ? value.mode : "quickAsk");
-        }
-      })
-      .catch(() => {
-        if (mounted) setError("Cannot connect to the Otto desktop process.");
-      });
-    return () => {
-      mounted = false;
-      subscription.current = null;
-    };
-  }, []);
-
-  // A project setting can alter the model catalog. Debounce edits and ignore
-  // responses from a previously selected working directory.
-  useEffect(() => {
     projectRef.current = cwd;
-    providerProbe.current += 1;
+    probeRef.current += 1;
     setReadiness(checking);
     const timer = setTimeout(() => void refreshProvider(), 350);
     return () => clearTimeout(timer);
   }, [cwd, refreshProvider]);
+
+  return { readiness, refreshProvider };
+}
+
+function useAgentConnection(
+  receive: (next: AgentSnapshot) => void,
+  acceptSnapshot: (next: AgentSnapshot) => void,
+) {
+  const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<AgentErrorKind>(null);
+  const subscription = useRef<AgentChannel | null>(null);
+  const connectionAttempt = useRef(0);
+  const mounted = useRef(false);
+
+  const clearError = useCallback(() => {
+    setError(null);
+    setErrorKind(null);
+  }, []);
+  const setRequestError = useCallback((reason: unknown) => {
+    setError(String(reason));
+    setErrorKind("request");
+  }, []);
+  const connect = useCallback(async () => {
+    const attempt = ++connectionAttempt.current;
+    clearError();
+    const isCurrent = () => mounted.current && attempt === connectionAttempt.current;
+    const previous = subscription.current;
+    subscription.current = null;
+    if (previous) await previous.unsubscribe().catch(() => undefined);
+    if (!isCurrent()) return;
+
+    const result = await subscribeToAgentEvents(isCurrent, receive);
+    if (!isCurrent()) {
+      await result.subscription?.unsubscribe().catch(() => undefined);
+      return;
+    }
+    if (result.error) {
+      setError(result.error);
+      setErrorKind("connection");
+    } else {
+      subscription.current = result.subscription;
+    }
+
+    const snapshotResult = await readAgentSnapshot();
+    if (!isCurrent()) return;
+    if (snapshotResult.error) {
+      setError(snapshotResult.error);
+      setErrorKind("connection");
+    } else if (snapshotResult.value) {
+      acceptSnapshot(snapshotResult.value);
+    }
+  }, [acceptSnapshot, clearError, receive]);
+
+  useEffect(() => {
+    if (!nativeAvailable) return;
+    mounted.current = true;
+    void connect();
+    return () => {
+      mounted.current = false;
+      connectionAttempt.current += 1;
+      const activeSubscription = subscription.current;
+      subscription.current = null;
+      void activeSubscription?.unsubscribe().catch(() => undefined);
+    };
+  }, [connect]);
+
+  const retryConnection = useCallback(async () => {
+    if (nativeAvailable) await connect();
+  }, [connect]);
+
+  return { error, errorKind, retryConnection, clearError, setRequestError };
+}
+
+function useAgentSubmission(
+  snapshot: AgentSnapshot,
+  setDraft: React.Dispatch<React.SetStateAction<string>>,
+) {
+  const submitted = useRef<string | null>(null);
 
   useEffect(() => {
     if (snapshot.status === "failed" && submitted.current) {
@@ -125,61 +189,142 @@ export function useAgent() {
     if (snapshot.status === "completed" || snapshot.status === "stopped") {
       submitted.current = null;
     }
-  }, [snapshot.status, snapshot.messages]);
+  }, [setDraft, snapshot.messages, snapshot.status]);
 
-  const busy = ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status);
-  // Mode and working folder are locked once the conversation exists.
-  const locked = busy || snapshot.threadId !== null;
+  return submitted;
+}
 
-  const send = async () => {
+function useAgentRequestActions({
+  busy,
+  cwd,
+  draft,
+  mode,
+  refreshProvider,
+  setDraft,
+  submitted,
+  clearError,
+  setRequestError,
+}: {
+  busy: boolean;
+  cwd: string;
+  draft: string;
+  mode: AgentMode;
+  refreshProvider: () => Promise<void>;
+  setDraft: React.Dispatch<React.SetStateAction<string>>;
+  submitted: { current: string | null };
+  clearError: () => void;
+  setRequestError: (reason: unknown) => void;
+}) {
+  const send = useCallback(async () => {
     const question = draft.trim();
     if (!question || busy) return;
-    setError(null);
+    clearError();
     submitted.current = question;
     try {
       await askCodex(question, cwd, mode);
       setDraft("");
     } catch (reason) {
       submitted.current = null;
-      setError(String(reason));
+      setRequestError(reason);
       void refreshProvider();
+      return;
     }
-  };
+  }, [busy, clearError, cwd, draft, mode, refreshProvider, setDraft, setRequestError, submitted]);
 
-  const stop = async () => {
-    setError(null);
+  const stop = useCallback(async () => {
+    clearError();
     try {
       await stopCodex();
     } catch (reason) {
-      setError(String(reason));
+      setRequestError(reason);
     }
-  };
+  }, [clearError, setRequestError]);
 
-  const newSession = async () => {
+  const decide = useCallback(
+    async (approvalId: string, decision: "allowOnce" | "deny") => {
+      clearError();
+      try {
+        await decideAgentApproval(approvalId, decision);
+        return true;
+      } catch (reason) {
+        setRequestError(reason);
+        return false;
+      }
+    },
+    [clearError, setRequestError],
+  );
+
+  return { send, stop, decide };
+}
+
+function useNewAgentSession({
+  busy,
+  clearError,
+  setMode,
+  setRequestError,
+  submitted,
+}: {
+  busy: boolean;
+  clearError: () => void;
+  setMode: React.Dispatch<React.SetStateAction<AgentMode>>;
+  setRequestError: (reason: unknown) => void;
+  submitted: { current: string | null };
+}) {
+  return useCallback(async () => {
     if (busy) return false;
-    setError(null);
+    clearError();
     try {
       await newAgentSession();
       submitted.current = null;
       setMode("quickAsk");
-      // Keep the user's unsent draft and project selection for the next run.
       return true;
     } catch (reason) {
-      setError(String(reason));
+      setRequestError(reason);
       return false;
     }
-  };
+  }, [busy, clearError, setMode, setRequestError, submitted]);
+}
 
-  const decide = async (approvalId: string, decision: "allowOnce" | "deny") => {
-    setError(null);
-    try {
-      await decideAgentApproval(approvalId, decision);
-      return true;
-    } catch (reason) {
-      setError(String(reason));
-      return false;
-    }
-  };
+export function useAgent() {
+  const [snapshot, setSnapshot] = useState<AgentSnapshot>(initial);
+  const [draft, setDraft] = useState("");
+  const [cwd, setCwd] = useState("");
+  const [mode, setMode] = useState<AgentMode>("quickAsk");
+  const busy = ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status);
+  const locked = busy || snapshot.threadId !== null;
+  const { readiness, refreshProvider } = useProviderReadiness(cwd);
+  const installed = readiness.status === "checking" ? null : readiness.status === "ready";
+  const receive = useCallback((next: AgentSnapshot) => {
+    setSnapshot((prev) => (next.seq >= prev.seq ? next : prev));
+  }, []);
+  const acceptSnapshot = useCallback(
+    (next: AgentSnapshot) => {
+      receive(next);
+      setCwd((old) => old || next.cwd || "");
+      setMode(next.threadId ? next.mode : "quickAsk");
+    },
+    [receive],
+  );
+  const connection = useAgentConnection(receive, acceptSnapshot);
+  const submitted = useAgentSubmission(snapshot, setDraft);
+  const actions = useAgentRequestActions({
+    busy,
+    cwd,
+    draft,
+    mode,
+    refreshProvider,
+    setDraft,
+    submitted,
+    clearError: connection.clearError,
+    setRequestError: connection.setRequestError,
+  });
+  const newSession = useNewAgentSession({
+    busy,
+    clearError: connection.clearError,
+    setMode,
+    setRequestError: connection.setRequestError,
+    submitted,
+  });
 
   return {
     snapshot,
@@ -192,12 +337,13 @@ export function useAgent() {
     mode,
     setMode,
     locked,
-    error: error ?? snapshot.error,
+    error: connection.error ?? snapshot.error,
     busy,
-    send,
-    stop,
+    ...actions,
     newSession,
-    decide,
     refreshProvider,
+    retryConnection: connection.retryConnection,
+    clearError: connection.clearError,
+    errorKind: connection.errorKind,
   };
 }

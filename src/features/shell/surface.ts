@@ -1,7 +1,5 @@
 import type { NotchSurface } from "../../platform/tauri";
 
-// Shell owns the native surface for the active page. Agent owns its own
-// status-specific surface descriptor, passed in by the App composition root.
 export function resolveSurface({
   expanded,
   isAgent,

@@ -25,8 +25,12 @@ pub async fn agent_codex_readiness(
     Ok(runtime.codex_readiness(cwd.as_deref()).await)
 }
 #[tauri::command]
-pub fn agent_subscribe(runtime: State<'_, AgentRuntime>, on_event: Channel<Snapshot>) {
-    runtime.subscribe(on_event);
+pub fn agent_subscribe(runtime: State<'_, AgentRuntime>, on_event: Channel<Snapshot>) -> u64 {
+    runtime.subscribe(on_event)
+}
+#[tauri::command]
+pub fn agent_unsubscribe(runtime: State<'_, AgentRuntime>, subscription_id: u64) {
+    runtime.unsubscribe(subscription_id);
 }
 #[tauri::command]
 pub async fn agent_ask(
@@ -71,9 +75,6 @@ fn surface_size(surface: &str) -> Option<(u32, u32)> {
     }
 }
 
-// Monitor geometry is stable for the duration of one morph. Querying it per
-// frame (current_monitor + scale_factor) costs several synchronous OS calls
-// every 16 ms and makes the animation stutter, so it is resolved once here.
 struct Frame {
     origin_x: i32,
     origin_y: i32,
@@ -100,9 +101,6 @@ impl Frame {
         })
     }
 
-    // Each frame uses exactly one Win32 resize+position transaction.
-    // Avoid the separate Tauri set_size / set_position calls: Windows could
-    // paint between them, making the centered island visibly shake.
     fn apply(
         &mut self,
         window: &WebviewWindow,
@@ -126,9 +124,7 @@ impl Frame {
             let hwnd = window
                 .hwnd()
                 .map_err(|_| "Cannot access the notch window.".to_string())?;
-            // SAFETY: hwnd belongs to this live Tauri window; coordinates are
-            // monitor-relative physical pixels. Neither activation nor Z-order
-            // is modified. The OS handles cross-thread window positioning.
+
             let ok = unsafe {
                 SetWindowPos(
                     hwnd.0 as _,
@@ -161,9 +157,6 @@ impl Frame {
     }
 }
 
-// Invert the CSS cubic Bezier's x(t) to sample its y(t). The reference's
-// control points have y=1, so y(u) = 1 - (1-u)^3. This is monotonic and
-// interruptible: a new target always starts at the actual current bounds.
 fn home_ease(progress: f64) -> f64 {
     if progress <= 0.0 {
         return 0.0;
@@ -198,7 +191,7 @@ pub async fn notch_set_surface(
     if top_offset > 64 {
         return Err("Top offset must be between 0 and 64 px.".to_string());
     }
-    // A new surface request interrupts an in-flight morph; no stale geometry can win.
+
     let token = motion.epoch.fetch_add(1, Ordering::SeqCst) + 1;
     let mut frame = Frame::capture(&window)?;
     let scale = frame.scale;
@@ -220,7 +213,7 @@ pub async fn notch_set_surface(
             return Ok(());
         }
         let progress = (start.elapsed().as_secs_f64() / duration.as_secs_f64()).min(1.0);
-        // Exactly match design/home.html's cubic-bezier(.22, 1, .36, 1).
+
         let eased = home_ease(progress);
         let w = start_w + (target_w - start_w) * eased;
         let h = start_h + (target_h - start_h) * eased;
@@ -230,7 +223,7 @@ pub async fn notch_set_surface(
         }
         tick.tick().await;
     }
-    // Land exactly on the target even if the last frame was skipped.
+
     frame.apply(&window, target_w, target_h, top_offset)
 }
 

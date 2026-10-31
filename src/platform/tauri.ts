@@ -66,13 +66,21 @@ export async function codexInstalled(): Promise<boolean> {
 export async function getCodexReadiness(cwd?: string): Promise<ProviderReadiness> {
   return invoke<ProviderReadiness>("agent_codex_readiness", { cwd });
 }
+export type AgentSubscription = {
+  channel: Channel<AgentSnapshot>;
+  unsubscribe: () => Promise<void>;
+};
+
 export async function subscribeAgent(
   onSnapshot: (snapshot: AgentSnapshot) => void,
-): Promise<Channel<AgentSnapshot>> {
+): Promise<AgentSubscription> {
   const channel = new Channel<AgentSnapshot>();
   channel.onmessage = onSnapshot;
-  await invoke("agent_subscribe", { onEvent: channel });
-  return channel;
+  const subscriptionId = await invoke<number>("agent_subscribe", { onEvent: channel });
+  return {
+    channel,
+    unsubscribe: () => invoke("agent_unsubscribe", { subscriptionId }),
+  };
 }
 export async function askCodex(text: string, cwd: string, mode: AgentMode): Promise<void> {
   await invoke("agent_ask", { text, cwd, mode });
@@ -89,7 +97,7 @@ export async function stopCodex(): Promise<void> {
 export async function newAgentSession(): Promise<void> {
   await invoke("agent_new_session");
 }
-// Keep Tauri window events behind the same native adapter as commands.
+
 export async function onNotchFocusChanged(
   onFocus: (focused: boolean) => void,
 ): Promise<() => void> {

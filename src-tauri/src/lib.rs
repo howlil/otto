@@ -14,6 +14,7 @@ pub fn run() {
             commands::agent_codex_installed,
             commands::agent_codex_readiness,
             commands::agent_subscribe,
+            commands::agent_unsubscribe,
             commands::agent_ask,
             commands::agent_decide_approval,
             commands::agent_stop,

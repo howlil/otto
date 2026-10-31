@@ -23,8 +23,6 @@ pub fn executable() -> Option<PathBuf> {
     None
 }
 
-// Account readiness is validated using Codex's own JSON-RPC protocol, never
-// by parsing the CLI's human-readable login output. Do not expose account data.
 fn account_readiness(value: &Value) -> ProviderReadiness {
     let account = &value["account"];
     if account.is_null() {
@@ -35,7 +33,6 @@ fn account_readiness(value: &Value) -> ProviderReadiness {
                 "Run codex login, then Retry.",
             )
         } else if value["requiresOpenaiAuth"] == false {
-            // Local/OSS providers explicitly configured without OpenAI auth.
             ProviderReadiness::new("ready", "Codex does not require OpenAI sign-in.", "")
         } else {
             ProviderReadiness::new(
@@ -57,8 +54,6 @@ fn account_readiness(value: &Value) -> ProviderReadiness {
     }
 }
 
-// The default model, not just the signed-in account, must support text.
-// Unknown or malformed catalogs never turn into a false Ready signal.
 fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness {
     let Some(models) = value["data"].as_array() else {
         return ProviderReadiness::new(
@@ -95,8 +90,7 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
             );
         }
     };
-    // Codex documents absent inputModalities as legacy text+image support,
-    // but Otto does not advertise image capability without explicit evidence.
+
     let text = modalities.is_none_or(|items| items.iter().any(|v| v == "text"));
     if !text {
         return ProviderReadiness::new(
@@ -110,8 +104,6 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
     ready
 }
 
-// Effective configuration is a trust boundary: a missing or malformed
-// config/read payload cannot authorize the catalog's recommended model.
 fn configured_model(value: &Value) -> Result<Option<&str>, ProviderReadiness> {
     let Some(config) = value.get("config").and_then(Value::as_object) else {
         return Err(ProviderReadiness::new(
@@ -131,8 +123,6 @@ fn configured_model(value: &Value) -> Result<Option<&str>, ProviderReadiness> {
     }
 }
 
-// A short-lived owned app-server connection probes authentication without
-// opening a browser or submitting a user prompt. Always kill its process tree.
 pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
     if executable().is_none() {
         return ProviderReadiness::new(
@@ -183,8 +173,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         if authentication.status != "ready" {
             return Ok::<ProviderReadiness, String>(authentication);
         }
-        // The recommended default differs from a project/user model override.
-        // Read effective configuration for the actual target working directory.
+
         let (config, _) = rpc
             .request(
                 "config/read",
@@ -233,16 +222,11 @@ struct Rpc {
     next_id: u64,
 }
 
-// A server-initiated approval request. The raw JSON-RPC request id is private
-// to the adapter; K1 only ever receives the opaque Otto `approval_id`.
 struct PendingRequest {
     provider_id: Value,
     approval: PendingApproval,
 }
 
-// Codex can wait for a human decision before acknowledging turn/start.
-// Preserve the ordinary protocol inactivity timeout, but do not time out a
-// user who is still reviewing a pending approval card.
 async fn read_frame<R: AsyncBufRead + Unpin>(
     lines: &mut Lines<R>,
     idle_timeout: Duration,
@@ -262,16 +246,13 @@ async fn read_frame<R: AsyncBufRead + Unpin>(
 }
 
 enum ServerRequest {
-    // A supported approval was recorded; no reply is sent until the user decides.
     Recorded,
-    // Unsupported, mismatched, or a second concurrent request: fail closed.
+
     Decline,
-    // Not an approval request at all: reject the method.
+
     Unknown,
 }
 
-// G8: at most one approval may be pending. A second request, a stale context,
-// or an unsupported method never auto-resolves; the provider gets `decline`.
 #[derive(Default)]
 struct Approvals {
     pending: Option<PendingRequest>,
@@ -281,15 +262,11 @@ struct Approvals {
     previous_turn: Option<String>,
     file_change_items: Vec<(String, String)>,
     run_id: u64,
-    // Quick Ask is read-only and never-approval: an approval request there is a
-    // contract violation and is declined without ever reaching the UI.
+
     approval_capable: bool,
 }
 
 impl Approvals {
-    // The Otto run id is known before any turn exists, so it is pinned here.
-    // Deriving it later (in context(), after turn/start returns) loses approvals
-    // that arrive while turn/start is still in flight.
     fn for_mode(mode: InteractionMode, run_id: u64) -> Self {
         Self {
             approval_capable: mode == InteractionMode::AgentSession,
@@ -298,9 +275,6 @@ impl Approvals {
         }
     }
 
-    // Before turn/start, bind the next Otto run and forget the old turn ID.
-    // The provider assigns the new turn ID only in its acknowledgment, but
-    // approval requests for this run can arrive earlier.
     fn prepare_turn(&mut self, thread: &str, run_id: u64) {
         self.thread = Some(thread.to_owned());
         self.previous_turn = self.turn.take();
@@ -314,8 +288,6 @@ impl Approvals {
         self.run_id = run_id;
     }
 
-    // File approvals carry only itemId, not changed paths. Read the real
-    // item/started notification; never invent a file list from a generic root.
     fn note_item(&mut self, event: &Value) {
         let params = &event["params"];
         if params["threadId"].as_str() != self.thread.as_deref() {
@@ -367,21 +339,18 @@ impl Approvals {
     fn parse(&mut self, value: &Value) -> ServerRequest {
         let method = value["method"].as_str().unwrap_or_default();
         let params = &value["params"];
-        // Classify the method before mode: a non-approval server request is not
-        // an approval, so it must get a JSON-RPC error in every mode rather than
-        // an approval-shaped reply the provider cannot interpret.
+
         let is_approval = method.ends_with("/requestApproval")
             || method == "execCommandApproval"
             || method == "applyPatchApproval";
         if !is_approval {
             return ServerRequest::Unknown;
         }
-        // Quick Ask must never surface an approval.
+
         if !self.approval_capable {
             return ServerRequest::Decline;
         }
-        // Only the current conversation may raise an approval. The turn id is
-        // unknown while turn/start is in flight, so it is matched only once set.
+
         if params["threadId"].as_str() != self.thread.as_deref() {
             return ServerRequest::Decline;
         }
@@ -391,12 +360,9 @@ impl Approvals {
                 return ServerRequest::Decline;
             }
         } else if request_turn.is_none() || request_turn == self.previous_turn.as_deref() {
-            // While turn/start is unacknowledged, never approve an event for
-            // the previous turn (or one with no identity at all).
             return ServerRequest::Decline;
         }
-        // Otto currently supports per-action accept only. Unknown extended
-        // permissions or unsupported decisions must not receive a generic Allow.
+
         if !params["additionalPermissions"].is_null() {
             return ServerRequest::Decline;
         }
@@ -447,8 +413,6 @@ impl Approvals {
                 }
             }
             "item/fileChange/requestApproval" => {
-                // grantRoot can request broader session-scoped write access:
-                // it is not equivalent to Otto's Allow once policy.
                 if !params["grantRoot"].is_null() {
                     return ServerRequest::Decline;
                 }
@@ -460,8 +424,7 @@ impl Approvals {
                     .find(|(key, _)| key == id)
                     .map(|(_, detail)| ("fileChange", "Change files", detail.clone()))
             }
-            // Permission grants and legacy approval methods have different
-            // contracts and remain unsupported.
+
             _ => None,
         };
         let Some((kind, title, detail)) = built else {
@@ -485,12 +448,9 @@ impl Approvals {
         ServerRequest::Recorded
     }
 
-    // Returns the exact provider reply for a valid decision. Stale, duplicate
-    // and mismatched decisions return None and are never forwarded.
     fn decide(&mut self, approval_id: &str, decision: ApprovalDecision) -> Option<Value> {
         let pending = self.pending.take()?;
         if pending.approval.approval_id != approval_id {
-            // Put it back: the real owner still has to answer.
             self.pending = Some(pending);
             return None;
         }
@@ -512,8 +472,6 @@ impl Approvals {
     }
 }
 
-// This is also exercised without a subprocess: an approval decision during
-// turn/start must produce a provider reply, never a Stop transition.
 enum StartupControl {
     Stop,
     Reply(Value),
@@ -559,7 +517,6 @@ impl Rpc {
         let job = match child.id().and_then(|pid| super::job::Job::attach(pid).ok()) {
             Some(job) => job,
             None => {
-                // Do not leave a process running without lifecycle containment.
                 let _ = child.start_kill();
                 return Err("Cannot isolate the Codex process tree on Windows.".into());
             }
@@ -598,9 +555,6 @@ impl Rpc {
         .await
     }
 
-    // One stdout reader owns the request/response exchange. For the initial
-    // turn/start, it also services approval decisions while awaiting the ack:
-    // Codex may be blocked on that approval before it can acknowledge the turn.
     async fn request(
         &mut self,
         method: &str,
@@ -628,8 +582,6 @@ impl Rpc {
         let mut notifications = Vec::new();
         loop {
             let value = if let Some(receiver) = controls.as_deref_mut() {
-                // Drop the competing read future before writing a decision
-                // back through the same Rpc owner.
                 let next = tokio::select! {
                     incoming = self.read(approvals.pending.is_some()) => Ok(incoming?),
                     control = receiver.recv() => Err(control),
@@ -680,7 +632,6 @@ impl Rpc {
         self.job.terminate();
         let _ = self.child.kill().await;
         let _ = self.child.wait().await;
-        // The Job Object handle is closed on Rpc drop, including process exit.
     }
 }
 
@@ -700,8 +651,6 @@ fn publish_approval(approvals: &Approvals, updates: &watch::Sender<Snapshot>) {
 }
 
 fn is_for_turn(value: &Value, thread: &str, turn: &str) -> bool {
-    // turn/completed carries the terminal turn in params.turn.id;
-    // delta notifications use params.turnId instead.
     let turn_matches = value["params"]["turnId"].as_str() == Some(turn)
         || value["params"]["turn"]["id"].as_str() == Some(turn);
     let thread_matches = match value["params"]["threadId"].as_str() {
@@ -711,7 +660,6 @@ fn is_for_turn(value: &Value, thread: &str, turn: &str) -> bool {
     turn_matches && thread_matches
 }
 
-// Tool activity is derived only from real Codex item events.
 fn activity_for(item: &Value) -> Option<ToolActivity> {
     let kind = item["type"].as_str()?;
     let tool = match kind {
@@ -738,7 +686,7 @@ fn handle_delta(value: &Value, run_id: u64, updates: &watch::Sender<Snapshot>) {
             if s.run_id != run_id || s.status != "streaming" {
                 return;
             }
-            // Answer text resumed, so any tool activity is over.
+
             s.activity = None;
             if let Some(message) = s.messages.last_mut().filter(|m| {
                 m.role == "assistant" && m.text.len().saturating_add(delta.len()) <= 128_000
@@ -771,7 +719,7 @@ fn handle_item_completed(value: &Value, run_id: u64, updates: &watch::Sender<Sna
             if let Some(m) = s.messages.last_mut().filter(|m| m.role == "assistant") {
                 m.text = text.chars().take(128_000).collect();
             }
-            // The final answer replaces any in-progress tool activity.
+
             s.activity = None;
         });
     }
@@ -826,7 +774,6 @@ fn handle_event(
     false
 }
 
-// The requested thread and prompt form one turn's input.
 struct TurnInput<'a> {
     thread: &'a str,
     text: &'a str,
@@ -879,8 +826,7 @@ async fn begin_turn(
         if s.messages.len() > 24 {
             s.messages.drain(0..2);
         }
-        // An approval raised during turn/start already owns the visible state;
-        // resuming streaming here would drop the card while the provider waits.
+
         if s.status == "approvalRequired" {
             return;
         }
@@ -891,8 +837,6 @@ async fn begin_turn(
     Ok(Some((turn, buffered)))
 }
 
-// Records a decision reply; a rejected decision keeps the pending approval
-// visible rather than resuming work the user did not authorize.
 async fn resolve_approval(
     rpc: &mut Rpc,
     approvals: &mut Approvals,
@@ -935,8 +879,7 @@ pub async fn run(
             return;
         }
     };
-    // Before the first turn exists, only Stop is legal. Approval cannot be
-    // pending until turn/start; during turn/start the request reader handles it.
+
     let result = tokio::select! {
         result = async {
             rpc.request(
@@ -964,7 +907,7 @@ pub async fn run(
             Ok::<_, String>(thread)
         } => result,
         command = controls.recv() => {
-            // No user decision can be pending before a turn has started.
+
             if !matches!(command, Some(Control::Stop)) {
                 fail(&updates, run_id, "Unexpected Codex control during initialization.");
             } else {
@@ -987,7 +930,7 @@ pub async fn run(
             return;
         }
     };
-    // begin_turn binds the thread/run before turn/start, even before the ack.
+
     let (mut turn, buffered) = match begin_turn(
         &mut rpc,
         TurnInput {
@@ -1033,9 +976,7 @@ pub async fn run(
         tokio::select! {
             command = controls.recv() => match command {
                 Some(Control::Close { claimed, finished }) => {
-                    // A timed-out reset must not terminate a previous session
-                    // after the caller has been told that no reset occurred.
-                    // The atomic claim arbitrates the race with the timeout.
+
                     if finished.is_closed() || claimed.swap(true, Ordering::SeqCst) {
                         continue;
                     }
@@ -1067,9 +1008,7 @@ pub async fn run(
                         fail(&updates, run_id, "Working context changed. Restart Otto.");
                         continue;
                     }
-                    // Reuse the same single-reader control path as the first turn.
-                    // While turn/start is pending, approvals and Stop remain live;
-                    // a decision is never mistaken for a closed control channel.
+
                     active_capture = capture;
                     match begin_turn(
                         &mut rpc,
@@ -1149,8 +1088,6 @@ pub async fn run(
         }
     }
 
-    // A follow-up may have been accepted just before the transport closed.
-    // Never leave the visible run indefinitely in "starting" or "streaming".
     let state = updates.borrow().clone();
     match state.status.as_str() {
         "starting" | "streaming" | "approvalRequired" => fail(
@@ -1280,7 +1217,7 @@ mod tests {
             assert_ne!(value.status, "ready");
             assert!(!value.image_input);
         }
-        // Old catalogs may omit input modalities; never claim image support.
+
         let legacy = model_readiness(&json!({ "data": [{ "isDefault": true }] }), None);
         assert_eq!(legacy.status, "ready");
         assert!(!legacy.image_input);
@@ -1467,8 +1404,6 @@ mod tests {
 
     #[test]
     fn approval_before_turn_id_is_known_is_still_recorded() {
-        // turn/start can be in flight when the first approval arrives; the
-        // thread is already pinned, so it must not be discarded.
         let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
         approvals.thread = Some("thread".into());
         assert!(matches!(
@@ -1479,8 +1414,6 @@ mod tests {
 
     #[test]
     fn approval_during_turn_start_is_published() {
-        // Faithful window: thread/start already ran, but turn/start has NOT
-        // returned yet, so context() has not set the turn id.
         let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
         approvals.thread = Some("thread".into());
         let tx = snapshot("streaming", 9);
@@ -1498,9 +1431,6 @@ mod tests {
 
     #[test]
     fn quick_ask_rejects_non_approval_server_requests_with_an_error() {
-        // Quick Ask is read-only. A non-approval server request (e.g.
-        // tool/requestUserInput) must get a proper JSON-RPC error, exactly as
-        // the previous adapter did, not an approval-shaped "decline" result.
         let mut approvals = Approvals::for_mode(InteractionMode::QuickAsk, 9);
         approvals.thread = Some("thread".into());
         let request = json!({
@@ -1513,9 +1443,6 @@ mod tests {
 
     #[test]
     fn activity_clears_when_the_answer_streams_after_a_tool() {
-        // Design transitions tool -> streaming. In production both phases share
-        // status "streaming", so the tool activity must clear when the answer
-        // text resumes; otherwise the header stays stuck on "Using tool".
         let tx = snapshot("streaming", 3);
         handle_item_started(
             &json!({
@@ -1545,8 +1472,6 @@ mod tests {
 
     #[test]
     fn quick_ask_never_records_or_shows_an_approval() {
-        // Codex must not prompt in Quick Ask; if it does, the adapter declines
-        // it and never publishes a pending approval to the UI.
         let mut approvals = Approvals::for_mode(InteractionMode::QuickAsk, 9);
         approvals.context("thread", "turn", 9);
         let request = command_request(1, "thread", "turn");
@@ -1574,7 +1499,7 @@ mod tests {
             approvals.parse(&command_request(2, "thread", "other")),
             ServerRequest::Decline
         ));
-        // A second concurrent request must never be auto-approved.
+
         assert!(matches!(
             approvals.parse(&command_request(3, "thread", "turn")),
             ServerRequest::Recorded
@@ -1606,7 +1531,7 @@ mod tests {
         let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
         approvals.context("thread", "turn", 9);
         approvals.parse(&command_request(1, "thread", "turn"));
-        // Stale id: nothing is forwarded and the request is still owned.
+
         assert!(
             approvals
                 .decide("appr-9", ApprovalDecision::AllowOnce)
@@ -1626,7 +1551,7 @@ mod tests {
             accept,
             json!({ "id": 1, "result": { "decision": "accept" } })
         );
-        // A duplicate decision cannot resolve the same request twice.
+
         assert!(
             approvals
                 .decide(&approval_id, ApprovalDecision::Deny)
@@ -1668,7 +1593,7 @@ mod tests {
             &tx,
         );
         assert_eq!(tx.borrow().activity.as_ref().unwrap().summary, "cargo test");
-        // Non-tool items and non-streaming runs never fabricate activity.
+
         handle_item_started(
             &json!({ "method": "item/started", "params": { "item": { "type": "agentMessage" } } }),
             3,
@@ -1756,7 +1681,7 @@ mod tests {
     fn expired_close_ack_is_not_a_live_reset_request() {
         let (finished, receiver) = tokio::sync::oneshot::channel::<()>();
         assert!(!finished.is_closed());
-        drop(receiver); // Same cancellation observed when New Session times out.
+        drop(receiver);
         assert!(finished.is_closed());
     }
 

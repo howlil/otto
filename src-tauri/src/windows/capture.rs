@@ -1,5 +1,3 @@
-// B4: OS-side capture is reachable only from the registered user hotkey.
-// Nothing in Tauri IPC accepts an arbitrary screenshot or local image path.
 use crate::agent::{AgentRuntime, CapturedImage};
 use std::{fs::OpenOptions, io::BufWriter, path::PathBuf, time::SystemTime};
 use tauri::Manager;
@@ -24,7 +22,6 @@ use windows_sys::Win32::{
 const HOTKEY_ID: i32 = 0x4f54;
 const MAX_EDGE: i32 = 4096;
 
-// This owns exactly one HDC / bitmap pair, including all early error paths.
 struct GdiCapture {
     window: HWND,
     source: windows_sys::Win32::Graphics::Gdi::HDC,
@@ -54,7 +51,7 @@ impl Drop for GdiCapture {
 
 fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
     let hwnd = target as HWND;
-    // A delayed hotkey cannot silently capture a newly focused window.
+
     let valid = unsafe {
         !hwnd.is_null()
             && IsWindow(hwnd) != 0
@@ -106,7 +103,7 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
     if capture.old.is_null() {
         return Err("Cannot select the capture bitmap.".into());
     }
-    // PrintWindow asks the target to render into memory: no overlay, flash, or UI.
+
     if unsafe { PrintWindow(hwnd, capture.memory, 0) } == 0 {
         return Err("This application does not support silent window capture.".into());
     }
@@ -117,7 +114,7 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
     let mut info: BITMAPINFO = unsafe { std::mem::zeroed() };
     info.bmiHeader.biSize = std::mem::size_of_val(&info.bmiHeader) as u32;
     info.bmiHeader.biWidth = width;
-    info.bmiHeader.biHeight = -height; // top-down, not vertically flipped
+    info.bmiHeader.biHeight = -height;
     info.bmiHeader.biPlanes = 1;
     info.bmiHeader.biBitCount = 32;
     info.bmiHeader.biCompression = BI_RGB;
@@ -137,7 +134,7 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
     if copied != height as i32 {
         return Err("Cannot read the rendered target pixels.".into());
     }
-    // GDI yields BGRA (usually with an unused alpha channel); PNG expects RGBA.
+
     for pixel in pixels.as_chunks_mut::<4>().0 {
         pixel.swap(0, 2);
         pixel[3] = 255;
@@ -160,7 +157,7 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
     png.write_header()
         .and_then(|mut writer| writer.write_image_data(&pixels))
         .map_err(|_| "Cannot encode the capture.")?;
-    Ok(image) // Drop removes the file after completion, Stop, and errors.
+    Ok(image)
 }
 
 pub fn start_hotkey(app: tauri::AppHandle) {
@@ -182,7 +179,7 @@ pub fn start_hotkey(app: tauri::AppHandle) {
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 let runtime = handle.state::<AgentRuntime>();
-                // All expensive and privileged work stays behind the Rust owner.
+
                 if let Err(reason) = runtime.capture_hotkey(window, capture_foreground).await {
                     runtime.capture_error(&reason);
                 }

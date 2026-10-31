@@ -1,47 +1,13 @@
-// Agent-owned controls; used only by Agent views.
 export function Bars({ className = "" }: { className?: string }) {
   return (
-    <span className={`otto-bars live ${className}`} aria-hidden="true">
-      <i />
-      <i />
-      <i />
-      <i />
+    <span
+      className={`inline-flex h-[21px] w-[29px] flex-none items-center justify-center gap-[3px] ${className}`}
+      aria-hidden="true"
+    >
+      <i className="block h-[5px] w-[3px] origin-center rounded-[5px] bg-otto-text-soft-white motion-safe:animate-otto-bars motion-reduce:animate-none" />
+      <i className="block h-[5px] w-[3px] origin-center rounded-[5px] bg-otto-text-soft-white motion-safe:animate-otto-bars motion-reduce:animate-none [animation-delay:-0.19s]" />
+      <i className="block h-[5px] w-[3px] origin-center rounded-[5px] bg-otto-text-soft-white motion-safe:animate-otto-bars motion-reduce:animate-none [animation-delay:-0.48s]" />
+      <i className="block h-[5px] w-[3px] origin-center rounded-[5px] bg-otto-text-soft-white motion-safe:animate-otto-bars motion-reduce:animate-none [animation-delay:-0.32s]" />
     </span>
-  );
-}
-
-export function ChoiceRow<T extends string>({
-  value,
-  choices,
-  onChange,
-  disabled,
-  disabledReason,
-}: {
-  value: T;
-  choices: readonly { value: T; title: string; help: string }[];
-  onChange: (value: T) => void;
-  disabled?: boolean;
-  disabledReason?: string;
-}) {
-  return (
-    <div className="otto-mode-list flex flex-col gap-[6px]">
-      {choices.map((choice) => (
-        <button
-          type="button"
-          key={choice.value}
-          className={value === choice.value ? "selected" : ""}
-          aria-pressed={value === choice.value}
-          disabled={disabled}
-          title={disabled ? disabledReason : undefined}
-          onClick={() => onChange(choice.value)}
-        >
-          <i className="otto-mode-radio" />
-          <span>
-            <strong>{choice.title}</strong>
-            <small>{choice.help}</small>
-          </span>
-        </button>
-      ))}
-    </div>
   );
 }

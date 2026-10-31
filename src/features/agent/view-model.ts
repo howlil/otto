@@ -1,7 +1,6 @@
 import type { AgentMode, AgentSnapshot, ProviderReadiness } from "../../platform/tauri";
+import type { AgentErrorKind } from "./useAgent";
 
-// Presentation accepts only the state and actions it renders; the native
-// session controller is free to evolve independently of these view contracts.
 export type AgentTranscriptModel = {
   snapshot: AgentSnapshot;
   readiness: ProviderReadiness;
@@ -13,6 +12,9 @@ export type AgentTranscriptModel = {
   stop: () => Promise<void>;
   decide: (approvalId: string, decision: "allowOnce" | "deny") => Promise<boolean>;
   refreshProvider: () => Promise<void>;
+  retryConnection: () => Promise<void>;
+  clearError: () => void;
+  errorKind: AgentErrorKind;
 };
 
 export type AgentPanelModel = AgentTranscriptModel & {

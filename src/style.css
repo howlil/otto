@@ -1,5 +1,5 @@
 @import "tailwindcss";
-/* Tailwind v4 TSX utilities own static layout; CSS retains artwork, state and motion. */
+
 @theme static {
   --color-otto-surface: #151515;
   --color-otto-text: #fafafa;
@@ -7,7 +7,7 @@
   --color-otto-raised: #292929;
   --color-otto-error-bg: #392525;
   --color-otto-error-text: #ffbbbb;
-  /* Shared palette. Every surface reads these instead of a new literal. */
+
   --color-otto-line: #353538;
   --color-otto-line-strong: #3b3d41;
   --color-otto-control: #242426;
@@ -29,7 +29,7 @@
   --color-otto-warn: #e0b978;
   --color-otto-danger: #d89197;
   --color-otto-ok: #9cb8a8;
-  /* Existing palette, preserved pixel-for-pixel across features. */
+
   --color-otto-control-deep: #2b2b2e;
   --color-otto-label-muted: #8e8e94;
   --color-otto-line-mid: #38383b;
@@ -86,9 +86,11 @@
   --color-otto-disabled-outline: #7a7a81;
   --color-otto-label-faded: #aaa;
   --color-otto-disabled-selected: #707077;
-  --font-otto-ui: "Segoe UI", system-ui, sans-serif;
+  --font-otto-ui:
+    "Plus Jakarta Sans Variable", "Plus Jakarta Sans", "Jakarta Sans", "Segoe UI", system-ui,
+    sans-serif;
   --font-otto-mono: Consolas, monospace;
-  /* Type scale: the seven literal sizes in use, named once. */
+
   --text-otto-2xs: 9px;
   --text-otto-xs: 10px;
   --text-otto-sm: 11px;
@@ -96,7 +98,7 @@
   --text-otto-lg: 13px;
   --text-otto-xl: 14px;
   --text-otto-2xl: 15px;
-  /* Radius scale: control, panel, chip, card, launcher. */
+
   --radius-otto-control: 9px;
   --radius-otto-panel: 10px;
   --radius-otto-chip: 8px;
@@ -104,6 +106,104 @@
   --radius-otto-launcher: 15px;
   --radius-otto-island: 9999px;
   --ease-otto: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-otto-blink: otto-blink 9.5s ease-in-out infinite;
+  --animate-otto-bars: otto-bars 0.73s ease-in-out infinite alternate;
+  --animate-otto-caret: otto-caret 0.72s step-end infinite;
+  --animate-otto-done: otto-done 0.36s var(--ease-otto);
+  --animate-otto-enter: otto-enter 190ms var(--ease-otto) both;
+  --animate-otto-home-choice-1: otto-home-choice 180ms var(--ease-otto) 165ms both;
+  --animate-otto-home-choice-2: otto-home-choice 180ms var(--ease-otto) 190ms both;
+  --animate-otto-home-choice-3: otto-home-choice 180ms var(--ease-otto) 215ms both;
+  --animate-otto-home-reveal: otto-home-reveal 180ms var(--ease-otto) 145ms both;
+  --animate-otto-nudge: otto-nudge 0.42s var(--ease-otto);
+  --animate-otto-shake: otto-shake 0.35s ease-out;
+
+  @keyframes otto-blink {
+    0%,
+    94%,
+    100% {
+      transform: scaleY(1);
+    }
+    96% {
+      transform: scaleY(0.13);
+    }
+  }
+
+  @keyframes otto-bars {
+    to {
+      transform: scaleY(3.2);
+      opacity: 0.66;
+    }
+  }
+
+  @keyframes otto-caret {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes otto-done {
+    50% {
+      transform: scale(1.8);
+    }
+  }
+
+  @keyframes otto-enter {
+    from {
+      opacity: 0.4;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes otto-home-choice {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes otto-home-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes otto-nudge {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    42% {
+      transform: translateY(-2px);
+    }
+    75% {
+      transform: translateY(1px);
+    }
+  }
+
+  @keyframes otto-shake {
+    24% {
+      transform: translateX(-3px);
+    }
+    50% {
+      transform: translateX(3px);
+    }
+    75% {
+      transform: translateX(-1px);
+    }
+  }
 }
 :root {
   font-family: var(--font-otto-ui);
@@ -134,199 +234,8 @@ button:disabled {
   cursor: not-allowed;
 }
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--color-otto-focus);
   outline-offset: 2px;
-}
-.otto-shell {
-  border: 1px solid var(--color-otto-line);
-  border-radius: 999px;
-  transition: border-radius 420ms var(--ease-otto);
-}
-.otto-shell.is-expanded {
-  border-radius: 28px;
-}
-.otto-shell.is-reduced {
-  transition: none;
-}
-.otto-shell.is-expanded > section {
-  animation: otto-enter 190ms var(--ease-otto) both;
-}
-/* The native window is still growing: do not reveal Home while it is narrow. */
-.otto-shell.is-expanded > .otto-home {
-  animation: otto-home-reveal 180ms var(--ease-otto) 145ms both;
-}
-@keyframes otto-home-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.otto-shell.is-expanded .otto-home .otto-choice {
-  animation: otto-home-choice 180ms var(--ease-otto) both;
-}
-.otto-shell.is-expanded .otto-home .otto-choice:nth-child(1) {
-  animation-delay: 165ms;
-}
-.otto-shell.is-expanded .otto-home .otto-choice:nth-child(2) {
-  animation-delay: 190ms;
-}
-.otto-shell.is-expanded .otto-home .otto-choice:nth-child(3) {
-  animation-delay: 215ms;
-}
-@keyframes otto-home-choice {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes otto-enter {
-  from {
-    opacity: 0.4;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.otto-eyes {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 33px;
-  height: 23px;
-  flex: none;
-}
-.otto-eyes i {
-  display: block;
-  background: var(--color-otto-text);
-  border-radius: 7px;
-  width: 6px;
-  height: 13px;
-  flex: none;
-  transition:
-    height 200ms var(--ease-otto),
-    width 200ms var(--ease-otto),
-    transform 150ms ease;
-}
-.otto-eyes[data-expression="curious"] i:first-child {
-  height: 15px;
-}
-.otto-eyes[data-expression="curious"] i:last-child {
-  height: 10px;
-}
-.otto-eyes[data-expression="sleepy"] i {
-  height: 4px;
-}
-.otto-eyes[data-expression="happy"] {
-  gap: 5px;
-}
-.otto-eyes[data-expression="happy"] i {
-  height: 8px;
-  width: 11px;
-  background: transparent;
-  border: 2.5px solid var(--color-otto-text);
-  border-bottom: 0;
-  border-radius: 11px 11px 0 0;
-}
-.otto-compact .otto-eyes.alive i {
-  animation: otto-blink 9.5s ease-in-out infinite;
-}
-@keyframes otto-blink {
-  0%,
-  94%,
-  100% {
-    transform: scaleY(1);
-  }
-  96% {
-    transform: scaleY(0.13);
-  }
-}
-.otto-eyes.mini {
-  width: 23px;
-  gap: 6px;
-}
-.otto-eyes.mini i {
-  width: 5px;
-  height: 12px;
-}
-.otto-compact {
-  gap: 9px;
-  padding: 0 11px;
-  color: inherit;
-  border: 0;
-}
-.otto-compact.is-agent {
-  justify-content: flex-start;
-}
-.otto-agent-avatar {
-  height: 31px;
-  width: 31px;
-  background: var(--color-otto-control-deep);
-  color: var(--color-otto-text-bright);
-}
-
-.otto-compact-copy strong {
-  display: block;
-  font-size: var(--text-otto-md);
-  font-weight: 575;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.otto-compact-copy small {
-  display: block;
-  color: var(--color-otto-text-secondary);
-  font-size: var(--text-otto-xs);
-  margin-top: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.otto-compact-mark {
-  color: var(--color-otto-completion-soft);
-  font-size: var(--text-otto-2xl);
-  padding: 0 5px;
-}
-.otto-bars {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: 29px;
-  height: 21px;
-  flex: none;
-}
-.otto-bars i {
-  display: block;
-  width: 3px;
-  height: 5px;
-  background: var(--color-otto-text-soft-white);
-  border-radius: 5px;
-}
-.otto-bars.live i {
-  animation: otto-bars 0.73s ease-in-out infinite alternate;
-}
-.otto-bars.live i:nth-child(2) {
-  animation-delay: -0.19s;
-}
-.otto-bars.live i:nth-child(3) {
-  animation-delay: -0.48s;
-}
-.otto-bars.live i:nth-child(4) {
-  animation-delay: -0.32s;
-}
-@keyframes otto-bars {
-  to {
-    height: 16px;
-    opacity: 0.66;
-  }
 }

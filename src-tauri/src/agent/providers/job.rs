@@ -1,5 +1,3 @@
-// A Job Object scopes all Codex descendants to the lifetime of this owner.
-// Windows closes handles on abrupt Otto termination, activating kill-on-close.
 use windows_sys::Win32::{
     Foundation::{CloseHandle, HANDLE},
     System::{
@@ -14,13 +12,10 @@ use windows_sys::Win32::{
 
 pub struct Job(HANDLE);
 
-// The handle has one owner and is closed only by Drop; the Tokio task may move
-// across threads but cannot share/mutate the underlying handle concurrently.
 unsafe impl Send for Job {}
 
 impl Job {
     pub fn attach(pid: u32) -> Result<Self, ()> {
-        // SAFETY: Win32 handles are owned locally and checked before use.
         let handle = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
         if handle.is_null() {
             return Err(());

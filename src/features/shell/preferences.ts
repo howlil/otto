@@ -1,14 +1,13 @@
-// Shell preferences: durable tuning values that every module reads.
-// Owner: ui-local. This module owns the shape, the defaults, and the read
-// path; the App shell owns the live value and the persistence effect.
 export type Page = "home" | "agent" | "global-settings" | "agent-settings";
 export type SettingsTab = "general" | "interaction" | "motion" | "placement";
 export type Expression = "calm" | "curious" | "sleepy" | "happy";
 export type Motion = "fluid" | "gentle" | "reduced";
+export type Placement = "floating" | "attached";
 
 export type Preferences = {
   expression: Expression;
   reactive: "quiet" | "alive";
+  placement: Placement;
   hoverExpand: boolean;
   hoverDelay: number;
   leaveDelay: number;
@@ -23,6 +22,7 @@ export type Preferences = {
 export const defaults: Preferences = {
   expression: "calm",
   reactive: "quiet",
+  placement: "floating",
   hoverExpand: true,
   hoverDelay: 150,
   leaveDelay: 340,
@@ -34,8 +34,6 @@ export const defaults: Preferences = {
   topOffset: 20,
 };
 
-// Persisted values are untrusted: old versions or manual edits can contain
-// unsupported choices, NaN-like numbers, or offsets the native host rejects.
 const limits: Partial<Record<keyof Preferences, readonly [number, number]>> = {
   hoverDelay: [0, 400],
   leaveDelay: [0, 650],
@@ -47,6 +45,8 @@ const choices: Partial<Record<keyof Preferences, readonly string[]>> = {
   expression: ["calm", "curious", "sleepy", "happy"],
   reactive: ["quiet", "alive"],
   motion: ["fluid", "gentle", "reduced"],
+
+  placement: ["floating"],
 };
 
 function validPreference(key: keyof Preferences, value: unknown): boolean {

@@ -14,6 +14,7 @@ Use the cheapest proof for changed behavior; don't call Windows native functiona
 
 ## Conventions / boundaries
 TypeScript/React: `PascalCase` components/types, `useX` Hooks, `camelCase` functions, kebab-case feature directories. Rust: snake_case modules/functions, PascalCase types, Rustfmt/Clippy. Prefer explicit errors and single state owners; SOLID describes responsibilities, not mandatory classes/interfaces. Add patterns only for a proven need; keep changes scoped.
+No comments in code: agents must not write comments in code (no inline comments, block comments, explanatory notes, or commented-out code); keep code clean, self-explanatory, and self-documenting.
 `src/` owns UI-local state; no shell/subprocess/privileged calls outside Rust. `src-tauri/` owns OS, CLI processes and screenshot lifecycle. Only add feature directories when implementing them. Source UI tokens from `src/style.css` and use `.agents/DESIGN.md` for UI behavior; do not scatter literal semantic colors. Before designing or changing a module, read its approved `design/<module>.html` reference if it exists (Home/Idle and shared Settings: `design/home.html`; Agent: `design/agent.html`; Music: `design/music.html`; Focus/Pomodoro: `design/pomodoro.html`) and preserve its established layout, states, interactions and motion unless the owner changes them; use `design/otto-v9-baseline.html` for shared shell geometry. These HTML files are interactive design references, not production implementations. Structural rules and decisions live in `.agents/engineering.md`.
 
 ## Target codebase

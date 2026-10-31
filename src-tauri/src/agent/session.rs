@@ -1,8 +1,5 @@
 use serde::Serialize;
 
-// R2/R7: approval state is owned in Rust, never inferred from the UI.
-// The provider's raw JSON-RPC request id stays private in the adapter;
-// K1 only ever sees an opaque Otto `approval_id`.
 #[derive(Clone, Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingApproval {
@@ -36,9 +33,6 @@ impl ApprovalDecision {
         }
     }
 
-    // Deny maps to `cancel`, which interrupts the turn: the approved action
-    // never runs, so no file is changed. Quick Ask and unsupported requests
-    // use `decline`, which the adapter encodes separately.
     pub fn provider_verb(self) -> &'static str {
         match self {
             Self::AllowOnce => "accept",
@@ -47,7 +41,6 @@ impl ApprovalDecision {
     }
 }
 
-// Provider-supplied text is untrusted: bound it before it reaches the UI or a log.
 pub const MAX_DETAIL: usize = 400;
 
 pub fn bounded(text: &str) -> String {

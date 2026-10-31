@@ -1,9 +1,7 @@
 import { useEffect, useRef } from "react";
-import { Icon } from "../../shared/ui";
+import { Button, Icon, Text } from "../../shared/ui";
 import type { AgentApproval } from "../../platform/tauri";
 
-// A waiting interaction, never an implicit confirmation. It only reports the
-// decision; Rust owns whether that decision is still current.
 export function ApprovalCard({
   approval,
   onDecide,
@@ -16,11 +14,10 @@ export function ApprovalCard({
 
   useEffect(() => {
     const element = dialog.current;
-    const panel = element?.closest<HTMLElement>(".otto-agent");
+    const panel = element?.closest<HTMLElement>('[data-surface="agent"]');
     if (!panel) return;
     const previous = document.activeElement;
-    // An asynchronous CLI event must never activate Otto or steal keyboard
-    // focus from another application (B10/G9).
+
     if (!document.hasFocus() || (previous !== document.body && !panel.contains(previous))) {
       return;
     }
@@ -29,8 +26,6 @@ export function ApprovalCard({
     if (document.activeElement !== denyButton.current) return;
 
     return () => {
-      // React may remove the focused button before the replacement controls
-      // exist. Restore only within a still-mounted, focused Agent surface.
       requestAnimationFrame(() => {
         if (
           !panel.isConnected ||
@@ -43,48 +38,64 @@ export function ApprovalCard({
         const fallback =
           panel.querySelector<HTMLElement>("#otto-prompt:not(:disabled)") ??
           panel.querySelector<HTMLElement>('button[title="Stop"]:not(:disabled)') ??
-          panel.querySelector<HTMLElement>(".otto-gear");
+          panel.querySelector<HTMLElement>('button[title="Agent settings"]');
         (usableOrigin ?? fallback)?.focus({ preventScroll: true });
       });
     };
   }, []);
 
-  // A non-modal alertdialog keeps the Stop control reachable by Tab; Escape
-  // follows the shell's existing collapse behavior without granting approval.
   return (
     <div
       ref={dialog}
-      className="otto-approval"
+      className="rounded-[11px] border border-otto-approval-warn-outline bg-otto-approval-warn-surface p-3 text-otto-approval-warn-foreground"
       role="alertdialog"
       aria-labelledby="otto-approval-title"
       aria-describedby="otto-approval-description otto-approval-detail otto-approval-scope"
     >
-      <div className="otto-approval-head flex items-center gap-[7px]">
+      <div className="flex items-center gap-[7px]">
         <Icon name="alert" size={15} />
-        <span id="otto-approval-title">Approval required</span>
+        <Text as="span" variant="title" id="otto-approval-title">
+          Approval required
+        </Text>
       </div>
-      <p id="otto-approval-description">
+      <Text
+        as="p"
+        variant="meta"
+        id="otto-approval-description"
+        className="my-2 leading-[1.5] text-otto-approval-reason-foreground"
+      >
         {approval.title}. Codex needs your permission before this continues.
-      </p>
-      <code id="otto-approval-detail">{approval.detail}</code>
-      {approval.reason && <p className="otto-approval-reason">Reason: {approval.reason}</p>}
-      <p id="otto-approval-scope" className="otto-approval-scope">
+      </Text>
+      <Text
+        as="code"
+        variant="code"
+        id="otto-approval-detail"
+        className="block max-h-24 overflow-y-auto whitespace-pre-wrap rounded-[7px] bg-otto-approval-reason-surface p-[9px] text-otto-control-text [overflow-wrap:anywhere]"
+      >
+        {approval.detail}
+      </Text>
+      {approval.reason && (
+        <Text as="p" variant="meta" className="mt-1.5 mb-0 text-otto-approval-caption">
+          Reason: {approval.reason}
+        </Text>
+      )}
+      <Text
+        as="p"
+        variant="meta"
+        id="otto-approval-scope"
+        className="mt-2 mb-0 text-otto-approval-detail"
+      >
         {approval.kind === "network"
           ? "Agent Session · Network access — allow this request once."
           : "Agent Session · Allow this action once only."}
-      </p>
-      <div className="otto-approval-buttons flex gap-[7px]">
-        <button type="button" onClick={() => onDecide("allowOnce")}>
+      </Text>
+      <div className="mt-[10px] flex gap-[7px]">
+        <Button variant="primary" size="xs" onClick={() => onDecide("allowOnce")}>
           Allow once
-        </button>
-        <button
-          ref={denyButton}
-          type="button"
-          className="secondary"
-          onClick={() => onDecide("deny")}
-        >
+        </Button>
+        <Button ref={denyButton} variant="secondary" size="xs" onClick={() => onDecide("deny")}>
           Deny
-        </button>
+        </Button>
       </div>
     </div>
   );

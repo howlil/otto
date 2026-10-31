@@ -8,7 +8,7 @@ use session::{ApprovalDecision, PendingApproval};
 use std::{
     path::PathBuf,
     sync::{
-        Arc,
+        Arc, Mutex as StdMutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
@@ -27,14 +27,13 @@ pub struct ChatMessage {
     pub text: String,
 }
 
-// No credential or account identifier crosses the Tauri IPC boundary.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderReadiness {
     pub status: String,
     pub message: String,
     pub recovery: String,
-    // True only when the active default model advertises image input.
+
     pub image_input: bool,
 }
 
@@ -66,8 +65,6 @@ pub struct Snapshot {
     pub error: Option<String>,
 }
 
-// The temporary PNG is owned by the accepted run. It must never persist
-// after completion, cancellation, initialization error, or shutdown.
 pub struct CapturedImage(PathBuf);
 
 impl CapturedImage {
@@ -107,6 +104,8 @@ pub struct AgentRuntime {
     updates: watch::Sender<Snapshot>,
     control: Mutex<Option<mpsc::Sender<Control>>>,
     next_run_id: AtomicU64,
+    subscriptions: StdMutex<Option<(u64, oneshot::Sender<()>)>>,
+    next_subscription_id: AtomicU64,
 }
 
 impl AgentRuntime {
@@ -130,6 +129,8 @@ impl AgentRuntime {
             updates,
             control: Mutex::new(None),
             next_run_id: AtomicU64::new(0),
+            subscriptions: StdMutex::new(None),
+            next_subscription_id: AtomicU64::new(0),
         }
     }
 
@@ -137,23 +138,54 @@ impl AgentRuntime {
         self.updates.borrow().clone()
     }
 
-    pub fn subscribe(&self, channel: Channel<Snapshot>) {
+    pub fn subscribe(&self, channel: Channel<Snapshot>) -> u64 {
+        let subscription_id = self.next_subscription_id.fetch_add(1, Ordering::Relaxed) + 1;
+        let (cancel_tx, mut cancel_rx) = oneshot::channel();
+        if let Ok(mut active) = self.subscriptions.lock()
+            && let Some((_, previous)) = active.replace((subscription_id, cancel_tx))
+        {
+            let _ = previous.send(());
+        }
         let mut rx = self.updates.subscribe();
         tauri::async_runtime::spawn(async move {
             if channel.send(rx.borrow_and_update().clone()).is_err() {
                 return;
             }
-            // Coalesce token deltas so long answers do not resend the full transcript
-            // for every individual token; 20 updates/sec is enough for a notch.
+
             let mut cadence = tokio::time::interval(std::time::Duration::from_millis(50));
             cadence.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            while rx.changed().await.is_ok() {
-                cadence.tick().await;
-                if channel.send(rx.borrow_and_update().clone()).is_err() {
-                    break;
+            loop {
+                tokio::select! {
+                    _ = &mut cancel_rx => break,
+                    changed = rx.changed() => {
+                        if changed.is_err() {
+                            break;
+                        }
+                        cadence.tick().await;
+                        if channel.send(rx.borrow_and_update().clone()).is_err() {
+                            break;
+                        }
+                    }
                 }
             }
         });
+        subscription_id
+    }
+
+    pub fn unsubscribe(&self, subscription_id: u64) {
+        let cancel = self.subscriptions.lock().ok().and_then(|mut active| {
+            if active
+                .as_ref()
+                .is_some_and(|(active_id, _)| *active_id == subscription_id)
+            {
+                active.take().map(|(_, cancel)| cancel)
+            } else {
+                None
+            }
+        });
+        if let Some(cancel) = cancel {
+            let _ = cancel.send(());
+        }
     }
 
     pub fn codex_installed(&self) -> bool {
@@ -182,8 +214,6 @@ impl AgentRuntime {
         providers::codex::readiness(&cwd).await
     }
 
-    // B4: never capture until the hotkey is pressed, the provider is capable,
-    // and the current agent session is compatible with read-only analysis.
     #[cfg(windows)]
     pub async fn capture_hotkey(
         &self,
@@ -262,8 +292,7 @@ impl AgentRuntime {
         ) {
             return Err("An answer is already running.".into());
         }
-        // Authentication can expire between turns, not just before session start.
-        // A previously ready UI state never authorizes a new request.
+
         let readiness = providers::codex::readiness(&cwd).await;
         if readiness.status != "ready" {
             return Err(format!("{} {}", readiness.message, readiness.recovery));
@@ -278,8 +307,7 @@ impl AgentRuntime {
                         .into(),
                 );
             }
-            // Mode is fixed once the conversation exists; changing it would
-            // silently escalate or drop the approval policy of a live thread.
+
             if current.mode != mode.as_str() {
                 return Err(
                     "Execution mode is fixed for this conversation. Start a new session to change it."
@@ -290,7 +318,7 @@ impl AgentRuntime {
             let permit = sender
                 .try_reserve()
                 .map_err(|_| "Codex is busy. Try again.".to_string())?;
-            // Publish the new run before it becomes visible to the receiver.
+
             mutate(&self.updates, |s| {
                 s.run_id = run_id;
                 s.status = "starting".into();
@@ -338,8 +366,6 @@ impl AgentRuntime {
         Ok(())
     }
 
-    // Close the old provider before resetting any visible or permission state.
-    // No active run/approval is silently cancelled by a UI settings action.
     pub async fn new_session(&self) -> Result<(), String> {
         let mut guard = self.control.lock().await;
         let current = self.snapshot();
@@ -354,8 +380,7 @@ impl AgentRuntime {
             && !sender.is_closed()
         {
             let (finished, mut closed) = oneshot::channel();
-            // Both sides race to claim the Close token. If the timeout wins,
-            // a queued Close is invalidated; it cannot kill the old session later.
+
             let claimed = Arc::new(AtomicBool::new(false));
             sender
                 .try_send(Control::Close {
@@ -372,9 +397,6 @@ impl AgentRuntime {
                     return Err("Codex did not accept session close; session was not reset.".into());
                 }
                 Err(_) => {
-                    // The adapter claimed Close before the deadline. Do not
-                    // abandon a shutdown already in progress or show success
-                    // before its process has actually terminated.
                     closed
                         .await
                         .map_err(|_| "Codex closed unexpectedly; session was not reset.")?;
@@ -386,7 +408,7 @@ impl AgentRuntime {
             .fetch_max(current.run_id, Ordering::Relaxed);
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
         mutate(&self.updates, |s| {
-            s.run_id = run_id; // Stale provider events can no longer match.
+            s.run_id = run_id;
             s.status = "idle".into();
             s.mode = InteractionMode::QuickAsk.as_str().into();
             s.thread_id = None;
@@ -394,13 +416,10 @@ impl AgentRuntime {
             s.activity = None;
             s.approval = None;
             s.error = None;
-            // Keep the current working directory as a prefilled draft.
         });
         Ok(())
     }
 
-    // R7/G8: a decision is only valid for the approval currently pending on
-    // the current run. Stale, duplicate or mismatched decisions fail closed.
     pub async fn decide_approval(
         &self,
         approval_id: String,
@@ -423,9 +442,7 @@ impl AgentRuntime {
         let permit = sender
             .try_reserve()
             .map_err(|_| "Codex is busy. Try again.".to_string())?;
-        // The turn is already in progress, so resolving an approval resumes
-        // streaming directly. Marking it "starting" would drop resumed deltas,
-        // which the adapter only appends while "streaming".
+
         mutate(&self.updates, |s| {
             if s.status == "approvalRequired" {
                 s.status = "streaming".into();
@@ -452,7 +469,7 @@ impl AgentRuntime {
         let permit = sender
             .try_reserve()
             .map_err(|_| "Codex is busy; retry Stop.".to_string())?;
-        // A fast Codex response must not be overwritten with a stale "stopping" state.
+
         mutate(&self.updates, |s| {
             if matches!(
                 s.status.as_str(),
@@ -525,7 +542,7 @@ mod tests {
         let runtime = AgentRuntime::new();
         let (tx, mut rx) = mpsc::channel(2);
         *runtime.control.lock().await = Some(tx);
-        // No approval pending: nothing may be forwarded to the adapter.
+
         assert!(
             runtime
                 .decide_approval("appr-1".into(), "allowOnce".into())
@@ -544,7 +561,7 @@ mod tests {
                 reason: None,
             });
         });
-        // Wrong id and wrong decision verb are both refused.
+
         assert!(
             runtime
                 .decide_approval("appr-9".into(), "allowOnce".into())
@@ -558,7 +575,7 @@ mod tests {
                 .is_err()
         );
         assert!(rx.try_recv().is_err());
-        // The valid decision clears the pending approval and forwards once.
+
         runtime
             .decide_approval("appr-1".into(), "deny".into())
             .await
@@ -566,7 +583,7 @@ mod tests {
         assert_eq!(runtime.snapshot().status, "streaming");
         assert!(runtime.snapshot().approval.is_none());
         assert!(matches!(rx.try_recv(), Ok(Control::Decide { .. })));
-        // A duplicate click can no longer resolve the same request.
+
         assert!(
             runtime
                 .decide_approval("appr-1".into(), "deny".into())
@@ -629,9 +646,9 @@ mod tests {
     #[test]
     fn timed_out_close_is_not_executed_late() {
         let claimed = AtomicBool::new(false);
-        // Simulate timeout winning the claim before a queued Close is read.
+
         assert!(!claimed.swap(true, Ordering::SeqCst));
-        // The provider sees that a prior actor claimed/cancelled this close.
+
         assert!(claimed.swap(true, Ordering::SeqCst));
     }
 

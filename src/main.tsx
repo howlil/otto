@@ -1,10 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import "@fontsource-variable/plus-jakarta-sans";
 import App from "./App";
 import "./style.css";
-import "./styles/home.css";
-import "./styles/settings.css";
-import "./styles/agent.css";
 
 const root = document.getElementById("root");
 if (!root) {

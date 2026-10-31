@@ -1,6 +1,6 @@
 ---
 colors: {surface: "#151515", text: "#FAFAFA", muted: "#A3A3A3"}
-typography: {body: {family: "Segoe UI, system-ui, sans-serif", size: "14px"}}
+typography: {body: {family: "Plus Jakarta Sans Variable, Plus Jakarta Sans, Jakarta Sans, Segoe UI, system-ui, sans-serif", size: "14px"}}
 spacing: {base: "4px"}
 radius: {island: "9999px", expanded_card_reference: "28px", attached_shoulder_reference: "12px"}
 motion: {ease: "cubic-bezier(0.22, 1, 0.36, 1)", reduced: "disable nonessential motion"}
@@ -60,9 +60,9 @@ Enforced by `bun run check` → `scripts/frontend-rules.mjs` against `.agents/fr
 ```text
 R1  no raw color literal in any src/**/*.{ts,tsx}       0
 R2  no color literal in CSS outside the @theme block    <=107 (shrink as modules are tokenized)
-R3  largest component file, lines                       <=205
+R3  largest component file, lines                       <=202
 R4  features missing a public index.ts entry            0
-R5  total Biome diagnostics                             <=29
+R5  total Biome diagnostics                             <=17
 R6  aria-label attributes                               0 (render the name instead)
 R7  hand-drawn <svg> outside src/shared/ui              0 (use shared/ui icons)
 ```
@@ -70,13 +70,16 @@ R7  hand-drawn <svg> outside src/shared/ui              0 (use shared/ui icons)
 Build every screen block by block, component by component, from shared primitives; do not grow one file into a screen.
 
 ```text
-src/shared/ui/     Icon (lucide), IconButton, VisuallyHidden, Eyes,
-                   Bars, ChoiceChip, ChoiceRow, Range, Toggle
+src/shared/ui/     Icon (lucide), Eyes,
+                   IconButton (variants: outlined | raised | quiet | round | primary),
+                   VisuallyHidden, StatusMessage (tone + optional action),
+                   Text (display | heading | title | body | label | meta | caption | status | code),
+                   ChoiceGroup (chip | row), Range, Toggle
 src/features/
   shell/           preferences, useNotchShell, GlobalSettings
   home/            HomeCard
   agent/           AgentPanel (container)
-                   AgentCapsule, AgentSettings, AgentTranscript, ApprovalCard
+                   AgentCapsule, AgentSettings, AgentTranscript, ApprovalCard, Bars
                    surface.ts (surface + compact copy), status.ts, useAgent
 src/platform/      typed Tauri transport
 ```
