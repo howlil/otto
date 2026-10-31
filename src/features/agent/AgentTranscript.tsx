@@ -3,9 +3,8 @@ import { Bars, Icon, VisuallyHidden } from "../../shared/ui";
 import type { AgentSnapshot } from "../../platform/tauri";
 import { ApprovalCard } from "./ApprovalCard";
 import { providerIssue, providerIssueTitle } from "./status";
-import type { useAgent } from "./useAgent";
+import type { AgentTranscriptModel } from "./view-model";
 
-type AgentController = ReturnType<typeof useAgent>;
 
 export function AgentTranscript({
   agent,
@@ -13,7 +12,7 @@ export function AgentTranscript({
   approvalPending,
   onDenied,
 }: {
-  agent: AgentController;
+  agent: AgentTranscriptModel;
   denied: boolean;
   approvalPending: boolean;
   onDenied: () => void;

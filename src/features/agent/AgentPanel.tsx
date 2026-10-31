@@ -3,11 +3,10 @@ import { Eyes, Icon, IconButton, VisuallyHidden } from "../../shared/ui";
 import { AgentSettings } from "./AgentSettings";
 import { AgentTranscript } from "./AgentTranscript";
 import { agentStatusLabel } from "./status";
-import type { useAgent } from "./useAgent";
+import type { AgentPanelModel } from "./view-model";
 
-type AgentController = ReturnType<typeof useAgent>;
 type Props = {
-  agent: AgentController;
+  agent: AgentPanelModel;
   settings: boolean;
   onSettings: () => void;
   onSettingsBack: () => void;
