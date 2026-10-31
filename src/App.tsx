@@ -268,6 +268,6 @@ export default function App() {
       ? <GlobalSettings prefs={prefs} change={change} onBack={() => setPage("home")}/>
       : <AgentPanel agent={agent} settings={page === "agent-settings"}
           onSettings={() => open("agent-settings")} onSettingsBack={() => setPage("agent")}
-          onBack={() => open("home")} onCollapse={collapse} />}
+          onCollapse={collapse} />}
   </main>;
 }

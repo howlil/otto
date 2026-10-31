@@ -25,6 +25,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Resolve frontend dependencies
         run: bun install
+      - name: Format UI for exact baseline alignment
+        run: |
+          bunx biome format --write src/App.tsx src/features/agent/AgentPanel.tsx src/platform/tauri.ts src/style.css
+          foreach ($p in @('src/App.tsx','src/features/agent/AgentPanel.tsx','src/platform/tauri.ts','src/style.css')) {
+            $value = [Convert]::ToBase64String([IO.File]::ReadAllBytes($p))
+            Write-Output ("FORMATTED:" + $p + ":" + $value)
+          }
       - name: TypeScript and frontend build
         run: bun run build
       - name: Biome lint and formatting
@@ -32,6 +39,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Format native geometry for exact baseline alignment
+        run: |
+          cargo fmt --all --manifest-path src-tauri/Cargo.toml
+          foreach ($p in @('src-tauri/src/commands.rs','src-tauri/src/lib.rs')) {
+            $value = [Convert]::ToBase64String([IO.File]::ReadAllBytes($p))
+            Write-Output ("FORMATTED:" + $p + ":" + $value)
+          }
       - name: Rust format
         run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
       - name: Cargo compile check

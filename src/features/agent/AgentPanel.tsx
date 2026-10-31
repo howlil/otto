@@ -7,7 +7,6 @@ type Props = {
   settings: boolean;
   onSettings: () => void;
   onSettingsBack: () => void;
-  onBack: () => void;
   onCollapse: () => void;
 };
 const labels: Record<string, string> = {
@@ -29,7 +28,7 @@ function Symbol({ name, size = 16 }: { name: "settings" | "back" | "camera" | "s
 function Bars() {
   return <span className="otto-bars live" aria-label="Codex is working"><i/><i/><i/><i/></span>;
 }
-export function AgentPanel({ agent, settings, onSettings, onSettingsBack, onBack, onCollapse }: Props) {
+export function AgentPanel({ agent, settings, onSettings, onSettingsBack, onCollapse }: Props) {
   const { snapshot, installed, cwd, setCwd, draft, setDraft, error, busy, send, stop, refreshProvider } = agent;
   const [notice, setNotice] = useState("");
   const feed = useRef<HTMLDivElement>(null);
