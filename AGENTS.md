@@ -19,6 +19,14 @@ TypeScript/React: `PascalCase` components/types, `useX` Hooks, `camelCase` funct
 ## Target codebase
 The concrete target tree, module public entries, dependency direction and K1–K5 boundaries live in `.agents/engineering.md` `## Structure`. Do not pre-create planned directories or duplicate that specification here.
 
+## Development workflow
+- Recover from GitHub first: inspect default `master`, the open PR for this outcome, its exact HEAD/checks, and only the relevant `.agents/` contract. "Next" resumes unfinished work in the existing PR, not a new branch.
+- One coherent vertical slice per feature PR; use `feat/`, `fix/`, or `chore/` only when a branch is needed. Fix failures on the same branch; no Issue/branch/PR per file, skill, retry, trivial edit, or speculative milestone.
+- PR body stays current: `Behavior`, `Verification` (`green @SHA`, `red @SHA`, or `not run`), material `Risks` if any, and one `Next` action. Replace stale evidence, never append progress logs.
+- Use the cheapest faithful checks for changed risks, review the actual diff and engineering contracts, and do not merge with failing/missing required proof or Major/Critical findings. Merge only after explicit owner authorization; prefer squash and delete merged branches. Repository settings are not yet an enforced gate.
+- Persist durable product/engineering/UI decisions only in their owning `.agents/` files, active evidence in the PR, independent deferred work in an Issue only when useful, and shipped facts in immutable tags/releases. Avoid separate plans, status ledgers, or process documents.
+- Merge is not release. Versioning, release evidence, installer publication and recovery are specified in `.agents/engineering.md` `## Release`; never publish or tag without owner authorization.
+
 ## Safety
 No secrets, screenshots or user CLI credentials in repo/logs. Screenshots only after explicit user trigger. Capture exclusion is best effort. Ask before force-push, publish, release, deploy or destructive changes.
 

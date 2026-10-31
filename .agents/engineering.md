@@ -132,12 +132,17 @@ otto/
 - Existing `bun run check` handles frontend formatting/linting, not F1/F2/F3 architecture enforcement. No CI workflow exists; reuse a future check job if needed, never claim these boundaries enforced until checked.
 
 ## Verification
-- Frontend: `bun run check` (Biome) and `bun run build` (TypeScript/Vite); Rust: `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo check` under `src-tauri` on Windows MSVC (commands specified, not run).
-- First Codex slice: prove real streaming/terminal behavior, fail-closed Quick Ask, run-id cancellation and one missing-provider recovery at the cheapest faithful boundary; precise PF/stage selection belongs to test-engineering.
-- Windows-only overlay/capture/frame/child-tree behavior requires representative Windows observation; do not treat frontend compilation as runtime proof.
+- `iter` (affected local edits): `bun run check`, relevant TypeScript/build or Rust fmt/Clippy and focused unit checks; no routine installer, manual QA, or browser E2E per iteration.
+- `pr`: validate the exact PR HEAD with `bun run check`, `bun run build`, and when Rust/native is affected on Windows MSVC, `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo check`. Add the cheapest faithful P#/G#/X# proof; report `green @SHA`, `red @SHA`, or `not run` (never reuse an older SHA).
+- `merge`: full existing checks on `master` when CI is configured. Planned single `ci` workflow: PR + main safety net without duplicate identical runs, superseded PR cancellation, lockfile-based cache, bounded timeout. Do not enable a required check before lockfiles/commands and the job are verified; none is configured now.
+- `release`: once per release candidate, verify NSIS install/startup, overlay/critical user path and recovery on representative Windows. One manual exploratory pass at release; frontend compilation alone cannot prove native behavior.
 
 ## Release
-Windows installer after resolved Bun/Cargo lockfiles, Windows build, and representative overlay smoke; merge is not release.
+- `master` integrates unreleased changes; commit SHA identifies internal builds. Distributed Windows builds use synchronized `0.x.y` manifest versions: meaningful user-facing feature = minor, fix = patch; docs/chore/refactor do not trigger their own releases.
+- Batch releasable changes after verified merge and an Approve / Approve with Minor review; no release per merge and no release branch. Use an optional `-beta.N` GitHub prerelease only when external validation of a risky feature is necessary.
+- Build NSIS from the verified source SHA with reproducible locks; publish only with explicit authorization as a **new immutable** `vX.Y.Z` tag and GitHub Release with artifact checksum/identity. No automatic publish on PR merge.
+- Curate short user-impact release notes (normally ≤5 lines); `CHANGELOG.md` is optional until repeated distributions justify it. Describe compatibility changes and known limitations; internal commit messages are not release notes.
+- Recovery: preserve a known-good compatible installer; use a corrected newer release when local state or provider side effects make downgrade unsafe. Publishing automation is deferred until the first actual Windows distribution, never silently enabled.
 
 ## Assumptions / Risks
 - A6 [non-blocking]: Bun and Cargo lockfiles are not yet resolved/committed; do not assert CI reproducibility.
