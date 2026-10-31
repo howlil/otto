@@ -88,7 +88,7 @@ export function AgentPanel({
               <i />
               {snapshot.status === "streaming" && snapshot.activity
                 ? "Using tool"
-                : agentStatusLabel(snapshot.status)}
+                : agentStatusLabel(snapshot.status, readiness.status)}
             </span>
             <IconButton
               icon="settings"
