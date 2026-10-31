@@ -286,19 +286,56 @@ function useNewAgentSession({
   }, [busy, clearError, setMode, setRequestError, submitted]);
 }
 
-export function useAgent() {
+function useCaptureShortcut() {
+  const [shortcut, setShortcut] = useState(() => {
+    try {
+      return localStorage.getItem("otto.capture.shortcut") || "Ctrl+Shift+O";
+    } catch {
+      return "Ctrl+Shift+O";
+    }
+  });
+  const [captureMessage, setCaptureMessage] = useState("");
+  const [savingCapture, setSavingCapture] = useState(false);
+
   useEffect(() => {
     if (!nativeAvailable) return;
-    let shortcut = "Ctrl+Shift+O";
-    try {
-      shortcut = localStorage.getItem("otto.capture.shortcut") || shortcut;
-    } catch {
-      // No persisted preference; the native default remains active.
-    }
-    void configureCaptureShortcut(shortcut).catch(() => {
-      // Native capture reports registration conflicts in the Agent surface.
+    void configureCaptureShortcut(shortcut).catch((cause: unknown) => {
+      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
     });
+    // Restore the last successfully registered shortcut once on startup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const saveShortcut = useCallback(async () => {
+    if (!nativeAvailable) return;
+    setSavingCapture(true);
+    try {
+      await configureCaptureShortcut(shortcut);
+      try {
+        localStorage.setItem("otto.capture.shortcut", shortcut);
+        setCaptureMessage("Shortcut active. Focus another app and press it to capture.");
+      } catch {
+        setCaptureMessage("Shortcut active; preference could not be saved for next launch.");
+      }
+    } catch (cause) {
+      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSavingCapture(false);
+    }
+  }, [shortcut]);
+
+  return {
+    shortcut,
+    setShortcut,
+    captureMessage,
+    savingCapture,
+    available: nativeAvailable,
+    saveShortcut,
+  };
+}
+
+export function useAgent() {
+  const capture = useCaptureShortcut();
   const [snapshot, setSnapshot] = useState<AgentSnapshot>(initial);
   const [draft, setDraft] = useState("");
   const [cwd, setCwd] = useState("");
@@ -343,6 +380,7 @@ export function useAgent() {
     snapshot,
     installed,
     readiness,
+    capture,
     draft,
     setDraft,
     cwd,

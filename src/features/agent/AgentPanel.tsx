@@ -60,6 +60,7 @@ export function AgentPanel({
       {settings ? (
         <AgentSettings
           readiness={readiness}
+          capture={agent.capture}
           runStatus={snapshot.status}
           approvalPending={approvalPending}
           onRetry={() => void agent.refreshProvider()}

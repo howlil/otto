@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { Button, StatusMessage, Text, TextField } from "../../shared/ui";
-import { configureCaptureShortcut, nativeAvailable } from "../../platform/tauri";
+import type { CaptureShortcutModel } from "./view-model";
 import type { AgentMode, AgentStatus, ProviderReadiness } from "../../platform/tauri";
 import { ModeSettings, ProjectSettings, ProviderSettings } from "./AgentSettingsSections";
 import { agentStatusLabel } from "./status";
@@ -21,6 +20,7 @@ export function AgentSettings({
   onNewSession,
   onBack,
   onDone,
+  capture,
 }: {
   readiness: ProviderReadiness;
   runStatus: AgentStatus;
@@ -37,34 +37,16 @@ export function AgentSettings({
   onNewSession: () => void;
   onBack: () => void;
   onDone: () => void;
+  capture: CaptureShortcutModel;
 }) {
-  const [shortcut, setShortcut] = useState(() => {
-    try {
-      return localStorage.getItem("otto.capture.shortcut") || "Ctrl+Shift+O";
-    } catch {
-      return "Ctrl+Shift+O";
-    }
-  });
-  const [captureMessage, setCaptureMessage] = useState("");
-  const [savingCapture, setSavingCapture] = useState(false);
-  const saveShortcut = async () => {
-    setSavingCapture(true);
-    try {
-      await configureCaptureShortcut(shortcut);
-      try {
-        localStorage.setItem("otto.capture.shortcut", shortcut);
-      } catch {
-        setCaptureMessage("Shortcut active; preference could not be saved for next launch.");
-        return;
-      }
-      setCaptureMessage("Shortcut active. Focus another app and press it to capture.");
-    } catch (cause) {
-      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setSavingCapture(false);
-    }
-  };
-
+  const {
+    shortcut,
+    setShortcut,
+    captureMessage,
+    savingCapture,
+    available,
+    saveShortcut,
+  } = capture;
   const providerStatus =
     readiness.status === "ready"
       ? "Ready"
@@ -106,14 +88,14 @@ export function AgentSettings({
               value={shortcut}
               onChange={(event) => setShortcut(event.target.value)}
               placeholder="Ctrl+Shift+O"
-              disabled={!nativeAvailable || savingCapture}
+              disabled={!available || savingCapture}
               spellCheck={false}
               className="h-[34px] min-w-0 flex-1 bg-transparent text-otto-sm text-otto-knob outline-none"
             />
             <Button
               variant="primary"
               size="sm"
-              disabled={!nativeAvailable || savingCapture}
+              disabled={!available || savingCapture}
               onClick={() => void saveShortcut()}
             >
               Apply

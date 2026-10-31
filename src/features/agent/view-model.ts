@@ -17,7 +17,17 @@ export type AgentTranscriptModel = {
   errorKind: AgentErrorKind;
 };
 
+export type CaptureShortcutModel = {
+  shortcut: string;
+  setShortcut: (value: string) => void;
+  captureMessage: string;
+  savingCapture: boolean;
+  available: boolean;
+  saveShortcut: () => Promise<void>;
+};
+
 export type AgentPanelModel = AgentTranscriptModel & {
+  capture: CaptureShortcutModel;
   cwd: string;
   setCwd: (cwd: string) => void;
   mode: AgentMode;
