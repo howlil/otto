@@ -138,7 +138,7 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
         return Err("Cannot read the rendered target pixels.".into());
     }
     // GDI yields BGRA (usually with an unused alpha channel); PNG expects RGBA.
-    for pixel in pixels.chunks_exact_mut(4) {
+    for pixel in pixels.as_chunks_mut::<4>().0 {
         pixel.swap(0, 2);
         pixel[3] = 255;
     }
