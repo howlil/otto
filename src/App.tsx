@@ -94,6 +94,19 @@ export default function App() {
         if (expanded && !pinned) pin();
       }}
     >
+      {/* One persistent pair of eyes travels between Idle and Home. */}
+      {!isAgent && page === "home" && (
+        <button
+          ref={compactButton}
+          className="otto-home-face"
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => (expanded ? collapse() : open("home"))}
+        >
+          <Eyes expression={prefs.expression} reactive={prefs.reactive} />
+          <VisuallyHidden>{expanded ? "Collapse Otto" : "Open Otto"}</VisuallyHidden>
+        </button>
+      )}
       {!expanded ? (
         isAgent ? (
           <AgentCapsule
@@ -103,28 +116,10 @@ export default function App() {
             buttonRef={compactButton}
             onOpen={() => open("agent")}
           />
-        ) : (
-          <button
-            ref={compactButton}
-            className="otto-compact flex items-center justify-center w-full h-full bg-transparent text-left"
-            type="button"
-            onClick={() => open("home")}
-          >
-            <Eyes expression={prefs.expression} reactive={prefs.reactive} />
-            <VisuallyHidden>Open Otto</VisuallyHidden>
-          </button>
-        )
+        ) : null
       ) : page === "home" ? (
         <section className="otto-home flex h-full flex-col gap-[10px]">
           <header className="otto-home-head flex h-6 shrink-0 items-center gap-2">
-            <button
-              className="otto-eye-button grid shrink-0 place-items-center"
-              type="button"
-              onClick={collapse}
-            >
-              <Eyes expression={prefs.expression} />
-              <VisuallyHidden>Collapse Otto</VisuallyHidden>
-            </button>
             <strong>Otto</strong>
             <span className="otto-home-notice" role="status">
               {notice}
