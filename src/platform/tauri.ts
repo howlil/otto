@@ -15,7 +15,7 @@ export type AgentMode = "quickAsk" | "agentSession";
 export type AgentApproval = {
   approvalId: string;
   runId: number;
-  kind: "command" | "fileChange";
+  kind: "command" | "fileChange" | "network";
   title: string;
   detail: string;
   reason: string | null;
