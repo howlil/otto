@@ -774,6 +774,7 @@ input:focus-visible {
     10px / 1.5 Consolas,
     monospace;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
   max-height: 96px;
   overflow-y: auto;
 }
