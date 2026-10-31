@@ -420,16 +420,34 @@ mod tests {
             s.mode = "agentSession".into();
             s.thread_id = Some("thread-1".into());
             s.messages.push(ChatMessage {
-                id: "8:user".into(), role: "user".into(), text: "hello".into(),
+                id: "8:user".into(),
+                role: "user".into(),
+                text: "hello".into(),
             });
         });
+
+        let (close_seen, observed) = oneshot::channel();
+        let (may_finish, proceed) = oneshot::channel();
         let worker = tokio::spawn(async move {
             let Some(Control::Close { finished }) = receiver.recv().await else {
                 panic!("new session must close the existing process");
             };
+            close_seen.send(()).unwrap();
+            proceed.await.unwrap();
             finished.send(()).unwrap();
         });
-        runtime.new_session().await.expect("new session");
+
+        let reset = runtime.new_session();
+        tokio::pin!(reset);
+        tokio::select! {
+            _ = &mut reset => panic!("reset must wait until Codex closes"),
+            _ = observed => {
+                assert_eq!(runtime.snapshot().status, "completed");
+                assert!(runtime.snapshot().thread_id.is_some());
+            }
+        }
+        may_finish.send(()).unwrap();
+        reset.await.expect("new session");
         worker.await.unwrap();
         let snapshot = runtime.snapshot();
         assert_eq!(snapshot.status, "idle");
