@@ -7,6 +7,7 @@ type Props = {
   settings: boolean;
   onSettings: () => void;
   onSettingsBack: () => void;
+  onBack: () => void;
   onCollapse: () => void;
 };
 const labels: Record<string, string> = {
@@ -76,7 +77,7 @@ function Bars() {
     </span>
   );
 }
-export function AgentPanel({ agent, settings, onSettings, onSettingsBack, onCollapse }: Props) {
+export function AgentPanel({ agent, settings, onSettings, onSettingsBack, onBack, onCollapse }: Props) {
   const {
     snapshot,
     installed,
@@ -108,7 +109,8 @@ export function AgentPanel({ agent, settings, onSettings, onSettingsBack, onColl
     previousSettings.current = settings;
   }, [settings]);
   useEffect(() => {
-    if (snapshot.seq > 0 && nearBottom.current && !settings) feed.current?.scrollTo({ top: feed.current.scrollHeight });
+    if (snapshot.seq > 0 && nearBottom.current && !settings)
+      feed.current?.scrollTo({ top: feed.current.scrollHeight });
   }, [snapshot.seq, settings]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -254,6 +256,9 @@ export function AgentPanel({ agent, settings, onSettings, onSettingsBack, onColl
             </p>
           )}
           <div className="otto-agent-settings-bottom">
+            <button type="button" className="otto-agent-home-link" onClick={onBack}>
+              Home
+            </button>
             <span>
               {installed === false
                 ? "Codex is not installed."

@@ -451,6 +451,7 @@ export default function App() {
   const homeGear = useRef<HTMLButtonElement>(null);
   const previousPage = useRef<Page>(page);
   const lastStatus = useRef(agent.snapshot.status);
+  const showAgentBars = ["starting", "streaming"].includes(agent.snapshot.status);
   const [eventMotion, setEventMotion] = useState("");
   const isAgent = page === "agent" || page === "agent-settings";
   const reducedMotion =
@@ -467,13 +468,15 @@ export default function App() {
         ? "agentSettings"
         : page === "home"
           ? "home"
-          : agent.error || agent.snapshot.status === "failed"
+          : agent.installed === false || agent.error || agent.snapshot.status === "failed"
             ? "agentError"
             : agent.snapshot.status === "starting"
               ? "agentThinking"
-              : agent.snapshot.messages.length === 0
-                ? "agentReady"
-                : "agentFull";
+              : agent.snapshot.status === "streaming" || agent.snapshot.status === "stopping"
+                ? "agentFull"
+                : agent.snapshot.messages.length === 0
+                  ? "agentReady"
+                  : "agentFull";
 
   const clearTimers = useCallback(() => {
     if (enterTimer.current) clearTimeout(enterTimer.current);
@@ -516,6 +519,7 @@ export default function App() {
   useEffect(() => {
     if (!nativeAvailable) return;
     let unlisten: (() => void) | undefined;
+    let active = true;
     void import("@tauri-apps/api/window")
       .then(({ getCurrentWindow }) =>
         getCurrentWindow().onFocusChanged(({ payload }) => {
@@ -523,10 +527,12 @@ export default function App() {
         }),
       )
       .then((stop) => {
-        unlisten = stop;
+        if (active) unlisten = stop;
+        else stop();
       })
       .catch(() => {});
     return () => {
+      active = false;
       unlisten?.();
     };
   }, [prefs.clickOutside, pinned, collapse]);
@@ -617,13 +623,23 @@ export default function App() {
                 </svg>
               </span>
               <span className="otto-compact-copy">
-                <strong>{agent.snapshot.status === "completed" ? "Answer ready" : "Codex"}</strong>
+                <strong>
+                  {agent.installed === false
+                    ? "Unavailable"
+                    : agent.snapshot.status === "completed"
+                      ? "Answer ready"
+                      : "Codex"}
+                </strong>
                 <small>
                   {agent.snapshot.cwd.split(/[\\/]/).filter(Boolean).pop() || "Local CLI"} ·{" "}
-                  {agent.snapshot.status === "idle" ? "Ready" : agent.snapshot.status}
+                  {agent.installed === false
+                    ? "Codex not found"
+                    : agent.snapshot.status === "idle"
+                      ? "Ready"
+                      : agent.snapshot.status}
                 </small>
               </span>
-              {agent.busy ? (
+              {showAgentBars ? (
                 <span className="otto-bars live" aria-hidden="true">
                   <i />
                   <i />
@@ -695,6 +711,7 @@ export default function App() {
           settings={page === "agent-settings"}
           onSettings={() => open("agent-settings")}
           onSettingsBack={() => setPage("agent")}
+          onBack={() => open("home")}
           onCollapse={collapse}
         />
       )}

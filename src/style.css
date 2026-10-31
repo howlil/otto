@@ -1112,3 +1112,15 @@ input:focus-visible {
   animation: none !important;
   transition: none !important;
 }
+
+.otto-agent-home-link {
+  flex: none;
+  background: transparent;
+  color: #a6a6ab;
+  border: 0;
+  padding: 8px 4px;
+  font-size: 10px;
+}
+.otto-agent-home-link:hover {
+  color: #fafafa;
+}
