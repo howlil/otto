@@ -8,9 +8,13 @@ use session::{ApprovalDecision, PendingApproval};
 use std::{
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
 };
 use tauri::ipc::Channel;
-use tokio::{sync::{Mutex, mpsc, oneshot, watch}, time::{timeout, Duration}};
+use tokio::{
+    sync::{Mutex, mpsc, oneshot, watch},
+    time::timeout,
+};
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
