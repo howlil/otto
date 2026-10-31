@@ -97,7 +97,11 @@ input:focus-visible {
 }
 /* The native window is still growing: do not reveal Home while it is narrow. */
 .otto-shell.is-expanded > .otto-home {
-  animation: otto-enter 180ms var(--ease-otto) 145ms both;
+  animation: otto-home-reveal 180ms var(--ease-otto) 145ms both;
+}
+@keyframes otto-home-reveal {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
 }
 .otto-shell.is-expanded .otto-home .otto-choice {
   animation: otto-home-choice 180ms var(--ease-otto) both;
@@ -112,8 +116,8 @@ input:focus-visible {
   animation-delay: 215ms;
 }
 @keyframes otto-home-choice {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @keyframes otto-enter {
   from {
