@@ -109,7 +109,8 @@ export function useNotchShell() {
     if (!pinned && !expanded && prefs.hoverExpand) {
       enterTimer.current = setTimeout(() => {
         enterTimer.current = null;
-        morphUntil.current = performance.now() + (reducedMotion ? 0 : prefs.motion === "gentle" ? 300 : 420);
+        morphUntil.current =
+          performance.now() + (reducedMotion ? 0 : prefs.motion === "gentle" ? 300 : 420);
         setMode("preview");
         setNotice("");
       }, prefs.hoverDelay);
