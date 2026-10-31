@@ -16,6 +16,7 @@ export type ProviderReadiness = {
   status: "checking" | "ready" | "authRequired" | "missing" | "unsupported" | "unavailable";
   message: string;
   recovery: string;
+  imageInput: boolean;
 };
 
 export type AgentApproval = {
