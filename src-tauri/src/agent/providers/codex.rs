@@ -29,7 +29,11 @@ fn account_readiness(value: &Value) -> ProviderReadiness {
     let account = &value["account"];
     if account.is_null() {
         return if value["requiresOpenaiAuth"] == true {
-            ProviderReadiness::new("authRequired", "Codex needs sign-in.", "Run codex login, then Retry.")
+            ProviderReadiness::new(
+                "authRequired",
+                "Codex needs sign-in.",
+                "Run codex login, then Retry.",
+            )
         } else {
             ProviderReadiness::new(
                 "unsupported",
@@ -61,7 +65,11 @@ pub async fn readiness() -> ProviderReadiness {
         );
     }
     let Ok(cwd) = std::env::current_dir() else {
-        return ProviderReadiness::new("unavailable", "Cannot inspect local working directory.", "Retry.");
+        return ProviderReadiness::new(
+            "unavailable",
+            "Cannot inspect local working directory.",
+            "Retry.",
+        );
     };
     let Ok(mut rpc) = Rpc::launch(&cwd) else {
         return ProviderReadiness::new(
@@ -91,7 +99,8 @@ pub async fn readiness() -> ProviderReadiness {
             &updates,
         )
         .await?;
-        rpc.send(json!({ "method": "initialized", "params": {} })).await?;
+        rpc.send(json!({ "method": "initialized", "params": {} }))
+            .await?;
         rpc.request(
             "account/read",
             json!({ "refreshToken": true }),
@@ -1042,7 +1051,8 @@ mod tests {
         );
         assert_eq!(account_readiness(&json!({})).status, "unsupported");
         assert_eq!(
-            account_readiness(&json!({"account": {"type": "chatgpt"}, "requiresOpenaiAuth": true})).status,
+            account_readiness(&json!({"account": {"type": "chatgpt"}, "requiresOpenaiAuth": true}))
+                .status,
             "ready"
         );
         assert_eq!(
