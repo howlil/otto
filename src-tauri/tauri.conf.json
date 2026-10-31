@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "Otto",
-        "width": 320,
-        "height": 76,
+        "width": 92,
+        "height": 42,
         "resizable": false,
         "decorations": false,
         "transparent": true,

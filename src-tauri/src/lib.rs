@@ -1,7 +1,19 @@
+mod agent;
+mod commands;
+
 use tauri::{Manager, PhysicalPosition};
 
 pub fn run() {
     tauri::Builder::default()
+        .manage(agent::AgentRuntime::new())
+        .invoke_handler(tauri::generate_handler![
+            commands::agent_snapshot,
+            commands::agent_codex_installed,
+            commands::agent_subscribe,
+            commands::agent_ask,
+            commands::agent_stop,
+            commands::notch_set_surface,
+        ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 if let Some(monitor) = window.current_monitor()? {
