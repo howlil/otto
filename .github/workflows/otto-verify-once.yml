@@ -26,6 +26,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Resolve frontend dependencies
         run: bun install
+      - name: Format changed Tailwind views (temporary)
+        run: |
+          bunx biome format --write src/App.tsx src/features/agent/AgentPanel.tsx
+          foreach ($p in @('src/App.tsx','src/features/agent/AgentPanel.tsx')) {
+            Write-Output ("FORMATTED:" + $p + ":" + [Convert]::ToBase64String([IO.File]::ReadAllBytes($p)))
+          }
       - name: TypeScript and frontend build
         run: bun run build
       - name: Biome lint and formatting
