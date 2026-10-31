@@ -87,7 +87,12 @@
 }
 
 .otto-choice {
-  background: linear-gradient(118deg, var(--color-otto-art-agent-start) 0%, var(--color-otto-art-agent-middle) 51%, var(--color-otto-art-agent-end) 100%);
+  background: linear-gradient(
+    118deg,
+    var(--color-otto-art-agent-start) 0%,
+    var(--color-otto-art-agent-middle) 51%,
+    var(--color-otto-art-agent-end) 100%
+  );
   border: 1px solid var(--color-otto-line-strong);
   border-radius: 15px;
   padding: 11px 10px 11px 13px;
@@ -101,13 +106,28 @@
     background 160ms;
 }
 .otto-choice-agent {
-  background: linear-gradient(118deg, var(--color-otto-art-music-start) 0%, var(--color-otto-art-music-middle) 51%, var(--color-otto-art-music-end) 100%);
+  background: linear-gradient(
+    118deg,
+    var(--color-otto-art-music-start) 0%,
+    var(--color-otto-art-music-middle) 51%,
+    var(--color-otto-art-music-end) 100%
+  );
 }
 .otto-choice-music {
-  background: linear-gradient(118deg, var(--color-otto-selected) 0%, var(--color-otto-art-focus-middle) 55%, var(--color-otto-art-focus-end) 100%);
+  background: linear-gradient(
+    118deg,
+    var(--color-otto-selected) 0%,
+    var(--color-otto-art-focus-middle) 55%,
+    var(--color-otto-art-focus-end) 100%
+  );
 }
 .otto-choice-focus {
-  background: linear-gradient(118deg, var(--color-otto-art-alt-start) 0%, var(--color-otto-art-alt-middle) 53%, var(--color-otto-art-alt-end) 100%);
+  background: linear-gradient(
+    118deg,
+    var(--color-otto-art-alt-start) 0%,
+    var(--color-otto-art-alt-middle) 53%,
+    var(--color-otto-art-alt-end) 100%
+  );
 }
 .otto-choice::before {
   content: "";
@@ -116,7 +136,11 @@
   z-index: 1;
   pointer-events: none;
   opacity: var(--shimmer);
-  background: radial-gradient(ellipse 120px 100px at 78% 30%, var(--color-otto-art-halo), transparent 70%);
+  background: radial-gradient(
+    ellipse 120px 100px at 78% 30%,
+    var(--color-otto-art-halo),
+    transparent 70%
+  );
   mix-blend-mode: screen;
   transition: opacity 250ms;
 }
