@@ -34,6 +34,8 @@ pub struct ProviderReadiness {
     pub status: String,
     pub message: String,
     pub recovery: String,
+    // True only when the active default model advertises image input.
+    pub image_input: bool,
 }
 
 impl ProviderReadiness {
@@ -42,6 +44,7 @@ impl ProviderReadiness {
             status: status.into(),
             message: message.into(),
             recovery: recovery.into(),
+            image_input: false,
         }
     }
 }
