@@ -9,6 +9,7 @@ use tokio::sync::{mpsc, watch, Mutex};
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessage {
+    pub id: String,
     pub role: String,
     pub text: String,
 }

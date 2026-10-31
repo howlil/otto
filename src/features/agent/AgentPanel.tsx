@@ -9,7 +9,9 @@ export function AgentPanel({ agent, onBack }: { agent: AgentController; onBack: 
   const { snapshot, installed, cwd, setCwd, draft, setDraft, error, busy, send, stop, refreshProvider } = agent;
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "auto" });
+    if (snapshot.seq > 0) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "auto" });
+    }
   }, [snapshot.seq]);
 
   const onSubmit = (event: FormEvent) => {
@@ -52,7 +54,7 @@ export function AgentPanel({ agent, onBack }: { agent: AgentController; onBack: 
           </p>
         )}
         {snapshot.messages.map((message, index) => (
-          <div key={index} className={message.role === "user" ? "ml-8 rounded-xl bg-otto-raised p-2.5" : "mr-3 rounded-xl p-2.5"}>
+          <div key={message.id} className={message.role === "user" ? "ml-8 rounded-xl bg-otto-raised p-2.5" : "mr-3 rounded-xl p-2.5"}>
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-otto-muted">{message.role === "user" ? "You" : "Codex"}</p>
             <div className="whitespace-pre-wrap break-words">{message.text || (busy ? "Thinking…" : "")}</div>
             {message.role === "assistant" && message.text && snapshot.status === "completed" && index === snapshot.messages.length - 1 && (

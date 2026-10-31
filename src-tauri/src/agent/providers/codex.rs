@@ -189,8 +189,8 @@ async fn begin_turn(
         if s.run_id != run_id { return; }
         s.status = "streaming".into();
         s.error = None;
-        s.messages.push(ChatMessage { role: "user".into(), text: text.to_owned() });
-        s.messages.push(ChatMessage { role: "assistant".into(), text: String::new() });
+        s.messages.push(ChatMessage { id: format!("{run_id}:user"), role: "user".into(), text: text.to_owned() });
+        s.messages.push(ChatMessage { id: format!("{run_id}:assistant"), role: "assistant".into(), text: String::new() });
         if s.messages.len() > 24 { s.messages.drain(0..2); }
     });
     Ok((turn, buffered))
@@ -355,7 +355,7 @@ mod tests {
     fn unrelated_turn_cannot_append_output() {
         let (tx, _) = watch::channel(Snapshot {
             run_id: 5, seq: 1, status: "streaming".into(), cwd: String::new(),
-            thread_id: None, messages: vec![ChatMessage { role: "assistant".into(), text: String::new() }],
+            thread_id: None, messages: vec![ChatMessage { id: "test:assistant".into(), role: "assistant".into(), text: String::new() }],
             error: None,
         });
         handle_event(&json!({
@@ -370,7 +370,7 @@ mod tests {
         let (tx, _) = watch::channel(Snapshot {
             run_id: 7, seq: 1, status: "stopping".into(), cwd: String::new(),
             thread_id: Some("thread".into()),
-            messages: vec![ChatMessage { role: "assistant".into(), text: String::new() }],
+            messages: vec![ChatMessage { id: "test:assistant".into(), role: "assistant".into(), text: String::new() }],
             error: None,
         });
         let completed = json!({

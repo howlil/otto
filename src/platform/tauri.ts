@@ -15,7 +15,7 @@ export type AgentSnapshot = {
   status: AgentStatus;
   cwd: string;
   threadId: string | null;
-  messages: Array<{ role: "user" | "assistant"; text: string }>;
+  messages: Array<{ id: string; role: "user" | "assistant"; text: string }>;
   error: string | null;
 };
 

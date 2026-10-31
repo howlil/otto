@@ -1,4 +1,5 @@
 name: Otto Windows verification (on demand)
+# Retry with stable message IDs after fixing Biome diagnostics.
 
 'on':
   push:
