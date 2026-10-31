@@ -1,4 +1,5 @@
-import { Icon, Text } from "../../shared/ui";
+import { Text } from "../../shared/ui";
+import { CopyAnswerButton } from "./CopyAnswerButton";
 import type { AgentSnapshot } from "../../platform/tauri";
 import { AgentErrorNotice } from "./AgentErrorNotice";
 import { ApprovalCard } from "./ApprovalCard";
@@ -18,8 +19,6 @@ export function TranscriptOutcome({
   refreshProvider,
   clearError,
   lastAnswer,
-  copy,
-  notice,
 }: {
   approval: AgentTranscriptModel["snapshot"]["approval"];
   approvalPending: boolean;
@@ -34,8 +33,6 @@ export function TranscriptOutcome({
   refreshProvider: AgentTranscriptModel["refreshProvider"];
   clearError: AgentTranscriptModel["clearError"];
   lastAnswer: string | null;
-  copy: (value: string) => Promise<void>;
-  notice: string;
 }) {
   return (
     <>
@@ -65,22 +62,8 @@ export function TranscriptOutcome({
       )}
       {snapshot.status === "completed" && lastAnswer && (
         <div>
-          <button
-            className="inline-flex items-center gap-1.5 border-0 bg-transparent px-0 py-[5px] text-otto-xs text-otto-muted-strong hover:text-otto-text"
-            type="button"
-            onClick={() => void copy(lastAnswer)}
-          >
-            <Icon name="copy" size={13} />{" "}
-            <Text as="span" variant="meta">
-              Copy answer
-            </Text>
-          </button>
+          <CopyAnswerButton value={lastAnswer} />
         </div>
-      )}
-      {notice && (
-        <Text as="p" variant="meta" className="m-0 text-otto-text-subtle" role="status">
-          {notice}
-        </Text>
       )}
     </>
   );

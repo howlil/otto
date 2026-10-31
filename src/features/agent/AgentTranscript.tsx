@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { AgentComposer } from "./AgentComposer";
 import { providerIssue, providerIssueTitle } from "./status";
 import { TranscriptMessages } from "./TranscriptMessages";
@@ -33,7 +33,6 @@ export function AgentTranscript({
   } = agent;
   const feed = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
-  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     if (snapshot.seq > 0 && nearBottom.current)
@@ -52,15 +51,6 @@ export function AgentTranscript({
   const lastAnswer = [...snapshot.messages]
     .reverse()
     .find((message) => message.role === "assistant" && message.text.length > 0);
-
-  const copy = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setNotice("Answer copied");
-    } catch {
-      setNotice("Clipboard is unavailable.");
-    }
-  };
 
   return (
     <>
@@ -91,8 +81,6 @@ export function AgentTranscript({
             refreshProvider={refreshProvider}
             clearError={clearError}
             lastAnswer={lastAnswer?.text ?? null}
-            copy={copy}
-            notice={notice}
           />
         </div>
       </div>

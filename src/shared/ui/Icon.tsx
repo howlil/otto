@@ -1,5 +1,6 @@
 import {
   Camera,
+  Check,
   ChevronLeft,
   CircleAlert,
   Copy,
@@ -19,6 +20,7 @@ const icons = {
   send: Send,
   stop: Square,
   copy: Copy,
+  check: Check,
   folder: Folder,
   alert: TriangleAlert,
   unavailable: CircleAlert,
