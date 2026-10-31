@@ -212,6 +212,7 @@ impl AgentRuntime {
                 .map_err(|_| "Codex closed unexpectedly; session was not reset.".to_string())?;
         }
         *guard = None;
+        self.next_run_id.fetch_max(current.run_id, Ordering::Relaxed);
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
         mutate(&self.updates, |s| {
             s.run_id = run_id; // Stale provider events can no longer match.
@@ -432,7 +433,7 @@ mod tests {
         assert!(snapshot.thread_id.is_none());
         assert!(snapshot.messages.is_empty());
         assert!(runtime.control.lock().await.is_none());
-        assert_ne!(snapshot.run_id, 8);
+        assert!(snapshot.run_id > 8);
     }
 
     #[tokio::test]
