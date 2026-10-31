@@ -11,7 +11,8 @@ export type IconName =
   | "stop"
   | "copy"
   | "folder"
-  | "alert";
+  | "alert"
+  | "terminal";
 
 const paths: Record<IconName, React.ReactNode> = {
   settings: (
@@ -40,6 +41,12 @@ const paths: Record<IconName, React.ReactNode> = {
     <>
       <path d="M12 4 2.5 20h19z" />
       <path d="M12 10v4m0 3v.5" />
+    </>
+  ),
+  terminal: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="m7 9 3 3-3 3m6 0h4" />
     </>
   ),
 };
