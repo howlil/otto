@@ -67,6 +67,17 @@ R5  total Biome diagnostics                             <=33
 
 Build every screen block by block, component by component, from shared primitives; do not grow one file into a screen.
 
+```text
+src/shared/ui/     Icon, Eyes, Bars, ChoiceChip, ChoiceRow, Range, Toggle
+src/features/
+  shell/           preferences, useNotchShell, GlobalSettings
+  home/            HomeCard
+  agent/           AgentPanel (container)
+                   AgentCapsule, AgentSettings, AgentTranscript, ApprovalCard
+                   surface.ts (surface + compact copy), status.ts, useAgent
+src/platform/      typed Tauri transport
+```
+
 - **Layers**: `ui` (render-only, props in / events out) ← `feature` (state, effects, IPC) ← `data` (`src/platform`). `ui` never imports `feature`; components never call the Tauri transport directly.
 - **Shared primitives** live in `src/shared/ui` and appear at the third real reuse, not the second. A repeated control (icon button, choice chip, range, toggle, status marker) is a component, not a copy of the same CSS rule and inline SVG.
 - **Feature modules**: one directory per capability with a public `index.ts`; import a sibling feature only through that entry.
