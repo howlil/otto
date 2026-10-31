@@ -12,7 +12,11 @@ export function compactLabel(snapshot: AgentSnapshot, installed: boolean | null)
   return "Codex";
 }
 
-export function compactDetail(snapshot: AgentSnapshot, installed: boolean | null, readiness: ProviderReadiness): string {
+export function compactDetail(
+  snapshot: AgentSnapshot,
+  installed: boolean | null,
+  readiness: ProviderReadiness,
+): string {
   const project = snapshot.cwd.split(/[\\/]/).filter(Boolean).pop() || "Local CLI";
   if (installed === false) return `${project} · ${readiness.message}`;
   if (readiness.status === "checking") return `${project} · Checking Codex`;
