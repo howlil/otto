@@ -101,6 +101,7 @@ export function AgentTranscript({
           )}
           {approvalPending && approval && (
             <ApprovalCard
+              key={approval.approvalId}
               approval={approval}
               onDecide={async (decision) => {
                 if (await decide(approval.approvalId, decision)) {
