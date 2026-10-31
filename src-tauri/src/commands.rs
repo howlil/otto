@@ -1,5 +1,5 @@
 use crate::agent::{AgentRuntime, Snapshot};
-use tauri::{ipc::Channel, LogicalSize, PhysicalPosition, State, WebviewWindow};
+use tauri::{LogicalSize, PhysicalPosition, State, WebviewWindow, ipc::Channel};
 
 #[tauri::command]
 pub fn agent_snapshot(runtime: State<'_, AgentRuntime>) -> Snapshot {
@@ -39,15 +39,20 @@ pub fn notch_set_surface(window: WebviewWindow, surface: String) -> Result<(), S
         "agent" => (526, 326),
         _ => return Err("Invalid notch surface.".into()),
     };
-    window.set_size(LogicalSize::new(width as f64, height as f64))
+    window
+        .set_size(LogicalSize::new(width as f64, height as f64))
         .map_err(|_| "Cannot resize the notch.")?;
-    if let Some(monitor) = window.current_monitor().map_err(|_| "Monitor unavailable.")? {
+    if let Some(monitor) = window
+        .current_monitor()
+        .map_err(|_| "Monitor unavailable.")?
+    {
         let bounds = monitor.size();
         let origin = monitor.position();
         let scale = window.scale_factor().map_err(|_| "DPI unavailable.")?;
         let physical_width = (width as f64 * scale).round() as i32;
         let x = origin.x + ((bounds.width as i32 - physical_width) / 2);
-        window.set_position(PhysicalPosition::new(x, origin.y + 12))
+        window
+            .set_position(PhysicalPosition::new(x, origin.y + 12))
             .map_err(|_| "Cannot position the notch.")?;
     }
     Ok(())

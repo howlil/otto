@@ -47,19 +47,26 @@ export function useAgent() {
       if (!mounted) return;
       setSnapshot((prev) => (next.seq >= prev.seq ? next : prev));
     };
-    void subscribeAgent(receive).then((channel) => {
-      if (mounted) subscription.current = channel;
-    }).catch(() => {
-      if (mounted) setError("Cannot listen to Codex events.");
-    });
-    void getAgentSnapshot().then((value) => {
-      receive(value);
-      if (mounted) setCwd((old) => old || value.cwd);
-    }).catch(() => {
-      if (mounted) setError("Cannot connect to the Otto desktop process.");
-    });
+    void subscribeAgent(receive)
+      .then((channel) => {
+        if (mounted) subscription.current = channel;
+      })
+      .catch(() => {
+        if (mounted) setError("Cannot listen to Codex events.");
+      });
+    void getAgentSnapshot()
+      .then((value) => {
+        receive(value);
+        if (mounted) setCwd((old) => old || value.cwd);
+      })
+      .catch(() => {
+        if (mounted) setError("Cannot connect to the Otto desktop process.");
+      });
     void refreshProvider();
-    return () => { mounted = false; subscription.current = null; };
+    return () => {
+      mounted = false;
+      subscription.current = null;
+    };
   }, [refreshProvider]);
 
   useEffect(() => {
@@ -101,7 +108,16 @@ export function useAgent() {
   };
 
   return {
-    snapshot, installed, draft, setDraft, cwd, setCwd,
-    error: error ?? snapshot.error, busy, send, stop, refreshProvider,
+    snapshot,
+    installed,
+    draft,
+    setDraft,
+    cwd,
+    setCwd,
+    error: error ?? snapshot.error,
+    busy,
+    send,
+    stop,
+    refreshProvider,
   };
 }

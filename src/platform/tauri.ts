@@ -29,7 +29,9 @@ export async function codexInstalled(): Promise<boolean> {
   return invoke<boolean>("agent_codex_installed");
 }
 
-export async function subscribeAgent(onSnapshot: (snapshot: AgentSnapshot) => void): Promise<Channel<AgentSnapshot>> {
+export async function subscribeAgent(
+  onSnapshot: (snapshot: AgentSnapshot) => void,
+): Promise<Channel<AgentSnapshot>> {
   const channel = new Channel<AgentSnapshot>();
   channel.onmessage = onSnapshot;
   await invoke("agent_subscribe", { onEvent: channel });
@@ -44,6 +46,8 @@ export async function stopCodex(): Promise<void> {
   await invoke("agent_stop");
 }
 
-export async function setNotchSurface(surface: "idle" | "home" | "agent" | "agentCompact"): Promise<void> {
+export async function setNotchSurface(
+  surface: "idle" | "home" | "agent" | "agentCompact",
+): Promise<void> {
   if (nativeAvailable) await invoke("notch_set_surface", { surface });
 }

@@ -2,9 +2,12 @@ mod policy;
 mod providers;
 
 use serde::Serialize;
-use std::{path::PathBuf, sync::atomic::{AtomicU64, Ordering}};
+use std::{
+    path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
+};
 use tauri::ipc::Channel;
-use tokio::sync::{mpsc, watch, Mutex};
+use tokio::sync::{Mutex, mpsc, watch};
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,7 +30,11 @@ pub struct Snapshot {
 }
 
 pub enum Control {
-    Ask { text: String, cwd: PathBuf, run_id: u64 },
+    Ask {
+        text: String,
+        cwd: PathBuf,
+        run_id: u64,
+    },
     Stop,
 }
 
@@ -51,7 +58,11 @@ impl AgentRuntime {
             messages: Vec::new(),
             error: None,
         });
-        Self { updates, control: Mutex::new(None), next_run_id: AtomicU64::new(0) }
+        Self {
+            updates,
+            control: Mutex::new(None),
+            next_run_id: AtomicU64::new(0),
+        }
     }
 
     pub fn snapshot(&self) -> Snapshot {
@@ -61,14 +72,18 @@ impl AgentRuntime {
     pub fn subscribe(&self, channel: Channel<Snapshot>) {
         let mut rx = self.updates.subscribe();
         tauri::async_runtime::spawn(async move {
-            if channel.send(rx.borrow_and_update().clone()).is_err() { return; }
+            if channel.send(rx.borrow_and_update().clone()).is_err() {
+                return;
+            }
             // Coalesce token deltas so long answers do not resend the full transcript
             // for every individual token; 20 updates/sec is enough for a notch.
             let mut cadence = tokio::time::interval(std::time::Duration::from_millis(50));
             cadence.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             while rx.changed().await.is_ok() {
                 cadence.tick().await;
-                if channel.send(rx.borrow_and_update().clone()).is_err() { break; }
+                if channel.send(rx.borrow_and_update().clone()).is_err() {
+                    break;
+                }
             }
         });
     }
@@ -82,26 +97,39 @@ impl AgentRuntime {
         if text.is_empty() || text.len() > 12_000 {
             return Err("Enter a question (up to 12,000 bytes).".into());
         }
-        let cwd = std::fs::canonicalize(cwd)
-            .map_err(|_| "Working folder does not exist.".to_string())?;
-        if !cwd.is_dir() { return Err("Working context must be a folder.".into()); }
+        let cwd =
+            std::fs::canonicalize(cwd).map_err(|_| "Working folder does not exist.".to_string())?;
+        if !cwd.is_dir() {
+            return Err("Working context must be a folder.".into());
+        }
         if !self.codex_installed() {
             return Err("Codex executable not found. Install Codex CLI, then retry.".into());
         }
         let mut guard = self.control.lock().await;
         let current = self.snapshot();
-        if matches!(current.status.as_str(), "starting" | "streaming" | "stopping") {
+        if matches!(
+            current.status.as_str(),
+            "starting" | "streaming" | "stopping"
+        ) {
             return Err("An answer is already running.".into());
         }
         if let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
             if std::path::Path::new(&current.cwd) != cwd.as_path() {
-                return Err("Working context is fixed for this conversation. Restart Otto to change it.".into());
+                return Err(
+                    "Working context is fixed for this conversation. Restart Otto to change it."
+                        .into(),
+                );
             }
             let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
-            let permit = sender.try_reserve()
+            let permit = sender
+                .try_reserve()
                 .map_err(|_| "Codex is busy. Try again.".to_string())?;
             // Publish the new run before it becomes visible to the receiver.
-            mutate(&self.updates, |s| { s.run_id = run_id; s.status = "starting".into(); s.error = None; });
+            mutate(&self.updates, |s| {
+                s.run_id = run_id;
+                s.status = "starting".into();
+                s.error = None;
+            });
             permit.send(Control::Ask { text, cwd, run_id });
             return Ok(());
         }
@@ -129,7 +157,9 @@ impl AgentRuntime {
             return Err("No active Codex turn.".into());
         }
         let sender = guard.as_ref().ok_or("No active Codex process.")?;
-        let permit = sender.try_reserve().map_err(|_| "Codex is busy; retry Stop.".to_string())?;
+        let permit = sender
+            .try_reserve()
+            .map_err(|_| "Codex is busy; retry Stop.".to_string())?;
         // A fast Codex response must not be overwritten with a stale "stopping" state.
         mutate(&self.updates, |s| {
             if matches!(s.status.as_str(), "starting" | "streaming") {
@@ -164,8 +194,13 @@ mod tests {
     #[test]
     fn old_run_cannot_replace_new_terminal_state() {
         let (tx, _) = watch::channel(Snapshot {
-            run_id: 2, seq: 4, status: "completed".into(), cwd: String::new(),
-            thread_id: None, messages: vec![], error: None,
+            run_id: 2,
+            seq: 4,
+            status: "completed".into(),
+            cwd: String::new(),
+            thread_id: None,
+            messages: vec![],
+            error: None,
         });
         fail(&tx, 1, "late failure");
         assert_eq!(tx.borrow().status, "completed");
@@ -177,7 +212,9 @@ mod tests {
         let runtime = AgentRuntime::new();
         let (tx, mut rx) = mpsc::channel(1);
         *runtime.control.lock().await = Some(tx);
-        mutate(&runtime.updates, |snapshot| snapshot.status = "streaming".into());
+        mutate(&runtime.updates, |snapshot| {
+            snapshot.status = "streaming".into()
+        });
         runtime.stop().await.expect("Stop must be accepted");
         assert_eq!(runtime.snapshot().status, "stopping");
         assert!(matches!(rx.try_recv(), Ok(Control::Stop)));
