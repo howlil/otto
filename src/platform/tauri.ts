@@ -12,6 +12,12 @@ export type AgentStatus =
 
 export type AgentMode = "quickAsk" | "agentSession";
 
+export type ProviderReadiness = {
+  status: "checking" | "ready" | "authRequired" | "missing" | "unsupported" | "unavailable";
+  message: string;
+  recovery: string;
+};
+
 export type AgentApproval = {
   approvalId: string;
   runId: number;
@@ -55,6 +61,9 @@ export async function getAgentSnapshot(): Promise<AgentSnapshot> {
 }
 export async function codexInstalled(): Promise<boolean> {
   return invoke<boolean>("agent_codex_installed");
+}
+export async function getCodexReadiness(): Promise<ProviderReadiness> {
+  return invoke<ProviderReadiness>("agent_codex_readiness");
 }
 export async function subscribeAgent(
   onSnapshot: (snapshot: AgentSnapshot) => void,
