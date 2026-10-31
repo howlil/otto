@@ -97,7 +97,7 @@ otto/
 
 ## Guarantees
 - G1 (B4,Q5,C6) [H]: without an explicit user capture action, no image is captured/submitted; SLI unauthorized capture/send invocations = 0 per invocation trace at R3 boundary (no image logging).
-- G2 (B3,X4) [H]: after Stop or graceful app exit, owned CLI process-tree survivors = 0; measure at R2 process-owner lifecycle/OS process inspection. Crash cleanup needs OS containment and representative proof, not an unsupported guarantee.
+- G2 (B3,X4) [H]: after Stop or app exit, owned CLI process-tree survivors = 0; Windows Codex children are attached to a kill-on-close Job Object and launch fails closed if attachment fails. Assignment occurs after spawn, so wrapper pre-assignment races and crash behavior still need representative Windows proof.
 - G3 (Q2) [M]: navigation/Stop remain responsive while CLI is busy; SLI p95 input-to-view response and frame intervals at WebView/host; target TBD from A2, no invented latency SLO.
 - G4 (B1,B7,X5) [M]: UI remains accessible while protected capture support is best effort; signal native bounds/focus and supported-recorder capture outcome at R6; never guarantee all recorders.
 - G5 (Q1) [M]: measure idle CPU/private memory of Otto+WebView2 process family separately from CLI and capture p95 frame intervals during morphing at OS/WebView; targets TBD from A2.
