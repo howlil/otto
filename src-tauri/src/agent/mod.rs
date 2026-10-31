@@ -66,11 +66,25 @@ pub struct Snapshot {
     pub error: Option<String>,
 }
 
+// The temporary PNG is owned by the accepted run. It must never persist
+// after completion, cancellation, initialization error, or shutdown.
+pub struct CapturedImage(PathBuf);
+
+impl CapturedImage {
+    pub fn new(path: PathBuf) -> Self { Self(path) }
+    pub fn path(&self) -> &std::path::Path { &self.0 }
+}
+
+impl Drop for CapturedImage {
+    fn drop(&mut self) { let _ = std::fs::remove_file(&self.0); }
+}
+
 pub enum Control {
     Ask {
         text: String,
         cwd: PathBuf,
         run_id: u64,
+        capture: Option<CapturedImage>,
     },
     Stop,
     Close {
@@ -162,7 +176,50 @@ impl AgentRuntime {
         providers::codex::readiness(&cwd).await
     }
 
+    // B4: never capture until the hotkey is pressed, the provider is capable,
+    // and the current agent session is compatible with read-only analysis.
+    #[cfg(windows)]
+    pub async fn capture_hotkey(
+        &self,
+        hwnd: isize,
+        capture: fn(isize) -> Result<CapturedImage, String>,
+    ) -> Result<(), String> {
+        let state = self.snapshot();
+        if matches!(state.status.as_str(), "starting" | "streaming" | "stopping" | "approvalRequired") {
+            return Err("Finish or Stop the current answer before capturing.".into());
+        }
+        if state.thread_id.is_some() && state.mode != "quickAsk" {
+            return Err("Start a new Quick Ask session before using screen capture.".into());
+        }
+        let ready = self.codex_readiness(Some(&state.cwd)).await;
+        if ready.status != "ready" || !ready.image_input {
+            return Err("Codex image input is not confirmed. Open Agent settings and Retry.".into());
+        }
+        let image = tokio::task::spawn_blocking(move || capture(hwnd))
+            .await.map_err(|_| "Windows capture failed.".to_string())??;
+        self.ask_with_capture(
+            "Analyze the captured application window. Describe what is visible and answer any apparent question without modifying files.".into(),
+            state.cwd,
+            "quickAsk".into(),
+            Some(image),
+        ).await
+    }
+
+    #[cfg(windows)]
+    pub fn capture_error(&self, reason: &str) {
+        mutate(&self.updates, |s| {
+            if !matches!(s.status.as_str(), "starting" | "streaming" | "stopping" | "approvalRequired") {
+                s.status = "failed".into();
+                s.error = Some(reason.into());
+            }
+        });
+    }
+
     pub async fn ask(&self, text: String, cwd: String, mode: String) -> Result<(), String> {
+        self.ask_with_capture(text, cwd, mode, None).await
+    }
+
+    async fn ask_with_capture(&self, text: String, cwd: String, mode: String, capture: Option<CapturedImage>) -> Result<(), String> {
         let text = text.trim().to_owned();
         if text.is_empty() || text.len() > 12_000 {
             return Err("Enter a question (up to 12,000 bytes).".into());
@@ -189,6 +246,9 @@ impl AgentRuntime {
         let readiness = providers::codex::readiness(&cwd).await;
         if readiness.status != "ready" {
             return Err(format!("{} {}", readiness.message, readiness.recovery));
+        }
+        if capture.is_some() && !readiness.image_input {
+            return Err("The selected Codex model cannot accept an image.".into());
         }
         if let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
             if std::path::Path::new(&current.cwd) != cwd.as_path() {
@@ -217,7 +277,7 @@ impl AgentRuntime {
                 s.approval = None;
                 s.error = None;
             });
-            permit.send(Control::Ask { text, cwd, run_id });
+            permit.send(Control::Ask { text, cwd, run_id, capture });
             return Ok(());
         }
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
@@ -238,7 +298,7 @@ impl AgentRuntime {
             providers::codex::run(
                 rx,
                 updates.clone(),
-                Control::Ask { text, cwd, run_id },
+                Control::Ask { text, cwd, run_id, capture },
                 mode,
             )
             .await;
