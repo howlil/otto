@@ -258,15 +258,47 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, updates: watch::Sender<S
                         fail(&updates, run_id, "Working context changed. Restart Otto.");
                         continue;
                     }
-                    match begin_turn(&mut rpc, &thread, &text, run_id, &updates).await {
-                        Ok((new_turn, buffered)) => {
+                    // A follow-up can be waiting for turn/start to acknowledge while
+                    // the user presses Stop. The control receiver must remain live.
+                    enum FollowUp {
+                        Started(Result<(String, Vec<Value>), String>),
+                        Stop,
+                        Closed,
+                    }
+                    let outcome = tokio::select! {
+                        result = begin_turn(&mut rpc, &thread, &text, run_id, &updates) => FollowUp::Started(result),
+                        command = controls.recv() => match command {
+                            Some(Control::Stop) => FollowUp::Stop,
+                            _ => FollowUp::Closed,
+                        },
+                    };
+                    match outcome {
+                        FollowUp::Started(Ok((new_turn, buffered))) => {
                             turn = new_turn;
                             active = Some(run_id);
                             for msg in buffered {
                                 if handle_event(&msg, &thread, &turn, run_id, &updates) { active = None; }
                             }
                         }
-                        Err(error) => { fail(&updates, run_id, &error); }
+                        FollowUp::Started(Err(error)) => {
+                            fail(&updates, run_id, &error);
+                            rpc.terminate().await;
+                            break;
+                        }
+                        FollowUp::Stop => {
+                            mutate(&updates, |s| {
+                                if s.run_id == run_id && s.status == "stopping" {
+                                    s.status = "stopped".into();
+                                }
+                            });
+                            rpc.terminate().await;
+                            break;
+                        }
+                        FollowUp::Closed => {
+                            fail(&updates, run_id, "Codex control channel closed.");
+                            rpc.terminate().await;
+                            break;
+                        }
                     }
                 }
                 None => { rpc.terminate().await; break; }
