@@ -65,6 +65,8 @@ export function AgentSettings({
       <div className="flex items-center justify-between gap-2">
         <p className="otto-settings-note" role="status">
           {readiness.message} {readiness.recovery}
+          {readiness.status === "ready" &&
+            (readiness.imageInput ? " Image input confirmed." : " Image input not confirmed.")}
         </p>
         {readiness.status !== "ready" && (
           <button
