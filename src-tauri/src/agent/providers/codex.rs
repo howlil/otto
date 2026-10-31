@@ -760,7 +760,10 @@ pub async fn run(
     // begin_turn binds the thread/run before turn/start, even before the ack.
     let (mut turn, buffered) = match begin_turn(
         &mut rpc,
-        TurnInput { thread: &thread, text: &text },
+        TurnInput {
+            thread: &thread,
+            text: &text,
+        },
         run_id,
         mode,
         &mut approvals,
