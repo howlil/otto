@@ -29,4 +29,3 @@ export function resolveSurface({
   if (snapshot.status === "streaming" || snapshot.status === "stopping") return "agentFull";
   return snapshot.messages.length === 0 ? "agentReady" : "agentFull";
 }
-
