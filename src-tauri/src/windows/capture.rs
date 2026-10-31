@@ -14,20 +14,22 @@ use windows_sys::Win32::{
         DeleteObject, GetDIBits, GetWindowDC, ReleaseDC, SelectObject,
     },
     Storage::Xps::PrintWindow,
+    System::Threading::GetCurrentThreadId,
     UI::{
         Input::KeyboardAndMouse::{
             MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, RegisterHotKey, UnregisterHotKey,
         },
         WindowsAndMessaging::{
-            GetForegroundWindow, GetWindowRect, GetWindowTextLengthW,
-            GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, MSG, PM_REMOVE,
-            PeekMessageW, WM_HOTKEY,
+            GetForegroundWindow, GetMessageW, GetWindowRect, GetWindowTextLengthW,
+            GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, MSG, PM_NOREMOVE,
+            PeekMessageW, PostThreadMessageW, WM_APP, WM_HOTKEY,
         },
     },
 };
 
 const HOTKEY_ID: i32 = 0x4f54;
 const MAX_EDGE: i32 = 4096;
+const WM_HOTKEY_CONFIG: u32 = WM_APP + 19;
 
 struct GdiCapture {
     window: HWND,
@@ -214,15 +216,22 @@ type HotkeyChange = (Shortcut, HotkeyReply);
 
 pub struct CaptureHotkeys {
     changes: Sender<HotkeyChange>,
+    thread_id: u32,
 }
 
 impl CaptureHotkeys {
     pub fn configure(&self, value: &str) -> Result<(), String> {
         let requested = parse_shortcut(value)?;
         let (reply, result) = mpsc::sync_channel(1);
+        if self.thread_id == 0 {
+            return Err("The capture shortcut service did not start.".into());
+        }
         self.changes
             .send((requested, reply))
             .map_err(|_| "The capture shortcut service is unavailable.".to_string())?;
+        if unsafe { PostThreadMessageW(self.thread_id, WM_HOTKEY_CONFIG, 0, 0) } == 0 {
+            return Err("The capture shortcut service cannot receive updates.".into());
+        }
         result
             .recv_timeout(Duration::from_secs(3))
             .map_err(|_| "Capture shortcut configuration timed out.".to_string())?
@@ -233,7 +242,14 @@ fn register(shortcut: Shortcut) -> bool {
     unsafe { RegisterHotKey(std::ptr::null_mut(), HOTKEY_ID, shortcut.modifiers, shortcut.key) != 0 }
 }
 
-fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>) {
+fn run_hotkeys(
+    app: tauri::AppHandle,
+    changes: Receiver<HotkeyChange>,
+    ready: SyncSender<u32>,
+) {
+    let mut message: MSG = unsafe { std::mem::zeroed() };
+    unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_NOREMOVE) };
+    let _ = ready.send(unsafe { GetCurrentThreadId() });
     let default = parse_shortcut("Ctrl+Shift+O").expect("valid default capture shortcut");
     let mut registered = if register(default) { Some(default) } else { None };
     if registered.is_none() {
@@ -242,53 +258,62 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>) {
         );
     }
     loop {
-        while let Ok((requested, reply)) = changes.try_recv() {
-            if registered == Some(requested) {
-                let _ = reply.send(Ok(()));
-                continue;
-            }
-            if registered.is_some() {
-                unsafe { UnregisterHotKey(std::ptr::null_mut(), HOTKEY_ID) };
-            }
-            if register(requested) {
-                registered = Some(requested);
-                let _ = reply.send(Ok(()));
-            } else {
-                let restored = registered.filter(|old| register(*old));
-                registered = restored;
-                let _ = reply.send(Err(
-                    "Shortcut is already in use or unavailable. The previous shortcut was kept when possible.".into(),
-                ));
-                if restored.is_none() {
-                    app.state::<AgentRuntime>().capture_error(
-                        "No capture shortcut could be registered. Choose another shortcut in Agent settings.",
-                    );
+        if unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } <= 0 {
+            break;
+        }
+        if message.message == WM_HOTKEY_CONFIG {
+            while let Ok((requested, reply)) = changes.try_recv() {
+                if registered == Some(requested) {
+                    let _ = reply.send(Ok(()));
+                    continue;
+                }
+                if registered.is_some() {
+                    unsafe { UnregisterHotKey(std::ptr::null_mut(), HOTKEY_ID) };
+                }
+                if register(requested) {
+                    registered = Some(requested);
+                    let _ = reply.send(Ok(()));
+                } else {
+                    let restored = registered.filter(|old| register(*old));
+                    registered = restored;
+                    let _ = reply.send(Err(
+                        "Shortcut is already in use or unavailable. The previous shortcut was kept when possible.".into(),
+                    ));
+                    if restored.is_none() {
+                        app.state::<AgentRuntime>().capture_error(
+                            "No capture shortcut could be registered. Choose another shortcut in Agent settings.",
+                        );
+                    }
                 }
             }
         }
-
-        let mut message: MSG = unsafe { std::mem::zeroed() };
-        while unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
-            if message.message != WM_HOTKEY || message.wParam != HOTKEY_ID as usize {
-                continue;
-            }
+        if message.message == WM_HOTKEY && message.wParam == HOTKEY_ID as usize {
             let foreground = unsafe { GetForegroundWindow() };
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 let runtime = handle.state::<AgentRuntime>();
-                if let Err(reason) = runtime.capture_hotkey(foreground as isize, capture_foreground).await {
+                if let Err(reason) = runtime
+                    .capture_hotkey(foreground as isize, capture_foreground)
+                    .await
+                {
                     runtime.capture_error(&reason);
                 }
             });
         }
-        std::thread::sleep(Duration::from_millis(30));
+    }
+    if registered.is_some() {
+        unsafe { UnregisterHotKey(std::ptr::null_mut(), HOTKEY_ID) };
     }
 }
 
 pub fn start_hotkey(app: tauri::AppHandle) -> CaptureHotkeys {
     let (changes, receiver) = mpsc::channel();
-    std::thread::spawn(move || run_hotkeys(app, receiver));
-    CaptureHotkeys { changes }
+    let (ready, thread_id) = mpsc::sync_channel(1);
+    std::thread::spawn(move || run_hotkeys(app, receiver, ready));
+    CaptureHotkeys {
+        changes,
+        thread_id: thread_id.recv_timeout(Duration::from_secs(2)).unwrap_or(0),
+    }
 }
 
 #[cfg(test)]

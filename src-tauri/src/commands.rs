@@ -67,7 +67,9 @@ pub fn agent_configure_capture_shortcut(
     #[cfg(windows)]
     {
         app.state::<crate::windows::capture::CaptureHotkeys>()
-            .configure(&shortcut)
+            .configure(&shortcut)?;
+        app.state::<AgentRuntime>().clear_capture_error();
+        Ok(())
     }
     #[cfg(not(windows))]
     {

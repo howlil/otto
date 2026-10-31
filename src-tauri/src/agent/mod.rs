@@ -255,7 +255,23 @@ impl AgentRuntime {
                 "starting" | "streaming" | "stopping" | "approvalRequired"
             ) {
                 s.status = "failed".into();
-                s.error = Some(reason.into());
+                s.error = Some(format!("Capture: {reason}"));
+            }
+        });
+    }
+
+    #[cfg(windows)]
+    pub fn clear_capture_error(&self) {
+        mutate(&self.updates, |s| {
+            if s.status == "failed"
+                && s.error.as_deref().is_some_and(|error| error.starts_with("Capture: "))
+            {
+                s.status = if s.thread_id.is_some() {
+                    "completed".into()
+                } else {
+                    "idle".into()
+                };
+                s.error = None;
             }
         });
     }

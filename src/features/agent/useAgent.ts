@@ -6,7 +6,6 @@ import {
   nativeAvailable,
   decideAgentApproval,
   getAgentSnapshot,
-  nativeAvailable,
   newAgentSession,
   stopCodex,
   subscribeAgent,
