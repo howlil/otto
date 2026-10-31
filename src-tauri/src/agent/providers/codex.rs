@@ -56,6 +56,7 @@ struct Approvals {
     counter: u64,
     thread: Option<String>,
     turn: Option<String>,
+    previous_turn: Option<String>,
     run_id: u64,
     // Quick Ask is read-only and never-approval: an approval request there is a
     // contract violation and is declined without ever reaching the UI.
@@ -79,7 +80,7 @@ impl Approvals {
     // approval requests for this run can arrive earlier.
     fn prepare_turn(&mut self, thread: &str, run_id: u64) {
         self.thread = Some(thread.to_owned());
-        self.turn = None;
+        self.previous_turn = self.turn.take();
         self.run_id = run_id;
     }
 
@@ -110,9 +111,14 @@ impl Approvals {
         if params["threadId"].as_str() != self.thread.as_deref() {
             return ServerRequest::Decline;
         }
-        if let Some(turn) = self.turn.as_deref()
-            && params["turnId"].as_str() != Some(turn)
-        {
+        let request_turn = params["turnId"].as_str();
+        if let Some(turn) = self.turn.as_deref() {
+            if request_turn != Some(turn) {
+                return ServerRequest::Decline;
+            }
+        } else if request_turn.is_none() || request_turn == self.previous_turn.as_deref() {
+            // While turn/start is unacknowledged, never approve an event for
+            // the previous turn (or one with no identity at all).
             return ServerRequest::Decline;
         }
         let built = match method {
@@ -1110,7 +1116,12 @@ mod tests {
 
         approvals.prepare_turn("thread", 5);
         assert_eq!(approvals.turn, None);
+        assert_eq!(approvals.previous_turn.as_deref(), Some("previous-turn"));
         assert_eq!(approvals.run_id, 5);
+        assert!(matches!(
+            approvals.parse(&command_request(11, "thread", "previous-turn")),
+            ServerRequest::Decline
+        ));
         assert!(matches!(
             approvals.parse(&command_request(12, "thread", "next-turn")),
             ServerRequest::Recorded
