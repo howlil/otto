@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: Agent Session PR #3 (single Rustfmt literal correction; same jobs).
+# Verification dispatch: Agent Session PR #3 (denial-copy correctness verification; same jobs).
 
 'on':
   push:
