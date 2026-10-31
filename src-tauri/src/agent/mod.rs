@@ -166,6 +166,12 @@ impl AgentRuntime {
         ) {
             return Err("An answer is already running.".into());
         }
+        // Authentication can expire between turns, not just before session start.
+        // A previously ready UI state never authorizes a new request.
+        let readiness = providers::codex::readiness().await;
+        if readiness.status != "ready" {
+            return Err(format!("{} {}", readiness.message, readiness.recovery));
+        }
         if let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
             if std::path::Path::new(&current.cwd) != cwd.as_path() {
                 return Err(
@@ -195,12 +201,6 @@ impl AgentRuntime {
             });
             permit.send(Control::Ask { text, cwd, run_id });
             return Ok(());
-        }
-        // Verify the local provider before accepting the first turn. The UI's
-        // previously observed ready state is not an authorization boundary.
-        let readiness = providers::codex::readiness().await;
-        if readiness.status != "ready" {
-            return Err(format!("{} {}", readiness.message, readiness.recovery));
         }
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
         mutate(&self.updates, |s| {
