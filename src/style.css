@@ -84,7 +84,7 @@ input:focus-visible {
 .otto-shell {
   border: 1px solid var(--color-otto-line);
   border-radius: 999px;
-  transition: border-radius 400ms var(--ease-otto);
+  transition: border-radius 420ms var(--ease-otto);
 }
 .otto-shell.is-expanded {
   border-radius: 28px;
@@ -94,6 +94,26 @@ input:focus-visible {
 }
 .otto-shell.is-expanded > section {
   animation: otto-enter 190ms var(--ease-otto) both;
+}
+/* The native window is still growing: do not reveal Home while it is narrow. */
+.otto-shell.is-expanded > .otto-home {
+  animation: otto-enter 180ms var(--ease-otto) 145ms both;
+}
+.otto-shell.is-expanded .otto-home .otto-choice {
+  animation: otto-home-choice 180ms var(--ease-otto) both;
+}
+.otto-shell.is-expanded .otto-home .otto-choice:nth-child(1) {
+  animation-delay: 165ms;
+}
+.otto-shell.is-expanded .otto-home .otto-choice:nth-child(2) {
+  animation-delay: 190ms;
+}
+.otto-shell.is-expanded .otto-home .otto-choice:nth-child(3) {
+  animation-delay: 215ms;
+}
+@keyframes otto-home-choice {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 @keyframes otto-enter {
   from {
@@ -241,7 +261,38 @@ input:focus-visible {
 }
 
 .otto-home {
+  /* Stable reference dimensions eliminate card reflow during native resizing. */
+  width: 452px;
+  height: 148px;
   padding: 15px 17px 17px;
+}
+/* The face stays mounted across both states; only its bounds move. */
+.otto-home-face {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  transition:
+    left 420ms var(--ease-otto),
+    top 420ms var(--ease-otto),
+    width 420ms var(--ease-otto),
+    height 420ms var(--ease-otto);
+}
+.otto-shell.is-expanded .otto-home-face {
+  left: 16px;
+  top: 15px;
+  width: 34px;
+  height: 28px;
+}
+.otto-home-head {
+  padding-left: 37px;
 }
 
 .otto-home-head > strong {
@@ -366,6 +417,10 @@ input:focus-visible {
 }
 .otto-choice:hover .otto-choice-art {
   opacity: 1;
+}
+/* Pointer depth updates at most once per animation frame. */
+.otto-choice[data-tracking="true"] .otto-choice-art {
+  transition: opacity 240ms;
 }
 
 /* Global settings are a native-sized in-island surface, not a detached modal. */
