@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B4 Windows handle Send-safe capture and full native check.
+# Verification dispatch: B4 Windows Send-safe hotkey with Rustfmt-correct source.
 
 'on':
   push:

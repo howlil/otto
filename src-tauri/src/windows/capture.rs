@@ -299,10 +299,7 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 let runtime = handle.state::<AgentRuntime>();
-                if let Err(reason) = runtime
-                    .capture_hotkey(window, capture_foreground)
-                    .await
-                {
+                if let Err(reason) = runtime.capture_hotkey(window, capture_foreground).await {
                     runtime.capture_error(&reason);
                 }
             });
