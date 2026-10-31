@@ -6,14 +6,13 @@ use tauri::Manager;
 use windows_sys::Win32::{
     Foundation::{HWND, RECT},
     Graphics::Gdi::{
-        BI_RGB, BITMAPINFO, CreateCompatibleBitmap, CreateCompatibleDC, DIB_RGB_COLORS,
-        DeleteDC, DeleteObject, GetDIBits, GetWindowDC, ReleaseDC, SelectObject,
+        BI_RGB, BITMAPINFO, CreateCompatibleBitmap, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
+        DeleteObject, GetDIBits, GetWindowDC, ReleaseDC, SelectObject,
     },
     UI::WindowsAndMessaging::{
         GetForegroundWindow, GetMessageW, GetWindowRect, GetWindowTextLengthW,
-        GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, MOD_CONTROL,
-        MOD_NOREPEAT, MOD_SHIFT, MSG, PrintWindow, RegisterHotKey, UnregisterHotKey,
-        WM_HOTKEY,
+        GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, MOD_CONTROL, MOD_NOREPEAT,
+        MOD_SHIFT, MSG, PrintWindow, RegisterHotKey, UnregisterHotKey, WM_HOTKEY,
     },
 };
 
@@ -32,10 +31,18 @@ struct GdiCapture {
 impl Drop for GdiCapture {
     fn drop(&mut self) {
         unsafe {
-            if !self.old.is_null() { SelectObject(self.memory, self.old); }
-            if !self.bitmap.is_null() { DeleteObject(self.bitmap as _); }
-            if !self.memory.is_null() { DeleteDC(self.memory); }
-            if !self.source.is_null() { ReleaseDC(self.window, self.source); }
+            if !self.old.is_null() {
+                SelectObject(self.memory, self.old);
+            }
+            if !self.bitmap.is_null() {
+                DeleteObject(self.bitmap as _);
+            }
+            if !self.memory.is_null() {
+                DeleteDC(self.memory);
+            }
+            if !self.source.is_null() {
+                ReleaseDC(self.window, self.source);
+            }
         }
     }
 }
@@ -52,7 +59,10 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
             && GetWindowTextLengthW(hwnd) > 0
     };
     if !valid {
-        return Err("The target window changed or cannot be captured. Focus it and retry the shortcut.".into());
+        return Err(
+            "The target window changed or cannot be captured. Focus it and retry the shortcut."
+                .into(),
+        );
     }
     let mut pid: u32 = 0;
     unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
@@ -69,7 +79,9 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
         return Err("The target window size is unsupported.".into());
     }
     let source = unsafe { GetWindowDC(hwnd) };
-    if source.is_null() { return Err("Window capture is unavailable.".into()); }
+    if source.is_null() {
+        return Err("Window capture is unavailable.".into());
+    }
     let mut capture = GdiCapture {
         window: hwnd,
         source,
@@ -78,9 +90,13 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
         old: std::ptr::null_mut(),
     };
     capture.memory = unsafe { CreateCompatibleDC(source) };
-    if capture.memory.is_null() { return Err("Cannot create the capture surface.".into()); }
+    if capture.memory.is_null() {
+        return Err("Cannot create the capture surface.".into());
+    }
     capture.bitmap = unsafe { CreateCompatibleBitmap(source, width, height) };
-    if capture.bitmap.is_null() { return Err("Cannot allocate the capture bitmap.".into()); }
+    if capture.bitmap.is_null() {
+        return Err("Cannot allocate the capture bitmap.".into());
+    }
     capture.old = unsafe { SelectObject(capture.memory, capture.bitmap as _) };
     if capture.old.is_null() {
         return Err("Cannot select the capture bitmap.".into());
@@ -89,7 +105,9 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
     if unsafe { PrintWindow(hwnd, capture.memory, 0) } == 0 {
         return Err("This application does not support silent window capture.".into());
     }
-    unsafe { SelectObject(capture.memory, capture.old); }
+    unsafe {
+        SelectObject(capture.memory, capture.old);
+    }
     capture.old = std::ptr::null_mut();
     let mut info: BITMAPINFO = unsafe { std::mem::zeroed() };
     info.bmiHeader.biSize = std::mem::size_of_val(&info.bmiHeader) as u32;
@@ -101,7 +119,15 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
     let len = width as usize * height as usize * 4;
     let mut pixels = vec![0u8; len];
     let copied = unsafe {
-        GetDIBits(source, capture.bitmap, 0, height as u32, pixels.as_mut_ptr() as _, &mut info, DIB_RGB_COLORS)
+        GetDIBits(
+            source,
+            capture.bitmap,
+            0,
+            height as u32,
+            pixels.as_mut_ptr() as _,
+            &mut info,
+            DIB_RGB_COLORS,
+        )
     };
     if copied != height as i32 {
         return Err("Cannot read the rendered target pixels.".into());
@@ -115,9 +141,12 @@ fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_err(|_| "Cannot create a unique capture file.")?
         .as_nanos();
-    let path: PathBuf = std::env::temp_dir().join(format!("otto-{}-{nonce}.png", std::process::id()));
+    let path: PathBuf =
+        std::env::temp_dir().join(format!("otto-{}-{nonce}.png", std::process::id()));
     let file = OpenOptions::new()
-        .create_new(true).write(true).open(&path)
+        .create_new(true)
+        .write(true)
+        .open(&path)
         .map_err(|_| "Cannot create the temporary capture.")?;
     let image = CapturedImage::new(path);
     let mut png = png::Encoder::new(BufWriter::new(file), width as u32, height as u32);
