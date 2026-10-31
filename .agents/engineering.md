@@ -63,7 +63,7 @@ F1: privileged operations belong to Rust commands; UI only consumes bounded Taur
 F2: new feature dependencies use public feature entries; do not import sibling internals.
 
 ## Verification
-- Frontend: `npm run build` (TypeScript + Vite, local/PR after install).
+- Frontend: `bun run build` (TypeScript + Vite, local/PR after install).
 - Rust: `cd src-tauri && cargo check` on Windows MSVC; target runtime proof pending.
 - Window placement/transparency/capture: one Windows release smoke; cannot prove through frontend compilation.
 
@@ -71,5 +71,5 @@ F2: new feature dependencies use public feature entries; do not import sibling i
 Windows installer only after build and representative machine smoke. No merge-to-release automation by default.
 
 ## Assumptions / Risks
-A4 [non-blocking]: dependency lockfiles and CI follow an actual dependency resolution/Windows build; no fictional green gate.
+A4 [non-blocking]: Bun dependency resolution must generate committed `bun.lock` before reproducible CI; no Windows build or CI status is claimed.
 Risks: WebView2 idle cost, transparent resizing/hit region, provider protocol drift.
