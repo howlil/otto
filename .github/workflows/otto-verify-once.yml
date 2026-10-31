@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: completed frontend architecture remediation; final Biome format fix.
+# Verification dispatch: B11 frontend warning ratchet and Windows Rust suite.
 
 'on':
   push:
