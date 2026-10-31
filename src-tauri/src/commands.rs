@@ -120,7 +120,7 @@ impl Frame {
         #[cfg(windows)]
         {
             use windows_sys::Win32::UI::WindowsAndMessaging::{
-                SWP_NOACTIVATE, SWP_NOZORDER, SetWindowPos,
+                SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
             };
             let hwnd = window
                 .hwnd()
