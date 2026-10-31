@@ -7,7 +7,8 @@
 // Run: bun run lint:frontend
 import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { join, relative, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import ts from "typescript";
 
 const ROOT = process.cwd();
 const SRC = join(ROOT, "src");
@@ -122,7 +123,65 @@ const RISK = {
   biomeWarnings: "Biome warning count grew — fix the new warning instead of adding one",
 };
 
+// Enforce boundaries on imports rather than counting line length or file names.
+// Type-only platform contracts are safe in views; runtime IPC is container-owned.
+function isTypeOnlyImport(clause) {
+  if (!clause) return false;
+  if (clause.isTypeOnly) return true;
+  if (clause.name || !clause.namedBindings || !ts.isNamedImports(clause.namedBindings))
+    return false;
+  return clause.namedBindings.elements.every((entry) => entry.isTypeOnly);
+}
+
+const boundaryViolations = [];
+for (const file of tsFiles) {
+  const source = ts.createSourceFile(
+    file, read(file), ts.ScriptTarget.Latest, true,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const feature = file.match(/^src\\/features\\/([^/]+)\\//)?.[1];
+  const examine = (specifier, typeOnly) => {
+    if (specifier.startsWith("@tauri-apps/") && !file.startsWith("src/platform/")) {
+      boundaryViolations.push(`${file}: Tauri APIs belong in src/platform/`);
+    }
+    if (!specifier.startsWith(".")) return;
+    const target = relative(ROOT, resolve(dirname(join(ROOT, file)), specifier))
+      .split(sep).join("/");
+    if (file.startsWith("src/shared/ui/") &&
+      (target.startsWith("src/features/") || target.startsWith("src/platform/"))) {
+      boundaryViolations.push(`${file}: shared/ui cannot depend on ${target}`);
+    }
+    if (feature && target.startsWith("src/features/")) {
+      const targetFeature = target.split("/")[2];
+      if (targetFeature !== feature &&
+        target !== `src/features/${targetFeature}` &&
+        target !== `src/features/${targetFeature}/index`) {
+        boundaryViolations.push(`${file}: cross-feature import bypasses public entry: ${target}`);
+      }
+    }
+    if (file.endsWith(".tsx") && file.startsWith("src/features/") &&
+      target.startsWith("src/platform/") && !typeOnly) {
+      boundaryViolations.push(`${file}: view must not perform native IPC: ${target}`);
+    }
+  };
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      examine(node.moduleSpecifier.text, isTypeOnlyImport(node.importClause));
+    } else if (ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 && ts.isStringLiteral(node.arguments[0])) {
+      examine(node.arguments[0].text, false);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+}
+
 let failed = false;
+for (const violation of boundaryViolations) {
+  failed = true;
+  console.error(`FAIL boundary: ${violation}`);
+}
 for (const key of Object.keys(actual)) {
   const now = actual[key];
   const was = baseline[key] ?? 0;
