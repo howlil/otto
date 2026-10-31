@@ -1,11 +1,12 @@
 import { ChoiceRow, Icon } from "../../shared/ui";
-import type { AgentMode } from "../../platform/tauri";
+import type { AgentMode, ProviderReadiness } from "../../platform/tauri";
 
 // The secondary in-island settings surface for the agent. It owns no state:
 // the panel keeps the draft and passes it down, so the effective mode always
 // comes from Rust once a conversation exists.
 export function AgentSettings({
-  installed,
+  readiness,
+  onRetry,
   mode,
   setMode,
   locked,
@@ -18,7 +19,8 @@ export function AgentSettings({
   onBack,
   onDone,
 }: {
-  installed: boolean | null;
+  readiness: ProviderReadiness;
+  onRetry: () => void;
   mode: AgentMode;
   setMode: (mode: AgentMode) => void;
   locked: boolean;
@@ -49,13 +51,30 @@ export function AgentSettings({
             {name}
             <small>
               {name === "Codex"
-                ? installed === false
-                  ? "Unavailable"
-                  : "Selected"
+                ? readiness.status === "ready"
+                  ? "Ready"
+                  : readiness.status === "checking"
+                    ? "Checking"
+                    : "Setup needed"
                 : "Not available"}
             </small>
           </button>
         ))}
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <p className="otto-settings-note" role="status">
+          {readiness.message} {readiness.recovery}
+        </p>
+        {readiness.status !== "ready" && (
+          <button
+            type="button"
+            className="otto-settings-done"
+            disabled={readiness.status === "checking"}
+            onClick={onRetry}
+          >
+            Retry
+          </button>
+        )}
       </div>
       <div className="otto-settings-divider" />
       <span className="otto-field-name">Execution mode</span>
@@ -117,9 +136,9 @@ export function AgentSettings({
           Home
         </button>
         <span>
-          {installed === false
-            ? "Codex is not installed."
-            : "Codex authentication is checked on request."}
+          {readiness.status === "ready"
+            ? "Codex is configured."
+            : "Provider setup is required before sending."}
         </span>
         <button type="button" className="otto-settings-done" onClick={onDone}>
           Done
