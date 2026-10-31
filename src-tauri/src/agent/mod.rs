@@ -10,7 +10,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 use tauri::ipc::Channel;
-use tokio::sync::{Mutex, mpsc, watch};
+use tokio::{sync::{Mutex, mpsc, oneshot, watch}, time::{timeout, Duration}};
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +44,7 @@ pub enum Control {
         run_id: u64,
     },
     Stop,
+    Close { finished: oneshot::Sender<()> },
     Decide {
         approval_id: String,
         decision: ApprovalDecision,
@@ -183,6 +184,46 @@ impl AgentRuntime {
             .await;
         });
         *guard = Some(tx);
+        Ok(())
+    }
+
+    // Close the old provider before resetting any visible or permission state.
+    // No active run/approval is silently cancelled by a UI settings action.
+    pub async fn new_session(&self) -> Result<(), String> {
+        let mut guard = self.control.lock().await;
+        let current = self.snapshot();
+        if matches!(
+            current.status.as_str(),
+            "starting" | "streaming" | "stopping" | "approvalRequired"
+        ) {
+            return Err("Stop the current request before starting a new session.".into());
+        }
+
+        if let Some(sender) = guard.as_ref()
+            && !sender.is_closed()
+        {
+            let (finished, closed) = oneshot::channel();
+            sender
+                .try_send(Control::Close { finished })
+                .map_err(|_| "Codex is busy. Try again.".to_string())?;
+            timeout(Duration::from_secs(5), closed)
+                .await
+                .map_err(|_| "Codex did not close in time; session was not reset.".to_string())?
+                .map_err(|_| "Codex closed unexpectedly; session was not reset.".to_string())?;
+        }
+        *guard = None;
+        let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
+        mutate(&self.updates, |s| {
+            s.run_id = run_id; // Stale provider events can no longer match.
+            s.status = "idle".into();
+            s.mode = InteractionMode::QuickAsk.as_str().into();
+            s.thread_id = None;
+            s.messages.clear();
+            s.activity = None;
+            s.approval = None;
+            s.error = None;
+            // Keep the current working directory as a prefilled draft.
+        });
         Ok(())
     }
 
@@ -361,6 +402,47 @@ mod tests {
                 .is_err()
         );
         assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn new_session_closes_provider_before_clearing_conversation() {
+        let runtime = AgentRuntime::new();
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+        mutate(&runtime.updates, |s| {
+            s.run_id = 8;
+            s.status = "completed".into();
+            s.mode = "agentSession".into();
+            s.thread_id = Some("thread-1".into());
+            s.messages.push(ChatMessage {
+                id: "8:user".into(), role: "user".into(), text: "hello".into(),
+            });
+        });
+        let worker = tokio::spawn(async move {
+            let Some(Control::Close { finished }) = receiver.recv().await else {
+                panic!("new session must close the existing process");
+            };
+            finished.send(()).unwrap();
+        });
+        runtime.new_session().await.expect("new session");
+        worker.await.unwrap();
+        let snapshot = runtime.snapshot();
+        assert_eq!(snapshot.status, "idle");
+        assert_eq!(snapshot.mode, "quickAsk");
+        assert!(snapshot.thread_id.is_none());
+        assert!(snapshot.messages.is_empty());
+        assert!(runtime.control.lock().await.is_none());
+        assert_ne!(snapshot.run_id, 8);
+    }
+
+    #[tokio::test]
+    async fn new_session_cannot_discard_running_or_pending_approval() {
+        let runtime = AgentRuntime::new();
+        for status in ["starting", "streaming", "stopping", "approvalRequired"] {
+            mutate(&runtime.updates, |s| s.status = status.into());
+            assert!(runtime.new_session().await.is_err(), "{status}");
+            assert_eq!(runtime.snapshot().status, status);
+        }
     }
 
     #[tokio::test]
