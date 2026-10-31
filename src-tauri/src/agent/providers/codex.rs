@@ -1165,7 +1165,7 @@ mod tests {
         let delayed_frame = tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(35)).await;
             writer
-                .write_all(b"{\"id\":1,\"result\":{}}\\n")
+                .write_all(b"{\"id\":1,\"result\":{}}\n")
                 .await
                 .unwrap();
         });
