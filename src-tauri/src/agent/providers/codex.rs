@@ -95,6 +95,18 @@ impl Rpc {
     }
 
     async fn terminate(&mut self) {
+        // On Windows, stop the owned wrapper and its child tree (npm may launch codex via .cmd).
+        // A native Windows Job Object is still required for a crash-proof descendant guarantee.
+        #[cfg(windows)]
+        if let Some(pid) = self.child.id() {
+            let _ = timeout(Duration::from_secs(3),
+                Command::new("taskkill.exe")
+                    .args(["/PID", &pid.to_string(), "/T", "/F"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status()
+            ).await;
+        }
         let _ = self.child.kill().await;
         let _ = self.child.wait().await;
     }
@@ -139,7 +151,8 @@ fn handle_event(value: &Value, thread: &str, turn: &str, run_id: u64, updates: &
                 if s.run_id != run_id { return; }
                 if matches!(s.status.as_str(), "completed" | "stopped" | "failed") { return; }
                 s.status = match status {
-                    "completed" if s.status != "stopping" => "completed",
+                    _ if s.status == "stopping" => "stopped",
+                    "completed" => "completed",
                     "interrupted" => "stopped",
                     _ => "failed",
                 }.into();
@@ -211,7 +224,9 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, updates: watch::Sender<S
             command = controls.recv() => match command {
                 Some(Control::Stop) => {
                     if let Some(id) = active {
-                        let _ = rpc.request("turn/interrupt", json!({ "threadId": thread, "turnId": turn })).await;
+                        let _ = timeout(Duration::from_secs(5),
+                            rpc.request("turn/interrupt", json!({ "threadId": thread, "turnId": turn }))
+                        ).await;
                         mutate(&updates, |s| {
                             if s.run_id == id && !matches!(s.status.as_str(), "completed" | "failed") {
                                 s.status = "stopped".into();
