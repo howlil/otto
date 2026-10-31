@@ -1061,7 +1061,6 @@ mod tests {
         );
     }
 
-
     fn snapshot(status: &str, run_id: u64) -> watch::Sender<Snapshot> {
         let (tx, _) = watch::channel(Snapshot {
             run_id,
