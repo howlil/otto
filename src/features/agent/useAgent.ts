@@ -24,13 +24,16 @@ const initial: AgentSnapshot = {
   error: null,
 };
 
+const checking: ProviderReadiness = {
+  status: "checking",
+  message: "Checking Codex…",
+  recovery: "",
+  imageInput: false,
+};
+
 export function useAgent() {
   const [snapshot, setSnapshot] = useState<AgentSnapshot>(initial);
-  const [readiness, setReadiness] = useState<ProviderReadiness>({
-    status: "checking",
-    message: "Checking Codex…",
-    recovery: "",
-  });
+  const [readiness, setReadiness] = useState<ProviderReadiness>(checking);
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
   const [draft, setDraft] = useState("");
   const [cwd, setCwd] = useState("");
@@ -41,12 +44,13 @@ export function useAgent() {
   const subscription = useRef<Awaited<ReturnType<typeof subscribeAgent>> | null>(null);
 
   const refreshProvider = useCallback(async () => {
-    setReadiness({ status: "checking", message: "Checking Codex…", recovery: "" });
+    setReadiness(checking);
     if (!nativeAvailable) {
       setReadiness({
         status: "unavailable",
         message: "Codex readiness requires the Otto desktop app.",
         recovery: "Open Otto on Windows.",
+        imageInput: false,
       });
       return;
     }
@@ -57,6 +61,7 @@ export function useAgent() {
         status: "unavailable",
         message: "Could not check Codex readiness.",
         recovery: "Retry the connection.",
+        imageInput: false,
       });
     }
   }, []);
