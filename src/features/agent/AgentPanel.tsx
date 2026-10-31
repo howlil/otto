@@ -26,7 +26,7 @@ export function AgentPanel({
   onBack,
   onCollapse,
 }: Props) {
-  const { snapshot, installed, readiness, cwd, setCwd, mode, setMode, locked, busy, newSession } = agent;
+  const { snapshot, readiness, cwd, setCwd, mode, setMode, locked, busy, newSession } = agent;
   const [denied, setDenied] = useState(false);
   const back = useRef<HTMLButtonElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
