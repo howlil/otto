@@ -63,7 +63,7 @@ otto/
 - R7 (B3,B9,B11,X1,X7,X9): validate provider readiness/auth/capability, working context, Quick Ask restrictions and explicit tool approvals; fail closed when unsupported.
 
 ## State
-- S1: active feature/expanded state and unsent draft | owner R1 (React) | background events cannot change selection/focus; one UI writer; draft is sensitive local memory, discarded on exit (RPO: unsent edits may be lost).
+- S1: active feature, exclusive Compact/Preview/Pinned shell mode and feature-local unsent agent draft | owner R1 (React) | background events cannot change selection/focus; one UI writer; draft is sensitive local memory, discarded on exit (RPO: unsent edits may be lost).
 - S2: placement, native bounds and focus policy | owner R6 (Rust) | no implicit activation on hover; single window host writer; internal metadata, restore preference only if explicitly persisted later.
 - S3: agent run/session/status/output | owner R2 (Rust) | run_id with ordered sequence and exactly one terminal outcome; terminal run rejects late events; one authority even if UI collapses; sensitive user/model text, memory-only Otto copy while running, RPO: active run not durable on crash, recover only provider-verifiable sessions (A5).
 - S4: provider identity, capability, working directory and approval state | owner R7 (Rust) | readiness verified before launch; no approval assumed or invented; never persist authentication secrets; sensitive context metadata remains memory-only by default.

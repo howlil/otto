@@ -39,7 +39,7 @@ Per-surface moments and interaction graphs belong in the current PR/task, not in
 - Motion: top-center anchor, coherent silhouette width/height/radius interpolation, delayed content reveal, interruptible collapse/expand, minimal overshoot. Prototype spring-like ease and ~420ms shell morph, ~150ms hover intent, ~340ms pointer-leave delay are tuning references, not Windows performance claims. Hover may expand without stealing focus; explicit click/keyboard activation pins an interactive card until dismiss/Escape. Respect reduced motion.
 
 ## State
-- UI-local: hovered/expanded state, active feature, input draft and local focus intent. Keep these near the owning feature, not in a global catch-all store.
+- UI-local: shell owns an exclusive Compact/Preview/Pinned mode, active feature and focus intent; Agent owns its unsent prompt. Keep these near the owning feature, not in a global catch-all store.
 - Native: placement, bounds, foreground/capture capability and focus policy are Rust-owned; UI reflects observed capability, not presumed success.
 - Agent: provider readiness, run/session/output, cancellation and approvals are Rust-owned. Collapsing or changing features never implicitly stops a run; stale events never overwrite a terminal result.
 - Timer and media show observed state from their designated feature/native owners; remaining timer time is derived from the authoritative deadline. Refer to `.agents/engineering.md` S1–S7 for exact ownership.
