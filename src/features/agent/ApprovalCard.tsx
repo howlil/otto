@@ -53,14 +53,16 @@ export function ApprovalCard({
       className="otto-approval"
       role="alertdialog"
       aria-labelledby="otto-approval-title"
-      aria-describedby="otto-approval-description otto-approval-scope"
+      aria-describedby="otto-approval-description otto-approval-detail otto-approval-scope"
     >
       <div className="otto-approval-head flex items-center gap-[7px]">
         <Icon name="alert" size={15} />
         <span id="otto-approval-title">Approval required</span>
       </div>
-      <p id="otto-approval-description">{approval.title}. Codex needs your permission before this continues.</p>
-      <code>{approval.detail}</code>
+      <p id="otto-approval-description">
+        {approval.title}. Codex needs your permission before this continues.
+      </p>
+      <code id="otto-approval-detail">{approval.detail}</code>
       {approval.reason && <p className="otto-approval-reason">Reason: {approval.reason}</p>}
       <p id="otto-approval-scope" className="otto-approval-scope">
         {approval.kind === "network"
@@ -71,7 +73,12 @@ export function ApprovalCard({
         <button type="button" onClick={() => onDecide("allowOnce")}>
           Allow once
         </button>
-        <button ref={denyButton} type="button" className="secondary" onClick={() => onDecide("deny")}>
+        <button
+          ref={denyButton}
+          type="button"
+          className="secondary"
+          onClick={() => onDecide("deny")}
+        >
           Deny
         </button>
       </div>
