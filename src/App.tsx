@@ -16,7 +16,7 @@ export default function App() {
     setPage,
     expanded,
     pinned,
-    setPinned,
+    pin,
     prefs,
     change,
     notice,
@@ -91,7 +91,7 @@ export default function App() {
       onPointerLeave={handleLeave}
       onKeyDown={handleEscape}
       onPointerDown={() => {
-        if (expanded && !pinned) setPinned(true);
+        if (expanded && !pinned) pin();
       }}
     >
       {!expanded ? (

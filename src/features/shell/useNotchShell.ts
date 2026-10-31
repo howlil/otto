@@ -12,10 +12,13 @@ import { readPreferences, type Page, type Preferences } from "./preferences";
 // Shell behavior for the notch: page/expand/pin, the hover-intent timers,
 // focus restoration, preference persistence and the surface request. It owns
 // this state so the App component stays a composition, not a hook dump.
+type ShellMode = "compact" | "preview" | "pinned";
+
 export function useNotchShell() {
   const [page, setPage] = useState<Page>("home");
-  const [expanded, setExpanded] = useState(false);
-  const [pinned, setPinned] = useState(false);
+  const [mode, setMode] = useState<ShellMode>("compact");
+  const expanded = mode !== "compact";
+  const pinned = mode === "pinned";
   const [prefs, setPrefs] = useState<Preferences>(readPreferences);
   const [notice, setNotice] = useState("");
   const [eventMotion, setEventMotion] = useState("");
@@ -39,20 +42,19 @@ export function useNotchShell() {
   }, []);
   const collapse = useCallback(() => {
     clearTimers();
-    setExpanded(false);
-    setPinned(false);
+    setMode("compact");
     setPage((p) => (p === "global-settings" ? "home" : p === "agent-settings" ? "agent" : p));
   }, [clearTimers]);
   const open = useCallback(
     (next: Page, pin = true) => {
       clearTimers();
       setPage(next);
-      setExpanded(true);
-      setPinned(pin);
+      setMode(pin ? "pinned" : "preview");
       setNotice("");
     },
     [clearTimers],
   );
+  const pin = useCallback(() => setMode((current) => current === "preview" ? "pinned" : current), []);
   const change = useCallback(
     (patch: Partial<Preferences>) => setPrefs((old) => ({ ...old, ...patch })),
     [],
@@ -95,7 +97,7 @@ export function useNotchShell() {
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
     if (!pinned && !expanded && prefs.hoverExpand) {
       enterTimer.current = setTimeout(() => {
-        setExpanded(true);
+        setMode("preview");
         setNotice("");
       }, prefs.hoverDelay);
     }
@@ -128,7 +130,7 @@ export function useNotchShell() {
     setPage,
     expanded,
     pinned,
-    setPinned,
+    pin,
     prefs,
     change,
     notice,
