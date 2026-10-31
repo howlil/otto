@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Bars, Icon, VisuallyHidden } from "../../shared/ui";
 import type { AgentSnapshot } from "../../platform/tauri";
 import { ApprovalCard } from "./ApprovalCard";
+import { providerIssue, providerIssueTitle } from "./status";
 import type { useAgent } from "./useAgent";
 
 type AgentController = ReturnType<typeof useAgent>;
@@ -30,12 +31,8 @@ export function AgentTranscript({
 
   const canSend = !busy && readiness.status === "ready" && draft.trim().length > 0;
   const approval = snapshot.approval;
-  const issueTitle = readiness.status === "authRequired" ? "Sign in required" : "Unavailable";
-  const issue =
-    error ||
-    (["ready", "checking"].includes(readiness.status)
-      ? ""
-      : `${readiness.message} ${readiness.recovery}`);
+  const issueTitle = providerIssueTitle(readiness);
+  const issue = providerIssue(readiness, error);
   const lastAnswer = [...snapshot.messages]
     .reverse()
     .find((message) => message.role === "assistant" && message.text.length > 0);
