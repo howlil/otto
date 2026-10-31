@@ -786,8 +786,14 @@ pub async fn run(
         tokio::select! {
             command = controls.recv() => match command {
                 Some(Control::Close { finished }) => {
-                    // A New Session command is only accepted after the last run
-                    // reached a terminal state; the ack follows process cleanup.
+                    // The reset caller may have timed out while Close sat in
+                    // the queue. A cancelled request must not later kill the
+                    // old session behind the user's back.
+                    if finished.is_closed() {
+                        continue;
+                    }
+                    // A live reset request owns this close operation. Reply
+                    // only after the provider subprocess has been terminated.
                     rpc.terminate().await;
                     let _ = finished.send(());
                     break;
@@ -1352,6 +1358,14 @@ mod tests {
             approvals.parse(&command_request(13, "thread", "previous-turn")),
             ServerRequest::Decline
         ));
+    }
+
+    #[test]
+    fn expired_close_ack_is_not_a_live_reset_request() {
+        let (finished, receiver) = tokio::sync::oneshot::channel::<()>();
+        assert!(!finished.is_closed());
+        drop(receiver); // Same cancellation observed when New Session times out.
+        assert!(finished.is_closed());
     }
 
     #[test]
