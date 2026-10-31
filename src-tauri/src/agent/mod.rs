@@ -264,7 +264,9 @@ impl AgentRuntime {
     pub fn clear_capture_error(&self) {
         mutate(&self.updates, |s| {
             if s.status == "failed"
-                && s.error.as_deref().is_some_and(|error| error.starts_with("Capture: "))
+                && s.error
+                    .as_deref()
+                    .is_some_and(|error| error.starts_with("Capture: "))
             {
                 s.status = if s.thread_id.is_some() {
                     "completed".into()

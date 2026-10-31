@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B4 native shortcut contract after Biome and hook corrections.
+# Verification dispatch: Rustfmt corrections for B4 event-driven hotkey native implementation.
 
 'on':
   push:

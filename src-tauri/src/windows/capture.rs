@@ -239,19 +239,26 @@ impl CaptureHotkeys {
 }
 
 fn register(shortcut: Shortcut) -> bool {
-    unsafe { RegisterHotKey(std::ptr::null_mut(), HOTKEY_ID, shortcut.modifiers, shortcut.key) != 0 }
+    unsafe {
+        RegisterHotKey(
+            std::ptr::null_mut(),
+            HOTKEY_ID,
+            shortcut.modifiers,
+            shortcut.key,
+        ) != 0
+    }
 }
 
-fn run_hotkeys(
-    app: tauri::AppHandle,
-    changes: Receiver<HotkeyChange>,
-    ready: SyncSender<u32>,
-) {
+fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: SyncSender<u32>) {
     let mut message: MSG = unsafe { std::mem::zeroed() };
     unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_NOREMOVE) };
     let _ = ready.send(unsafe { GetCurrentThreadId() });
     let default = parse_shortcut("Ctrl+Shift+O").expect("valid default capture shortcut");
-    let mut registered = if register(default) { Some(default) } else { None };
+    let mut registered = if register(default) {
+        Some(default)
+    } else {
+        None
+    };
     if registered.is_none() {
         app.state::<AgentRuntime>().capture_error(
             "Ctrl+Shift+O conflicts with another shortcut. Choose a new one in Agent settings.",
@@ -327,7 +334,15 @@ mod tests {
             parse_shortcut("ctrl+ALT+p").unwrap().modifiers,
             MOD_CONTROL | windows_sys::Win32::UI::Input::KeyboardAndMouse::MOD_ALT | MOD_NOREPEAT
         );
-        for invalid in ["O", "Alt+O", "Ctrl+O", "Ctrl+Shift+1", "Ctrl+Ctrl+O", "Ctrl+Win+O", ""] {
+        for invalid in [
+            "O",
+            "Alt+O",
+            "Ctrl+O",
+            "Ctrl+Shift+1",
+            "Ctrl+Ctrl+O",
+            "Ctrl+Win+O",
+            "",
+        ] {
             assert!(parse_shortcut(invalid).is_err(), "accepted {invalid}");
         }
     }
