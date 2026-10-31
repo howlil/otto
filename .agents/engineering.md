@@ -6,15 +6,52 @@ React presentation (K1) -> narrow Tauri controller (K2) -> Rust agent/use-case o
 Existing code implements only the static idle React view and initial top-center Tauri window. All agent, capture, media, timer, gestures, and motion flows below are contracts, **not implemented behavior**.
 
 ## Structure
-- K1 `src/` (existing): presentation, active view, drafts, focus intent; no privileged operations. Organize by feature only when implemented.
-- K2 `src-tauri/src/lib.rs` (existing): app/bootstrap and future typed Tauri commands; validate untrusted IPC and enforce permissions before invoking use cases.
-- K3 Rust agent/session logic (future under `src-tauri/src/`): own run, cancellation, session, ordering, and policy decisions; no frontend dependency.
-- K4 Rust CLI adapters (future): provider-specific I/O/protocol, readiness/capability checks; implements K3's request/event contract.
-- K5 Rust Windows host (future): positioning/focus, hotkeys, screenshot, content protection, media; never decide AI permission policy.
-- Feature-owned timer logic and media presentation stay with their feature when introduced; no new crate/service/store for the scaffold.
-- Direction: K1 -> K2 -> K3; K4 implements K3's provider contract; K2/K3 -> K5 for OS capabilities. No frontend -> subprocess/Win32 or cross-feature internal imports.
-- Conventions: PascalCase React components/types, camelCase JS/TS values and Hooks prefixed `use`, kebab-case feature folders, snake_case Rust modules/functions and PascalCase Rust types; follow Rustfmt/Clippy. Feature public entry points appear only when multiple consumers need them.
-- Principles: one owner per responsibility/state (SRP), dependency inversion at K3/K4 provider boundary, composition before inheritance; use Adapter for real CLI protocol mismatches, state transitions for agent lifecycle, not speculative Factory/Repository/DI layers.
+Target layout below is a **design**, not a claim that directories exist. Present now: `src/{main.tsx,App.tsx,style.css}`, `src-tauri/src/{main.rs,lib.rs}`, Tauri configuration/capabilities, and root project files. Create future files only with the behavior that uses them.
+
+```text
+otto/
+├── src/                               # K1: React presentation
+│   ├── main.tsx, App.tsx, style.css   # existing entry, shell, tokens
+│   ├── features/                      # add per implemented behavior
+│   │   ├── shell/                     # B1/B2/B7/B10: notch UI + focus intent
+│   │   ├── agent/                     # B3/B8/B9/B11: chat, draft, status UI
+│   │   ├── music/                     # B5: music UI, later
+│   │   └── timer/                     # B6: Pomodoro UI, later
+│   ├── platform/tauri.ts              # typed Tauri transport, later
+│   └── shared/ui/                     # reused stateless primitives only
+├── src-tauri/
+│   ├── src/
+│   │   ├── main.rs, lib.rs            # existing startup/composition root
+│   │   ├── commands.rs                # K2: Tauri IPC validation/dispatch
+│   │   ├── agent/                     # K3: Rust run/policy owner
+│   │   │   ├── mod.rs                 # agent public entry + domain contract
+│   │   │   ├── session.rs             # run lifecycle/ordered stream/cleanup
+│   │   │   ├── policy.rs              # Quick Ask/approval enforcement
+│   │   │   └── providers/             # K4: CLI protocol adapters
+│   │   │       ├── mod.rs             # provider port implementations
+│   │   │       ├── codex.rs           # first actual provider
+│   │   │       ├── agy.rs             # later
+│   │   │       ├── pi.rs              # later
+│   │   │       └── opencode.rs        # later
+│   │   ├── windows/                   # K5: native Windows integration
+│   │   │   ├── mod.rs                 # OS integration public entry
+│   │   │   ├── window.rs              # position/focus/capture protection
+│   │   │   ├── capture.rs             # explicit hotkey/target/image lifetime
+│   │   │   └── media.rs               # OS media session, later
+│   │   └── timer.rs                   # R5: timer owner, later
+│   ├── capabilities/default.json      # existing privilege allowlist
+│   └── tauri.conf.json                # existing app/window configuration
+├── .agents/                           # product.md, engineering.md, DESIGN.md
+└── AGENTS.md                          # short agent operating instructions
+```
+
+- **K1 (presentation):** each feature owns its view and UI-local state; render-only UI takes props/events, not direct IPC calls. Feature adapters call `src/platform/tauri.ts` when a shared typed transport is needed. `shared/ui` appears only after real reuse.
+- **K2 (controller):** `lib.rs` wires commands/state; `commands.rs` parses/validates and delegates to K3/K5/R5, without business or CLI protocol rules.
+- **K3 (logic):** `agent/mod.rs` is the only Rust agent-domain entry; session and policy own S3/S4, define provider-facing capabilities, and depend on no Tauri, React, or concrete CLI adapter types.
+- **K4 (data/external):** `agent/providers/mod.rs` provides implementations of K3-owned provider contracts; `codex.rs` first, remaining files only when supported. No provider imports presentation or owns authoritative session state.
+- **K5 (native):** `windows/mod.rs` exposes bounded OS capabilities; private window/capture/media code cannot authorize an AI action. `timer.rs` is feature-specific, not a generic service.
+- **Dependency direction:** React feature -> typed IPC client -> K2 controller -> K3 logic <- K4 provider adapter; K2 -> K5 native capabilities. Cross-feature calls use a public `index.ts`/`mod.rs` only once an actual second consumer exists; no import of sibling internals or generic `utils`/service folders.
+- **Conventions/patterns:** PascalCase React components/types, camelCase TS values, `useX` Hooks, kebab-case feature folders; Rust snake_case modules/functions, PascalCase types. Prefer one state owner, composition, and an Adapter only where CLI protocols actually differ; avoid speculative Factories/Repositories/DI.
 
 ## Responsibilities
 - R1 (B1,B2,B10): present idle/compact/expanded state, navigation, active feature, drafts, unobtrusive completion and keyboard/focus intent.
