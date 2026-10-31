@@ -296,14 +296,13 @@ function useCaptureShortcut() {
   });
   const [captureMessage, setCaptureMessage] = useState("");
   const [savingCapture, setSavingCapture] = useState(false);
+  const initialShortcut = useRef(shortcut);
 
   useEffect(() => {
     if (!nativeAvailable) return;
-    void configureCaptureShortcut(shortcut).catch((cause: unknown) => {
+    void configureCaptureShortcut(initialShortcut.current).catch((cause: unknown) => {
       setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
     });
-    // Restore the last successfully registered shortcut once on startup.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveShortcut = useCallback(async () => {

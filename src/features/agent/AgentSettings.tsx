@@ -39,14 +39,7 @@ export function AgentSettings({
   onDone: () => void;
   capture: CaptureShortcutModel;
 }) {
-  const {
-    shortcut,
-    setShortcut,
-    captureMessage,
-    savingCapture,
-    available,
-    saveShortcut,
-  } = capture;
+  const { shortcut, setShortcut, captureMessage, savingCapture, available, saveShortcut } = capture;
   const providerStatus =
     readiness.status === "ready"
       ? "Ready"
