@@ -110,7 +110,7 @@ export function AgentTranscript({
           )}
           {snapshot.status === "stopped" && (
             <p className="otto-agent-hint">
-              {denied ? "Approval denied. No file was changed." : "Request stopped"}
+              {denied ? "Approval denied. This action was not authorized." : "Request stopped"}
             </p>
           )}
           {issue && (
