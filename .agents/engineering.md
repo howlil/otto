@@ -1,75 +1,105 @@
 # Engineering — Otto
 
 ## System
-One Tauri desktop process. React presentation -> Tauri commands/events -> Rust use cases -> Windows APIs or child CLI. No web backend.
+Windows-first Tauri 2 modular monolith, not a cloud service:
+React presentation (K1) -> narrow Tauri controller (K2) -> Rust agent/use-case owner (K3) <- provider adapters (K4); native Windows host (K5) handles window/capture/media integrations. Bun builds the frontend. WebView2 is part of the desktop runtime.
+Existing code implements only the static idle React view and initial top-center Tauri window. All agent, capture, media, timer, gestures, and motion flows below are contracts, **not implemented behavior**.
 
 ## Structure
-- K1 `src/`: presentation; feature state stays with feature. Add folders only when behavior exists.
-- K2 `src-tauri/src/`: application startup, native window and later privileged feature implementations.
-- K3 (future): CLI adapters below Rust agent domain; one adapter per Codex/Agy/Pi/OpenCode protocol.
-- K4 (future): Windows integration for hotkey, capture, media, geometry.
-UI must not spawn processes or access privileged OS APIs directly.
+- K1 `src/` (existing): presentation, active view, drafts, focus intent; no privileged operations. Organize by feature only when implemented.
+- K2 `src-tauri/src/lib.rs` (existing): app/bootstrap and future typed Tauri commands; validate untrusted IPC and enforce permissions before invoking use cases.
+- K3 Rust agent/session logic (future under `src-tauri/src/`): own run, cancellation, session, ordering, and policy decisions; no frontend dependency.
+- K4 Rust CLI adapters (future): provider-specific I/O/protocol, readiness/capability checks; implements K3's request/event contract.
+- K5 Rust Windows host (future): positioning/focus, hotkeys, screenshot, content protection, media; never decide AI permission policy.
+- Feature-owned timer logic and media presentation stay with their feature when introduced; no new crate/service/store for the scaffold.
+- Direction: K1 -> K2 -> K3; K4 implements K3's provider contract; K2/K3 -> K5 for OS capabilities. No frontend -> subprocess/Win32 or cross-feature internal imports.
 
 ## Responsibilities
-R1 (B1,B2,B7,X5): shell positioning, window privacy request, interaction modes.
-R2 (B3,X1,X4): detect selected installed CLI, own process/session, normalize stream and cancel.
-R3 (B4,X2): explicit screenshot trigger, capture, image handoff, temporary file cleanup.
-R4 (B5,X3): OS media session, playback actions, lyrics availability.
-R5 (B6): timer deadline, pause state and configurable durations.
+- R1 (B1,B2,B10): present idle/compact/expanded state, navigation, active feature, drafts, unobtrusive completion and keyboard/focus intent.
+- R2 (B3,B8,X1,X4,X10): own CLI run/session lifetime, stream ordering, follow-up, stop, collapse continuity and restart reconciliation.
+- R3 (B4,X2,X6,X8): explicitly triggered capture, external-window target validation, hotkey conflicts, supported image submission and temporary-file cleanup.
+- R4 (B5,X3): observe system media/lyrics availability, show accurate playback state and handle supported controls.
+- R5 (B6): configurable focus/break timer, monotonic deadline, pause/resume/reset.
+- R6 (B1,B2,B7,B10,X5): own native window position, pointer region, always-on-top, focus and best-effort capture exclusion.
+- R7 (B3,B9,B11,X1,X7,X9): validate provider readiness/auth/capability, working context, Quick Ask restrictions and explicit tool approvals; fail closed when unsupported.
 
 ## State
-S1: active feature, placement, expanded mode | owner R1 | one active surface; persisted preferences later.
-S2: provider/session/request lifecycle | owner R2 | terminal/cancelled run rejects late events.
-S3: captured image/temp path | owner R3 | only explicit user action; delete on finish/cancel.
-S4: media state | owner OS, read via R4 | derived UI representation.
-S5: timer duration/deadline | owner R5 | remaining time is derived, not a mutable counter.
+- S1: active feature/expanded state and unsent draft | owner R1 (React) | background events cannot change selection/focus; one UI writer; draft is sensitive local memory, discarded on exit (RPO: unsent edits may be lost).
+- S2: placement, native bounds and focus policy | owner R6 (Rust) | no implicit activation on hover; single window host writer; internal metadata, restore preference only if explicitly persisted later.
+- S3: agent run/session/status/output | owner R2 (Rust) | run_id with ordered sequence and exactly one terminal outcome; terminal run rejects late events; one authority even if UI collapses; sensitive user/model text, memory-only Otto copy while running, RPO: active run not durable on crash, recover only provider-verifiable sessions (A5).
+- S4: provider identity, capability, working directory and approval state | owner R7 (Rust) | readiness verified before launch; no approval assumed or invented; never persist authentication secrets; sensitive context metadata remains memory-only by default.
+- S5: target window, capture request and image lifetime | owner R3 (Rust) | explicit invocation provenance, still-valid non-Otto target, no send on ambiguity/denial; potentially sensitive screen data, ephemeral only, delete owned temporary file on finish/error/cancel (no secure-erasure promise).
+- S6: media observation | owner R4 (Rust cache; OS is source of truth) | no fabricated lyrics/sessions; ephemeral, no permanent media history.
+- S7: focus/break duration, timer deadline and paused state | owner R5 | deadline is authority and remaining time derived; settings retention only if preference storage is explicitly introduced.
+- Concurrent writes: one active run owner serializes run transitions; independent background completions update their own data, never S1. UI events are observations, not independent authoritative copies.
 
 ## Contracts
-K1 -> K2: typed Tauri commands; incremental output via events. Errors are explicit recoverable results.
-K2 -> K3: common request/events and provider capabilities (text,image,stream,resume,cancel); never assume parity.
-K2 -> K4: OS result = available | unsupported | denied | error, no hidden fallbacks.
-DEP1: WebView2 system runtime; absent runtime is an install/platform error.
-DEP2: installed user CLI executables; unavailable provider returns actionable error, no credential duplication.
+- K1 -> K2: typed Tauri command `submit/stop/provider_status` (names illustrative until implemented), input validation and bounded payload; immediate outcome = accepted run_id or recoverable error. Rendering the UI cannot authorize OS side effects.
+- K2 -> K3: Quick Ask vs Agent Session is a policy decision at the Rust boundary, not a UI label. Quick Ask can launch only with provider-enforced no-file-write capabilities; otherwise report unsupported. Tool execution/approval cannot bypass provider and user policy.
+- K3 <-> K4: validate CLI executable/version/auth and capability (text, image, streaming, resume, cancellation, approval) before use. One-shot and long-running provider protocols may differ; adapters normalize `run_id, seq, event, terminal`. No universal ANSI scraping or silently changed provider/session.
+- K3 -> K1: ordered Tauri channel for run output and terminal outcome; separate low-frequency notifications may use events. Sequence/run_id guards ignore late, duplicate or stale output; Stop is idempotent for that run. UI collapse neither stops nor detaches the run owner.
+- K3 -> process boundary: executable plus argument array only (no shell interpolation), verified project working directory, owned process group/tree, cleanup on stop/normal exit/app exit. CLI output is untrusted data; never render executable HTML or leak secrets in logs.
+- K2/K3 -> K5: OS capabilities return `available | unsupported | denied | failed`. Capture target is pinned from the last external foreground window, revalidated before use; a hotkey conflict requires reconfiguration; no silent target substitution.
+- Compatibility: in-process IPC changes update both caller and callee together; provider protocol differences are adapter-local and unsupported versions fail closed. Any future durable schema follows compatible expand/migrate/contract steps.
+- DEP1: Windows WebView2 | reuse OS runtime | missing runtime prevents UI, show installer/runtime remediation | availability bound: OS installation | exit cost: switching Tauri UI stack.
+- DEP2: Codex/Agy/Pi/OpenCode executables | reuse user install/auth | absent, version drift, auth expiry, denied approval = explicit recoverable state | availability bound: local CLI/provider service | exit cost: per-provider adapter rewrite.
+- DEP3: Windows window/capture/media APIs | reuse OS | unsupported or blocked = capability-specific degradation | availability bound: Windows/version/recorder | exit cost: native integration rewrite.
+- Provider-side conversations/logs and model transmission follow each CLI/provider policy; Otto cannot promise their deletion.
 
 ## Flows
-Bootstrap (in scaffold): launch -> Tauri -> top-center frameless window -> React idle.
-Agent (next): validate provider -> start owned CLI -> parse streaming events -> display -> finish/cancel -> cleanup.
-Screenshot: explicit hotkey -> capture -> validate provider image capability -> send -> answer -> clean up.
-Media: read OS session -> render -> send playback control -> observe update.
-Timer: set duration -> deadline -> render derived remainder -> pause/resume/reset.
-Placement: select mode -> measure monitor and window -> position -> morphing surface.
+- Existing bootstrap (B1): launch -> K2/K5 top-center frameless WebView -> K1 static idle (not a verified Windows run).
+- First complete slice (B2,B3,B8,B9,B10,B11,X1,X4,X7,X9,X10): enter Otto -> R1 selects visible context -> R7 validates Codex readiness and enforceable Quick Ask policy -> R2 accepts run_id -> K4 starts owned CLI -> ordered channel updates K1 -> user may collapse/reopen without stopping -> completed answer/quiet indicator -> follow-up, or explicit Stop -> terminal/cleanup -> original app regains attention.
+- Permission break (B9,X7): provider requests tool action -> R7 records pending approval -> K1 shows actionable state / provider's supported approval path -> only valid user decision resumes; unavailable mechanism means block/stop.
+- Interruption (B8,X4,X10): collapse/switch = continue; Stop = cancel owned run and reject late output; app exit = terminate owned child work; crash/restart = show only independently verifiable provider history, otherwise interrupted/unknown.
+- Capture (B4,X2,X6,X8): explicit hotkey -> R3 verifies assigned shortcut + pinned non-Otto target + capability -> capture -> user-chosen provider receives image -> response -> delete temp. Invalid/denied -> nothing submitted.
+- Media (B5,X3): R4 observes OS session -> K1 shows state/absence -> supported playback action -> observe new state; lyrics unavailable remains explicit.
+- Timer (B6): configure -> R5 records deadline -> derived remaining time -> pause/resume/reset -> quiet update via R1.
+- Shell (B1,B2,B7,B10,X5): R6 positions/requests capture protection -> R1 renders -> hover preview no focus theft -> user activation controls focus/expanded state -> background updates do not select a new view; unsupported capture exclusion is disclosed.
 
 ## Guarantees
-G1 (C6,B4) [H]: no screenshot sent without explicit trigger; SLI: untriggered send count = 0, measured at capture/send entry points.
-G2 (B3,X4) [H]: no owned child CLI after cancel/exit; SLI: owned process-tree survivors = 0 after cleanup, measured at process owner.
-G3 (Q2) [M]: UI remains responsive during CLI work; measure input latency and frame timing on Windows.
-G4 (X5,C4) [M]: do not claim privacy exclusion on unsupported recorders; inspect capture result on supported paths.
-G5 (Q1) [M]: obtain idle/working measurements before performance targets.
+- G1 (B4,Q5,C6) [H]: without an explicit user capture action, no image is captured/submitted; SLI unauthorized capture/send invocations = 0 per invocation trace at R3 boundary (no image logging).
+- G2 (B3,X4) [H]: after Stop or graceful app exit, owned CLI process-tree survivors = 0; measure at R2 process-owner lifecycle/OS process inspection. Crash cleanup needs OS containment and representative proof, not an unsupported guarantee.
+- G3 (Q2) [M]: navigation/Stop remain responsive while CLI is busy; SLI p95 input-to-view response and frame intervals at WebView/host; target TBD from A2, no invented latency SLO.
+- G4 (B1,B7,X5) [M]: UI remains accessible while protected capture support is best effort; signal native bounds/focus and supported-recorder capture outcome at R6; never guarantee all recorders.
+- G5 (Q1) [M]: measure idle CPU/private memory of Otto+WebView2 process family separately from CLI and capture p95 frame intervals during morphing at OS/WebView; targets TBD from A2.
+- G6 (B9,C7) [H]: Quick Ask never starts a CLI mode that can change project files without an enforceable restriction; SLI unauthorized write-capable launches = 0 at R7 launch-policy boundary.
+- G7 (B8,X10) [H]: collapse/switch never cancels or loses an accepted run; SLI implicit cancellations on UI-only transitions = 0, observed at R2 run state and K1 event reconciliation. Restart must not fabricate completion.
+- G8 (B9,X7) [H]: tool work requiring approval never runs before a valid decision; SLI unauthorized approval continuations = 0 at R7 approval/adapter boundary.
+- G9 (B10,Q4) [M]: background completion does not change active feature or take keyboard focus; SLI unsolicited focus/active-view changes = 0, measured at R1/R6 transitions.
+- G10 (B11,X1,X9,Q3) [M]: absent/unauthenticated/unsupported providers cannot accept runs; SLI accepted requests with invalid readiness = 0, measured at R7 validation/submit boundary.
+- G11 (J1,Q6) [M]: user can obtain and reuse an answer without launching another app; SLI successful ask -> answer -> return-to-origin journey on a Windows walkthrough; success threshold not yet set (A7).
 
 ## Challenge
-| Flow | Threat / failure | Containment | Detection | Recovery |
-| --- | --- | --- | --- | --- |
-| Capture | automatic or leaked screenshot | explicit-action boundary; temporary file owner | capture/send invocation trace without image content | abort and delete |
-| Agent | abandoned child or late events | process tree ownership and cancelled terminal state | process exit and run-state observations | terminate tree; restore idle controls |
+| H flow | Failure / threat | Blast radius | Containment | Detection signal | Recovery |
+| --- | --- | --- | --- | --- | --- |
+| G1 capture | implicit trigger, wrong target or sensitive image sent | screen privacy | only explicit hotkey; pin/recheck target; capability gate | R3 send provenance vs action | reject capture, delete temp, ask user to retry |
+| G2 agent exit | CLI descendants remain alive, stale stream after Stop | local tools/resources and misleading answer | owner-scoped process tree; terminal run state | R2 process exits, surviving descendants, late event count | terminate owned tree, mark run cancelled |
+| G6 Quick Ask | provider flag ignored/unsupported, write-capable session starts | local project files | deny unknown capability, use proven read-only provider mode | R7 policy outcome vs launch mode | refuse Quick Ask, show provider-specific limitation |
+| G7 continuity | UI unmount/collapse drops stream or cancels CLI | active conversation | run owned outside view; replay buffered current result by run_id | R2 transition and K1 resubscription gap | resubscribe/reconcile, mark interrupted only if genuinely lost |
+| G8 approval | auto-approval or adapter mishandles pending request | filesystem/tool side effects | explicit approval state, never infer permission | R7 approval transitions / pending actions | block action and notify user |
 
 ## Decisions
-DEC1 [one-way]: owner chose Tauri 2 + Rust + React/Vite/Tailwind for UI iteration speed; accept WebView2 overhead and measure it.
-DEC2 [two-way]: one process with feature-owned state; avoid speculative services/store.
-DEC3 [two-way]: structured provider protocols, not generic ANSI scraping.
-DEC4 [two-way]: Windows 11 and best-effort contentProtected first; assess capture limitations on hardware.
+- DEC1 [one-way]: owner chose Tauri 2 + React/Vite/Tailwind + Rust/Bun over native Slint for faster UI iteration. Trade-off: WebView2 process/memory and window composition behavior; revisit only if representative Q1/Q2 measurements show a material problem.
+- DEC2 [two-way]: one modular desktop app and feature-owned states over additional service/global store. Trade-off: in-process crash affects the shell; revisit for proven isolation need.
+- DEC3 [two-way]: provider-specific structured protocols and ordered run channels over generic terminal text/events for high-frequency streaming. Trade-off: more adapter work; revisit with real CLI protocol constraints.
+- DEC4 [two-way]: Windows 11 native APIs and best-effort capture protection over cross-platform parity. Trade-off: recorder/fullscreen incompatibility; revisit when tested scenarios require it.
+- DEC5 [one-way]: enforce Quick Ask privilege at Rust/provider boundary or reject that mode. Alternative: UI-only warning (rejected because it cannot satisfy C7); trade-off: some providers unsupported until verified.
+- DEC6 [two-way]: Otto does not store provider credentials, screenshots or an independent durable conversation database by default. Trade-off: crash recovery limited to provider-verifiable history; revisit if P12 needs stronger durability.
 
 ## Fitness
-F1: privileged operations belong to Rust commands; UI only consumes bounded Tauri capabilities.
-F2: new feature dependencies use public feature entries; do not import sibling internals.
+- F1: no frontend-to-shell/Win32 or privileged side effects outside bounded Tauri/Rust commands | signal: import/usage review for `src/` and Tauri capabilities | tool: TS static scan + capability inspection | pass: none | cadence: PR | mode: enforce when first privileged command lands; exceptions -> D#.
+- F2: feature modules import sibling features only via public entries | signal: illegal module import | tool: TS dependency scan | pass: none | cadence: PR once feature modules exist | mode: enforce then; exceptions -> D#.
+- Current scaffold has no CI enforcement for F1/F2. These are proposed contract checks, **not a locked boundary or passed gate**; reuse a future existing CI job, do not create workflow per fitness rule.
 
 ## Verification
-- Frontend: `bun run build` (TypeScript + Vite, local/PR after install).
-- Rust: `cd src-tauri && cargo check` on Windows MSVC; target runtime proof pending.
-- Window placement/transparency/capture: one Windows release smoke; cannot prove through frontend compilation.
+- Existing frontend: `bun run build` (TypeScript/Vite); Windows Rust: `cd src-tauri && cargo check` (commands specified, not run).
+- First Codex slice: prove real streaming/terminal behavior, fail-closed Quick Ask, run-id cancellation and one missing-provider recovery at the cheapest faithful boundary; precise PF/stage selection belongs to test-engineering.
+- Windows-only overlay/capture/frame/child-tree behavior requires representative Windows observation; do not treat frontend compilation as runtime proof.
 
 ## Release
-Windows installer only after build and representative machine smoke. No merge-to-release automation by default.
+Windows installer after resolved Bun/Cargo lockfiles, Windows build, and representative overlay smoke; merge is not release.
 
 ## Assumptions / Risks
-A4 [non-blocking]: Bun dependency resolution must generate committed `bun.lock` before reproducible CI; no Windows build or CI status is claimed.
-Risks: WebView2 idle cost, transparent resizing/hit region, provider protocol drift.
+- A6 [non-blocking]: Bun and Cargo lockfiles are not yet resolved/committed; do not assert CI reproducibility.
+- A7 [non-blocking]: Q1/Q2/Q6 numerical budgets and observation window are undefined pending representative Windows baseline/task run; no fake SLO.
+- Risks/trade-offs (top 3): (1) unverified provider read-only/approval capability vs portability; (2) owned process-tree/cancel safety vs CLI lifecycle diversity; (3) WebView2 rendering/resource and Windows capture limitations vs faster React UI delivery.
