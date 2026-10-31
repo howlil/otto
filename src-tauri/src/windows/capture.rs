@@ -9,10 +9,15 @@ use windows_sys::Win32::{
         BI_RGB, BITMAPINFO, CreateCompatibleBitmap, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
         DeleteObject, GetDIBits, GetWindowDC, ReleaseDC, SelectObject,
     },
-    UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetMessageW, GetWindowRect, GetWindowTextLengthW,
-        GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, MOD_CONTROL, MOD_NOREPEAT,
-        MOD_SHIFT, MSG, PrintWindow, RegisterHotKey, UnregisterHotKey, WM_HOTKEY,
+    Storage::Xps::PrintWindow,
+    UI::{
+        Input::KeyboardAndMouse::{
+            MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, RegisterHotKey, UnregisterHotKey,
+        },
+        WindowsAndMessaging::{
+            GetForegroundWindow, GetMessageW, GetWindowRect, GetWindowTextLengthW,
+            GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, MSG, WM_HOTKEY,
+        },
     },
 };
 
