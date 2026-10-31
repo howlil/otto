@@ -27,7 +27,7 @@ jobs:
         run: bun install
       - name: Format UI for exact baseline alignment
         run: |
-          bunx biome format --write src/App.tsx src/features/agent/AgentPanel.tsx src/platform/tauri.ts src/style.css
+          bunx biome check --write src/App.tsx src/features/agent/AgentPanel.tsx src/platform/tauri.ts src/style.css
           foreach ($p in @('src/App.tsx','src/features/agent/AgentPanel.tsx','src/platform/tauri.ts','src/style.css')) {
             $value = [Convert]::ToBase64String([IO.File]::ReadAllBytes($p))
             Write-Output ("FORMATTED:" + $p + ":" + $value)
