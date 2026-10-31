@@ -172,6 +172,34 @@ impl Approvals {
     }
 }
 
+// This is also exercised without a subprocess: an approval decision during
+// turn/start must produce a provider reply, never a Stop transition.
+enum StartupControl {
+    Stop,
+    Reply(Value),
+    Continue,
+}
+
+fn classify_startup_control(
+    command: Option<Control>,
+    approvals: &mut Approvals,
+    updates: &watch::Sender<Snapshot>,
+) -> Result<StartupControl, String> {
+    match command {
+        Some(Control::Stop) => Ok(StartupControl::Stop),
+        Some(Control::Decide { approval_id, decision }) => {
+            if let Some(reply) = approvals.decide(&approval_id, decision) {
+                Ok(StartupControl::Reply(reply))
+            } else {
+                publish_approval(approvals, updates);
+                Ok(StartupControl::Continue)
+            }
+        }
+        Some(Control::Ask { .. }) => Err("Cannot queue another turn during startup.".into()),
+        None => Err("Codex control channel closed during startup.".into()),
+    }
+}
+
 impl Rpc {
     fn launch(cwd: &PathBuf) -> Result<Self, String> {
         let binary = executable().ok_or("Codex CLI is not installed.")?;
@@ -226,8 +254,9 @@ impl Rpc {
         serde_json::from_str(&line).map_err(|_| "Invalid Codex protocol response.".into())
     }
 
-    // Notifications and approval requests emitted before the response are
-    // handled here, not silently discarded. Exactly one reader owns stdout.
+    // One stdout reader owns the request/response exchange. For the initial
+    // turn/start, it also services approval decisions while awaiting the ack:
+    // Codex may be blocked on that approval before it can acknowledge the turn.
     async fn request(
         &mut self,
         method: &str,
@@ -235,24 +264,52 @@ impl Rpc {
         approvals: &mut Approvals,
         updates: &watch::Sender<Snapshot>,
     ) -> Result<(Value, Vec<Value>), String> {
+        self.request_controlled(method, params, approvals, updates, None)
+            .await?
+            .ok_or_else(|| "Codex request stopped.".into())
+    }
+
+    async fn request_controlled(
+        &mut self,
+        method: &str,
+        params: Value,
+        approvals: &mut Approvals,
+        updates: &watch::Sender<Snapshot>,
+        mut controls: Option<&mut mpsc::Receiver<Control>>,
+    ) -> Result<Option<(Value, Vec<Value>)>, String> {
         self.next_id += 1;
         let id = self.next_id;
         self.send(json!({ "id": id, "method": method, "params": params }))
             .await?;
         let mut notifications = Vec::new();
         loop {
-            let value = self.read().await?;
-            if value.get("id").and_then(Value::as_u64) == Some(id) && value.get("method").is_none()
+            let value = if let Some(receiver) = controls.as_deref_mut() {
+                tokio::select! {
+                    incoming = self.read() => incoming?,
+                    control = receiver.recv() => {
+                        match classify_startup_control(control, approvals, updates)? {
+                            StartupControl::Stop => return Ok(None),
+                            StartupControl::Reply(reply) => self.send(reply).await?,
+                            StartupControl::Continue => {}
+                        }
+                        continue;
+                    }
+                }
+            } else {
+                self.read().await?
+            };
+            if value.get("id").and_then(Value::as_u64) == Some(id)
+                && value.get("method").is_none()
             {
                 if value.get("error").is_some() {
                     return Err(format!(
                         "Codex rejected {method}. Check installation, login and permissions."
                     ));
                 }
-                return Ok((
+                return Ok(Some((
                     value.get("result").cloned().unwrap_or(Value::Null),
                     notifications,
-                ));
+                )));
             }
             if value.get("id").is_some() && value.get("method").is_some() {
                 match approvals.parse(&value) {
@@ -427,15 +484,20 @@ async fn begin_turn(
     mode: InteractionMode,
     approvals: &mut Approvals,
     updates: &watch::Sender<Snapshot>,
-) -> Result<(String, Vec<Value>), String> {
-    let (result, buffered) = rpc
-        .request(
+    controls: Option<&mut mpsc::Receiver<Control>>,
+) -> Result<Option<(String, Vec<Value>)>, String> {
+    let response = rpc
+        .request_controlled(
             "turn/start",
             policy::turn_start(thread, text, mode),
             approvals,
             updates,
+            controls,
         )
         .await?;
+    let Some((result, buffered)) = response else {
+        return Ok(None);
+    };
     let turn = result
         .pointer("/turn/id")
         .and_then(Value::as_str)
@@ -469,7 +531,7 @@ async fn begin_turn(
         s.activity = None;
         s.approval = None;
     });
-    Ok((turn, buffered))
+    Ok(Some((turn, buffered)))
 }
 
 // Records a decision reply; a rejected decision keeps the pending approval
@@ -509,7 +571,8 @@ pub async fn run(
             return;
         }
     };
-    // Allow Stop to cancel initialization/auth checks before the first turn exists.
+    // Before the first turn exists, only Stop is legal. Approval cannot be
+    // pending until turn/start; during turn/start the request reader handles it.
     let result = tokio::select! {
         result = async {
             rpc.request(
@@ -534,19 +597,51 @@ pub async fn run(
             let thread = thread_response.pointer("/thread/id").and_then(Value::as_str)
                 .ok_or("Codex returned no thread ID.")?.to_owned();
             mutate(&updates, |s| s.thread_id = Some(thread.clone()));
-            let (turn, buffered) = begin_turn(&mut rpc, &thread, &text, run_id, mode, &mut approvals, &updates).await?;
-            Ok::<_, String>((thread, turn, buffered))
+            Ok::<_, String>(thread)
         } => result,
-        _ = controls.recv() => {
-            mutate(&updates, |s| {
-                if s.run_id == run_id { s.status = terminal_after_stop().into(); }
-            });
+        command = controls.recv() => {
+            // No user decision can be pending before a turn has started.
+            if !matches!(command, Some(Control::Stop)) {
+                fail(&updates, run_id, "Unexpected Codex control during initialization.");
+            } else {
+                mutate(&updates, |s| {
+                    if s.run_id == run_id {
+                        s.status = terminal_after_stop().into();
+                        s.approval = None;
+                    }
+                });
+            }
             rpc.terminate().await;
             return;
         }
     };
-    let (thread, mut turn, buffered) = match result {
-        Ok(value) => value,
+    let thread = match result {
+        Ok(thread) => thread,
+        Err(error) => {
+            fail(&updates, run_id, &error);
+            rpc.terminate().await;
+            return;
+        }
+    };
+    // Bind the thread before turn/start: approval may arrive before its ack.
+    approvals.thread = Some(thread.clone());
+    approvals.turn = None;
+    let (mut turn, buffered) = match begin_turn(
+        &mut rpc, &thread, &text, run_id, mode, &mut approvals, &updates,
+        Some(&mut controls),
+    ).await {
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            mutate(&updates, |s| {
+                if s.run_id == run_id {
+                    s.status = "stopped".into();
+                    s.approval = None;
+                    s.activity = None;
+                }
+            });
+            rpc.terminate().await;
+            return;
+        }
         Err(error) => {
             fail(&updates, run_id, &error);
             rpc.terminate().await;
@@ -595,19 +690,25 @@ pub async fn run(
                         Closed,
                     }
                     let outcome = tokio::select! {
-                        result = begin_turn(&mut rpc, &thread, &text, run_id, mode, &mut approvals, &updates) => FollowUp::Started(result),
+                        result = begin_turn(&mut rpc, &thread, &text, run_id, mode, &mut approvals, &updates, None) => FollowUp::Started(result),
                         command = controls.recv() => match command {
                             Some(Control::Stop) => FollowUp::Stop,
                             _ => FollowUp::Closed,
                         },
                     };
                     match outcome {
-                        FollowUp::Started(Ok((new_turn, buffered))) => {
+                        FollowUp::Started(Ok(Some((new_turn, buffered)))) => {
                             turn = new_turn;
                             active = Some(run_id);
                             for msg in buffered {
                                 if handle_event(&msg, &thread, &turn, run_id, &updates) { active = None; }
                             }
+                        }
+                        FollowUp::Started(Ok(None)) => {
+                            // Only the first turn receives startup controls.
+                            fail(&updates, run_id, "Unexpected cancelled follow-up.");
+                            rpc.terminate().await;
+                            break;
                         }
                         FollowUp::Started(Err(error)) => {
                             fail(&updates, run_id, &error);
@@ -1002,4 +1103,56 @@ mod tests {
         assert_eq!(tx.borrow().status, "stopped");
         assert!(tx.borrow().approval.is_none());
     }
+    #[test]
+    fn startup_approval_decision_is_not_stop() {
+        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
+        approvals.thread = Some("thread".into());
+        assert!(matches!(
+            approvals.parse(&command_request(1, "thread", "turn")),
+            ServerRequest::Recorded
+        ));
+        let tx = snapshot("approvalRequired", 9);
+        publish_approval(&approvals, &tx);
+        let approval_id = approvals.pending.as_ref().unwrap().approval.approval_id.clone();
+        let action = classify_startup_control(
+            Some(Control::Decide {
+                approval_id,
+                decision: ApprovalDecision::AllowOnce,
+            }),
+            &mut approvals,
+            &tx,
+        ).unwrap();
+        let StartupControl::Reply(reply) = action else {
+            panic!("an approval must reply to Codex without stopping startup");
+        };
+        assert_eq!(reply, json!({ "id": 1, "result": { "decision": "accept" } }));
+        assert!(approvals.pending.is_none());
+        assert!(matches!(
+            classify_startup_control(Some(Control::Stop), &mut approvals, &tx).unwrap(),
+            StartupControl::Stop
+        ));
+    }
+
+    #[test]
+    fn stale_startup_approval_does_not_stop_or_resolve_current_request() {
+        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
+        approvals.thread = Some("thread".into());
+        assert!(matches!(
+            approvals.parse(&command_request(1, "thread", "turn")),
+            ServerRequest::Recorded
+        ));
+        let tx = snapshot("approvalRequired", 9);
+        let action = classify_startup_control(
+            Some(Control::Decide {
+                approval_id: "stale".into(),
+                decision: ApprovalDecision::Deny,
+            }),
+            &mut approvals,
+            &tx,
+        ).unwrap();
+        assert!(matches!(action, StartupControl::Continue));
+        assert!(approvals.pending.is_some());
+        assert_eq!(tx.borrow().status, "approvalRequired");
+    }
+
 }
