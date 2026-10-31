@@ -32,7 +32,11 @@ export function ApprovalCard({
       // React may remove the focused button before the replacement controls
       // exist. Restore only within a still-mounted, focused Agent surface.
       requestAnimationFrame(() => {
-        if (!panel.isConnected || !document.hasFocus() || document.activeElement !== document.body) {
+        if (
+          !panel.isConnected ||
+          !document.hasFocus() ||
+          document.activeElement !== document.body
+        ) {
           return;
         }
         const usableOrigin = origin?.isConnected && !origin.matches(":disabled") ? origin : null;
@@ -43,7 +47,7 @@ export function ApprovalCard({
         (usableOrigin ?? fallback)?.focus({ preventScroll: true });
       });
     };
-  }, [approval.approvalId]);
+  }, []);
 
   // A non-modal alertdialog keeps the Stop control reachable by Tab; Escape
   // follows the shell's existing collapse behavior without granting approval.
