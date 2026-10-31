@@ -5,6 +5,7 @@ import {
   decideAgentApproval,
   getAgentSnapshot,
   nativeAvailable,
+  newAgentSession,
   stopCodex,
   subscribeAgent,
   type AgentMode,
@@ -118,6 +119,21 @@ export function useAgent() {
     }
   };
 
+  const newSession = async () => {
+    if (busy) return false;
+    setError(null);
+    try {
+      await newAgentSession();
+      submitted.current = null;
+      setMode("quickAsk");
+      // Keep the user's unsent draft and project selection for the next run.
+      return true;
+    } catch (reason) {
+      setError(String(reason));
+      return false;
+    }
+  };
+
   const decide = async (approvalId: string, decision: "allowOnce" | "deny") => {
     setError(null);
     try {
@@ -143,6 +159,7 @@ export function useAgent() {
     busy,
     send,
     stop,
+    newSession,
     decide,
     refreshProvider,
   };
