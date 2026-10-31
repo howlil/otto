@@ -1162,11 +1162,14 @@ mod tests {
             assert_eq!(status.status, "unsupported");
             assert!(!status.image_input);
         }
-        assert_eq!(configured_model(&json!({ "config": { "model": null } })).unwrap(), None);
-        assert_eq!(
-            configured_model(&json!({ "config": { "model": "custom" } })).unwrap(),
-            Some("custom")
-        );
+        assert!(matches!(
+            configured_model(&json!({ "config": { "model": null } })),
+            Ok(None)
+        ));
+        assert!(matches!(
+            configured_model(&json!({ "config": { "model": "custom" } })),
+            Ok(Some("custom"))
+        ));
     }
 
     #[test]
