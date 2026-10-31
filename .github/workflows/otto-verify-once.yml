@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: Agent Session PR #3 (format fix and full Windows proof; same jobs).
+# Verification dispatch: B11 Codex readiness, first end-to-end Windows gate.
 
 'on':
   push:
