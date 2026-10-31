@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B11 strict config/read and model/list validation.
+# Verification dispatch: remove redundant important styles while retaining reduced-motion.
 
 'on':
   push:
