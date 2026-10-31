@@ -18,24 +18,54 @@ concurrency:
 jobs:
   verify:
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - name: Resolve frontend dependencies
         run: bun install
       - name: TypeScript and frontend build
+        id: frontend
+        continue-on-error: true
         run: bun run build
       - name: Biome lint and formatting
+        id: lint
+        continue-on-error: true
         run: bun run check
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - name: Rust format
+        id: rustfmt
+        continue-on-error: true
         run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
       - name: Cargo compile check
+        id: cargo
+        continue-on-error: true
         run: cargo check --manifest-path src-tauri/Cargo.toml
       - name: Cargo targeted tests
+        id: tests
+        continue-on-error: true
         run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Clippy
+        id: clippy
+        continue-on-error: true
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - name: Fail if any verification failed
+        if: always()
+        shell: pwsh
+        env:
+          FRONTEND: ${{ steps.frontend.outcome }}
+          LINT: ${{ steps.lint.outcome }}
+          RUSTFMT: ${{ steps.rustfmt.outcome }}
+          CARGO: ${{ steps.cargo.outcome }}
+          TESTS: ${{ steps.tests.outcome }}
+          CLIPPY: ${{ steps.clippy.outcome }}
+        run: |
+          $failed = @()
+          foreach ($name in @("FRONTEND", "LINT", "RUSTFMT", "CARGO", "TESTS", "CLIPPY")) {
+            if ([Environment]::GetEnvironmentVariable($name) -ne "success") {
+              $failed += $name
+            }
+          }
+          if ($failed.Count -gt 0) { throw ("Verification failed: " + ($failed -join ", ")) }
