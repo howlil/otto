@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: frontend architecture and rustfmt correction on current branch.
+# Verification dispatch: B11 Rust compile after result type fixes.
 
 'on':
   push:
