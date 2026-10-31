@@ -167,6 +167,9 @@ for (const file of tsFiles) {
   const visit = (node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       examine(node.moduleSpecifier.text, isTypeOnlyImport(node.importClause));
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)) {
+      examine(node.moduleSpecifier.text, node.isTypeOnly);
     } else if (ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
       node.arguments.length === 1 && ts.isStringLiteral(node.arguments[0])) {
