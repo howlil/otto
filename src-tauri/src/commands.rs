@@ -1,6 +1,8 @@
 use crate::agent::{AgentRuntime, Snapshot};
 use std::sync::atomic::{AtomicU64, Ordering};
-use tauri::{LogicalSize, PhysicalPosition, State, WebviewWindow, ipc::Channel};
+use tauri::{State, WebviewWindow, ipc::Channel};
+#[cfg(not(windows))]
+use tauri::{LogicalSize, PhysicalPosition};
 
 #[derive(Default)]
 pub struct NotchMotion {
@@ -97,7 +99,9 @@ impl Frame {
         })
     }
 
-    // Skip the OS round-trip when nothing changed since the previous frame.
+    // Each frame uses exactly one Win32 resize+position transaction.
+    // Avoid the separate Tauri set_size / set_position calls: Windows could
+    // paint between them, making the centered island visibly shake.
     fn apply(
         &mut self,
         window: &WebviewWindow,
@@ -109,17 +113,76 @@ impl Frame {
         let physical_height = (height * self.scale).round() as i32;
         let x = self.origin_x + (self.bounds_width as i32 - physical_width) / 2;
         let y = self.origin_y + (f64::from(top_offset) * self.scale).round() as i32;
-        if self.last == Some((physical_width, physical_height, x, y)) {
+        let geometry = (physical_width, physical_height, x, y);
+        if self.last == Some(geometry) {
             return Ok(());
         }
-        self.last = Some((physical_width, physical_height, x, y));
-        window
-            .set_size(LogicalSize::new(width, height))
-            .map_err(|_| "Cannot resize the notch.".to_string())?;
-        window
-            .set_position(PhysicalPosition::new(x, y))
-            .map_err(|_| "Cannot position the notch.".to_string())
+        #[cfg(windows)]
+        {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                SWP_NOACTIVATE, SWP_NOZORDER, SetWindowPos,
+            };
+            let hwnd = window
+                .hwnd()
+                .map_err(|_| "Cannot access the notch window.".to_string())?;
+            // SAFETY: hwnd belongs to this live Tauri window; coordinates are
+            // monitor-relative physical pixels. Neither activation nor Z-order
+            // is modified. The OS handles cross-thread window positioning.
+            let ok = unsafe {
+                SetWindowPos(
+                    hwnd.0 as _,
+                    std::ptr::null_mut(),
+                    x,
+                    y,
+                    physical_width,
+                    physical_height,
+                    SWP_NOACTIVATE | SWP_NOZORDER,
+                )
+            };
+            if ok == 0 {
+                return Err(format!(
+                    "Cannot position or resize the notch: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            window
+                .set_size(LogicalSize::new(width, height))
+                .map_err(|_| "Cannot resize the notch.".to_string())?;
+            window
+                .set_position(PhysicalPosition::new(x, y))
+                .map_err(|_| "Cannot position the notch.".to_string())?;
+        }
+        self.last = Some(geometry);
+        Ok(())
     }
+}
+
+// Invert the CSS cubic Bezier's x(t) to sample its y(t). The reference's
+// control points have y=1, so y(u) = 1 - (1-u)^3. This is monotonic and
+// interruptible: a new target always starts at the actual current bounds.
+fn home_ease(progress: f64) -> f64 {
+    if progress <= 0.0 {
+        return 0.0;
+    }
+    if progress >= 1.0 {
+        return 1.0;
+    }
+    let (mut low, mut high) = (0.0_f64, 1.0_f64);
+    for _ in 0..20 {
+        let u = (low + high) / 2.0;
+        let inv = 1.0 - u;
+        let x = 3.0 * inv * inv * u * 0.22 + 3.0 * inv * u * u * 0.36 + u * u * u;
+        if x < progress {
+            low = u;
+        } else {
+            high = u;
+        }
+    }
+    let inv = 1.0 - (low + high) / 2.0;
+    1.0 - inv * inv * inv
 }
 
 #[tauri::command]
@@ -156,8 +219,8 @@ pub async fn notch_set_surface(
             return Ok(());
         }
         let progress = (start.elapsed().as_secs_f64() / duration.as_secs_f64()).min(1.0);
-        // Close to the approved cubic ease-out, without overshoot or a giant hit region.
-        let eased = 1.0 - (1.0 - progress).powi(3);
+        // Exactly match design/home.html's cubic-bezier(.22, 1, .36, 1).
+        let eased = home_ease(progress);
         let w = start_w + (target_w - start_w) * eased;
         let h = start_h + (target_h - start_h) * eased;
         frame.apply(&window, w, h, top_offset)?;
@@ -173,6 +236,15 @@ pub async fn notch_set_surface(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn home_curve_matches_css_and_never_reverses() {
+        assert_eq!(home_ease(0.0), 0.0);
+        assert_eq!(home_ease(1.0), 1.0);
+        assert!((home_ease(0.25) - 0.765).abs() < 0.01);
+        assert!((home_ease(0.5) - 0.961).abs() < 0.01);
+        let samples: Vec<_> = (0..=100).map(|i| home_ease(f64::from(i) / 100.0)).collect();
+        assert!(samples.windows(2).all(|p| p[0] <= p[1]));
+    }
     #[test]
     fn approved_home_agent_and_settings_sizes() {
         assert_eq!(surface_size("home"), Some((452, 148)));
