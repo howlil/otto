@@ -252,9 +252,9 @@
 .otto-agent-composer textarea {
   color: var(--color-otto-text);
   resize: none;
-  border: 0 !important;
-  outline: 0 !important;
-  box-shadow: none !important;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
   background: transparent;
   flex: 1;
   min-width: 0;

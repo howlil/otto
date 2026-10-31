@@ -228,8 +228,8 @@
   top: 0;
   border-radius: 0 0 12px 12px;
 }
-.otto-availability {
-  font-size: var(--text-otto-xs) !important;
-  color: var(--color-otto-label-muted) !important;
-  margin-top: 12px !important;
+.otto-settings-content > p.otto-availability {
+  font-size: var(--text-otto-xs);
+  color: var(--color-otto-label-muted);
+  margin-top: 12px;
 }
