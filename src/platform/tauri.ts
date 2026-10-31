@@ -79,6 +79,15 @@ export async function stopCodex(): Promise<void> {
 export async function newAgentSession(): Promise<void> {
   await invoke("agent_new_session");
 }
+// Keep Tauri window events behind the same native adapter as commands.
+export async function onNotchFocusChanged(
+  onFocus: (focused: boolean) => void,
+): Promise<() => void> {
+  if (!nativeAvailable) return () => {};
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  return getCurrentWindow().onFocusChanged(({ payload }) => onFocus(payload));
+}
+
 export async function setNotchSurface(
   surface: NotchSurface,
   topOffset = 20,

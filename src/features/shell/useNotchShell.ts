@@ -6,7 +6,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
-import { nativeAvailable } from "../../platform/tauri";
+import { nativeAvailable, onNotchFocusChanged } from "../../platform/tauri";
 import { readPreferences, type Page, type Preferences } from "./preferences";
 
 // Shell behavior for the notch: page/expand/pin, the hover-intent timers,
@@ -75,12 +75,9 @@ export function useNotchShell() {
     if (!nativeAvailable) return;
     let unlisten: (() => void) | undefined;
     let active = true;
-    void import("@tauri-apps/api/window")
-      .then(({ getCurrentWindow }) =>
-        getCurrentWindow().onFocusChanged(({ payload }) => {
-          if (!payload && prefs.clickOutside && pinned) collapse();
-        }),
-      )
+    void onNotchFocusChanged((focused) => {
+      if (!focused && prefs.clickOutside && pinned) collapse();
+    })
       .then((stop) => {
         if (active) unlisten = stop;
         else stop();
