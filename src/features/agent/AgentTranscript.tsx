@@ -30,6 +30,7 @@ export function AgentTranscript({
 
   const canSend = !busy && readiness.status === "ready" && draft.trim().length > 0;
   const approval = snapshot.approval;
+  const issueTitle = readiness.status === "authRequired" ? "Sign in required" : "Unavailable";
   const issue =
     error ||
     (["ready", "checking"].includes(readiness.status)
@@ -117,7 +118,7 @@ export function AgentTranscript({
           )}
           {issue && (
             <div className="otto-error-card" role="alert">
-              <strong>{readiness.status === "authRequired" ? "Sign in required" : "Unavailable"}</strong>
+              <strong>{issueTitle}</strong>
               <p>{issue}</p>
               <button type="button" onClick={() => void refreshProvider()}>
                 Retry
