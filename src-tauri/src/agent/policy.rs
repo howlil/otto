@@ -60,10 +60,10 @@ pub fn turn_start_with_image(
     image: Option<&std::path::Path>,
 ) -> Value {
     let mut request = turn_start(thread_id, text, mode);
-    if let Some(path) = image {
-        if let Some(inputs) = request["input"].as_array_mut() {
-            inputs.push(json!({ "type": "localImage", "path": path.to_string_lossy() }));
-        }
+    if let Some(path) = image
+        && let Some(inputs) = request["input"].as_array_mut()
+    {
+        inputs.push(json!({ "type": "localImage", "path": path.to_string_lossy() }));
     }
     request
 }
