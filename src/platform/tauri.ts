@@ -76,6 +76,9 @@ export async function decideAgentApproval(
 export async function stopCodex(): Promise<void> {
   await invoke("agent_stop");
 }
+export async function newAgentSession(): Promise<void> {
+  await invoke("agent_new_session");
+}
 export async function setNotchSurface(
   surface: NotchSurface,
   topOffset = 20,
