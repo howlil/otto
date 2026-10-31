@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: regression-test Codex approval idle wait after rustfmt fix.
+# Verification dispatch: B4 native hotkey capture, image lifetime and protocol.
 
 'on':
   push:
