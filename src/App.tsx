@@ -8,6 +8,19 @@ import { GlobalSettings, resolveSurface, SurfaceError, useNotchShell } from "./f
 import { setNotchSurface } from "./platform/tauri";
 import { Eyes, IconButton, VisuallyHidden } from "./shared/ui";
 
+function motionCue(status: string): string | null {
+  switch (status) {
+    case "completed":
+      return "otto-completed";
+    case "failed":
+      return "otto-failed";
+    case "approvalRequired":
+      return "otto-nudge";
+    default:
+      return null;
+  }
+}
+
 export default function App() {
   const agent = useAgent();
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
@@ -72,14 +85,7 @@ export default function App() {
     lastStatus.current = current;
     if (previous === current) return;
     setEventMotion("");
-    const cue =
-      current === "completed"
-        ? "otto-completed"
-        : current === "failed"
-          ? "otto-failed"
-          : current === "approvalRequired"
-            ? "otto-nudge"
-            : null;
+    const cue = motionCue(current);
     if (!cue) return;
     setEventMotion(cue);
     const timer = setTimeout(() => setEventMotion(""), 460);
