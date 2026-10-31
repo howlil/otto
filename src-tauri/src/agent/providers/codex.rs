@@ -2,7 +2,7 @@ use crate::agent::policy::{self, InteractionMode};
 use crate::agent::session::{self, ApprovalDecision, PendingApproval, ToolActivity};
 use crate::agent::{ChatMessage, Control, Snapshot, fail, mutate};
 use serde_json::{Value, json};
-use std::{path::PathBuf, process::Stdio, time::Duration};
+use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -785,15 +785,13 @@ pub async fn run(
     loop {
         tokio::select! {
             command = controls.recv() => match command {
-                Some(Control::Close { finished }) => {
-                    // The reset caller may have timed out while Close sat in
-                    // the queue. A cancelled request must not later kill the
-                    // old session behind the user's back.
-                    if finished.is_closed() {
+                Some(Control::Close { claimed, finished }) => {
+                    // A timed-out reset must not terminate a previous session
+                    // after the caller has been told that no reset occurred.
+                    // The atomic claim arbitrates the race with the timeout.
+                    if finished.is_closed() || claimed.swap(true, Ordering::SeqCst) {
                         continue;
                     }
-                    // A live reset request owns this close operation. Reply
-                    // only after the provider subprocess has been terminated.
                     rpc.terminate().await;
                     let _ = finished.send(());
                     break;
