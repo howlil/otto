@@ -139,7 +139,7 @@ for (const file of tsFiles) {
     file, read(file), ts.ScriptTarget.Latest, true,
     file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  const feature = file.match(/^src\\/features\\/([^/]+)\\//)?.[1];
+  const feature = file.startsWith("src/features/") ? file.split("/")[2] : undefined;
   const examine = (specifier, typeOnly) => {
     if (specifier.startsWith("@tauri-apps/") && !file.startsWith("src/platform/")) {
       boundaryViolations.push(`${file}: Tauri APIs belong in src/platform/`);
