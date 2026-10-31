@@ -110,6 +110,7 @@ export function AgentPanel({
           setCwd={setCwd}
           hasThread={snapshot.threadId !== null}
           busy={busy}
+          error={agent.error}
           onNewSession={() => void newSession()}
           onBack={onBack}
           onDone={onSettingsBack}
