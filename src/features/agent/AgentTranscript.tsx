@@ -17,7 +17,7 @@ export function AgentTranscript({
   approvalPending: boolean;
   onDenied: () => void;
 }) {
-  const { snapshot, installed, draft, setDraft, error, busy, send, stop, decide, refreshProvider } =
+  const { snapshot, readiness, draft, setDraft, error, busy, send, stop, decide, refreshProvider } =
     agent;
   const feed = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
@@ -28,11 +28,11 @@ export function AgentTranscript({
       feed.current?.scrollTo({ top: feed.current.scrollHeight });
   }, [snapshot.seq]);
 
-  const canSend = !busy && installed === true && draft.trim().length > 0;
+  const canSend = !busy && readiness.status === "ready" && draft.trim().length > 0;
   const approval = snapshot.approval;
-  const issue =
-    error ||
-    (installed === false ? "Codex CLI not found. Install Codex or check PATH, then retry." : "");
+  const issue = error || (["ready", "checking"].includes(readiness.status)
+    ? ""
+    : `${readiness.message} ${readiness.recovery}`);
   const lastAnswer = [...snapshot.messages]
     .reverse()
     .find((message) => message.role === "assistant" && message.text.length > 0);
@@ -115,7 +115,7 @@ export function AgentTranscript({
           )}
           {issue && (
             <div className="otto-error-card" role="alert">
-              <strong>Codex unavailable</strong>
+              <strong>{readiness.status === "authRequired" ? "Codex sign-in required" : "Codex unavailable"}</strong>
               <p>{issue}</p>
               <button type="button" onClick={() => void refreshProvider()}>
                 Retry
