@@ -52,6 +52,22 @@ pub fn turn_start(thread_id: &str, text: &str, mode: InteractionMode) -> Value {
     })
 }
 
+// Only a Rust-owned capture can supply this path. No IPC path is accepted.
+pub fn turn_start_with_image(
+    thread_id: &str,
+    text: &str,
+    mode: InteractionMode,
+    image: Option<&std::path::Path>,
+) -> Value {
+    let mut request = turn_start(thread_id, text, mode);
+    if let Some(path) = image {
+        if let Some(inputs) = request["input"].as_array_mut() {
+            inputs.push(json!({ "type": "localImage", "path": path.to_string_lossy() }));
+        }
+    }
+    request
+}
+
 // Unknown/missing effective sandbox metadata is not permission to run.
 pub fn thread_matches_policy(response: &Value, mode: InteractionMode) -> bool {
     let sandbox = response.pointer("/sandbox/type").and_then(Value::as_str);
@@ -67,6 +83,17 @@ pub fn thread_matches_policy(response: &Value, mode: InteractionMode) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn screenshot_is_a_separate_local_image_input_not_part_of_prompt() {
+        let image = std::path::Path::new("C:/Users/test/AppData/Local/Temp/otto.png");
+        let request = turn_start_with_image("thread", "Analyze this", InteractionMode::QuickAsk, Some(image));
+        assert_eq!(request["input"][0]["type"], "text");
+        assert_eq!(request["input"][1]["type"], "localImage");
+        assert_eq!(request["input"][1]["path"], image.to_string_lossy().as_ref());
+        assert_eq!(request["sandboxPolicy"]["type"], "readOnly");
+        assert_eq!(turn_start_with_image("thread", "Hi", InteractionMode::QuickAsk, None), turn_start("thread", "Hi", InteractionMode::QuickAsk));
+    }
 
     #[test]
     fn quick_ask_denies_writable_or_unknown_policy() {
