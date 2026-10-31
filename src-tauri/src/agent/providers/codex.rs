@@ -284,9 +284,15 @@ impl Rpc {
         let mut notifications = Vec::new();
         loop {
             let value = if let Some(receiver) = controls.as_deref_mut() {
-                tokio::select! {
-                    incoming = self.read() => incoming?,
-                    control = receiver.recv() => {
+                // Drop the competing read future before writing a decision
+                // back through the same Rpc owner.
+                let next = tokio::select! {
+                    incoming = self.read() => Ok(incoming?),
+                    control = receiver.recv() => Err(control),
+                };
+                match next {
+                    Ok(value) => value,
+                    Err(control) => {
                         match classify_startup_control(control, approvals, updates)? {
                             StartupControl::Stop => return Ok(None),
                             StartupControl::Reply(reply) => self.send(reply).await?,
