@@ -19,17 +19,15 @@ use windows_sys::Win32::{
     Storage::Xps::PrintWindow,
     System::Threading::GetCurrentThreadId,
     UI::{
-        Accessibility::{
-            EVENT_SYSTEM_FOREGROUND, SetWinEventHook, UnhookWinEvent, WINEVENT_OUTOFCONTEXT,
-            WINEVENT_SKIPOWNPROCESS,
-        },
+        Accessibility::{SetWinEventHook, UnhookWinEvent},
         Input::KeyboardAndMouse::{
             MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, RegisterHotKey, UnregisterHotKey,
         },
         WindowsAndMessaging::{
             GetForegroundWindow, GetMessageW, GetWindowRect, GetWindowTextLengthW,
-            GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, MSG, PM_NOREMOVE,
-            PeekMessageW, PostThreadMessageW, WM_APP, WM_HOTKEY,
+            EVENT_SYSTEM_FOREGROUND, GetWindowThreadProcessId, IsIconic, IsWindow,
+            IsWindowVisible, MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW, WINEVENT_OUTOFCONTEXT,
+            WINEVENT_SKIPOWNPROCESS, WM_APP, WM_HOTKEY,
         },
     },
 };
