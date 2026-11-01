@@ -3,6 +3,7 @@ import type { AgentSnapshot } from "../../platform/tauri";
 import { Bars } from "./AgentControls";
 import { agentIsWorking } from "./status";
 import { MessageContent } from "./MessageContent";
+import { CopyAnswerButton } from "./CopyAnswerButton";
 import { promptPresets } from "./conversation";
 
 export function TranscriptMessages({
@@ -63,13 +64,16 @@ export function TranscriptMessages({
             <div className="min-w-0 w-full break-words text-otto-text-soft-white">
               <MessageContent text={message.text} />
               {!busy && message.text.trim() && (
-                <button
-                  type="button"
-                  onClick={() => onQuote(message.text)}
-                  className="mt-1 rounded-full px-2 py-1 text-otto-xs text-otto-text-tertiary hover:bg-otto-control-deep hover:text-otto-text"
-                >
-                  Quote in follow-up
-                </button>
+                <div className="mt-1 flex items-center gap-[7px]">
+                  <CopyAnswerButton value={message.text} label="Copy" />
+                  <button
+                    type="button"
+                    onClick={() => onQuote(message.text)}
+                    className="inline-flex min-h-7 items-center rounded-md border-0 bg-transparent px-1 py-[5px] text-otto-xs text-otto-text-tertiary hover:bg-otto-control-deep hover:text-otto-text"
+                  >
+                    Quote
+                  </button>
+                </div>
               )}
               {busy && index === snapshot.messages.length - 1 && (
                 <span className="ml-0.5 inline-block h-3 w-1 bg-otto-control-text motion-safe:animate-otto-caret motion-reduce:animate-none" />
