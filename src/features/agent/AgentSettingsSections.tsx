@@ -2,13 +2,12 @@ import { Icon, RadioGroup, StatusMessage, Text, TextField } from "../../shared/u
 import type { AgentMode, AgentProvider, ProviderReadiness } from "../../platform/tauri";
 import { ProviderChoice, type ProviderTone } from "./ProviderChoice";
 
-type ProviderName = "Codex" | "Agy" | "Pi" | "OpenCode";
+type ProviderName = "Codex" | "Pi" | "Agy";
 
 const providers: ReadonlyArray<{ name: ProviderName; mark: string; tone: ProviderTone }> = [
   { name: "Codex", mark: "✦", tone: "codex" },
   { name: "Agy", mark: "A", tone: "agy" },
   { name: "Pi", mark: "π", tone: "pi" },
-  { name: "OpenCode", mark: "<>", tone: "opencode" },
 ];
 
 export function ProviderSettings({
@@ -42,11 +41,11 @@ export function ProviderSettings({
           variant="caption"
           className="uppercase tracking-[0.03em] text-otto-text-subtle"
         >
-          {provider === "pi" ? "Pi" : "Codex"}
+          {provider === "pi" ? "Pi" : provider === "agy" ? "Agy" : "Codex"}
         </Text>
       </div>
       <fieldset
-        className="m-0 grid min-w-0 grid-cols-4 gap-[7px] border-0 p-0"
+        className="m-0 grid min-w-0 grid-cols-3 gap-[7px] border-0 p-0"
         aria-labelledby="otto-provider-label"
       >
         {providers.map(({ name, mark, tone }) => {
