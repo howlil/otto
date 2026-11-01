@@ -8,7 +8,7 @@
   --color-otto-error-bg: #392525;
   --color-otto-error-text: #ffbbbb;
 
-  --color-otto-line: #353538;
+  --color-otto-line: #353535;
   --color-otto-line-strong: #3b3d41;
   --color-otto-control: #242426;
   --color-otto-control-hover: #34353a;
@@ -59,6 +59,10 @@
   --color-otto-art-alt-middle: #292b2b;
   --color-otto-art-alt-end: #212424;
   --color-otto-art-halo: #bccfe039;
+  --color-otto-home-card-border: #373737;
+  --color-otto-home-card-title: #f5f5f5;
+  --color-otto-home-card-subtitle: #aaaeb4;
+  --color-otto-compact-icon: #292b31;
   --color-otto-art-card-music-start: #29282d;
   --color-otto-art-card-music-middle: #282730;
   --color-otto-art-card-music-end: #1d1e29;
@@ -214,8 +218,13 @@
 }
 :root {
   font-family: var(--font-otto-ui);
+  font-synthesis: none;
   color-scheme: dark;
   background: transparent;
+}
+body {
+  font-size: 12px;
+  -webkit-font-smoothing: antialiased;
 }
 html,
 body,
