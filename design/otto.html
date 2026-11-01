@@ -279,6 +279,52 @@ button{touch-action:manipulation}
 .af-capture-controls{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
 .af-capture-controls button{background:#26272c;border:1px solid #484951;color:#ddd;border-radius:8px;padding:7px 9px;font-size:10px}
 .af-capture-controls button.selected{background:#55565e;color:#fff;border-color:#81828d}
+
+/* Canonical Global Settings: design/home.html panel layout and controls */
+.gs-root{width:100%;height:100%;background:#151515;border-radius:inherit;display:flex;flex-direction:column;overflow:hidden;color:#fafafa}
+.gs-head{height:51px;flex:none;border-bottom:1px solid #2b2c2f;display:flex;align-items:center;gap:10px;padding:0 15px}
+.gs-head strong{font-size:13px;font-weight:550}
+.gs-back{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#242426;color:#eee;border:1px solid #36373b;cursor:pointer}
+.gs-back:hover{background:#34353a}
+.gs-meta{margin-left:auto;color:#777;font-size:11px}
+.gs-body{flex:1;min-height:0;display:grid;grid-template-columns:118px minmax(0,1fr)}
+.gs-nav{padding:13px 8px;border-right:1px solid #292b2f;display:flex;flex-direction:column;gap:4px;background:#181818}
+.gs-navitem{height:35px;text-align:left;color:#929292;border:0;background:transparent;border-radius:9px;padding:0 11px;font-size:11px;transition:background 160ms,color 160ms;cursor:pointer}
+.gs-navitem:hover{background:#272729;color:#ececec}
+.gs-navitem.active{background:#2e3033;color:#fff}
+.gs-views{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#444 transparent;scrollbar-gutter:stable;min-width:0;min-height:0}
+.gs-view{padding:16px 18px 20px;color:#fafafa}
+.gs-view h2{font-weight:550;font-size:14px;margin:0 0 3px}
+.gs-help{font-size:10px;color:#929396;line-height:1.45;margin:0 0 18px}
+.gs-unit{padding:0 0 15px;margin:0 0 13px;border-bottom:1px solid #2b2b2c}
+.gs-label{display:block;font-size:11px;color:#e3e3e3;margin-bottom:10px}
+.gs-pills{display:flex;flex-wrap:wrap;gap:5px}
+.gs-pills button{color:#b3b3b3;border:1px solid #39393b;background:#262627;font-size:10px;padding:7px 10px;border-radius:8px;min-height:28px;cursor:pointer}
+.gs-pills button.selected{color:#fff;background:#3c3e40;border-color:#66686e}
+.gs-pills button:hover{background:#343537}
+.gs-note{font-size:9px;line-height:1.5;color:#858585;margin:8px 0 0}
+.gs-reset{font-size:10px;color:#c4c4c4;background:none;border:0;padding:4px 0;text-decoration:underline;text-decoration-color:#626262;text-underline-offset:3px;cursor:pointer}
+.gs-switchrow{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:53px;border-bottom:1px solid #2b2b2c;padding:9px 0;cursor:pointer}
+.gs-switchrow strong{display:block;font-size:11px;font-weight:500}
+.gs-switchrow small{font-size:9px;color:#909090;display:block;margin-top:4px}
+.gs-switchrow input{position:absolute;width:1px;height:1px;opacity:0}
+.gs-switchrow i{position:relative;display:block;width:30px;height:18px;border-radius:999px;background:#49494d;border:1px solid #555;flex-shrink:0;transition:background .2s}
+.gs-switchrow i:after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#c4c4c7;transition:transform .2s}
+.gs-switchrow input:checked+i{background:#c4cbd6;border-color:#c4cbd6}
+.gs-switchrow input:checked+i:after{transform:translateX(12px);background:#222}
+.gs-switchrow input:focus-visible+i{outline:2px solid #a2c5fc;outline-offset:3px}
+.gs-range{padding-top:14px}
+.gs-rangehead{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;margin-bottom:10px}
+.gs-rangehead output{font-size:10px;color:#bfc1c8;font-variant-numeric:tabular-nums}
+.gs-range input[type=range]{display:block;width:100%;accent-color:#bbc1cc;cursor:pointer;height:15px}
+.gs-range input:disabled{opacity:.35;cursor:not-allowed}
+.gs-placement{display:flex;gap:8px;margin-bottom:18px}
+.gs-placepick{background:#242527;border:1px solid #404043;color:#ddd;border-radius:12px;padding:10px 7px;width:50%;display:flex;align-items:center;flex-direction:column;gap:8px;cursor:pointer}
+.gs-placepick.selected{border-color:#b8babe;background:#313235;color:#fff}
+.gs-placepick strong{font-size:10px;font-weight:500}
+.gs-placegraphic{width:77px;height:42px;display:block;position:relative;border:1px solid #515359;border-radius:5px;background:#1b1d21}
+.gs-place-floating{position:absolute;width:35px;height:10px;background:#d7d9de;border-radius:20px;left:20px;top:8px}
+.gs-place-attached{position:absolute;width:41px;height:13px;background:#d7d9de;border-radius:0 0 12px 12px;left:17px;top:0}
 </style>
 </head>
 <body>
@@ -450,24 +496,47 @@ function FocusSettings({timer,setTimer,onBack}){
  el("button",{onClick:()=>setTimer(t=>{const n=Math.min(120,t.duration[ph]+1);return {...t,duration:{...t.duration,[ph]:n},remaining:ph===t.phase&&!t.running?n*60:t.remaining}})},h(Icon,{name:"Plus",size:13}))))),
  el("div",{style:{marginTop:12}},h(Primary,{name:"Check",onClick:onBack},"Done"))));
 }
-function GlobalSettings({prefs,setPrefs,tab,setTab,onBack}){
- const choice=(key,options)=>el("div",{className:"choice"},options.map(v=>el("button",{key:v,className:prefs[key]===v?"selected":"",onClick:()=>setPrefs(p=>({...p,[key]:v}))},v)));
- const rows=tab==="General"?[
- el("div",{className:"setting-line",key:"expression"},"Idle expression",choice("expression",["Calm","Curious","Happy"])),
- el("div",{className:"setting-line",key:"reactive"},"Idle response",choice("reactive",["Quiet","Alive"]))]:
- tab==="Interaction"?[
- el("div",{className:"setting-line",key:"hover"},"Expand on hover",el("div",{className:"choice"},["On","Off"].map(v=>el("button",{key:v,className:prefs.hover===v?"selected":"",onClick:()=>setPrefs(p=>({...p,hover:v}))},v)))),
- el("div",{className:"setting-line",key:"leave"},"Leave delay",el("span",null,"350 ms"))]:
- tab==="Motion"?[
- el("div",{className:"setting-line",key:"motion"},"Motion profile",choice("motion",["Fluid","Subtle","Reduced"])),
- el("div",{className:"setting-line",key:"tilt"},"Artwork tilt",el("span",null,"43°"))]:
- [el("div",{className:"setting-line",key:"placement"},"Placement",el("span",null,prefs.placement)),el("div",{className:"setting-line",key:"offset"},"Top offset",el("span",null,"20 px"))];
- return el("div",{className:"panel"},h(Header,{title:"Settings",context:"Shared preferences",onBack}),
- el("div",{className:"setting-tabs"},["General","Interaction","Motion","Placement"].map(x=>el("button",{key:x,className:tab===x?"active":"",onClick:()=>setTab(x)},x))),
- el("div",{className:"setting-body"},rows,
- el("p",{className:"muted small",style:{marginTop:10}},"These settings affect the shared notch, not individual feature copies."),
- h(Primary,{name:"Check",onClick:onBack},"Done")));
+
+function GlobalSettings({prefs,setPrefs,tab,setTab,onBack,onPlacementChange,sysReduced}){
+ const put=(key,value)=>setPrefs(p=>({...p,[key]:value}));
+ const choice=(key,items)=>el("div",{className:"gs-pills"},items.map(([value,title])=>el("button",{type:"button",key:value,className:prefs[key]===value?"selected":"",onClick:()=>put(key,value),"aria-pressed":prefs[key]===value},title)));
+ const unit=(label,control,note)=>el("div",{className:"gs-unit"},el("span",{className:"gs-label"},label),control,note?el("p",{className:"gs-note"},note):null);
+ const toggle=(key,title,desc)=>el("label",{className:"gs-switchrow"},el("span",null,el("strong",null,title),el("small",null,desc)),el("input",{type:"checkbox",checked:!!prefs[key],onChange:e=>put(key,e.target.checked)}),el("i",{"aria-hidden":"true"}));
+ const slider=(key,title,min,max,step,suffix,disabled)=>el("div",{className:"gs-unit gs-range"},el("div",{className:"gs-rangehead"},el("label",{htmlFor:"gs-"+key},title),el("output",{htmlFor:"gs-"+key},prefs[key]+suffix)),el("input",{id:"gs-"+key,type:"range",min,max,step,value:prefs[key],disabled:!!disabled,onChange:e=>put(key,Number(e.target.value))}));
+ const views={
+  General:el(React.Fragment,null,
+   el("h2",null,"General"),el("p",{className:"gs-help"},"The smallest possible idle, with personality on demand."),
+   unit("Idle expression",choice("expression",[["Calm","Calm"],["Curious","Curious"],["Happy","Happy"],["Sleepy","Sleepy"]])),
+   unit("Idle response",choice("reactive",[["Quiet","Quiet"],["Alive","Alive"]]),"Alive adds occasional blinking and pointer gaze. Quiet stays still."),
+   el("button",{type:"button",className:"gs-reset",onClick:()=>{setPrefs({...defaultGlobalPrefs});onPlacementChange("floating")}},"Restore defaults")),
+  Interaction:el(React.Fragment,null,
+   el("h2",null,"Interaction"),el("p",{className:"gs-help"},"Control how the notch responds while you work."),
+   toggle("hoverExpand","Expand on hover","Preview without taking focus"),
+   slider("hoverDelay","Hover intent",0,450,50," ms",!prefs.hoverExpand),
+   slider("leaveDelay","Leave delay",150,850,50," ms",!prefs.hoverExpand),
+   toggle("clickOutside","Click outside to close","Escape always closes the panel")),
+  Motion:el(React.Fragment,null,
+   el("h2",null,"Motion"),el("p",{className:"gs-help"},"One restrained animation language for Otto."),
+   unit("Motion profile",choice("motion",[["Fluid","Smooth"],["Subtle","Subtle"],["Reduced","Reduced"]]),sysReduced?"System Reduce Motion takes priority.":"System Reduce Motion will override these effects."),
+   toggle("parallax","Pointer depth","Parallax on the SVG artwork"),
+   slider("tilt","Artwork tilt",0,55,1,"°",false),
+   slider("gradient","Gradient strength",0,100,5,"%",false)),
+  Placement:el(React.Fragment,null,
+   el("h2",null,"Placement"),el("p",{className:"gs-help"},"Same interaction model in both top-edge layouts."),
+   el("div",{className:"gs-placement"},
+    ["floating","attached"].map(value=>el("button",{type:"button",key:value,className:"gs-placepick"+(prefs.placement===value?" selected":""),onClick:()=>onPlacementChange(value),"aria-pressed":prefs.placement===value},
+      el("span",{className:"gs-placegraphic"},el("i",{className:"gs-place-"+value})),el("strong",null,value==="floating"?"Floating":"Attached")))),
+   prefs.placement==="floating"?slider("topOffset","Top offset",8,48,2," px",false):null,
+   prefs.placement==="floating"?el("p",{className:"gs-note"},"Applies only to Floating. Attached connects to the top edge."):null,
+   el("p",{className:"gs-note"},"Exact positioning and click regions require Windows verification."))};
+ return el("div",{className:"gs-root"},
+   el("header",{className:"gs-head"},el("button",{type:"button",className:"gs-back",onClick:onBack,"aria-label":"Back to Home"},h(Icon,{name:"ArrowLeft",size:18})),el("strong",null,"Settings"),el("span",{className:"gs-meta"},"Otto")),
+   el("div",{className:"gs-body"},el("nav",{className:"gs-nav","aria-label":"Settings sections"},
+      ["General","Interaction","Motion","Placement"].map(x=>el("button",{type:"button",key:x,className:"gs-navitem"+(tab===x?" active":""),onClick:()=>setTab(x),"aria-current":tab===x?"page":undefined},x))),
+     el("div",{className:"gs-views"},el("section",{className:"gs-view",key:tab},views[tab]))));
 }
+const defaultGlobalPrefs={expression:"Calm",reactive:"Quiet",hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,motion:"Fluid",parallax:true,tilt:43,gradient:80,topOffset:20};
+
 function WindowGhost({className}){return el("div",{className:"desktop-window "+className},el("div",{className:"win-top"},el("span"),el("span"),el("span")),el("div",{className:"win-content"},[1,2,3,4,5,6].map(x=>el("div",{key:x,className:"win-line"}))))}
 function App(){
  const [page,setPage]=useState("home");
@@ -475,7 +544,7 @@ function App(){
  const [placement,setPlacement]=useState("floating");
  const [drawer,setDrawer]=useState(null);
  const [tab,setTab]=useState("General");
- const [prefs,setPrefs]=useState({expression:"Calm",reactive:"Quiet",hover:"On",motion:"Fluid",placement:"Floating"});
+ const [prefs,setPrefs]=useState({...defaultGlobalPrefs});
  const [agent,setAgent]=useState({provider:"Codex",cwd:"~/projects/otto",mode:"Quick Ask",messages:[],busy:false,warning:"",unread:false,phase:"ready",readiness:"ready"});
  const [agentDraft,setAgentDraft]=useState("");
  const [music,setMusic]=useState({track:0,position:71,playing:true,lyrics:false,line:2});
@@ -506,11 +575,11 @@ function App(){
  const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="capture"?[526,390]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,agent.phase==="approval"?336:agent.phase==="error"||agent.phase==="interrupted"||agent.readiness!=="ready"?270:agent.busy?346:agent.messages.length?346:170]:page==="music"?[444,music.lyrics?212:178]:[408,174];
  const shape=event?"event":presentation==="compact"?"compact":"expanded";
  const shellKey=event?"event-"+event:shape==="compact"?page+"-compact":drawer||page+(music.lyrics?"-lyrics":"");
- const enter=()=>{clearTimeout(pointerLeave.current);if(event||presentation!=="compact"||prefs.hover==="Off")return;clearTimeout(pointerEnter.current);pointerEnter.current=setTimeout(()=>{pinnedUntil.current=Date.now()+470;setPresentation("preview")},150)};
- const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(340,pinnedUntil.current-Date.now()+140))}};
+ const enter=()=>{clearTimeout(pointerLeave.current);if(event||presentation!=="compact"||!prefs.hoverExpand)return;clearTimeout(pointerEnter.current);pointerEnter.current=setTimeout(()=>{pinnedUntil.current=Date.now()+470;setPresentation("preview")},prefs.hoverDelay)};
+ const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(prefs.leaveDelay,pinnedUntil.current-Date.now()+140))}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer}):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null)}):drawer==="agent"?h(AgentSettings,{agent,setAgent,onBack:()=>setDrawer(null)}):drawer==="capture"?h(CapturePanel,{capture,setCapture,onBack:()=>setDrawer(null),onDemo:permission=>{setDrawer(null);setAgent(a=>({...a,warning:permission==="available"?"Capture is a UI simulation only — no image sent.":"Capture blocked: "+permission+" — no image sent."}))}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>setDrawer("global"),onNavigate:navigate,agent}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>setDrawer("agent"),onCapture:()=>setDrawer("capture"),onHome:()=>navigate("home")}):page==="music"?h(MusicPanel,{music,setMusic,onHome:()=>navigate("home")}):h(FocusPanel,{timer,setTimer,onToggle:toggleTimer,onReset:resetTimer,onSettings:()=>setDrawer("focus"),onHome:()=>navigate("home")});
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer}):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,onBack:()=>setDrawer(null)}):drawer==="capture"?h(CapturePanel,{capture,setCapture,onBack:()=>setDrawer(null),onDemo:permission=>{setDrawer(null);setAgent(a=>({...a,warning:permission==="available"?"Capture is a UI simulation only — no image sent.":"Capture blocked: "+permission+" — no image sent."}))}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>setDrawer("global"),onNavigate:navigate,agent}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>setDrawer("agent"),onCapture:()=>setDrawer("capture"),onHome:()=>navigate("home")}):page==="music"?h(MusicPanel,{music,setMusic,onHome:()=>navigate("home")}):h(FocusPanel,{timer,setTimer,onToggle:toggleTimer,onReset:resetTimer,onSettings:()=>setDrawer("focus"),onHome:()=>navigate("home")});
  const onAgentDemo=phase=>{clearInterval(agentRun.current);navigate("agent");if(phase==="run"){setAgent(a=>({...a,readiness:"ready",provider:"Codex"}));sendAgent("How should Otto preserve a CLI session?",true);return}const read=phase==="auth"?"auth":phase==="missing"?"missing":"ready";const actual=phase==="auth"||phase==="missing"?"ready":phase;const sample=phase==="approval"?"Update the session adapter safely.":phase==="error"?"Check why the CLI cannot connect.":"";setAgent(a=>({...a,busy:false,phase:actual,readiness:read,provider:phase==="auth"?"Agy":phase==="missing"?"OpenCode":"Codex",warning:"",messages:sample?[{role:"user",text:sample}]:[],unread:false}))};
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
  const eventNav=[["volume","Volume2","Volume"],["wifi","Wifi","Wi-Fi"],["bluetooth","Bluetooth","Bluetooth"],["brightness","Sun","Brightness"],["battery","BatteryCharging","Battery"],["headphones","Headphones","Headset"]];
@@ -531,7 +600,7 @@ function App(){
    el("section",{className:"canvas","aria-label":"Desktop notch simulation"},
     el("div",{className:"desktop-bar"},el("span",null,"WORKSPACE / EXPLORER"),el("span",null,"Windows desktop · visual context")),
     h(WindowGhost,{className:"one"}),h(WindowGhost,{className:"two"}),
-    el("div",{className:"mount",style:{top:placement==="attached"?28:42}},
+    el("div",{className:"mount",style:{top:placement==="attached"?28:28+prefs.topOffset}},
       el("div",{className:"notch"+(placement==="attached"?" attached":""),style:{"--w":dim[0]+"px","--h":dim[1]+"px","--rad":presentation==="compact"||event?"999px":"27px"},onMouseEnter:enter,onMouseLeave:leave,onPointerDownCapture:()=>{if(presentation==="preview")setPresentation("pinned")}},
       el("div",{className:"notch-clip"},el("div",{key:shellKey,className:"notch-content"},panel)))),
     el("div",{className:"canvas-note"},h(Icon,{name:"Mouse",size:13}),"Hover to preview · click to pin · ",el("kbd",null,"Esc")," to close"),
