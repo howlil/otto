@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: provider state reducer after verified Rustfmt for approval guards.
+# Verification dispatch: RV1–RV4 approval identity, pending ACK, capture state, and bounded close regressions.
 
 'on':
   push:
