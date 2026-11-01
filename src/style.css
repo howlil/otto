@@ -3,6 +3,8 @@
 @theme static {
   --color-otto-surface: #151515;
   --color-otto-text: #fafafa;
+  --color-otto-idle-eye: #f2f2f3;
+  --color-otto-agent-eye: #f4f4f4;
   --color-otto-muted: #a3a3a3;
   --color-otto-raised: #292929;
   --color-otto-error-bg: #392525;
