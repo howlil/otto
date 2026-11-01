@@ -620,7 +620,8 @@ fn run_hotkeys(
                 }
             }
         }
-        if message.message == WM_HOTKEY && message.wParam == HOTKEY_ID as usize
+        if message.message == WM_HOTKEY
+            && message.wParam == HOTKEY_ID as usize
             && armed.load(Ordering::SeqCst)
             && let Err(reason) = dispatch_capture(&app, source, !hook.is_null())
         {
@@ -727,14 +728,25 @@ mod tests {
         let unavailable = capture_intent(CaptureSource::Window, true, || {
             Err("Window target changed. Refocus the app and retry.".into())
         });
-        assert!(unavailable.err().expect("invalid target must fail").contains("Window target changed"));
+        assert!(
+            unavailable
+                .err()
+                .expect("invalid target must fail")
+                .contains("Window target changed")
+        );
 
         let no_hook = capture_intent(CaptureSource::Window, false, || {
             panic!("No window lookup is allowed when foreground tracking is unavailable")
         });
-        assert_eq!(no_hook.err().expect("missing hook must fail"), "Window focus tracking is unavailable.");
+        assert_eq!(
+            no_hook.err().expect("missing hook must fail"),
+            "Window focus tracking is unavailable."
+        );
 
-        let target = WindowTarget { handle: 17, pid: 31 };
+        let target = WindowTarget {
+            handle: 17,
+            pid: 31,
+        };
         let selected = capture_intent(CaptureSource::Window, true, || Ok(target)).unwrap();
         assert!(matches!(selected, CaptureIntent::Window(actual) if actual == target));
 
