@@ -1,5 +1,7 @@
 use super::job::Job;
-use crate::agent::{CapturedImage, ChatMessage, Control, ProviderReadiness, Snapshot, fail, mutate};
+use crate::agent::{
+    CapturedImage, ChatMessage, Control, ProviderReadiness, Snapshot, fail, mutate,
+};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
@@ -203,7 +205,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
                 let mut readiness = authentication(&value);
                 readiness.image_input = readiness.status == "ready" && image_input;
                 readiness
-            },
+            }
             Err(_) => ProviderReadiness::new(
                 "unsupported",
                 "Pi auth probe is incompatible.",
@@ -400,14 +402,20 @@ pub async fn run(
     };
     let Some((session, image_input)) = state.ok().and_then(|s| {
         model_identity(&s)?;
-        s["sessionId"].as_str().map(|id| (id.to_owned(), model_accepts_images(&s)))
+        s["sessionId"]
+            .as_str()
+            .map(|id| (id.to_owned(), model_accepts_images(&s)))
     }) else {
         fail(&updates, run_id, "Pi session or text model is unavailable.");
         rpc.terminate().await;
         return;
     };
     if capture.is_some() && !image_input {
-        fail(&updates, run_id, "The selected Pi model cannot accept screenshots.");
+        fail(
+            &updates,
+            run_id,
+            "The selected Pi model cannot accept screenshots.",
+        );
         rpc.terminate().await;
         return;
     }
@@ -607,7 +615,11 @@ mod tests {
         assert_eq!(command["images"][0]["type"], "image");
         assert_eq!(command["images"][0]["mimeType"], "image/png");
         assert_eq!(command["images"][0]["data"], expected);
-        assert!(!command.to_string().contains(path.to_string_lossy().as_ref()));
+        assert!(
+            !command
+                .to_string()
+                .contains(path.to_string_lossy().as_ref())
+        );
         drop(capture);
         assert!(!path.exists());
     }
@@ -616,13 +628,14 @@ mod tests {
     async fn pi_text_only_and_invalid_png_never_fake_image_payload() {
         let text = prompt_command(8, "Hello", None).await.unwrap();
         assert!(text.get("images").is_none());
-        let path = std::env::temp_dir().join(format!(
-            "otto-pi-invalid-{}.png",
-            std::process::id()
-        ));
+        let path = std::env::temp_dir().join(format!("otto-pi-invalid-{}.png", std::process::id()));
         std::fs::write(&path, b"this is not a png").unwrap();
         let capture = CapturedImage::new(path);
-        assert!(prompt_command(9, "Analyze this", Some(&capture)).await.is_err());
+        assert!(
+            prompt_command(9, "Analyze this", Some(&capture))
+                .await
+                .is_err()
+        );
     }
 
     #[test]
