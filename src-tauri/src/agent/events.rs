@@ -136,6 +136,7 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
             if state.run_id == run_id
                 && approval.run_id == run_id
                 && state.mode == "agentSession"
+                && state.approval.as_ref().is_none_or(|p| p.approval_id == approval.approval_id)
                 && matches!(
                     state.status.as_str(),
                     "starting" | "streaming" | "approvalRequired"
@@ -165,8 +166,15 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
         }
         AgentEvent::Completed { run_id }
             if state.run_id == run_id
-                && matches!(state.status.as_str(), "streaming" | "stopping") =>
+                && matches!(state.status.as_str(), "streaming" | "stopping" | "approvalRequired") =>
         {
+            if state.status == "approvalRequired" {
+                state.status = "failed".into();
+                state.error = Some("Provider completed with unresolved approval.".into());
+                state.approval = None;
+                state.activity = None;
+                return true;
+            }
             if state.status == "stopping" {
                 state.status = "stopped".into();
                 state.activity = None;
@@ -396,4 +404,22 @@ mod tests {
         });
         assert!(updates.borrow().approval.is_none());
     }
+    #[test]
+    fn unresolved_approval_cannot_be_overridden_or_complete_as_success() {
+        let (updates, events) = state(41);
+        updates.send_modify(|s| s.mode = "agentSession".into());
+        events.emit(AgentEvent::ApprovalRequested {
+            run_id: 41,
+            approval: approval(41, "first"),
+        });
+        events.emit(AgentEvent::ApprovalRequested {
+            run_id: 41,
+            approval: approval(41, "second"),
+        });
+        assert_eq!(updates.borrow().approval.as_ref().unwrap().approval_id, "first");
+        events.emit(AgentEvent::Completed { run_id: 41 });
+        assert_eq!(updates.borrow().status, "failed");
+        assert!(updates.borrow().approval.is_none());
+    }
+
 }
