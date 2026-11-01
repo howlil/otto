@@ -287,6 +287,32 @@ button{touch-action:manipulation}
 .as-newsession:hover{background:#35363b}
 @media(prefers-reduced-motion:reduce){.af-menu,.af-search,.af-rich{scroll-behavior:auto}}
 
+
+.af-feed{-ms-overflow-style:none}
+.af-feed::-webkit-scrollbar,.af-composer textarea::-webkit-scrollbar,.af-runtime-panel::-webkit-scrollbar{display:none}
+.af-composer{min-height:68px;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:10px 10px 7px;border-radius:22px}
+.af-composer textarea{display:block;flex:none;width:100%;box-sizing:border-box;height:19px;min-height:19px;max-height:105px;line-height:1.5;font-size:12px;padding:0 4px;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none}
+.af-compose-actions{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;margin-top:8px}
+.af-compose-tools{display:flex;gap:4px;align-items:center;min-width:0;flex:1}
+.af-compose-tools .icon-button{flex:none}
+.af-runtime-trigger{height:27px;border:0;background:transparent;color:#acadb6;border-radius:8px;white-space:nowrap;display:flex;align-items:center;gap:4px;padding:0 6px;font-size:10px;min-width:0}
+.af-runtime-trigger:hover,.af-runtime-trigger:focus-visible{background:#3d3e43;color:#fff}
+.af-runtime-trigger span{max-width:94px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.af-runtime-trigger.usage{margin-left:auto;color:#9296a1}
+.af-composewrap{position:relative}
+.af-runtime-panel{position:absolute;z-index:20;bottom:calc(100% + 2px);left:12px;right:12px;max-height:240px;overflow:auto;scrollbar-width:none;-ms-overflow-style:none;padding:12px;border:1px solid #494a51;border-radius:15px;background:#26272b;color:#ededf0;box-shadow:0 10px 22px #0007}
+.af-runtime-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.af-runtime-panel-head strong{font-size:12px;font-weight:600}
+.af-runtime-panel-head button{background:none;color:#aaaeb5;border:0;display:grid;place-items:center;border-radius:6px;width:25px;height:25px}
+.af-runtime-row{display:flex;align-items:center;justify-content:space-between;gap:7px;margin:10px 0 0;font-size:10px;color:#a8a9b0}
+.af-runtime-row strong{color:#f0f0f2;font-weight:550;text-align:right}
+.af-runtime-note{font-size:9px;color:#a4a5ad;line-height:1.5;margin:10px 0}
+.af-runtime-track{height:4px;background:#45464c;border-radius:9px;margin:8px 0;overflow:hidden}
+.af-runtime-track span{display:block;height:100%;background:#aeb3bd;border-radius:9px}
+.af-runtime-example{width:100%;border:1px solid #4a4c54;background:#37383e;color:#ebebed;border-radius:8px;font-size:10px;padding:8px 10px;text-align:center}
+.af-runtime-example:hover{background:#44464c}
+@media(max-width:575px){.af-runtime-trigger{padding:0 3px;font-size:9px}.af-runtime-trigger span{max-width:70px}.af-compose-tools{gap:1px}}
+
 /* Canonical Global Settings: design/home.html panel layout and controls */
 .gs-root{width:100%;height:100%;background:#151515;border-radius:inherit;display:flex;flex-direction:column;overflow:hidden;color:#fafafa}
 .gs-head{height:51px;flex:none;border-bottom:1px solid #2b2c2f;display:flex;align-items:center;gap:10px;padding:0 15px}
@@ -582,7 +608,7 @@ button{touch-action:manipulation}
 <body>
 <div id="root"></div>
 <script type="module">
-import React,{createElement as h,useState,useEffect,useRef,useCallback} from "react";
+import React,{createElement as h,useState,useEffect,useLayoutEffect,useRef,useCallback} from "react";
 import {createRoot} from "react-dom/client";
 import {House,Terminal,Music2,Timer,Settings2,ArrowLeft,ChevronRight,ChevronDown,Play,Pause,SkipBack,SkipForward,Camera,Send,Square,Copy,Check,Wifi,Bluetooth,Volume2,Sun,BatteryCharging,Headphones,Mouse,Monitor,SlidersHorizontal,MessageSquare,RotateCcw,Plus,Minus,Music,Disc3,Focus,Command,CheckCircle2,AlertCircle,ArrowUpRight,Search,MoreHorizontal,Download,Quote,LockKeyhole,X} from "lucide-react";
 
@@ -642,6 +668,13 @@ const AGENT_CAPABILITIES={
  Pi:{tools:false,image:true,session:false,detail:"Text · image input · no tools"},
  Agy:{tools:false,image:false,session:false,detail:"Text only · no tools"}
 };
+const AGENT_RUNTIME_EXAMPLE={
+ Codex:{model:"Demo model",effort:"High",contextUsed:28500,contextWindow:200000},
+ Pi:{model:"Demo model",effort:"Medium",contextUsed:28500,contextWindow:200000},
+ Agy:{model:"Demo model",effort:"High",contextUsed:28500,contextWindow:null}
+};
+const formatAgentTokens=value=>Number.isFinite(value)?new Intl.NumberFormat("en-US",{maximumFractionDigits:1,notation:"compact"}).format(value):"—";
+const agentContextRemaining=info=>info&&Number.isFinite(info.contextUsed)&&Number.isFinite(info.contextWindow)&&info.contextWindow>0?Math.max(0,info.contextWindow-info.contextUsed):null;
 const AGENT_PRESETS=[
  {label:"Explain",prompt:"Explain this concept with one concrete example: "},
  {label:"Debug",prompt:"Help me debug this. Expected behavior: "},
@@ -691,12 +724,42 @@ function AgentRichText({text,onCopy}){
 }
 
 
-function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSettings,onHome,onCapture,onApprove,onDeny,onRetry}){
- const feedRef=useRef(null),menuButton=useRef(null),menuRef=useRef(null),searchInput=useRef(null);
- const [toolsOpen,setToolsOpen]=useState(false),[searchOpen,setSearchOpen]=useState(false);
+function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSettings,onHome,onCapture,onApprove,onDeny,onRetry,onMeasured}){
+ const feedRef=useRef(null),composerRef=useRef(null),textareaRef=useRef(null),menuButton=useRef(null),menuRef=useRef(null),searchInput=useRef(null);
+ const [toolsOpen,setToolsOpen]=useState(false),[searchOpen,setSearchOpen]=useState(false),[runtimeOpen,setRuntimeOpen]=useState(false),[runtimeDemo,setRuntimeDemo]=useState(false);
  const [query,setQuery]=useState(""),[matchIndex,setMatchIndex]=useState(0),[feedback,setFeedback]=useState("");
  const phase=agent.phase||"ready",ready=agent.readiness==="ready",unread=agent.unread&&!agent.busy;
  const capability=AGENT_CAPABILITIES[agent.provider]||AGENT_CAPABILITIES.Codex;
+ const runtimeInfo=agent.runtimeInfo|| (runtimeDemo?AGENT_RUNTIME_EXAMPLE[agent.provider]:null);
+ const remaining=agentContextRemaining(runtimeInfo);
+ const measuredHeight=()=>{
+  const feed=feedRef.current,composer=composerRef.current;
+  if(!feed||!composer||!onMeasured)return;
+  const stack=feed.firstElementChild;
+  const search=feed.parentElement?.querySelector(".af-search");
+  const contentHeight=53+(search?.offsetHeight||0)+(stack?.scrollHeight||0)+16+composer.offsetHeight;
+  onMeasured(Math.ceil(Math.max(contentHeight,runtimeOpen?330:0)));
+ };
+ useLayoutEffect(()=>{
+  const area=textareaRef.current;
+  if(!area)return;
+  area.style.height="0px";
+  const cap=105;
+  const height=Math.max(19,Math.min(cap,area.scrollHeight));
+  area.style.height=height+"px";
+  area.style.overflowY=area.scrollHeight>cap?"auto":"hidden";
+  measuredHeight();
+ },[draft,agent.provider,runtimeOpen,feedback]);
+ useLayoutEffect(()=>{measuredHeight()},[agent.messages,agent.busy,agent.phase,agent.warning,searchOpen,runtimeOpen,runtimeDemo]);
+ useEffect(()=>{
+  if(typeof ResizeObserver==="undefined")return;
+  const feed=feedRef.current,composer=composerRef.current;
+  if(!feed||!composer)return;
+  const obs=new ResizeObserver(()=>measuredHeight());
+  if(feed.firstElementChild)obs.observe(feed.firstElementChild);
+  obs.observe(composer);
+  return()=>obs.disconnect();
+ },[onMeasured]);
  const searchHits=query.trim()?agent.messages.map((message,index)=>message.text.toLowerCase().includes(query.trim().toLowerCase())?index:-1).filter(index=>index>=0):[];
  const activeHit=searchHits.length?searchHits[Math.min(matchIndex,searchHits.length-1)]:-1;
  useEffect(()=>{if(feedRef.current&&!searchOpen)feedRef.current.scrollTop=feedRef.current.scrollHeight},[agent.messages,agent.busy,agent.phase,agent.readiness,searchOpen]);
@@ -716,7 +779,7 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSetti
  };
  const openSearch=()=>{setSearchOpen(true);setToolsOpen(false);setMatchIndex(0)};
  const onKeyDown=e=>{
-  if(e.key==="Escape"&&(toolsOpen||searchOpen)){e.stopPropagation();e.preventDefault();if(toolsOpen)setToolsOpen(false);else{setSearchOpen(false);setQuery("")}menuButton.current?.focus()}
+  if(e.key==="Escape"&&(toolsOpen||searchOpen||runtimeOpen)){e.stopPropagation();e.preventDefault();if(runtimeOpen)setRuntimeOpen(false);else if(toolsOpen)setToolsOpen(false);else{setSearchOpen(false);setQuery("")}menuButton.current?.focus()}
  };
  const status=agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="approval"?"Approval needed":phase==="interrupted"?"Interrupted":phase==="error"?"Disconnected":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Preview ready";
  const head=el("div",{className:"af-head"},
@@ -768,12 +831,28 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSetti
   unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
   agent.warning?el("div",{className:"af-warning"},agent.warning,el("button",{type:"button",className:"as-textbutton",onClick:/capture|screenshot|hotkey|window|image/i.test(agent.warning)?onCaptureSettings:onSettings},/capture|screenshot|hotkey|window|image/i.test(agent.warning)?"Screen Capture settings":"Provider settings")):null));
  const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(ready&&draft.trim()&&phase!=="approval"){onSend(draft.trim());onDraft("")}};
- const composer=el("div",{className:"af-composewrap",onClick:()=>{if(toolsOpen)setToolsOpen(false)}},
+ const usageLabel=remaining===null?"Context —":formatAgentTokens(runtimeInfo.contextUsed)+"/"+formatAgentTokens(runtimeInfo.contextWindow);
+ const runtimePanel=runtimeOpen?el("div",{className:"af-runtime-panel",role:"region","aria-label":"Model and token usage"},
+  el("div",{className:"af-runtime-panel-head"},el("strong",null,"Model & context"),el("button",{type:"button","aria-label":"Close model information",onClick:()=>setRuntimeOpen(false)},h(Icon,{name:"X",size:14}))),
+  el("div",{className:"af-runtime-row"},el("span",null,"Active model"),el("strong",null,runtimeInfo?.model||"Not detected")),
+  el("div",{className:"af-runtime-row"},el("span",null,"Thinking effort"),el("strong",null,runtimeInfo?.effort||"Unavailable")),
+  el("div",{className:"af-runtime-row"},el("span",null,"Context used"),el("strong",null,runtimeInfo?.contextUsed!=null?formatAgentTokens(runtimeInfo.contextUsed)+" tokens":"Unavailable")),
+  el("div",{className:"af-runtime-row"},el("span",null,"Context remaining"),el("strong",null,remaining===null?"Unavailable":formatAgentTokens(remaining)+" tokens")),
+  remaining!==null?el("div",{className:"af-runtime-track",role:"progressbar","aria-label":"Context window consumed","aria-valuenow":runtimeInfo.contextUsed,"aria-valuemax":runtimeInfo.contextWindow,"aria-valuemin":0},el("span",{style:{width:Math.min(100,100*runtimeInfo.contextUsed/runtimeInfo.contextWindow)+"%"}})):null,
+  el("p",{className:"af-runtime-note"},agent.runtimeInfo?"Values reported by the connected provider.":runtimeDemo?"Sample values only — no CLI connection.":"Standalone HTML cannot inspect a local CLI. Model, thinking effort and context usage require provider metadata. Remaining context is not account quota."),
+  !agent.runtimeInfo?el("button",{type:"button",className:"af-runtime-example",onClick:()=>setRuntimeDemo(x=>!x)},runtimeDemo?"Hide sample values":"Show sample values"):null):null;
+ const composer=el("div",{className:"af-composewrap",ref:composerRef,onClick:()=>{if(toolsOpen)setToolsOpen(false)}},
   feedback?el("div",{className:"af-feedback",role:"status"},feedback):null,
+  runtimePanel,
   el("form",{className:"af-composer",onSubmit:send},
-   h(IconButton,{name:"Camera",label:capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy}),
-   el("textarea",{rows:1,value:draft,placeholder:ready?"Ask "+agent.provider+"…":"Configure "+agent.provider+" to send","aria-label":"Agent prompt",onChange:e=>{onDraft(e.target.value);if(feedback)setFeedback("")}}),
-   el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:!agent.busy&&(!draft.trim()||!ready||phase==="approval"),"aria-label":agent.busy?"Stop request":"Send"},h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16}))));
+   el("textarea",{ref:textareaRef,rows:1,value:draft,placeholder:ready?"Ask "+agent.provider+"…":"Configure "+agent.provider+" to send","aria-label":"Agent prompt",onKeyDown:e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(ready&&!agent.busy&&draft.trim()&&phase!=="approval")send(e)}},onChange:e=>{onDraft(e.target.value);if(feedback)setFeedback("")}}),
+   el("div",{className:"af-compose-actions"},
+    el("div",{className:"af-compose-tools"},
+     h(IconButton,{name:"Camera",label:capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy}),
+     el("button",{type:"button",className:"af-runtime-trigger",title:"Model and thinking status",onClick:()=>setRuntimeOpen(x=>!x)},h(Icon,{name:"Terminal",size:12}),el("span",null,runtimeInfo?.model||"Model —")),
+     el("button",{type:"button",className:"af-runtime-trigger",title:"Thinking effort",onClick:()=>setRuntimeOpen(x=>!x)},el("span",null,runtimeInfo?.effort||"Think —")),
+     el("button",{type:"button",className:"af-runtime-trigger usage",title:"Context usage; not remaining account quota",onClick:()=>setRuntimeOpen(x=>!x)},el("span",null,usageLabel))),
+    el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:!agent.busy&&(!draft.trim()||!ready||phase==="approval"),"aria-label":agent.busy?"Stop request":"Send"},h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16})))));
  return el("div",{className:"af",onKeyDown},head,menu,search,feed,composer);
 }
 
@@ -1106,6 +1185,7 @@ function App(){
  const [prefs,setPrefs]=useState({...defaultGlobalPrefs});
  const [agent,setAgent]=useState({provider:"Codex",cwd:"~/projects/otto",mode:"Quick Ask",messages:[],busy:false,warning:"",unread:false,phase:"ready",readiness:"ready"});
  const [agentDraft,setAgentDraft]=useState("");
+ const [agentNaturalHeight,setAgentNaturalHeight]=useState(170);
  const [music,setMusic]=useState({track:0,position:74,playing:true,lyrics:false,line:2,follow:true,lyricsAvailable:true,mediaAvailable:true});
  const [timer,setTimer]=useState({phase:"focus",remaining:1500,running:false,deadline:null,duration:{...durations},status:"ready",settings:false,confirmPhase:null,finished:0});
  const [event,setEvent]=useState(null);
@@ -1133,14 +1213,15 @@ function App(){
  };
  const requestCapture=()=>{const reason=agent.readiness!=="ready"?"Selected CLI is unavailable.":!AGENT_CAPABILITIES[agent.provider]?.image?"This provider accepts text only.":capture.hotkeyStatus==="conflict"?"Hotkey conflict; choose another shortcut.":capture.permission==="denied"?"Windows capture permission denied.":capture.permission==="missing target"?"Last focused window is missing or ambiguous.":capture.source==="Full screen"?"Full-screen capture requires the native Windows host.":"Last-focused-window capture requires the native Windows host.";setAgent(a=>({...a,warning:reason+" No image was captured or transmitted in this HTML preview."}));};
  const onEvent=name=>{clearTimeout(completion.current);setEvent(name);completion.current=setTimeout(()=>setEvent(null),2200)};
- const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,agent.phase==="approval"?336:agent.phase==="error"||agent.phase==="interrupted"||agent.readiness!=="ready"?270:agent.busy?346:agent.messages.length?346:170]:page==="music"?[444,music.lyrics&&music.lyricsAvailable?212:178]:[408,timer.settings?328:174];
+ const onAgentMeasured=useCallback(height=>setAgentNaturalHeight(current=>Math.abs(current-height)>2?height:current),[]);
+ const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,Math.min(610,Math.max(170,agentNaturalHeight))]:page==="music"?[444,music.lyrics&&music.lyricsAvailable?212:178]:[408,timer.settings?328:174];
  const shape=event?"event":presentation==="compact"?"compact":"expanded";
  const shellKey=event?"event-"+event:shape==="compact"?page+"-compact":drawer||page+(music.lyrics?"-lyrics":"");
  const enter=()=>{clearTimeout(pointerLeave.current);if(event||presentation!=="compact"||!prefs.hoverExpand)return;clearTimeout(pointerEnter.current);pointerEnter.current=setTimeout(()=>{pinnedUntil.current=Date.now()+470;setPresentation("preview")},prefs.hoverDelay)};
  const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(prefs.leaveDelay,pinnedUntil.current-Date.now()+140))}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else if(page==="focus"&&timer.confirmPhase){setTimer(t=>({...t,confirmPhase:null}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null),onNewSession:()=>{clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",mode:"Quick Ask",unread:false,warning:""}));setAgentDraft("")}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Provider");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Screen Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null),onNewSession:()=>{clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",mode:"Quick Ask",unread:false,warning:""}));setAgentDraft("")}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onMeasured:onAgentMeasured,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Provider");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Screen Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
 
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
  const eventKeys=["volume","wifi","bluetooth","brightness","battery","headphones"];
@@ -1169,7 +1250,7 @@ function App(){
    onClick:e=>{if(prefs.clickOutside&&presentation==="pinned"&&!e.target.closest(".notch"))collapse()}},
    el("div",{className:"mount",style:{top:placement==="attached"?0:Math.max(16,prefs.topOffset+20)}},
     el("div",{className:"notch"+(placement==="attached"?" attached":""),
-      style:{"--w":dim[0]+"px","--h":dim[1]+"px","--rad":presentation==="compact"||event?"999px":"27px"},
+      style:{"--w":dim[0]+"px","--h":dim[1]+"px","--rad":presentation==="compact"||event?"999px":"27px",maxHeight:page==="agent"&&!drawer&&presentation!=="compact"?"calc(100dvh - 92px)":undefined},
       onMouseEnter:enter,onMouseLeave:leave,
       onPointerDownCapture:()=>{if(presentation==="preview")setPresentation("pinned")}},
      el("div",{className:"notch-clip"},el("div",{key:shellKey,className:"notch-content"},panel))))));
