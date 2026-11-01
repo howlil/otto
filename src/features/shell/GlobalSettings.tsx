@@ -11,7 +11,6 @@ import {
 import { defaults, type Preferences, type SettingsTab } from "./preferences";
 import { PlacementSettings } from "./PlacementSettings";
 import { UpdateSettings } from "./UpdateSettings";
-import { getOverlayProtectionStatus, nativeAvailable } from "../../platform/tauri";
 import type { AppUpdateState } from "./useAppUpdate";
 
 export function GlobalSettings({
@@ -21,6 +20,7 @@ export function GlobalSettings({
   onMeasured,
   update,
   reducedMotion,
+  captureProtected,
   motionClass = "",
 }: {
   prefs: Preferences;
@@ -34,23 +34,9 @@ export function GlobalSettings({
   };
   motionClass?: string;
   reducedMotion: boolean;
+  captureProtected: boolean | null;
 }) {
   const [tab, setTab] = useState<SettingsTab>("general");
-  const [captureProtected, setCaptureProtected] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!nativeAvailable) return;
-    let active = true;
-    void getOverlayProtectionStatus()
-      .then((available) => {
-        if (active) setCaptureProtected(available);
-      })
-      .catch(() => {
-        if (active) setCaptureProtected(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
   const back = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLElement>(null);
   useEffect(() => {
