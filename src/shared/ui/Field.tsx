@@ -9,6 +9,15 @@ export type Choice<T extends string> = {
   disabledReason?: string;
 };
 
+function choiceDisabledReason(
+  choice: Choice<string>,
+  disabled?: boolean,
+  groupReason?: string,
+): string | undefined {
+  if (choice.disabled) return choice.disabledReason ?? groupReason;
+  return disabled ? groupReason : undefined;
+}
+
 type ChoiceGroupProps<T extends string> = {
   value: T;
   choices: readonly Choice<T>[];
@@ -40,7 +49,7 @@ export function ChoiceGroup<T extends string>({
               className={`flex min-h-[45px] w-full items-center gap-2.5 rounded-otto-control border px-[11px] py-[9px] text-left text-otto-hover-text ${selected ? "border-otto-line-muted bg-otto-control-deep" : "border-otto-line-mid bg-otto-field-deep"} ${unavailable ? "opacity-50" : ""}`}
               aria-pressed={selected}
               disabled={unavailable}
-              title={unavailable ? (choice.disabled ? choice.disabledReason : disabledReason) : undefined}
+              title={choiceDisabledReason(choice, disabled, disabledReason)}
               onClick={() => onChange(choice.value)}
             >
               <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border border-otto-disabled-outline">
@@ -75,7 +84,7 @@ export function ChoiceGroup<T extends string>({
           className={`min-h-7 rounded-otto-chip border px-2.5 py-[7px] text-otto-xs ${value === choice.value ? "border-otto-line-focused bg-otto-selected-hover text-otto-invert-line" : "border-otto-line-mid bg-otto-field-deep text-otto-text-secondary hover:bg-otto-control-hover"}`}
           aria-pressed={value === choice.value}
           disabled={disabled || choice.disabled}
-          title={choice.disabled ? choice.disabledReason : disabled ? disabledReason : undefined}
+          title={choiceDisabledReason(choice, disabled, disabledReason)}
           onClick={() => onChange(choice.value)}
         >
           {choice.label}
