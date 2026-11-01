@@ -98,10 +98,6 @@ export function AgentTranscript({
         ? "Request failed"
         : providerIssueTitle(readiness);
   const issue = providerIssue(readiness, error);
-  const lastAnswer = [...snapshot.messages]
-    .reverse()
-    .find((message) => message.role === "assistant" && message.text.length > 0);
-
   return (
     <>
       <ConversationToolbar
@@ -150,7 +146,6 @@ export function AgentTranscript({
             retryConnection={retryConnection}
             refreshProvider={refreshProvider}
             clearError={clearError}
-            lastAnswer={lastAnswer?.text ?? null}
           />
         </div>
       </div>
