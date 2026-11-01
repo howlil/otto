@@ -945,7 +945,9 @@ mod tests {
             _ = &mut closing => panic!("close must not reset before the worker acknowledges"),
             result = observed => assert!(result.is_ok()),
         }
-        let result = closing.await;
+        let result = timeout(Duration::from_secs(1), &mut closing)
+            .await
+            .expect("close timeout must be bounded");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("still closing"));
         assert_eq!(runtime.snapshot().status, "completed");
