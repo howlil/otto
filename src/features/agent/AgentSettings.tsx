@@ -84,11 +84,20 @@ export function AgentSettings({
         />
         <ModeSettings mode={mode} locked={locked || provider !== "codex"} setMode={setMode} />
         <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />
-        {provider === "codex" ? (
-          <AgentCaptureSettings capture={capture} focusCaptureShortcut={focusCaptureShortcut} />
+        {provider !== "agy" ? (
+          <>
+            <AgentCaptureSettings capture={capture} focusCaptureShortcut={focusCaptureShortcut} />
+            {readiness.status === "ready" && !readiness.imageInput && (
+              <StatusMessage tone="info" className="mt-2">
+                The selected model does not confirm image input. Choose a vision-capable model in
+                your CLI and Retry before capturing.
+              </StatusMessage>
+            )}
+          </>
         ) : (
           <StatusMessage tone="info" className="mt-2">
-            Screen capture requires Codex. Pi and Agy use tool-free text Quick Ask.
+            Agy headless image input is not verified. Use Codex or Pi with a vision-capable model
+            for screenshots.
           </StatusMessage>
         )}
         {hasThread && (
