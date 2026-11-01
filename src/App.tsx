@@ -19,7 +19,7 @@ function agentHomeSubtitle(
   if (error) return "Connection issue";
   if (snapshot.status !== "idle") return agentStatusLabel(snapshot.status, readiness.status);
   if (readiness.status === "checking")
-    return `Checking ${snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex"}`;
+    return "Open Agent to connect";
   if (readiness.status !== "ready") return "Setup required";
   return snapshot.messages.length > 0 ? "Continue session" : "Ask your CLI";
 }
@@ -38,14 +38,14 @@ function motionCue(status: string): string | null {
 }
 
 export default function App() {
-  const agent = useAgent();
+  const shell = useNotchShell();
+  const agent = useAgent(shell.expanded && (shell.page === "agent" || shell.page === "agent-settings"));
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeight, setContentHeight] = useState(170);
   const onContentMeasured = useCallback((height: number) => {
     const bounded = Math.max(1, Math.min(610, Math.ceil(height)));
     setContentHeight((current) => (Math.abs(current - bounded) > 2 ? bounded : current));
   }, []);
-  const shell = useNotchShell();
   const appUpdate = useAppUpdate();
   const { page, expanded, prefs, reducedMotion, isAgent, setEventMotion } = shell;
 
