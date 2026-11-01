@@ -258,20 +258,35 @@ impl AgentRuntime {
             return self.codex_readiness(requested_cwd).await;
         }
         if provider != "pi" {
-            return ProviderReadiness::new("unsupported", "Provider adapter unavailable.",
-                "Choose Codex or Pi.");
+            return ProviderReadiness::new(
+                "unsupported",
+                "Provider adapter unavailable.",
+                "Choose Codex or Pi.",
+            );
         }
         let snapshot = self.snapshot();
-        let directory = requested_cwd.filter(|value| !value.trim().is_empty())
+        let directory = requested_cwd
+            .filter(|value| !value.trim().is_empty())
             .unwrap_or(&snapshot.cwd);
         let Ok(cwd) = std::fs::canonicalize(directory) else {
-            return ProviderReadiness::new("unavailable", "Working project folder does not exist.",
-                "Select a valid folder, then Retry.");
+            return ProviderReadiness::new(
+                "unavailable",
+                "Working project folder does not exist.",
+                "Select a valid folder, then Retry.",
+            );
         };
         #[cfg(windows)]
-        { providers::pi::readiness(&cwd).await }
+        {
+            providers::pi::readiness(&cwd).await
+        }
         #[cfg(not(windows))]
-        { ProviderReadiness::new("unsupported", "Pi requires Windows.", "Run Otto on Windows.") }
+        {
+            ProviderReadiness::new(
+                "unsupported",
+                "Pi requires Windows.",
+                "Run Otto on Windows.",
+            )
+        }
     }
 
     pub async fn codex_readiness(&self, requested_cwd: Option<&str>) -> ProviderReadiness {
@@ -367,7 +382,13 @@ impl AgentRuntime {
         });
     }
 
-    pub async fn ask(&self, text: String, cwd: String, mode: String, provider: String) -> Result<(), String> {
+    pub async fn ask(
+        &self,
+        text: String,
+        cwd: String,
+        mode: String,
+        provider: String,
+    ) -> Result<(), String> {
         self.ask_with_capture(text, cwd, mode, provider, None).await
     }
 
@@ -407,7 +428,9 @@ impl AgentRuntime {
             return Err("An answer is already running.".into());
         }
 
-        let readiness = self.provider_readiness(&provider, Some(&cwd.to_string_lossy())).await;
+        let readiness = self
+            .provider_readiness(&provider, Some(&cwd.to_string_lossy()))
+            .await;
         if readiness.status != "ready" {
             return Err(format!("{} {}", readiness.message, readiness.recovery));
         }
@@ -473,7 +496,12 @@ impl AgentRuntime {
         let (tx, rx) = mpsc::channel(4);
         let updates = self.updates.clone();
         tauri::async_runtime::spawn(async move {
-            let initial = Control::Ask { text, cwd, run_id, capture };
+            let initial = Control::Ask {
+                text,
+                cwd,
+                run_id,
+                capture,
+            };
             if provider == "pi" {
                 #[cfg(windows)]
                 providers::pi::run(rx, updates.clone(), initial).await;
@@ -826,7 +854,12 @@ mod tests {
             .to_string_lossy()
             .into_owned();
         let escalated = runtime
-            .ask("edit files".into(), cwd, "agentSession".into(), "codex".into())
+            .ask(
+                "edit files".into(),
+                cwd,
+                "agentSession".into(),
+                "codex".into(),
+            )
             .await;
         assert!(escalated.is_err());
     }
