@@ -13,7 +13,7 @@ use std::{
 #[cfg(test)]
 use tokio::sync::watch;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Lines},
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
     sync::mpsc,
     time::timeout,
@@ -99,7 +99,8 @@ struct Rpc {
     job: Job,
     child: Child,
     stdin: ChildStdin,
-    stdout: Lines<BufReader<ChildStdout>>,
+    stdout: BufReader<ChildStdout>,
+    partial_frame: Vec<u8>,
     stderr_task: tokio::task::JoinHandle<String>,
 }
 
@@ -137,27 +138,23 @@ impl Rpc {
             job,
             child,
             stdin,
-            stdout: BufReader::new(stdout).lines(),
+            stdout: BufReader::new(stdout),
+            partial_frame: Vec::new(),
             stderr_task,
         })
     }
 
     async fn read(&mut self) -> Result<Value, String> {
-        let line = match self.stdout.next_line().await {
-            Ok(Some(line)) => line,
-            Ok(None) => {
+        match read_frame(&mut self.stdout, &mut self.partial_frame).await? {
+            Some(frame) => Ok(frame),
+            None => {
                 let diagnostics = timeout(Duration::from_millis(250), &mut self.stderr_task)
                     .await
                     .ok()
                     .and_then(Result::ok);
-                return Err(disconnect_message(diagnostics.as_deref()).into());
+                Err(disconnect_message(diagnostics.as_deref()).into())
             }
-            Err(_) => return Err("Agy stream failed.".into()),
-        };
-        if line.len() > 1_000_000 {
-            return Err("Agy message exceeded the supported limit.".into());
         }
-        serde_json::from_str(&line).map_err(|_| "Agy emitted invalid stream-json.".into())
     }
 
     async fn send(&mut self, prompt: &str) -> Result<(), String> {
@@ -182,6 +179,39 @@ impl Rpc {
         let _ = timeout(Duration::from_secs(3), self.child.wait()).await;
         let _ = self.child.start_kill();
     }
+}
+
+async fn read_frame<R: AsyncBufRead + Unpin>(
+    reader: &mut R,
+    frame: &mut Vec<u8>,
+) -> Result<Option<Value>, String> {
+    loop {
+        let chunk = reader
+            .fill_buf()
+            .await
+            .map_err(|_| "Agy stream failed.")?;
+        if chunk.is_empty() {
+            if frame.is_empty() {
+                return Ok(None);
+            }
+            break;
+        }
+        let newline = chunk.iter().position(|byte| *byte == b'\n');
+        let payload_len = newline.unwrap_or(chunk.len());
+        if frame.len().saturating_add(payload_len) > 1_000_000 {
+            return Err("Agy message exceeded the supported limit.".into());
+        }
+        frame.extend_from_slice(&chunk[..payload_len]);
+        reader.consume(payload_len + usize::from(newline.is_some()));
+        if newline.is_some() {
+            break;
+        }
+    }
+    let parsed = serde_json::from_slice(frame)
+        .map(Some)
+        .map_err(|_| "Agy emitted invalid stream-json.".into());
+    frame.clear();
+    parsed
 }
 
 fn safe_init(frame: &Value) -> Result<String, String> {
@@ -607,6 +637,69 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn ndjson_stream_preserves_sequential_frames_and_eof() {
+        let input = b"{\"event\":\"init\"}\n{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\"}}\r\n";
+        let mut reader = BufReader::with_capacity(7, &input[..]);
+        let mut pending = Vec::new();
+        assert_eq!(
+            read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
+            "init"
+        );
+        assert_eq!(
+            read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
+            "result"
+        );
+        assert!(read_frame(&mut reader, &mut pending).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn ndjson_stream_rejects_oversized_frame_before_allocating_it() {
+        let oversized = vec![b'a'; 1_000_001];
+        let mut reader = BufReader::with_capacity(32, &oversized[..]);
+        let mut pending = Vec::new();
+        assert_eq!(
+            read_frame(&mut reader, &mut pending).await.unwrap_err(),
+            "Agy message exceeded the supported limit."
+        );
+    }
+
+    #[tokio::test]
+    async fn ndjson_stream_rejects_malformed_frame() {
+        let input = b"{not-json}\n";
+        let mut reader = BufReader::with_capacity(4, &input[..]);
+        let mut pending = Vec::new();
+        assert_eq!(
+            read_frame(&mut reader, &mut pending).await.unwrap_err(),
+            "Agy emitted invalid stream-json."
+        );
+    }
+
+    #[tokio::test]
+    async fn ndjson_read_cancellation_retains_partial_frame() {
+        let (mut output, input) = tokio::io::duplex(64);
+        let mut reader = BufReader::with_capacity(4, input);
+        let mut pending = Vec::new();
+        let payload = br#"{"event":"init"}"#;
+        output.write_all(&payload[..9]).await.unwrap();
+        assert!(
+            timeout(
+                Duration::from_millis(30),
+                read_frame(&mut reader, &mut pending)
+            )
+            .await
+            .is_err()
+        );
+        assert!(!pending.is_empty());
+        output.write_all(&payload[9..]).await.unwrap();
+        output.write_all(b"\n").await.unwrap();
+        assert_eq!(
+            read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
+            "init"
+        );
+        assert!(pending.is_empty());
+    }
 
     #[test]
     fn profile_is_tool_free_and_existing_config_is_not_overwritten() {

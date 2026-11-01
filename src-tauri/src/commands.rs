@@ -52,6 +52,24 @@ pub fn agent_cancel_provider_readiness(runtime: State<'_, AgentRuntime>, request
 }
 
 #[tauri::command]
+pub fn agent_begin_workspace_edit(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
+    runtime.begin_workspace_edit()
+}
+
+#[tauri::command]
+pub async fn agent_commit_workspace(
+    runtime: State<'_, AgentRuntime>,
+    directory: String,
+) -> Result<String, String> {
+    runtime.commit_workspace(directory).await
+}
+
+#[tauri::command]
+pub fn agent_cancel_workspace_edit(runtime: State<'_, AgentRuntime>) {
+    runtime.cancel_workspace_edit();
+}
+
+#[tauri::command]
 pub async fn agent_select_runtime_options(
     runtime: State<'_, AgentRuntime>,
     model: Option<String>,

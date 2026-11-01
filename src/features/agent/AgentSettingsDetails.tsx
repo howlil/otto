@@ -122,7 +122,14 @@ export function AgentSettingsDetails({
                   agentSessionAvailable={props.readiness.agentSession}
                   setMode={props.setMode}
                 />
-                <ProjectSettings cwd={props.cwd} locked={props.locked} setCwd={props.setCwd} />
+                <ProjectSettings
+                  cwd={props.cwd}
+                  locked={props.locked}
+                  setCwd={props.setCwd}
+                  onBeginEdit={props.beginWorkspaceEdit}
+                  onCommit={props.commitWorkspace}
+                  onCancel={props.cancelWorkspaceEdit}
+                />
               </div>
               <ModelUsageSettings
                 readiness={props.readiness}

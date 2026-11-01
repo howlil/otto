@@ -241,6 +241,7 @@ pub struct AgentRuntime {
     updates: watch::Sender<Snapshot>,
     control: Mutex<Option<mpsc::Sender<Control>>>,
     selected_runtime: StdMutex<ModelSelection>,
+    workspace_editing: AtomicBool,
     readiness_probes: StdMutex<readiness_probe::ReadinessProbeState>,
     next_run_id: AtomicU64,
     subscriptions: StdMutex<Option<(u64, oneshot::Sender<()>)>>,
@@ -288,6 +289,7 @@ impl AgentRuntime {
             updates,
             control: Mutex::new(None),
             selected_runtime: StdMutex::new(ModelSelection::default()),
+            workspace_editing: AtomicBool::new(false),
             readiness_probes: StdMutex::new(readiness_probe::ReadinessProbeState::default()),
             next_run_id: AtomicU64::new(0),
             subscriptions: StdMutex::new(None),
@@ -386,12 +388,56 @@ impl AgentRuntime {
         }
         if current.provider != provider {
             *self.selected_runtime.lock().unwrap() = ModelSelection::default();
+            self.workspace_editing.store(false, Ordering::SeqCst);
             mutate(&self.updates, |state| {
                 state.provider = provider;
                 state.error = None;
             });
         }
         Ok(())
+    }
+
+    pub fn begin_workspace_edit(&self) -> Result<(), String> {
+        let state = self.snapshot();
+        if matches!(
+            state.status.as_str(),
+            "starting" | "streaming" | "stopping" | "approvalRequired"
+        ) || state.thread_id.is_some() || state.capture.phase != "idle"
+        {
+            return Err("Finish the current session before editing the project.".into());
+        }
+        self.workspace_editing.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+
+    pub async fn commit_workspace(&self, directory: String) -> Result<String, String> {
+        let guard = self.control.lock().await;
+        let state = self.snapshot();
+        if matches!(
+            state.status.as_str(),
+            "starting" | "streaming" | "stopping" | "approvalRequired"
+        ) || state.thread_id.is_some()
+            || state.capture.phase != "idle"
+            || guard.as_ref().is_some_and(|sender| !sender.is_closed())
+        {
+            return Err("Start a new session before changing the project.".into());
+        }
+        if directory.trim().is_empty() {
+            return Err("Enter an existing project folder.".into());
+        }
+        let cwd = std::fs::canonicalize(resolve_workspace_path(&directory))
+            .map_err(|_| "Working project folder does not exist.".to_string())?;
+        if !cwd.is_dir() {
+            return Err("Working project must be a folder.".into());
+        }
+        let confirmed = cwd.to_string_lossy().into_owned();
+        mutate(&self.updates, |state| state.cwd = confirmed.clone());
+        self.workspace_editing.store(false, Ordering::SeqCst);
+        Ok(confirmed)
+    }
+
+    pub fn cancel_workspace_edit(&self) {
+        self.workspace_editing.store(false, Ordering::SeqCst);
     }
 
     pub async fn select_runtime_options(
@@ -514,6 +560,9 @@ impl AgentRuntime {
 
     #[cfg(windows)]
     pub(crate) fn begin_capture(&self) -> Result<(u64, CaptureReservation), String> {
+        if self.workspace_editing.load(Ordering::SeqCst) {
+            return Err("Confirm the working project folder before capturing.".into());
+        }
         if matches!(
             self.snapshot().status.as_str(),
             "starting" | "streaming" | "stopping" | "approvalRequired"
@@ -543,6 +592,9 @@ impl AgentRuntime {
         F: FnOnce() -> Result<CapturedImage, String> + Send + 'static,
     {
         let state = self.snapshot();
+        if self.workspace_editing.load(Ordering::SeqCst) {
+            return Err("Confirm the working project folder before capturing.".into());
+        }
         if state.capture.request_id != request_id || state.capture.phase != "preparing" {
             return Err("Capture request is no longer current.".into());
         }
@@ -701,16 +753,27 @@ impl AgentRuntime {
             );
         }
 
-        let readiness = self
-            .provider_readiness_for(&provider, Some(&cwd.to_string_lossy()), model.as_deref())
-            .await;
-        if readiness.status != "ready" {
-            return Err(format!("{} {}", readiness.message, readiness.recovery));
+        let reused_agy = guard.as_ref().is_some_and(|sender| !sender.is_closed())
+            && can_reuse_agy_session(
+                &current,
+                &cwd,
+                mode,
+                model.as_deref(),
+                thinking_effort.as_deref(),
+                capture.is_some(),
+            );
+        if !reused_agy {
+            let readiness = self
+                .provider_readiness_for(&provider, Some(&cwd.to_string_lossy()), model.as_deref())
+                .await;
+            if readiness.status != "ready" {
+                return Err(format!("{} {}", readiness.message, readiness.recovery));
+            }
+            if capture.is_some() && !readiness.image_input {
+                return Err("The selected provider model cannot accept an image.".into());
+            }
+            validate_runtime_options(&readiness, model.as_deref(), thinking_effort.as_deref())?;
         }
-        if capture.is_some() && !readiness.image_input {
-            return Err("The selected provider model cannot accept an image.".into());
-        }
-        validate_runtime_options(&readiness, model.as_deref(), thinking_effort.as_deref())?;
         if let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
             if std::path::Path::new(&current.cwd) != cwd.as_path() {
                 return Err(
@@ -742,6 +805,7 @@ impl AgentRuntime {
                     thinking_effort: thinking_effort.clone(),
                 };
             }
+            self.workspace_editing.store(false, Ordering::SeqCst);
             mutate(&self.updates, |s| {
                 s.run_id = run_id;
                 s.status = "starting".into();
@@ -774,6 +838,7 @@ impl AgentRuntime {
                 thinking_effort: thinking_effort.clone(),
             };
         }
+        self.workspace_editing.store(false, Ordering::SeqCst);
         mutate(&self.updates, |s| {
             s.run_id = run_id;
             s.status = "starting".into();
@@ -849,6 +914,7 @@ impl AgentRuntime {
         }
         *guard = None;
         *self.selected_runtime.lock().unwrap() = ModelSelection::default();
+        self.workspace_editing.store(false, Ordering::SeqCst);
         if let Some(marker) = &self.recovery {
             marker.clear_if(current.run_id);
         }
@@ -928,6 +994,25 @@ impl AgentRuntime {
     }
 }
 
+fn can_reuse_agy_session(
+    snapshot: &Snapshot,
+    cwd: &std::path::Path,
+    mode: InteractionMode,
+    model: Option<&str>,
+    thinking_effort: Option<&str>,
+    has_capture: bool,
+) -> bool {
+    snapshot.provider == "agy"
+        && snapshot.status == "completed"
+        && snapshot.thread_id.is_some()
+        && snapshot.mode == mode.as_str()
+        && mode == InteractionMode::QuickAsk
+        && std::path::Path::new(&snapshot.cwd) == cwd
+        && model.is_none()
+        && thinking_effort.is_none()
+        && !has_capture
+}
+
 fn validate_runtime_options(
     readiness: &ProviderReadiness,
     model: Option<&str>,
@@ -968,6 +1053,126 @@ pub(crate) fn mutate(updates: &watch::Sender<Snapshot>, action: impl FnOnce(&mut
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn agy_reuse_requires_a_completed_unchanged_quick_ask() {
+        let cwd = std::fs::canonicalize(std::env::current_dir().unwrap()).unwrap();
+        let runtime = AgentRuntime::new();
+        let mut snapshot = runtime.snapshot();
+        snapshot.provider = "agy".into();
+        snapshot.status = "completed".into();
+        snapshot.mode = "quickAsk".into();
+        snapshot.thread_id = Some("agy-conversation".into());
+        snapshot.cwd = cwd.to_string_lossy().into_owned();
+
+        let eligible = |snapshot: &Snapshot, cwd: &std::path::Path, model: Option<&str>| {
+            can_reuse_agy_session(
+                snapshot,
+                cwd,
+                InteractionMode::QuickAsk,
+                model,
+                None,
+                false,
+            )
+        };
+        assert!(eligible(&snapshot, &cwd, None));
+        assert!(!eligible(&snapshot, &cwd, Some("different-model")));
+        assert!(!can_reuse_agy_session(
+            &snapshot,
+            &cwd,
+            InteractionMode::QuickAsk,
+            None,
+            Some("high"),
+            false,
+        ));
+        assert!(!can_reuse_agy_session(
+            &snapshot,
+            &cwd,
+            InteractionMode::QuickAsk,
+            None,
+            None,
+            true,
+        ));
+        assert!(!can_reuse_agy_session(
+            &snapshot,
+            &cwd,
+            InteractionMode::AgentSession,
+            None,
+            None,
+            false,
+        ));
+        assert!(!eligible(&snapshot, &cwd.join("different"), None));
+        snapshot.thread_id = None;
+        assert!(!eligible(&snapshot, &cwd, None));
+        snapshot.thread_id = Some("agy-conversation".into());
+        snapshot.status = "failed".into();
+        assert!(!eligible(&snapshot, &cwd, None));
+        snapshot.status = "completed".into();
+        snapshot.provider = "pi".into();
+        assert!(!eligible(&snapshot, &cwd, None));
+    }
+
+    #[tokio::test]
+    async fn completed_agy_followup_uses_owned_runtime_without_reprobing_cli() {
+        let runtime = AgentRuntime::new();
+        runtime.select_provider("agy".into()).await.unwrap();
+        let cwd = std::fs::canonicalize(std::env::current_dir().unwrap()).unwrap();
+        mutate(&runtime.updates, |state| {
+            state.status = "completed".into();
+            state.mode = "quickAsk".into();
+            state.thread_id = Some("agy-conversation".into());
+            state.cwd = cwd.to_string_lossy().into_owned();
+        });
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+        runtime
+            .ask(
+                "continue the explanation".into(),
+                cwd.to_string_lossy().into_owned(),
+                "quickAsk".into(),
+                "agy".into(),
+                None,
+                None,
+            )
+            .await
+            .expect("a completed Agy conversation must not require another CLI probe");
+        assert!(matches!(receiver.try_recv(), Ok(Control::Ask { .. })));
+        assert_eq!(runtime.snapshot().status, "starting");
+    }
+
+    #[tokio::test]
+    async fn workspace_requires_confirmed_existing_directory() {
+        let runtime = AgentRuntime::new();
+        let original = runtime.snapshot().cwd;
+        runtime.begin_workspace_edit().unwrap();
+        assert!(runtime.workspace_editing.load(Ordering::SeqCst));
+        assert!(runtime.commit_workspace(String::new()).await.is_err());
+        assert_eq!(runtime.snapshot().cwd, original);
+        assert!(runtime.workspace_editing.load(Ordering::SeqCst));
+        let confirmed = runtime.commit_workspace("~".into()).await.unwrap();
+        assert_eq!(runtime.snapshot().cwd, confirmed);
+        assert!(!runtime.workspace_editing.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn active_conversation_cannot_change_working_directory() {
+        let runtime = AgentRuntime::new();
+        let original = runtime.snapshot().cwd;
+        mutate(&runtime.updates, |state| state.status = "streaming".into());
+        assert!(runtime.begin_workspace_edit().is_err());
+        assert!(runtime.commit_workspace("~".into()).await.is_err());
+        assert_eq!(runtime.snapshot().cwd, original);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn editing_project_prevents_hotkey_from_using_stale_directory() {
+        let runtime = AgentRuntime::new();
+        runtime.begin_workspace_edit().unwrap();
+        assert!(runtime.begin_capture().is_err());
+        runtime.cancel_workspace_edit();
+        assert!(runtime.begin_capture().is_ok());
+    }
 
     #[cfg(windows)]
     #[test]

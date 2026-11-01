@@ -6,6 +6,9 @@ import { ReadinessProbeController } from "./readiness-probe";
 import {
   askAgent,
   captureAgentNow,
+  beginAgentWorkspaceEdit,
+  commitAgentWorkspace,
+  cancelAgentWorkspaceEdit,
   getAgentReadiness,
   cancelAgentReadiness,
   getCaptureTargetTitle,
@@ -461,6 +464,7 @@ export function useAgent(readinessActive: boolean) {
   const [thinkingEffort, setThinkingEffortValue] = useState<string | null>(null);
   const changingProvider = useRef(false);
   const changingRuntime = useRef(false);
+  const workspaceBegin = useRef<Promise<void> | null>(null);
   const [runtimeSelectionPending, setRuntimeSelectionPending] = useState(false);
   const busy =
     ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status) ||
@@ -524,6 +528,42 @@ export function useAgent(readinessActive: boolean) {
     },
     [busy, captureBusy, provider, connection.clearError, connection.setRequestError],
   );
+  const beginWorkspaceEdit = useCallback(() => {
+    if (!nativeAvailable) return;
+    const started = beginAgentWorkspaceEdit();
+    workspaceBegin.current = started;
+    void started.catch(connection.setRequestError);
+  }, [connection.setRequestError]);
+  const commitWorkspace = useCallback(
+    async (directory: string) => {
+      if (!nativeAvailable) return;
+      try {
+        await workspaceBegin.current;
+        const confirmed = await commitAgentWorkspace(directory);
+        setCwd(confirmed);
+        connection.clearError();
+      } catch (error) {
+        connection.setRequestError(error);
+      } finally {
+        workspaceBegin.current = null;
+      }
+    },
+    [connection.clearError, connection.setRequestError],
+  );
+  const cancelWorkspaceEdit = useCallback(() => {
+    setCwd(snapshot.cwd);
+    if (!nativeAvailable) return;
+    const started = workspaceBegin.current;
+    workspaceBegin.current = null;
+    void (async () => {
+      try {
+        await started;
+        await cancelAgentWorkspaceEdit();
+      } catch (error) {
+        connection.setRequestError(error);
+      }
+    })();
+  }, [snapshot.cwd, connection.setRequestError]);
   const selectModel = useCallback(
     async (next: string | null) => {
       const selected = readiness.models.find((option) => option.id === next);
@@ -597,6 +637,9 @@ export function useAgent(readinessActive: boolean) {
     setDraft: editDraft,
     cwd,
     setCwd,
+    beginWorkspaceEdit,
+    commitWorkspace,
+    cancelWorkspaceEdit,
     mode,
     setMode,
     provider,
