@@ -280,7 +280,7 @@ function MusicPanel({music,setMusic,onHome}){
   el("div",{className:"controls"},h(IconButton,{name:"SkipBack",label:"Previous track",onClick:previous}),
     h(Primary,{name:music.playing?"Pause":"Play",onClick:toggle}),
     h(IconButton,{name:"SkipForward",label:"Next track",onClick:next}),
-    el("button",{className:"secondary-button",onClick:()=>setMusic(m=>({...m,lyrics:true}))},h(Icon,{name:"Music",size:13}),"Lyrics"))))));
+    el("button",{className:"secondary-button",onClick:()=>setMusic(m=>({...m,lyrics:true}))},h(Icon,{name:"Music",size:13}),"Lyrics")))));
 }
 function FocusPanel({timer,setTimer,onToggle,onReset,onSettings,onHome}){
  return el("div",{className:"panel"},h(Header,{title:"Focus",context:"Pomodoro · Demo",onSettings,onHome}),
