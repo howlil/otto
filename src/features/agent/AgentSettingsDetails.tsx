@@ -163,7 +163,8 @@ export function AgentSettingsDetails({
       {tab === "mode" && (
         <ModeSettings
           mode={props.mode}
-          locked={props.locked || !props.readiness.agentSession}
+          locked={props.locked}
+          agentSessionAvailable={props.readiness.agentSession}
           setMode={props.setMode}
         />
       )}
