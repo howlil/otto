@@ -1,8 +1,8 @@
 ---
 colors: {surface: "#151515", text: "#FAFAFA", muted: "#A3A3A3"}
-typography: {body: {family: "Inter, Segoe UI Variable, Segoe UI, system-ui, sans-serif", size: "14px"}}
+typography: {body: {family: "Inter, Segoe UI Variable, Segoe UI, system-ui, sans-serif", size: "12px"}}
 spacing: {base: "4px"}
-radius: {island: "9999px", expanded_card_reference: "28px", attached_shoulder_reference: "12px"}
+radius: {island: "9999px", expanded_card_reference: "27px", attached_shoulder_reference: "12px"}
 motion: {ease: "cubic-bezier(0.22, 1, 0.36, 1)", reduced: "disable nonessential motion"}
 ---
 # Design — Otto
