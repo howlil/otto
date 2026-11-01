@@ -95,9 +95,7 @@
   --color-otto-disabled-outline: #7a7a81;
   --color-otto-label-faded: #aaa;
   --color-otto-disabled-selected: #707077;
-  --font-otto-ui:
-    Inter, "Segoe UI Variable", "Segoe UI", system-ui,
-    sans-serif;
+  --font-otto-ui: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-otto-mono: Consolas, monospace;
 
   --text-otto-2xs: 9px;
