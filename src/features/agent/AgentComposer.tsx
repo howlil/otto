@@ -4,6 +4,7 @@ import { IconButton, TextArea, VisuallyHidden } from "../../shared/ui";
 
 export function AgentComposer({
   provider,
+  imageTransport,
   draft,
   setDraft,
   busy,
@@ -15,6 +16,7 @@ export function AgentComposer({
   stop,
 }: {
   provider: AgentProvider;
+  imageTransport: boolean;
   draft: string;
   setDraft: (draft: string) => void;
   busy: boolean;
@@ -36,7 +38,7 @@ export function AgentComposer({
         className="flex min-h-[50px] items-center gap-[5px] rounded-full border border-transparent bg-otto-control-deep px-[7px] py-[5px] transition-[border-color,background] duration-150 hover:bg-otto-control-deep focus-within:border-otto-line-hover focus-within:outline focus-within:outline-2 focus-within:outline-otto-focus focus-within:outline-offset-2"
         onSubmit={submit}
       >
-        {provider !== "agy" && (
+        {imageTransport && (
           <IconButton
             id="otto-capture-setup"
             icon="camera"
