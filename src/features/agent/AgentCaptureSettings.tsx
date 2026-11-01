@@ -69,8 +69,8 @@ export function AgentCaptureSettings({
         </Button>
       </div>
       <Text as="p" variant="caption" className="mt-1.5 text-otto-text-tertiary">
-        Use Ctrl with Shift or Alt and one letter. Capture is triggered only by the shortcut;
-        image analysis requires a compatible provider.
+        Use Ctrl with Shift or Alt and one letter. Capture is triggered only by the shortcut; image
+        analysis requires a compatible provider.
       </Text>
       <div className="mt-3">
         <ChoiceGroup<CaptureSource>
