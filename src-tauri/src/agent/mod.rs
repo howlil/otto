@@ -215,11 +215,10 @@ impl AgentRuntime {
     }
 
     #[cfg(windows)]
-    pub async fn capture_hotkey(
-        &self,
-        hwnd: isize,
-        capture: fn(isize) -> Result<CapturedImage, String>,
-    ) -> Result<(), String> {
+    pub async fn capture_hotkey<F>(&self, capture: F) -> Result<(), String>
+    where
+        F: FnOnce() -> Result<CapturedImage, String> + Send + 'static,
+    {
         let state = self.snapshot();
         if matches!(
             state.status.as_str(),
@@ -236,7 +235,7 @@ impl AgentRuntime {
                 "Codex image input is not confirmed. Open Agent settings and Retry.".into(),
             );
         }
-        let image = tokio::task::spawn_blocking(move || capture(hwnd))
+        let image = tokio::task::spawn_blocking(capture)
             .await
             .map_err(|_| "Windows capture failed.".to_string())??;
         self.ask_with_capture(

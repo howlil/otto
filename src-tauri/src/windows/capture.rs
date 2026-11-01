@@ -4,7 +4,7 @@ use std::{
     io::BufWriter,
     path::PathBuf,
     sync::{
-        atomic::{AtomicIsize, Ordering},
+        Mutex,
         mpsc::{self, Receiver, Sender, SyncSender},
     },
     time::{Duration, SystemTime},
@@ -35,7 +35,7 @@ use windows_sys::Win32::{
 const HOTKEY_ID: i32 = 0x4f54;
 const MAX_EDGE: i32 = 4096;
 const WM_HOTKEY_CONFIG: u32 = WM_APP + 19;
-static LAST_EXTERNAL_WINDOW: AtomicIsize = AtomicIsize::new(0);
+static LAST_EXTERNAL_WINDOW: Mutex<Option<WindowTarget>> = Mutex::new(None);
 
 struct GdiCapture {
     window: HWND,
@@ -64,12 +64,37 @@ impl Drop for GdiCapture {
     }
 }
 
-fn external_window(hwnd: HWND) -> bool {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct WindowTarget {
+    handle: isize,
+    pid: u32,
+}
+
+impl WindowTarget {
+    fn matches(self, handle: isize, pid: u32) -> bool {
+        self.handle == handle && self.pid == pid && pid != 0
+    }
+
+    fn pin(hwnd: HWND) -> Option<Self> {
+        let pid = window_pid(hwnd);
+        (valid_capture_window(hwnd) && pid != 0).then_some(Self {
+            handle: hwnd as isize,
+            pid,
+        })
+    }
+}
+
+fn window_pid(hwnd: HWND) -> u32 {
     if hwnd.is_null() {
-        return false;
+        return 0;
     }
     let mut pid = 0;
     unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+    pid
+}
+
+fn external_window(hwnd: HWND) -> bool {
+    let pid = window_pid(hwnd);
     pid != 0 && pid != std::process::id()
 }
 
@@ -95,39 +120,35 @@ unsafe extern "system" fn on_foreground(
     if object != 0 || child != 0 {
         return;
     }
-    if external_window(hwnd) {
-        LAST_EXTERNAL_WINDOW.store(
-            if valid_capture_window(hwnd) {
-                hwnd as isize
-            } else {
-                0
-            },
-            Ordering::SeqCst,
-        );
+    if external_window(hwnd)
+        && let Ok(mut last) = LAST_EXTERNAL_WINDOW.lock()
+    {
+        *last = WindowTarget::pin(hwnd);
     }
 }
 
-fn select_capture_target() -> Result<isize, String> {
+fn select_capture_target() -> Result<WindowTarget, String> {
     let current = unsafe { GetForegroundWindow() };
     let target = if external_window(current) {
-        current as isize
+        WindowTarget::pin(current)
     } else {
-        LAST_EXTERNAL_WINDOW.load(Ordering::SeqCst)
+        *LAST_EXTERNAL_WINDOW
+            .lock()
+            .map_err(|_| "Window tracking is unavailable.")?
     };
-    if !valid_capture_window(target as HWND) {
-        return Err(
-            "Previous application window is no longer available. Focus it and retry.".into(),
-        );
+    let target = target.ok_or("Previous application window is unavailable. Focus it and retry.")?;
+    if !valid_capture_window(target.handle as HWND)
+        || !target.matches(target.handle, window_pid(target.handle as HWND))
+    {
+        return Err("Previous window changed or disappeared. Focus it and retry.".into());
     }
     Ok(target)
 }
 
-fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
-    let hwnd = target as HWND;
-    if !valid_capture_window(hwnd) {
-        return Err(
-            "Previous application window changed or disappeared. Focus it and retry.".into(),
-        );
+fn capture_foreground(target: WindowTarget) -> Result<CapturedImage, String> {
+    let hwnd = target.handle as HWND;
+    if !valid_capture_window(hwnd) || !target.matches(hwnd as isize, window_pid(hwnd)) {
+        return Err("Capture target changed before capture. Focus it and retry.".into());
     }
     let mut rect: RECT = unsafe { std::mem::zeroed() };
     if unsafe { GetWindowRect(hwnd, &mut rect) } == 0 {
@@ -322,8 +343,10 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
         );
     }
     let initial = unsafe { GetForegroundWindow() };
-    if valid_capture_window(initial) {
-        LAST_EXTERNAL_WINDOW.store(initial as isize, Ordering::SeqCst);
+    if let Some(target) = WindowTarget::pin(initial)
+        && let Ok(mut last) = LAST_EXTERNAL_WINDOW.lock()
+    {
+        *last = Some(target);
     }
     loop {
         if unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } <= 0 {
@@ -367,7 +390,7 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
                 match target {
                     Ok(window) => {
                         if let Err(reason) =
-                            runtime.capture_hotkey(window, capture_foreground).await
+                            runtime.capture_hotkey(move || capture_foreground(window)).await
                         {
                             runtime.capture_error(&reason);
                         }
@@ -398,6 +421,18 @@ pub fn start_hotkey(app: tauri::AppHandle) -> CaptureHotkeys {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn captured_window_identity_must_not_change_process() {
+        let pinned = WindowTarget {
+            handle: 12,
+            pid: 42,
+        };
+        assert!(pinned.matches(12, 42));
+        assert!(!pinned.matches(12, 43));
+        assert!(!pinned.matches(13, 42));
+        assert!(!pinned.matches(12, 0));
+    }
 
     #[test]
     fn shortcuts_require_explicit_safe_modifiers_and_single_letter() {
