@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: Pi screenshot Rustfmt fixes; test and Clippy verification.
+# Verification dispatch: B4 Pi screenshot validated with Agy assertion update.
 
 'on':
   push:
