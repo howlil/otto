@@ -50,7 +50,13 @@ export function AgentHeader({
     previousSettings.current = settings;
   }, [settings]);
   return (
-    <header className={settings ? "flex h-[51px] shrink-0 items-center gap-[9px] border-b border-otto-line-soft px-[15px]" : "flex h-[53px] shrink-0 items-center gap-[9px] px-[15px] pb-[5px] pt-[9px]"}>
+    <header
+      className={
+        settings
+          ? "flex h-[51px] shrink-0 items-center gap-[9px] border-b border-otto-line-soft px-[15px]"
+          : "flex h-[53px] shrink-0 items-center gap-[9px] px-[15px] pb-[5px] pt-[9px]"
+      }
+    >
       {settings ? (
         <IconButton
           icon="back"
@@ -86,7 +92,11 @@ export function AgentHeader({
           )}
         </Text>
         {!settings && (
-          <Text as="small" variant="meta" className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-otto-text-tertiary">
+          <Text
+            as="small"
+            variant="meta"
+            className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-otto-text-tertiary"
+          >
             {scopeLabel}
           </Text>
         )}
