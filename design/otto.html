@@ -336,6 +336,43 @@ button{touch-action:manipulation}
 @keyframes otto-blink{0%,95%,100%{transform:scaleY(1)}97%{transform:scaleY(.08)}}
 .hf-eyes.expressive i,.eye-pair.expressive .eye{animation:otto-blink 9.5s ease-in-out infinite}
 @media(prefers-reduced-motion:reduce){.hf-eyes.expressive i,.eye-pair.expressive .eye{animation:none!important}}
+
+/* Agent Settings: same sidebar system as Global Settings; capture configuration stays here */
+.as-root{display:flex;flex-direction:column;height:100%;width:100%;border-radius:inherit;overflow:hidden;background:#151515;color:#fafafa}
+.as-header{height:51px;flex:none;display:flex;align-items:center;gap:9px;padding:0 15px;border-bottom:1px solid #2b2c2f}
+.as-header strong{font-size:13px;font-weight:550}
+.as-header .icon-button{height:28px;width:28px;background:#242426;border:1px solid #36373b;border-radius:9px}
+.as-meta{margin-left:auto;font-size:10px;color:#888}
+.as-body{min-height:0;flex:1;display:grid;grid-template-columns:118px minmax(0,1fr)}
+.as-nav{padding:13px 8px;display:flex;flex-direction:column;gap:4px;border-right:1px solid #292b2f;background:#181818}
+.as-navitem{height:35px;background:none;color:#929292;border:0;border-radius:9px;padding:0 9px;text-align:left;font-size:11px;cursor:pointer}
+.as-navitem.active{background:#2e3033;color:#fff}
+.as-navitem:hover{background:#272729;color:#eee}
+.as-scroll{min-width:0;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#444 transparent}
+.as-view{padding:15px 17px 20px}
+.as-intro h2{font-size:14px;font-weight:550;margin:0 0 4px}
+.as-intro p{font-size:10px;color:#929396;line-height:1.5;margin:0 0 15px}
+.as-field{border-bottom:1px solid #2b2b2c;padding-bottom:13px;margin-bottom:13px}
+.as-fieldlabel{font-size:11px;color:#e3e3e3;margin-bottom:9px}
+.as-help,.as-privacy{font-size:9px;line-height:1.55;color:#898989;margin:8px 0 0}
+.as-providerlist,.as-modes{display:flex;flex-direction:column;gap:6px}
+.as-provider{border:1px solid #3b3b3f;background:#252527;color:#f3f3f3;border-radius:10px;min-height:43px;padding:8px 10px;display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer}
+.as-provider.active,.as-mode.active{background:#303034;border-color:#82848b}
+.as-provider strong,.as-mode strong{font-size:11px;display:block;font-weight:550}
+.as-provider small,.as-mode small{font-size:9px;display:block;color:#9d9da1;margin-top:4px}
+.as-mode{display:flex;gap:10px;text-align:left;align-items:center;background:#242426;color:#f0f0f0;border:1px solid #3b3b3e;border-radius:10px;padding:10px;cursor:pointer}
+.as-mode>span{flex:1}
+.as-radio{width:14px;height:14px;flex:none;border:1px solid #74757a;border-radius:50%}
+.as-mode.active .as-radio{background:#e0e1e3;box-shadow:inset 0 0 0 4px #303034}
+.as-status{display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid #404146;background:#242427;border-radius:10px;margin:10px 0;color:#d4d5d8}
+.as-status svg{margin-top:1px;flex:none}
+.as-status strong{display:block;font-size:10px;font-weight:550}
+.as-status small{display:block;margin-top:4px;color:#96979b;font-size:9px;line-height:1.5}
+.as-input{display:flex;gap:8px;align-items:center;border:1px solid #414146;background:#252528;border-radius:9px;padding:0 10px}
+.as-input input{flex:1;min-width:0;width:100%;background:transparent;border:0;padding:10px 0;color:#eee;font-size:11px;outline:0}
+.as-input:focus-within{border-color:#878994}
+.as-textbutton{color:#c9cbd0;font-size:10px;border:0;background:transparent;text-decoration:underline;padding:6px 0;cursor:pointer}
+.af-warning .as-textbutton{display:block;text-align:left}
 </style>
 </head>
 <body>
@@ -394,7 +431,7 @@ function Home({onHomeSettings,onNavigate,agent,prefs,reduce}){
 }
 
 
-function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onHome,onCapture,onApprove,onDeny,onRetry}){
+function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSettings,onHome,onCapture,onApprove,onDeny,onRetry}){
  const feedRef=useRef(null);
  useEffect(()=>{if(feedRef.current)feedRef.current.scrollTop=feedRef.current.scrollHeight},[agent.messages,agent.busy,agent.phase,agent.readiness]);
  const phase=agent.phase||"ready", ready=agent.readiness==="ready";
@@ -427,10 +464,10 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onHome,onCaptu
   approval,hint,error,
   unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
   !agent.busy&&phase==="complete"&&lastAnswer?el("button",{type:"button",className:"af-copy",onClick:()=>{if(navigator.clipboard?.writeText)navigator.clipboard.writeText(lastAnswer.text)}} ,h(Icon,{name:"Copy",size:14}),"Copy answer"):null,
-  agent.warning?el("div",{className:"af-warning"},agent.warning):null));
+  agent.warning?el("div",{className:"af-warning"},agent.warning,el("button",{type:"button",className:"as-textbutton",onClick:onCaptureSettings},"Screen Capture settings")):null));
  const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(ready&&draft.trim()&&phase!=="approval"){onSend(draft.trim());onDraft("")}};
  const composer=el("div",{className:"af-composewrap"},el("form",{className:"af-composer",onSubmit:send},
-  h(IconButton,{name:"Camera",label:"Choose screen capture source",onClick:onCapture}),
+  h(IconButton,{name:"Camera",label:"Capture screen now",onClick:onCapture}),
   el("textarea",{rows:1,value:draft,placeholder:ready?"Ask "+agent.provider+"…":"Configure "+agent.provider+" to send","aria-label":"Agent prompt",onChange:e=>onDraft(e.target.value)}),
   el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:!agent.busy&&(!draft.trim()||!ready||phase==="approval"),"aria-label":agent.busy?"Stop request":"Send"},
    h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16}))));
@@ -438,35 +475,54 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onHome,onCaptu
 }
 
 
-function AgentSettings({agent,setAgent,onBack}){
- const head=el("div",{className:"af-head"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("div",{className:"af-identity"},el("strong",null,"Agent settings"),el("small",null,"Provider, permissions and context")));
- const changeProvider=p=>setAgent(a=>({...a,provider:p,readiness:p==="Codex"?"ready":p==="Agy"?"auth":p==="Pi"?"unsupported":"missing",warning:"",phase:"ready"}));
- const providers=el("div",{className:"af-providergrid"},["Codex","Agy","Pi","OpenCode"].map(p=>el("button",{key:p,className:"af-provider"+(agent.provider===p?" selected":""),onClick:()=>changeProvider(p),disabled:agent.busy},p,el("small",null,p==="Codex"?"Ready · demo":p==="Agy"?"Auth needed":p==="Pi"?"Limited":"Not found"))));
- const modes=["Quick Ask","Agent Session"].map(p=>el("button",{key:p,className:"af-mode"+(agent.mode===p?" selected":""),onClick:()=>setAgent(a=>({...a,mode:p})),disabled:agent.busy},el("span",{className:"af-radio"}),el("span",null,el("strong",null,p),el("small",null,p==="Quick Ask"?"Request-only simulation · no file changes":"Multi-turn CLI session · approval for privileged tools"))));
- const body=el("div",{className:"af-settings"},
-   el("p",{className:"muted small"},"Provider readiness below is simulated, not detected from a local installation."),
-   el("p",{className:"af-sectiontitle"},"Provider"),providers,
-   el("p",{className:"af-readiness",role:"status"},agent.provider+": "+(agent.readiness==="ready"?"Ready (demo)":agent.readiness==="auth"?"Sign-in required":agent.readiness==="unsupported"?"Capability unsupported":"CLI not installed")),
-   el("hr"),el("p",{className:"af-sectiontitle"},"Interaction mode"),...modes,
-   el("hr"),el("p",{className:"af-sectiontitle"},"Working project"),
-   el("label",{className:"af-context"},h(Icon,{name:"Terminal",size:15}),el("input",{value:agent.cwd,onChange:e=>setAgent(a=>({...a,cwd:e.target.value})),"aria-label":"Working project"})),
-   el("div",{className:"af-done"},h(Primary,{name:"Check",onClick:onBack},"Done")));
- return el("div",{className:"af"},head,body);
+
+function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack}){
+ const names=["Provider","Mode","Workspace","Screen Capture"];
+ const statusText={ready:"Ready · simulated",auth:"Sign-in required",missing:"Not installed",unsupported:"Capability unverified"};
+ const intro=(heading,help)=>el("div",{className:"as-intro"},el("h2",null,heading),el("p",null,help));
+ const field=(label,control,note)=>el("div",{className:"as-field"},el("div",{className:"as-fieldlabel"},label),control,note?el("p",{className:"as-help"},note):null);
+ const status=(heading,note)=>el("div",{className:"as-status",role:"status"},h(Icon,{name:"AlertCircle",size:15}),el("div",null,el("strong",null,heading),el("small",null,note)));
+ const modeButton=(name,desc,active,callback)=>el("button",{type:"button",className:"as-mode"+(active?" active":""),onClick:callback},el("i",{className:"as-radio"}),el("span",null,el("strong",null,name),el("small",null,desc)));
+ const parts=[];
+ if(tab==="Provider"){
+  parts.push(intro("Provider","Choose a local CLI; readiness below is only a design simulation."));
+  const providers=["Codex","Agy","Pi"].map(name=>{
+   const readiness=name==="Codex"?"ready":name==="Agy"?"auth":"unsupported";
+   return el("button",{type:"button",key:name,disabled:agent.busy,className:"as-provider"+(agent.provider===name?" active":""),onClick:()=>setAgent(a=>({...a,provider:name,readiness,phase:"ready",warning:""}))},
+     h(Icon,{name:"Terminal",size:15}),el("span",null,el("strong",null,name),el("small",null,statusText[readiness])));
+  });
+  parts.push(field("Installed CLI",el("div",{className:"as-providerlist"},...providers)));
+  parts.push(status(agent.provider+" · "+(statusText[agent.readiness]||"Unknown"),agent.readiness==="auth"?"Sign in through the CLI, then retry.":agent.readiness==="unsupported"?"Check installed version and supported capabilities.":"Native capability detection is not running in this preview."));
+  if(agent.readiness!=="ready")parts.push(el("button",{type:"button",className:"as-textbutton",onClick:()=>setAgent(a=>({...a,warning:"Readiness check requires the native adapter. Status unchanged."}))},"Recheck readiness"));
+ }else if(tab==="Mode"){
+  parts.push(intro("Interaction mode","Set permissions before starting agent work."));
+  const quick=modeButton("Quick Ask","Single request · file writes must be disabled.",agent.mode==="Quick Ask",()=>setAgent(a=>({...a,mode:"Quick Ask"})));
+  const session=modeButton("Agent Session","Multi-turn context · tool approvals required.",agent.mode==="Agent Session",()=>setAgent(a=>({...a,mode:"Agent Session"})));
+  parts.push(field("Execution mode",el("div",{className:"as-modes"},quick,session)));
+  parts.push(status(agent.mode==="Quick Ask"?"Read-only enforcement required":"Privileged operations require approval",agent.mode==="Quick Ask"?"Disable Quick Ask when the provider cannot enforce no file changes.":"Do not auto-approve tool requests."));
+ }else if(tab==="Workspace"){
+  parts.push(intro("Working project","Your directory and context are visible before submission."));
+  const input=el("input",{value:agent.cwd,disabled:agent.busy,"aria-label":"Working project directory",onChange:e=>setAgent(a=>({...a,cwd:e.target.value}))});
+  parts.push(field("Project directory",el("label",{className:"as-input"},h(Icon,{name:"Terminal",size:15}),input),"Validated by the native adapter. Changes apply to the next request."));
+  parts.push(status("Session context",agent.busy?"Current run continues; context changes are locked.":"New requests use the chosen project."));
+ }else{
+  parts.push(intro("Screen Capture","Configure here. The camera button or hotkey performs the explicit capture action."));
+  const windowChoice=modeButton("Last focused window","Default · last non-Otto active window.",capture.source==="Last focused window",()=>setCapture(c=>({...c,source:"Last focused window"})));
+  const fullChoice=modeButton("Full screen","Explicit alternative · desktop image.",capture.source==="Full screen",()=>setCapture(c=>({...c,source:"Full screen"})));
+  parts.push(field("Capture source",el("div",{className:"as-modes"},windowChoice,fullChoice)));
+  const shortcut=el("input",{value:capture.hotkey,"aria-label":"Capture hotkey",placeholder:"Ctrl + Shift + X",onChange:e=>setCapture(c=>({...c,hotkey:e.target.value,hotkeyStatus:"unverified"}))});
+  parts.push(field("Shortcut",el("label",{className:"as-input"},h(Icon,{name:"Command",size:15}),shortcut),"Windows must register and validate shortcut conflicts."));
+  const condition=capture.permission==="denied"?"Permission denied":capture.permission==="missing target"?"Target window missing":capture.hotkeyStatus==="conflict"?"Hotkey conflict":"Capture capability unverified";
+  const help=condition==="Permission denied"?"No image may be sent.":condition==="Target window missing"?"Retry a valid window or choose screen explicitly.":condition==="Hotkey conflict"?"Assign a different key combination.":"Verify foreground target, permission and image support before capture.";
+  parts.push(status(condition,help));
+  parts.push(status("Provider image input · "+agent.provider,"Image capability requires native verification; no screenshot is taken here."));
+  parts.push(el("p",{className:"as-privacy"},"No periodic screenshots. Transmit only on explicit request. Capture exclusion is best effort."));
+ }
+ const header=el("header",{className:"as-header"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("strong",null,"Agent settings"),el("span",{className:"as-meta"},agent.provider));
+ const sidebar=el("nav",{className:"as-nav","aria-label":"Agent settings sections"},...names.map(name=>el("button",{type:"button",key:name,className:"as-navitem"+(tab===name?" active":""),onClick:()=>setTab(name)},name)));
+ return el("div",{className:"as-root"},header,el("div",{className:"as-body"},sidebar,el("div",{className:"as-scroll"},el("section",{className:"as-view"},...parts))));
 }
-function CapturePanel({capture,setCapture,onBack,onDemo}){
- const head=el("div",{className:"af-head"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("div",{className:"af-identity"},el("strong",null,"Screen capture"),el("small",null,"User-triggered only · preview")));
- const body=el("div",{className:"af-settings"},
- el("p",{className:"muted small"},"Choose the intended source. No image is captured or sent from this HTML preview."),
- el("p",{className:"af-sectiontitle"},"Capture source"),
- ...["Last focused window","Full screen"].map(src=>el("button",{key:src,className:"af-mode"+(capture.source===src?" selected":""),onClick:()=>setCapture(c=>({...c,source:src}))},el("span",{className:"af-radio"}),el("span",null,el("strong",null,src),el("small",null,src==="Last focused window"?"Default · excludes Otto when possible":"Explicit alternative · whole desktop")))),
- el("hr"),el("p",{className:"af-sectiontitle"},"Hotkey"),
- el("div",{className:"af-capture-meta"},h(Icon,{name:"Command",size:15}),capture.hotkey),
- el("p",{className:"af-sectiontitle"},"Permission simulation"),
- el("div",{className:"af-capture-controls"},["available","denied","missing target","conflict"].map(state=>el("button",{key:state,className:capture.permission===state?"selected":"",onClick:()=>setCapture(c=>({...c,permission:state}))},state))),
- capture.permission!=="available"?el("div",{className:"af-inline-state",role:"status"},capture.permission==="denied"?"Permission denied — no capture occurs.":capture.permission==="missing target"?"Target window unavailable — select a valid target.":"Hotkey conflict — reassign the shortcut."):null,
- el("div",{className:"af-done"},h(Primary,{name:"Check",onClick:()=>onDemo(capture.permission)},"Try capture demo")));
- return el("div",{className:"af"},head,body);
-}
+
 
 function Album(){return el("div",{className:"album"},h(Icon,{name:"Disc3",size:42}))}
 function MusicPanel({music,setMusic,onHome}){
@@ -561,7 +617,8 @@ function App(){
  const [music,setMusic]=useState({track:0,position:71,playing:true,lyrics:false,line:2});
  const [timer,setTimer]=useState({phase:"focus",remaining:1500,running:false,deadline:null,duration:{...durations}});
  const [event,setEvent]=useState(null);
- const [capture,setCapture]=useState({source:"Last focused window",permission:"available",hotkey:"Ctrl + Shift + X"});
+ const [capture,setCapture]=useState({source:"Last focused window",permission:"unknown",hotkey:"Ctrl + Shift + X",hotkeyStatus:"unverified"});
+ const [agentSettingsTab,setAgentSettingsTab]=useState("Provider");
  const pointerEnter=useRef(null),pointerLeave=useRef(null),completion=useRef(null),agentRun=useRef(null),pinnedUntil=useRef(0);
  const currentPage=useRef(page);currentPage.current=page;
  const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches||prefs.motion==="Reduced";
@@ -582,16 +639,17 @@ function App(){
  agentRun.current=setInterval(()=>{if(index===chunks.length){clearInterval(agentRun.current);setAgent(a=>({...a,busy:false,phase:"complete",unread:currentPage.current!=="agent"}));return}
  const chunk=chunks[index++];setAgent(a=>({...a,phase:"streaming",messages:a.messages.map((m,i)=>i===a.messages.length-1?{...m,text:m.text+chunk}:m)}))},560);
  };
+ const requestCapture=()=>{const reason=agent.readiness!=="ready"?"Selected CLI is unavailable.":agent.provider!=="Codex"?"Image input is not verified for this provider.":capture.hotkeyStatus==="conflict"?"Hotkey conflict; choose another shortcut.":capture.permission==="denied"?"Windows capture permission denied.":capture.permission==="missing target"?"Last focused window is missing or ambiguous.":capture.source==="Full screen"?"Full-screen capture requires the native Windows host.":"Last-focused-window capture requires the native Windows host.";setAgent(a=>({...a,warning:reason+" No image was captured or transmitted in this HTML preview."}));};
  const onEvent=name=>{clearTimeout(completion.current);setEvent(name);completion.current=setTimeout(()=>setEvent(null),2200)};
- const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="capture"?[526,390]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,agent.phase==="approval"?336:agent.phase==="error"||agent.phase==="interrupted"||agent.readiness!=="ready"?270:agent.busy?346:agent.messages.length?346:170]:page==="music"?[444,music.lyrics?212:178]:[408,174];
+ const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,agent.phase==="approval"?336:agent.phase==="error"||agent.phase==="interrupted"||agent.readiness!=="ready"?270:agent.busy?346:agent.messages.length?346:170]:page==="music"?[444,music.lyrics?212:178]:[408,174];
  const shape=event?"event":presentation==="compact"?"compact":"expanded";
  const shellKey=event?"event-"+event:shape==="compact"?page+"-compact":drawer||page+(music.lyrics?"-lyrics":"");
  const enter=()=>{clearTimeout(pointerLeave.current);if(event||presentation!=="compact"||!prefs.hoverExpand)return;clearTimeout(pointerEnter.current);pointerEnter.current=setTimeout(()=>{pinnedUntil.current=Date.now()+470;setPresentation("preview")},prefs.hoverDelay)};
  const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(prefs.leaveDelay,pinnedUntil.current-Date.now()+140))}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs}):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,onBack:()=>setDrawer(null)}):drawer==="capture"?h(CapturePanel,{capture,setCapture,onBack:()=>setDrawer(null),onDemo:permission=>{setDrawer(null);setAgent(a=>({...a,warning:permission==="available"?"Capture is a UI simulation only — no image sent.":"Capture blocked: "+permission+" — no image sent."}))}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>setDrawer("agent"),onCapture:()=>setDrawer("capture"),onHome:()=>navigate("home")}):page==="music"?h(MusicPanel,{music,setMusic,onHome:()=>navigate("home")}):h(FocusPanel,{timer,setTimer,onToggle:toggleTimer,onReset:resetTimer,onSettings:()=>setDrawer("focus"),onHome:()=>navigate("home")});
- const onAgentDemo=phase=>{clearInterval(agentRun.current);navigate("agent");if(phase==="run"){setAgent(a=>({...a,readiness:"ready",provider:"Codex"}));sendAgent("How should Otto preserve a CLI session?",true);return}const read=phase==="auth"?"auth":phase==="missing"?"missing":"ready";const actual=phase==="auth"||phase==="missing"?"ready":phase;const sample=phase==="approval"?"Update the session adapter safely.":phase==="error"?"Check why the CLI cannot connect.":"";setAgent(a=>({...a,busy:false,phase:actual,readiness:read,provider:phase==="auth"?"Agy":phase==="missing"?"OpenCode":"Codex",warning:"",messages:sample?[{role:"user",text:sample}]:[],unread:false}))};
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs}):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Provider");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Screen Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicPanel,{music,setMusic,onHome:()=>navigate("home")}):h(FocusPanel,{timer,setTimer,onToggle:toggleTimer,onReset:resetTimer,onSettings:()=>setDrawer("focus"),onHome:()=>navigate("home")});
+ const onAgentDemo=phase=>{clearInterval(agentRun.current);navigate("agent");if(phase==="run"){setAgent(a=>({...a,readiness:"ready",provider:"Codex"}));sendAgent("How should Otto preserve a CLI session?",true);return}const read=phase==="auth"?"auth":phase==="missing"?"missing":"ready";const actual=phase==="auth"||phase==="missing"?"ready":phase;const sample=phase==="approval"?"Update the session adapter safely.":phase==="error"?"Check why the CLI cannot connect.":"";setAgent(a=>({...a,busy:false,phase:actual,readiness:read,provider:phase==="auth"?"Agy":phase==="missing"?"Pi":"Codex",warning:"",messages:sample?[{role:"user",text:sample}]:[],unread:false}))};
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
  const eventNav=[["volume","Volume2","Volume"],["wifi","Wifi","Wi-Fi"],["bluetooth","Bluetooth","Bluetooth"],["brightness","Sun","Brightness"],["battery","BatteryCharging","Battery"],["headphones","Headphones","Headset"]];
  return el("div",{className:"lab"+(reduce?" motion-reduced":"")},
