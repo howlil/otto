@@ -284,7 +284,7 @@ button{touch-action:manipulation}
 /* Agent conversation controls stay inside the approved 526px silhouette. */
 .af{position:relative}
 .af-more{position:relative;flex:none}
-.af-menu{position:absolute;z-index:16;right:15px;top:48px;width:184px;border:1px solid #414147;border-radius:12px;background:#252528;padding:5px;box-shadow:0 14px 28px #0006}
+.af-menu{position:absolute;z-index:16;right:15px;top:48px;width:184px;max-height:calc(100% - 56px);overflow-y:auto;border:1px solid #414147;border-radius:12px;background:#252528;padding:5px;box-shadow:0 14px 28px #0006}
 .af-menu button{width:100%;display:flex;align-items:center;gap:10px;background:transparent;border:0;color:#e2e2e6;font-size:11px;text-align:left;padding:9px;border-radius:8px}
 .af-menu button:hover,.af-menu button:focus-visible{background:#393a40}
 .af-menu button:disabled{opacity:.4;cursor:default}
@@ -730,7 +730,7 @@ function AgentRichText({text,onCopy}){
 
 
 function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSettings,onHome,onCapture,onApprove,onDeny,onRetry}){
- const feedRef=useRef(null),menuButton=useRef(null),searchInput=useRef(null);
+ const feedRef=useRef(null),menuButton=useRef(null),menuRef=useRef(null),searchInput=useRef(null);
  const [toolsOpen,setToolsOpen]=useState(false),[searchOpen,setSearchOpen]=useState(false);
  const [query,setQuery]=useState(""),[matchIndex,setMatchIndex]=useState(0),[feedback,setFeedback]=useState("");
  const phase=agent.phase||"ready",ready=agent.readiness==="ready",unread=agent.unread&&!agent.busy;
@@ -740,6 +740,7 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSetti
  useEffect(()=>{if(feedRef.current&&!searchOpen)feedRef.current.scrollTop=feedRef.current.scrollHeight},[agent.messages,agent.busy,agent.phase,agent.readiness,searchOpen]);
  useEffect(()=>{if(searchOpen&&activeHit>=0){feedRef.current?.querySelector('[data-agent-message="'+activeHit+'"]')?.scrollIntoView({block:"nearest",behavior:"auto"})}},[searchOpen,activeHit,query,agent.messages]);
  useEffect(()=>{if(searchOpen)searchInput.current?.focus()},[searchOpen]);
+ useEffect(()=>{if(toolsOpen)menuRef.current?.querySelector("button")?.focus()},[toolsOpen]);
  const notify=message=>setFeedback(message);
  const copy=async(value,success)=>notify(await copyPrototypeText(value)?success:"Clipboard unavailable — select text to copy");
  const exportConversation=()=>{
@@ -747,7 +748,7 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSetti
   try{
    const file=new Blob([markdownTranscript(agent)],{type:"text/markdown;charset=utf-8"});
    const url=URL.createObjectURL(file),anchor=document.createElement("a");
-   anchor.href=url;anchor.download="otto-conversation.md";document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
+   anchor.href=url;anchor.download="otto-conversation.md";document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
    notify("Markdown download requested — prototype only");
   }catch{notify("Download unavailable. Use Copy Markdown instead")}
  };
@@ -762,10 +763,10 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSetti
   el("span",{className:"af-state"+(ready?"":" af-attention"),role:"status"},el("i",{className:!ready||phase==="approval"?"warn":phase==="error"?"bad":""}),status),
   el("button",{type:"button",className:"icon-button af-more",title:"Conversation actions","aria-label":"Conversation actions","aria-expanded":toolsOpen,ref:menuButton,onClick:()=>setToolsOpen(!toolsOpen)},h(Icon,{name:"MoreHorizontal",size:17})),
   h(IconButton,{name:"Settings2",label:"Agent settings",onClick:onSettings}));
- const menu=toolsOpen?el("div",{className:"af-menu",role:"menu","aria-label":"Conversation actions"},
+ const menu=toolsOpen?el("div",{className:"af-menu",role:"menu","aria-label":"Conversation actions",ref:menuRef},
   el("button",{type:"button",role:"menuitem",onClick:openSearch},h(Icon,{name:"Search",size:14}),"Find in conversation"),
-  el("button",{type:"button",role:"menuitem",disabled:!agent.messages.length,onClick:()=>{setToolsOpen(false);void copy(markdownTranscript(agent),"Markdown copied")}},h(Icon,{name:"Copy",size:14}),"Copy Markdown"),
-  el("button",{type:"button",role:"menuitem",disabled:!agent.messages.length,onClick:()=>{setToolsOpen(false);exportConversation()}},h(Icon,{name:"Download",size:14}),"Export .md"),
+  el("button",{type:"button",role:"menuitem",disabled:!agent.messages.length,onClick:()=>{setToolsOpen(false);menuButton.current?.focus();void copy(markdownTranscript(agent),"Markdown copied")}},h(Icon,{name:"Copy",size:14}),"Copy Markdown"),
+  el("button",{type:"button",role:"menuitem",disabled:!agent.messages.length,onClick:()=>{setToolsOpen(false);menuButton.current?.focus();exportConversation()}},h(Icon,{name:"Download",size:14}),"Export .md"),
   el("span",{className:"af-menu-note"},"Utilities work locally; no AI request is sent.")):null;
  const search=searchOpen?el("div",{className:"af-search"},
   h(Icon,{name:"Search",size:14}),
@@ -795,7 +796,7 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSetti
   el("strong",null,phase==="interrupted"?"Previous run interrupted":"Cannot reach "+agent.provider),
   el("p",null,phase==="interrupted"?"The previous run outcome is unknown. No reply was restored. Start a new request.":"Provider request failed. Keep your draft; retry after recovery."),
   el("button",{type:"button",onClick:onRetry},phase==="interrupted"?"Start fresh":"Retry")):null;
- const feed=el("div",{className:"af-feed",ref:feedRef,"aria-live":"polite"},el("div",{className:"af-feedstack"},
+ const feed=el("div",{className:"af-feed",ref:feedRef,"aria-live":"polite",onClick:()=>{if(toolsOpen)setToolsOpen(false)}},el("div",{className:"af-feedstack"},
   agent.messages.length===0&&ready&&phase==="ready"?el("div",null,
    el("div",{className:"af-empty"},"Ask "+agent.provider+" about your current task"),
    el("div",{className:"af-presets"},...AGENT_PRESETS.map(p=>el("button",{type:"button",key:p.label,onClick:()=>onDraft(draft?draft.trimEnd()+"\n\n"+p.prompt:p.prompt)},p.label)))):null,
@@ -805,7 +806,7 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSetti
   unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
   agent.warning?el("div",{className:"af-warning"},agent.warning,el("button",{type:"button",className:"as-textbutton",onClick:/capture|screenshot|hotkey|window|image/i.test(agent.warning)?onCaptureSettings:onSettings},/capture|screenshot|hotkey|window|image/i.test(agent.warning)?"Screen Capture settings":"Provider settings")):null));
  const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(ready&&draft.trim()&&phase!=="approval"){onSend(draft.trim());onDraft("")}};
- const composer=el("div",{className:"af-composewrap"},
+ const composer=el("div",{className:"af-composewrap",onClick:()=>{if(toolsOpen)setToolsOpen(false)}},
   feedback?el("div",{className:"af-feedback",role:"status"},feedback):null,
   el("form",{className:"af-composer",onSubmit:send},
    h(IconButton,{name:"Camera",label:capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy}),
