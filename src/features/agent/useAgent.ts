@@ -192,7 +192,8 @@ function useAgentSubmission(
     const pending = submitted.current;
     if (snapshot.status === "failed" && pending && snapshot.runId > pending.previousRunId) {
       const accepted = snapshot.messages.some(
-        (message) => message.id === `${snapshot.runId}:user` && message.text === pending.text.trim(),
+        (message) =>
+          message.id === `${snapshot.runId}:user` && message.text === pending.text.trim(),
       );
       setDraft((current) =>
         restoreRejectedDraft(current, draftEpoch.current, pending, snapshot.runId, accepted),
@@ -238,7 +239,11 @@ function useAgentRequestActions({
     const question = draft.trim();
     if (!question || busy || submitted.current) return;
     clearError();
-    const request: SubmittedDraft = { text: draft, epoch: draftEpoch.current, previousRunId: runId };
+    const request: SubmittedDraft = {
+      text: draft,
+      epoch: draftEpoch.current,
+      previousRunId: runId,
+    };
     submitted.current = request;
     try {
       await askAgent(question, cwd, mode, provider);
