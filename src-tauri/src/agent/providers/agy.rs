@@ -681,7 +681,7 @@ mod tests {
         let (mut output, input) = tokio::io::duplex(64);
         let mut reader = BufReader::with_capacity(4, input);
         let mut pending = Vec::new();
-        let payload = br#"{\"event\":\"init\"}"#;
+        let payload = br#"{"event":"init"}"#;
         output.write_all(&payload[..9]).await.unwrap();
         assert!(
             timeout(
