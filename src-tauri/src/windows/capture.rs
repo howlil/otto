@@ -4,7 +4,8 @@ use std::{
     io::BufWriter,
     path::PathBuf,
     sync::{
-        Mutex,
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender, SyncSender},
     },
     time::{Duration, SystemTime},
@@ -356,6 +357,7 @@ enum CaptureIntent {
 pub struct CaptureHotkeys {
     changes: Sender<HotkeyChange>,
     thread_id: u32,
+    armed: Arc<AtomicBool>,
 }
 
 impl CaptureHotkeys {
@@ -366,7 +368,10 @@ impl CaptureHotkeys {
 
     pub fn configure_source(&self, value: &str) -> Result<(), String> {
         let requested = CaptureSource::parse(value)?;
-        self.request(|reply| HotkeyChange::Source(requested, reply))
+        self.armed.store(false, Ordering::SeqCst);
+        self.request(|reply| HotkeyChange::Source(requested, reply))?;
+        self.armed.store(true, Ordering::SeqCst);
+        Ok(())
     }
 
     fn request(&self, build: impl FnOnce(HotkeyReply) -> HotkeyChange) -> Result<(), String> {
@@ -397,7 +402,12 @@ fn register(shortcut: Shortcut) -> bool {
     }
 }
 
-fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: SyncSender<u32>) {
+fn run_hotkeys(
+    app: tauri::AppHandle,
+    changes: Receiver<HotkeyChange>,
+    ready: SyncSender<u32>,
+    armed: Arc<AtomicBool>,
+) {
     let mut message: MSG = unsafe { std::mem::zeroed() };
     unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_NOREMOVE) };
     let _ = ready.send(unsafe { GetCurrentThreadId() });
@@ -466,6 +476,9 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
             }
         }
         if message.message == WM_HOTKEY && message.wParam == HOTKEY_ID as usize {
+            if !armed.load(Ordering::SeqCst) {
+                continue;
+            }
             let target = match source {
                 CaptureSource::Window if hook.is_null() => {
                     Err("Window focus tracking is unavailable.".to_string())
@@ -504,16 +517,32 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
 pub fn start_hotkey(app: tauri::AppHandle) -> CaptureHotkeys {
     let (changes, receiver) = mpsc::channel();
     let (ready, thread_id) = mpsc::sync_channel(1);
-    std::thread::spawn(move || run_hotkeys(app, receiver, ready));
+    let armed = Arc::new(AtomicBool::new(false));
+    let hotkey_gate = Arc::clone(&armed);
+    std::thread::spawn(move || run_hotkeys(app, receiver, ready, hotkey_gate));
     CaptureHotkeys {
         changes,
         thread_id: thread_id.recv_timeout(Duration::from_secs(2)).unwrap_or(0),
+        armed,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_configuration_failure_disarms_capture_hotkey() {
+        let (changes, _messages) = mpsc::channel();
+        let gate = Arc::new(AtomicBool::new(true));
+        let hotkeys = CaptureHotkeys {
+            changes,
+            thread_id: 0,
+            armed: Arc::clone(&gate),
+        };
+        assert!(hotkeys.configure_source("fullScreen").is_err());
+        assert!(!gate.load(Ordering::SeqCst));
+    }
 
     #[test]
     fn unsupported_capture_source_never_selects_a_default() {
