@@ -13,7 +13,7 @@ Alternate context path: B2 → B4 user-triggered screen capture → B3 answer. S
 
 - B1: Otto defaults to an eyes-only Compact idle capsule while the user works elsewhere; other ambient information may be explicitly selected as a later idle presentation.
 - B2: Every module has Compact and Expanded presentations. Hover morphs Compact into a non-focusing Expanded preview; explicit click/keyboard activation pins it for interaction. Expanded Home provides the module entry points, with an operable keyboard alternative to any gesture; dismiss/Escape returns to Compact.
-- B3: User chooses an installed Codex, Agy, Pi, or OpenCode CLI, asks a question, sees partial/final responses, can follow up in the same provider session, and can explicitly stop the current request.
+- B3: User chooses an installed Codex, Pi, or Agy CLI, asks a question, sees partial/final responses, can follow up in the same provider session, and can explicitly stop the current request.
 - B4: A configured hotkey intentionally captures the last focused non-Otto window without flash/selection UI, sends that image to a selected CLI with image support, and shows the analysis; full-screen capture is an explicit alternative.
 - B5: Music Compact shows circular artwork, song/artist, and playback-linked activity spectrum; Expanded adds playback details/actions. The spectrum stops when playback stops; lyrics appear only when a source provides them.
 - B6: Pomodoro Compact shows remaining time, phase and a primary control, with no progress line/timeline/percentage or ring; Expanded enables focus/short/long-break durations and phase selection, start/pause/resume/reset, with restrained state-change and completion motion and no progress bar or ring.
@@ -37,7 +37,7 @@ Material breaks:
 
 ## Constraints
 - C1: Windows 11 first; Tauri 2 + React + Vite + Rust + Tailwind CSS, Bun for JS package management/scripts.
-- C2: Use locally installed Codex, Agy, Pi, and OpenCode CLIs with their existing authentication; no separate AI API, hosted model gateway, or backend service.
+- C2: Use locally installed Codex, Pi, and Agy CLIs with their existing authentication; no separate AI API, hosted model gateway, or backend service.
 - C3: Low idle resource usage, responsive interface, and recoverable external dependencies.
 - C4: Always-on-top and capture exclusion are best effort; secure desktop, fullscreen modes, and third-party capture paths may behave differently.
 - C5: Compact dark UI; UIArc is a visual reference, not a runtime dependency.
@@ -52,8 +52,8 @@ Material breaks:
 
 ## Scope
 - First complete functional outcome: compact Otto entry → select a ready Codex provider and visible context → Quick Ask → streamed answer → optional collapse/reopen → follow-up or Stop → recoverable failures. This follows the existing static idle scaffold; no new feature is called shipped by this document.
-- Product direction retained, not prerequisites for the first AI outcome: other CLI adapters, screenshot/hotkey, configurable placement, gesture navigation, music, Pomodoro, enhanced idle details. Implement each only when its own user outcome is in scope.
-- Out: cloud backend, standalone model API credentials, universal capture invisibility, automatic screen surveillance, auto-approval of agent actions, database, telemetry server, auto-updater, multi-OS parity, speculative plugin system.
+- Product direction retained, not prerequisites for the first AI outcome: the remaining Agy CLI adapter, screenshot/hotkey, configurable placement, gesture navigation, music, Pomodoro, enhanced idle details. Implement each only when its own user outcome is in scope.
+- Out: OpenCode provider, cloud backend, standalone model API credentials, universal capture invisibility, automatic screen surveillance, auto-approval of agent actions, database, telemetry server, auto-updater, multi-OS parity, speculative plugin system.
 
 ## Proof
 - P1 (B1,B7,X5): Given a supported Windows session, when Otto starts/changes placement, it remains accessible at the selected top location; capture-protection limitations are accurately communicated.
@@ -71,7 +71,7 @@ Material breaks:
 - P13 (Q6): Given a question during another app task, the user can ask, read/copy/follow up on the answer, dismiss Otto, and return to the same task without switching to a standalone AI interface.
 
 ## Assumptions
-- A1 [non-blocking]: Codex is the initial supported provider; specific capabilities of Agy, Pi, and OpenCode will be checked against installed versions.
+- A1 [non-blocking]: Codex is the initial supported provider; specific capabilities of Pi and Agy will be checked against installed versions.
 - A2 [non-blocking]: Hard performance budgets are deliberately undefined until Windows idle/active measurements exist.
 - A3 [non-blocking]: Screenshot defaults to the last focused external window; full-screen capture requires an explicit alternative selection. Revisit when implementing B4 if source selection is inadequate.
 - A4 [non-blocking]: Quick Ask defaults to a read-only experience; if a provider cannot enforce it, Quick Ask must be unavailable for that provider rather than silently permitting writes.
