@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B3 Codex/Pi/Agy after Rustfmt remediation.
+# Verification dispatch: B3 three CLI adapters and prompt rejection regression after test update.
 
 'on':
   push:
