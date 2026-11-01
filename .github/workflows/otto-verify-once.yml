@@ -1,37 +1,31 @@
-name: Otto Windows verification (on demand)
-# Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: structural Agent capture settings formatting and Rust verification.
+name: Otto CI
 
 'on':
-  push:
+  pull_request:
     branches:
-      - 'feat/*'
       - master
-    paths:
-      - .github/workflows/otto-verify-once.yml
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: otto-windows-verification
+  group: otto-ci-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   verify:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - name: Resolve frontend dependencies
-        run: bun install
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
       - name: TypeScript and frontend build
         run: bun run build
       - name: Biome lint and formatting
         run: bun run check
-      - name: Frontend behavior tests
+      - name: Frontend and release policy tests
         run: bun run test:frontend:critical
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -39,8 +33,8 @@ jobs:
       - name: Rust format
         run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
       - name: Cargo compile check
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked
       - name: Cargo targeted tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - name: Clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings

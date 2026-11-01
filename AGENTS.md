@@ -7,7 +7,7 @@ Windows-first Tauri 2, Rust edition 2024, React 19, Vite 8, TypeScript 6, Tailwi
 Install: `bun install`; dev frontend: `bun run dev`; desktop: `bun run tauri dev`.
 Frontend: `bun run check` (Biome), `bun run format` (fix), `bun run build` (TS/Vite).
 Rust: `cd src-tauri && cargo fmt --all -- --check`; `cargo clippy --all-targets -- -D warnings`; `cargo check` on Windows MSVC.
-Tests: `cargo test --manifest-path src-tauri/Cargo.toml` (Rust core) and `bun run test:frontend:critical` (Agent draft behavior); both run in the existing Windows verification workflow. Generate/commit Bun and Cargo locks when dependency resolution becomes available for a reproducible build; do not fabricate locks.
+Tests: `cargo test --manifest-path src-tauri/Cargo.toml` (Rust core) and `bun run test:frontend:critical` (Agent draft behavior); both run in the existing Windows verification workflow. Committed Bun and Cargo lockfiles are required for frozen CI and release builds.
 
 ## Verification gate
 Critical-path or core-logic changes **must** have an automated behavior test at the cheapest faithful boundary (unit for pure rules/state; integration when correctness depends on OS, process, persistence or IPC). Reuse existing proof if it already catches the regression; missing proof blocks review/merge. Cosmetic, trivial wiring and docs changes do not require ceremonial new tests.
@@ -29,10 +29,10 @@ The concrete target tree, module public entries, dependency direction and K1–K
 - PR body stays current: `Behavior`, `Verification` (`green @SHA`, `red @SHA`, or `not run`), material `Risks` if any, and one `Next` action. Replace stale evidence, never append progress logs.
 - Use the cheapest faithful checks for changed risks, review the actual diff and engineering contracts, and do not merge with failing/missing required proof or Major/Critical findings. Merge only after explicit owner authorization; prefer squash and delete merged branches. Repository settings are not yet an enforced gate.
 - Persist durable product/engineering/UI decisions only in their owning `.agents/` files, active evidence in the PR, independent deferred work in an Issue only when useful, and shipped facts in immutable tags/releases. Avoid separate plans, status ledgers, or process documents.
-- Merge is not release. Versioning, release evidence, installer publication and recovery are specified in `.agents/engineering.md` `## Release`; never publish or tag without owner authorization.
+- CI runs automatically for PRs to `master`; merges to `master` trigger the authorized automatic Windows prerelease pipeline. Version selection, proof, GitHub Release publication and recovery are specified in `.agents/engineering.md` `## Release`. No separate release PR or manual dispatch.
 
 ## Safety
-No secrets, screenshots or user CLI credentials in repo/logs. Screenshots only after explicit user trigger. Capture exclusion is best effort. Ask before force-push, publish, release, deploy or destructive changes.
+No secrets, screenshots or user CLI credentials in repo/logs. Screenshots only after explicit user trigger. Capture exclusion is best effort. Automatic prerelease publication after a successful merge is authorized. Ask before force-push, ad hoc manual publication, stable release, deploy outside the configured pipeline or destructive changes.
 
 ## Project memory
 Product: `.agents/product.md`. System: `.agents/engineering.md`. UI: `.agents/DESIGN.md`.
