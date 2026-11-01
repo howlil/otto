@@ -75,10 +75,10 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
         AgentEvent::TextDelta { run_id, delta }
             if state.run_id == run_id && state.status == "streaming" =>
         {
-            if let Some(message) = state.messages.last_mut().filter(|m| m.role == "assistant") {
-                if message.text.len().saturating_add(delta.len()) <= 128_000 {
-                    message.text.push_str(&delta);
-                }
+            if let Some(message) = state.messages.last_mut().filter(|m| m.role == "assistant")
+                && message.text.len().saturating_add(delta.len()) <= 128_000
+            {
+                message.text.push_str(&delta);
             }
         }
         AgentEvent::TextFinal { run_id, text }
