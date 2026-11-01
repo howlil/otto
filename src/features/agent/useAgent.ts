@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCaptureSource } from "./useCaptureSource";
+import { clearAcceptedDraft, restoreRejectedDraft, type SubmittedDraft } from "./draft-state";
 import {
   askAgent,
   getAgentReadiness,
@@ -183,21 +184,25 @@ function useAgentConnection(
 function useAgentSubmission(
   snapshot: AgentSnapshot,
   setDraft: React.Dispatch<React.SetStateAction<string>>,
+  draftEpoch: React.RefObject<number>,
 ) {
-  const submitted = useRef<string | null>(null);
+  const submitted = useRef<SubmittedDraft | null>(null);
 
   useEffect(() => {
-    if (snapshot.status === "failed" && submitted.current) {
-      const wasAccepted = snapshot.messages.some(
-        (message) => message.role === "user" && message.text === submitted.current,
+    const pending = submitted.current;
+    if (snapshot.status === "failed" && pending && snapshot.runId > pending.previousRunId) {
+      const accepted = snapshot.messages.some(
+        (message) => message.id === `${snapshot.runId}:user` && message.text === pending.text.trim(),
       );
-      if (!wasAccepted) setDraft((old) => old || submitted.current || "");
+      setDraft((current) =>
+        restoreRejectedDraft(current, draftEpoch.current, pending, snapshot.runId, accepted),
+      );
       submitted.current = null;
     }
     if (snapshot.status === "completed" || snapshot.status === "stopped") {
       submitted.current = null;
     }
-  }, [setDraft, snapshot.messages, snapshot.status]);
+  }, [draftEpoch, setDraft, snapshot.messages, snapshot.runId, snapshot.status]);
 
   return submitted;
 }
@@ -206,6 +211,8 @@ function useAgentRequestActions({
   busy,
   cwd,
   draft,
+  draftEpoch,
+  runId,
   mode,
   provider,
   refreshProvider,
@@ -217,24 +224,27 @@ function useAgentRequestActions({
   busy: boolean;
   cwd: string;
   draft: string;
+  draftEpoch: React.RefObject<number>;
+  runId: number;
   mode: AgentMode;
   provider: AgentProvider;
   refreshProvider: () => Promise<void>;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
-  submitted: { current: string | null };
+  submitted: { current: SubmittedDraft | null };
   clearError: () => void;
   setRequestError: (reason: unknown) => void;
 }) {
   const send = useCallback(async () => {
     const question = draft.trim();
-    if (!question || busy) return;
+    if (!question || busy || submitted.current) return;
     clearError();
-    submitted.current = question;
+    const request: SubmittedDraft = { text: draft, epoch: draftEpoch.current, previousRunId: runId };
+    submitted.current = request;
     try {
       await askAgent(question, cwd, mode, provider);
-      setDraft("");
+      setDraft((current) => clearAcceptedDraft(current, draftEpoch.current, request));
     } catch (reason) {
-      submitted.current = null;
+      if (submitted.current === request) submitted.current = null;
       setRequestError(reason);
       void refreshProvider();
       return;
@@ -244,6 +254,8 @@ function useAgentRequestActions({
     clearError,
     cwd,
     draft,
+    draftEpoch,
+    runId,
     mode,
     provider,
     refreshProvider,
@@ -391,6 +403,11 @@ export function useAgent() {
   const capture = useCaptureShortcut();
   const [snapshot, setSnapshot] = useState<AgentSnapshot>(initial);
   const [draft, setDraft] = useState("");
+  const draftEpoch = useRef(0);
+  const editDraft = useCallback((value: string) => {
+    draftEpoch.current += 1;
+    setDraft(value);
+  }, []);
   const [cwd, setCwd] = useState("");
   const [mode, setMode] = useState<AgentMode>("quickAsk");
   const [provider, setProvider] = useState<AgentProvider>("codex");
@@ -429,11 +446,13 @@ export function useAgent() {
     },
     [locked, provider, connection.clearError, connection.setRequestError],
   );
-  const submitted = useAgentSubmission(snapshot, setDraft);
+  const submitted = useAgentSubmission(snapshot, setDraft, draftEpoch);
   const actions = useAgentRequestActions({
     busy,
     cwd,
     draft,
+    draftEpoch,
+    runId: snapshot.runId,
     mode,
     provider,
     refreshProvider,
@@ -456,7 +475,7 @@ export function useAgent() {
     readiness,
     capture,
     draft,
-    setDraft,
+    setDraft: editDraft,
     cwd,
     setCwd,
     mode,
