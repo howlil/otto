@@ -411,20 +411,23 @@ export function useAgent() {
     [receive],
   );
   const connection = useAgentConnection(receive, acceptSnapshot);
-  const selectProvider = useCallback(async (next: AgentProvider) => {
-    if (locked || changingProvider.current || next === provider) return;
-    changingProvider.current = true;
-    try {
-      if (nativeAvailable) await selectAgentProvider(next);
-      setProvider(next);
-      if (next === "pi") setMode("quickAsk");
-      connection.clearError();
-    } catch (error) {
-      connection.setRequestError(error);
-    } finally {
-      changingProvider.current = false;
-    }
-  }, [locked, provider, connection.clearError, connection.setRequestError]);
+  const selectProvider = useCallback(
+    async (next: AgentProvider) => {
+      if (locked || changingProvider.current || next === provider) return;
+      changingProvider.current = true;
+      try {
+        if (nativeAvailable) await selectAgentProvider(next);
+        setProvider(next);
+        if (next === "pi") setMode("quickAsk");
+        connection.clearError();
+      } catch (error) {
+        connection.setRequestError(error);
+      } finally {
+        changingProvider.current = false;
+      }
+    },
+    [locked, provider, connection.clearError, connection.setRequestError],
+  );
   const submitted = useAgentSubmission(snapshot, setDraft);
   const actions = useAgentRequestActions({
     busy,
