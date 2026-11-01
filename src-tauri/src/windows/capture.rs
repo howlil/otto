@@ -1,8 +1,8 @@
 use crate::agent::{AgentRuntime, CapturedImage};
 use std::{
-    fs::OpenOptions,
+    fs::{self, OpenOptions},
     io::BufWriter,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -12,14 +12,14 @@ use std::{
 };
 use tauri::Manager;
 use windows_sys::Win32::{
-    Foundation::{HWND, RECT},
+    Foundation::{CloseHandle, GetLastError, HWND, RECT, ERROR_INVALID_PARAMETER},
     Graphics::Gdi::{
         BI_RGB, BITMAPINFO, BitBlt, CAPTUREBLT, CreateCompatibleBitmap, CreateCompatibleDC,
         DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetDIBits, GetWindowDC, ReleaseDC, SRCCOPY,
         SelectObject,
     },
     Storage::Xps::PrintWindow,
-    System::Threading::GetCurrentThreadId,
+    System::Threading::{GetCurrentThreadId, GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
     UI::{
         Accessibility::{SetWinEventHook, UnhookWinEvent},
         Input::KeyboardAndMouse::{
@@ -38,6 +38,9 @@ use windows_sys::Win32::{
 const HOTKEY_ID: i32 = 0x4f54;
 const MAX_EDGE: i32 = 8192;
 const MAX_PIXELS: u64 = 24_000_000;
+const CAPTURE_FILE_PREFIX: &str = "otto-capture-";
+const ORPHAN_CAPTURE_AGE: Duration = Duration::from_secs(24 * 60 * 60);
+const MAX_ORPHAN_REMOVALS: usize = 128;
 const WM_HOTKEY_CONFIG: u32 = WM_APP + 19;
 static LAST_EXTERNAL_WINDOW: Mutex<Option<WindowTarget>> = Mutex::new(None);
 
@@ -295,8 +298,10 @@ fn capture_image(
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_err(|_| "Cannot create a unique capture file.")?
         .as_nanos();
-    let path: PathBuf =
-        std::env::temp_dir().join(format!("otto-{}-{nonce}.png", std::process::id()));
+    let path: PathBuf = std::env::temp_dir().join(format!(
+        "{CAPTURE_FILE_PREFIX}{}-{nonce}.png",
+        std::process::id()
+    ));
     let file = OpenOptions::new()
         .create_new(true)
         .write(true)
@@ -310,6 +315,73 @@ fn capture_image(
         .and_then(|mut writer| writer.write_image_data(&pixels))
         .map_err(|_| "Cannot encode the capture.")?;
     Ok(image)
+}
+
+fn capture_file_owner(file_name: &str) -> Option<u32> {
+    let stem = file_name
+        .strip_prefix(CAPTURE_FILE_PREFIX)?
+        .strip_suffix(".png")?;
+    let (pid, nonce) = stem.split_once('-')?;
+    if !(16..=24).contains(&nonce.len())
+        || !nonce.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    pid.parse::<u32>().ok().filter(|pid| *pid != 0)
+}
+
+fn process_is_active(pid: u32) -> bool {
+    if pid == std::process::id() {
+        return true;
+    }
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    if process.is_null() {
+        return unsafe { GetLastError() } != ERROR_INVALID_PARAMETER;
+    }
+    let mut exit_code = 0;
+    let checked = unsafe { GetExitCodeProcess(process, &mut exit_code) };
+    unsafe { CloseHandle(process) };
+    checked == 0 || exit_code == 259
+}
+
+fn cleanup_orphan_captures(
+    directory: &Path,
+    now: SystemTime,
+    is_process_active: impl Fn(u32) -> bool,
+) -> usize {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        if removed >= MAX_ORPHAN_REMOVALS {
+            break;
+        }
+        let name = entry.file_name();
+        let Some(pid) = name.to_str().and_then(capture_file_owner) else {
+            continue;
+        };
+        if pid == std::process::id() || is_process_active(pid) {
+            continue;
+        }
+        let path = entry.path();
+        let Ok(metadata) = fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if !metadata.file_type().is_file()
+            || !metadata
+                .modified()
+                .ok()
+                .and_then(|modified| now.duration_since(modified).ok())
+                .is_some_and(|age| age >= ORPHAN_CAPTURE_AGE)
+        {
+            continue;
+        }
+        if fs::remove_file(&path).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -543,6 +615,9 @@ fn run_hotkeys(
 }
 
 pub fn start_hotkey(app: tauri::AppHandle) -> CaptureHotkeys {
+    std::thread::spawn(|| {
+        cleanup_orphan_captures(&std::env::temp_dir(), SystemTime::now(), process_is_active);
+    });
     let (changes, receiver) = mpsc::channel();
     let (ready, thread_id) = mpsc::sync_channel(1);
     let armed = Arc::new(AtomicBool::new(false));
@@ -558,6 +633,60 @@ pub fn start_hotkey(app: tauri::AppHandle) -> CaptureHotkeys {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cleanup_removes_only_old_captures_from_confirmed_exited_processes() {
+        let now = SystemTime::now();
+        let nonce = now
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "otto-cleanup-test-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir(&directory).unwrap();
+        let old = now - Duration::from_secs(48 * 60 * 60);
+        let dead_pid = u32::MAX - 1;
+        let active_pid = u32::MAX - 2;
+        let dead_file = directory.join(format!("{CAPTURE_FILE_PREFIX}{dead_pid}-{nonce}.png"));
+        let active_file = directory.join(format!("{CAPTURE_FILE_PREFIX}{active_pid}-{nonce}.png"));
+        let recent_file = directory.join(format!("{CAPTURE_FILE_PREFIX}{dead_pid}-1234567890123456.png"));
+        let unrelated_file = directory.join(format!("user-{dead_pid}-{nonce}.png"));
+        let invalid_file = directory.join(format!("{CAPTURE_FILE_PREFIX}{dead_pid}-invalid.png"));
+
+        for path in [&dead_file, &active_file, &recent_file, &unrelated_file, &invalid_file] {
+            let file = fs::File::create(path).unwrap();
+            if path != &recent_file {
+                file.set_times(fs::FileTimes::new().set_modified(old)).unwrap();
+            }
+        }
+
+        let count = cleanup_orphan_captures(&directory, now, |pid| pid == active_pid);
+        assert_eq!(count, 1);
+        assert!(!dead_file.exists());
+        assert!(active_file.exists());
+        assert!(recent_file.exists());
+        assert!(unrelated_file.exists());
+        assert!(invalid_file.exists());
+        assert_eq!(cleanup_orphan_captures(&directory, now, |_| false), 0);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn capture_cleanup_rejects_unowned_or_ambiguous_names() {
+        assert_eq!(capture_file_owner("otto-capture-42-1234567890123456.png"), Some(42));
+        for name in [
+            "otto-42-1234567890123456.png",
+            "otto-capture-0-1234567890123456.png",
+            "otto-capture-42-invalid.png",
+            "otto-capture-42-1234567890123456.txt",
+            "otto-capture-42-1234567890123456.png.bak",
+            "otto-capture-42-1234567890123456/../../secret.png",
+        ] {
+            assert_eq!(capture_file_owner(name), None, "accepted {name}");
+        }
+    }
 
     #[test]
     fn source_configuration_failure_disarms_capture_hotkey() {
