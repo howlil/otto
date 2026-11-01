@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AgentComposer } from "./AgentComposer";
 import { providerIssue, providerIssueTitle } from "./status";
 import { TranscriptMessages } from "./TranscriptMessages";
@@ -22,6 +22,7 @@ export function AgentTranscript({
   captureActionError,
   actionsOpen,
   setActionsOpen,
+  onMeasured,
 }: {
   agent: AgentTranscriptModel;
   denied: boolean;
@@ -32,6 +33,7 @@ export function AgentTranscript({
   captureActionError: string | null;
   actionsOpen: boolean;
   setActionsOpen: (open: boolean) => void;
+  onMeasured: (height: number) => void;
 }) {
   const {
     snapshot,
@@ -49,6 +51,7 @@ export function AgentTranscript({
     clearError,
   } = agent;
   const feed = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -57,6 +60,23 @@ export function AgentTranscript({
   const matches = searchOpen ? matchingMessages(snapshot.messages, searchTerm) : [];
   const activeMatch = matches.length ? matches[matchCursor % matches.length] : null;
   const markdown = conversationAsMarkdown(snapshot.messages, snapshot.provider, snapshot.cwd);
+  const measure = useCallback(() => {
+    const stack = feed.current?.firstElementChild;
+    const composerHeight = composer.current?.offsetHeight;
+    if (!stack || composerHeight === undefined) return;
+    const accessoryHeight = (searchOpen || exportError ? 40 : 0) + (captureActionError ? 24 : 0);
+    onMeasured(53 + stack.scrollHeight + 16 + composerHeight + accessoryHeight);
+  }, [onMeasured, searchOpen, exportError, captureActionError]);
+
+  useLayoutEffect(() => {
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    const stack = feed.current?.firstElementChild;
+    if (stack) observer.observe(stack);
+    if (composer.current) observer.observe(composer.current);
+    return () => observer.disconnect();
+  }, [measure]);
 
   useEffect(() => {
     if (snapshot.seq > 0 && nearBottom.current && !searchOpen) {
@@ -169,6 +189,7 @@ export function AgentTranscript({
         </div>
       )}
       <AgentComposer
+        composerRef={composer}
         imageTransport={readiness.imageTransport}
         provider={snapshot.provider}
         draft={draft}
