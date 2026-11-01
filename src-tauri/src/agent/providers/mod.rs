@@ -6,6 +6,7 @@ mod job;
 #[cfg(windows)]
 pub mod pi;
 pub mod registry;
+
 use std::ffi::OsStr;
 use tokio::process::Command;
 
@@ -66,7 +67,13 @@ mod tests {
         assert!(String::from_utf8_lossy(&output.stdout).contains("OTTO_HIDDEN_OK"));
 
         let direct = background_command("powershell.exe")
-            .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-EncodedCommand",
+                encoded.as_str(),
+            ])
             .output()
             .await
             .expect("Windows executable must spawn");
