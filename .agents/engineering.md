@@ -150,7 +150,7 @@ Square-bracket paths are **proposed extractions, not current files or a mandate 
 - PF1 (P3/P9,G6/G8) [critical]: enforceable read-only mode and approval deny/stale authorization | Rust policy/protocol unit | `iter/pr`.
 - PF2 (P3/P8,G2/G7) [critical]: stream ordering, Stop vs completion, new-session ownership and interruption | Rust state-machine unit; owned process-tree acceptance needs native Windows | `iter/pr`, native at `release`.
 - PF3 (P4/P11,G1) [critical]: explicit capture action, target identity, no implicit send on invalid/ambiguous state | Rust capture unit; Windows capture-to-Codex/Pi acceptance | `iter/pr`, native at `release`.
-- PF5 (P1,X5,G4) [important]: native tool-window style mapping and read-back | Rust unit/Windows startup at `iter/pr`; real Brave/recorder picker and fullscreen-capture acceptance at `release`.
+- PF5 (P1,X5,G4) [important]: tool-window style preservation, idempotence, post-apply read-back and best-effort rollback; affinity 0x11 verified after startup | Rust logic unit at `pr`; real HWND/Brave/recorder picker, hide/show and full-screen capture at `release`.
 - PF4 (P12,X10,G7) [critical]: active marker → crash/restart → interrupted, no false completion; stale run cannot clear new marker | Rust unit + filesystem/runtime integration | `iter/pr`; representative restart at `release`.
 - `merge`: review actual changed invariants and exact-SHA proof; never call unverified boundaries green.
 - `release`: once per release candidate, NSIS startup, genuine Windows CLI/capture/session recovery and process cleanup; one exploratory acceptance pass. Live provider authentication and OS semantics are not proven by mocked unit tests.
