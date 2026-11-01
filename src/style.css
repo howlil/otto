@@ -1,20 +1,232 @@
 @import "tailwindcss";
-/* Tailwind v4 TSX utilities own static layout; CSS retains artwork, state and motion. */
-@theme {
+
+@theme static {
   --color-otto-surface: #151515;
   --color-otto-text: #fafafa;
+  --color-otto-idle-eye: #f2f2f3;
+  --color-otto-agent-eye: #f4f4f4;
   --color-otto-muted: #a3a3a3;
   --color-otto-raised: #292929;
   --color-otto-error-bg: #392525;
   --color-otto-error-text: #ffbbbb;
-  --font-otto-ui: "Segoe UI", system-ui, sans-serif;
+
+  --color-otto-line: #353535;
+  --color-otto-line-strong: #3b3d41;
+  --color-otto-control: #242426;
+  --color-otto-control-hover: #34353a;
+  --color-otto-control-text: #eee;
+  --color-otto-raised-soft: #29292c;
+  --color-otto-selected: #303034;
+  --color-otto-selected-hover: #393b40;
+  --color-otto-nav-bg: #181818;
+  --color-otto-line-soft: #2b2c2f;
+  --color-otto-muted-strong: #a6a6ab;
+  --color-otto-hover-text: #e9e9e9;
+  --color-otto-invert-bg: #f2f2f2;
+  --color-otto-invert-bg-hover: #eaeaea;
+  --color-otto-invert-text: #171717;
+  --color-otto-invert-line: #fff;
+  --color-otto-knob: #f5f5f5;
+  --color-otto-warn: #e0b978;
+  --color-otto-danger: #d89197;
+  --color-otto-ok: #9cb8a8;
+
+  --color-otto-control-deep: #2b2b2e;
+  --color-otto-label-muted: #8e8e94;
+  --color-otto-line-mid: #38383b;
+  --color-otto-text-secondary: #b5b5ba;
+  --color-otto-text-subtle: #a9a9ae;
+  --color-otto-field-deep: #262627;
+  --color-otto-line-focused: #888a90;
+  --color-otto-text-bright: #e7e7e9;
+  --color-otto-text-soft-white: #ededed;
+  --color-otto-raised-deep: #2f3034;
+  --color-otto-ink-deep: #1b1d21;
+  --color-otto-text-tertiary: #97979d;
+  --color-otto-line-hover: #575962;
+  --color-otto-input-selected: #b8bdc9;
+  --color-otto-icon-muted: #c4c4c7;
+  --color-otto-line-muted: #83838a;
+  --color-otto-completion-soft: #cbd9d0;
+  --color-otto-art-agent-start: #292a2c;
+  --color-otto-art-agent-middle: #25272b;
+  --color-otto-art-agent-end: #202123;
+  --color-otto-art-music-start: #26292e;
+  --color-otto-art-music-middle: #262a30;
+  --color-otto-art-music-end: #1c2128;
+  --color-otto-art-focus-middle: #272831;
+  --color-otto-art-focus-end: #202128;
+  --color-otto-art-alt-start: #30302d;
+  --color-otto-art-alt-middle: #292b2b;
+  --color-otto-art-alt-end: #212424;
+  --color-otto-art-halo: #bccfe039;
+  --color-otto-home-card-border: #373737;
+  --color-otto-home-card-title: #f5f5f5;
+  --color-otto-home-card-subtitle: #aaaeb4;
+  --color-otto-compact-icon: #292b31;
+  --color-otto-art-card-music-start: #29282d;
+  --color-otto-art-card-music-middle: #282730;
+  --color-otto-art-card-music-end: #1d1e29;
+  --color-otto-art-card-focus-start: #28292c;
+  --color-otto-art-card-focus-middle: #27282c;
+  --color-otto-art-card-focus-end: #202329;
+  --color-otto-art-overlay-start: #292a2edb;
+  --color-otto-art-overlay-middle: #27292cb0;
+  --color-otto-art-overlay-end: #27292c28;
+  --color-otto-text-floating-muted: #b0b1b7;
+  --color-otto-placeholder-deep: #777;
+  --color-otto-scrollbar-track: #444;
+  --color-otto-switch-track: #49494d;
+  --color-otto-switch-border: #555;
+  --color-otto-switch-enabled: #5d6774;
+  --color-otto-settings-label: #bdbdc1;
+  --color-otto-text-paper: #ddd;
+  --color-otto-slider-outline: #aaaeb7;
+  --color-otto-slider-border: #515359;
+  --color-otto-slider-thumb: #d7d9de;
+  --color-otto-approval-outline: #68484a;
+  --color-otto-approval-warn-outline: #574936;
+  --color-otto-approval-warn-surface: #28241f;
+  --color-otto-approval-warn-foreground: #f2ddc6;
+  --color-otto-approval-reason-foreground: #c9b7a5;
+  --color-otto-approval-reason-surface: #1e1b19;
+  --color-otto-approval-caption: #d8c4ad;
+  --color-otto-approval-detail: #a3947f;
+  --color-otto-approval-action-surface: #433c34;
+  --color-otto-danger-copy: #f0d5d6;
+  --color-otto-danger-detail: #d1b1b3;
+  --color-otto-input-hint: #d3d3d6;
+  --color-otto-icon-active: #f6f6f6;
+  --color-otto-disabled-outline: #7a7a81;
+  --color-otto-label-faded: #aaa;
+  --color-otto-disabled-selected: #707077;
+  --font-otto-ui: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-otto-mono: Consolas, monospace;
+
+  --text-otto-2xs: 9px;
+  --text-otto-xs: 10px;
+  --text-otto-sm: 11px;
+  --text-otto-md: 12px;
+  --text-otto-lg: 13px;
+  --text-otto-xl: 14px;
+  --text-otto-2xl: 15px;
+
+  --radius-otto-control: 9px;
+  --radius-otto-panel: 10px;
+  --radius-otto-chip: 8px;
+  --radius-otto-card: 12px;
+  --radius-otto-launcher: 15px;
   --radius-otto-island: 9999px;
   --ease-otto: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-otto-blink: otto-blink 9.5s ease-in-out infinite;
+  --animate-otto-bars: otto-bars 0.73s ease-in-out infinite alternate;
+  --animate-otto-caret: otto-caret 0.72s step-end infinite;
+  --animate-otto-done: otto-done 0.36s var(--ease-otto);
+  --animate-otto-enter: otto-enter 190ms var(--ease-otto) both;
+  --animate-otto-home-choice-1: otto-home-choice 180ms var(--ease-otto) 165ms both;
+  --animate-otto-home-choice-2: otto-home-choice 180ms var(--ease-otto) 190ms both;
+  --animate-otto-home-choice-3: otto-home-choice 180ms var(--ease-otto) 215ms both;
+  --animate-otto-home-reveal: otto-home-reveal 180ms var(--ease-otto) 145ms both;
+  --animate-otto-nudge: otto-nudge 0.42s var(--ease-otto);
+  --animate-otto-shake: otto-shake 0.35s ease-out;
+
+  @keyframes otto-blink {
+    0%,
+    94%,
+    100% {
+      transform: scaleY(1);
+    }
+    96% {
+      transform: scaleY(0.13);
+    }
+  }
+
+  @keyframes otto-bars {
+    to {
+      transform: scaleY(3.2);
+      opacity: 0.66;
+    }
+  }
+
+  @keyframes otto-caret {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes otto-done {
+    50% {
+      transform: scale(1.8);
+    }
+  }
+
+  @keyframes otto-enter {
+    from {
+      opacity: 0.4;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes otto-home-choice {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes otto-home-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes otto-nudge {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    42% {
+      transform: translateY(-2px);
+    }
+    75% {
+      transform: translateY(1px);
+    }
+  }
+
+  @keyframes otto-shake {
+    24% {
+      transform: translateX(-3px);
+    }
+    50% {
+      transform: translateX(3px);
+    }
+    75% {
+      transform: translateX(-1px);
+    }
+  }
 }
 :root {
   font-family: var(--font-otto-ui);
+  font-synthesis: none;
   color-scheme: dark;
   background: transparent;
+}
+body {
+  font-size: 12px;
+  line-height: normal;
+  -webkit-font-smoothing: antialiased;
 }
 html,
 body,
@@ -38,944 +250,4 @@ button {
 }
 button:disabled {
   cursor: not-allowed;
-}
-button:focus-visible,
-input:focus-visible {
-  outline: 2px solid #96b4e1;
-  outline-offset: 2px;
-}
-.otto-shell {
-  border: 1px solid #353538;
-  border-radius: 999px;
-  transition: border-radius 400ms var(--ease-otto);
-}
-.otto-shell.is-expanded {
-  border-radius: 28px;
-}
-.otto-shell.is-reduced {
-  transition: none;
-}
-.otto-shell.is-expanded > section {
-  animation: otto-enter 190ms var(--ease-otto) both;
-}
-@keyframes otto-enter {
-  from {
-    opacity: 0.4;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.otto-eyes {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 33px;
-  height: 23px;
-  flex: none;
-}
-.otto-eyes i {
-  display: block;
-  background: #fafafa;
-  border-radius: 7px;
-  width: 6px;
-  height: 13px;
-  flex: none;
-  transition:
-    height 200ms var(--ease-otto),
-    width 200ms var(--ease-otto),
-    transform 150ms ease;
-}
-.otto-eyes[data-expression="curious"] i:first-child {
-  height: 15px;
-}
-.otto-eyes[data-expression="curious"] i:last-child {
-  height: 10px;
-}
-.otto-eyes[data-expression="sleepy"] i {
-  height: 4px;
-}
-.otto-eyes[data-expression="happy"] {
-  gap: 5px;
-}
-.otto-eyes[data-expression="happy"] i {
-  height: 8px;
-  width: 11px;
-  background: transparent;
-  border: 2.5px solid #fafafa;
-  border-bottom: 0;
-  border-radius: 11px 11px 0 0;
-}
-.otto-compact .otto-eyes.alive i {
-  animation: otto-blink 9.5s ease-in-out infinite;
-}
-@keyframes otto-blink {
-  0%,
-  94%,
-  100% {
-    transform: scaleY(1);
-  }
-  96% {
-    transform: scaleY(0.13);
-  }
-}
-.otto-eyes.mini {
-  width: 23px;
-  gap: 6px;
-}
-.otto-eyes.mini i {
-  width: 5px;
-  height: 12px;
-}
-.otto-compact {
-  gap: 9px;
-  padding: 0 11px;
-  color: inherit;
-  border: 0;
-}
-.otto-compact.is-agent {
-  justify-content: flex-start;
-}
-.otto-agent-avatar {
-  height: 31px;
-  width: 31px;
-  background: #2b2b2e;
-  color: #e7e7e9;
-}
-
-.otto-compact-copy strong {
-  display: block;
-  font-size: 12px;
-  font-weight: 575;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.otto-compact-copy small {
-  display: block;
-  color: #b5b5ba;
-  font-size: 10px;
-  margin-top: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.otto-compact-mark {
-  color: #cbd9d0;
-  font-size: 15px;
-  padding: 0 5px;
-}
-.otto-bars {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: 29px;
-  height: 21px;
-  flex: none;
-}
-.otto-bars i {
-  display: block;
-  width: 3px;
-  height: 5px;
-  background: #ededed;
-  border-radius: 5px;
-}
-.otto-bars.live i {
-  animation: otto-bars 0.73s ease-in-out infinite alternate;
-}
-.otto-bars.live i:nth-child(2) {
-  animation-delay: -0.19s;
-}
-.otto-bars.live i:nth-child(3) {
-  animation-delay: -0.48s;
-}
-.otto-bars.live i:nth-child(4) {
-  animation-delay: -0.32s;
-}
-@keyframes otto-bars {
-  to {
-    height: 16px;
-    opacity: 0.66;
-  }
-}
-
-.otto-home {
-  padding: 15px 17px 17px;
-}
-
-.otto-home-head > strong {
-  font-size: 13px;
-  font-weight: 520;
-}
-.otto-home-notice {
-  margin-left: auto;
-  color: #8e8e94;
-  font-size: 10px;
-  max-width: 188px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.otto-eye-button {
-  width: 34px;
-  height: 34px;
-  border: 0;
-  border-radius: 10px;
-  background: #29292c;
-  color: #eee;
-  transition:
-    background 0.15s,
-    transform 0.12s;
-}
-.otto-home-head .otto-eye-button {
-  width: 28px;
-  height: 26px;
-  background: transparent;
-}
-.otto-eye-button:hover {
-  background: #38383b;
-}
-.otto-eye-button:active,
-.otto-gear:active {
-  transform: scale(0.96);
-}
-.otto-gear {
-  width: 31px;
-  height: 31px;
-  background: transparent;
-  border: 0;
-  border-radius: 9px;
-  color: #a9a9ae;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    transform 0.12s;
-}
-.otto-gear:hover {
-  background: #29292c;
-  color: #fafafa;
-}
-
-.otto-choice {
-  background: linear-gradient(118deg, #292a2c 0%, #25272b 51%, #202123 100%);
-  border: 1px solid #3b3d41;
-  border-radius: 15px;
-  padding: 11px 10px 11px 13px;
-  --dx: 0px;
-  --dy: 0px;
-  --art-tilt: 43deg;
-  --shimmer: 0.8;
-  transition:
-    transform 260ms var(--ease-otto),
-    border-color 180ms,
-    background 160ms;
-}
-.otto-choice-agent {
-  background: linear-gradient(118deg, #26292e 0%, #262a30 51%, #1c2128 100%);
-}
-.otto-choice-music {
-  background: linear-gradient(118deg, #303034 0%, #272831 55%, #202128 100%);
-}
-.otto-choice-focus {
-  background: linear-gradient(118deg, #30302d 0%, #292b2b 53%, #212424 100%);
-}
-.otto-choice::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: var(--shimmer);
-  background: radial-gradient(ellipse 120px 100px at 78% 30%, #bccfe039, transparent 70%);
-  mix-blend-mode: screen;
-  transition: opacity 250ms;
-}
-.otto-choice:hover,
-.otto-choice:focus-visible {
-  border-color: #575962;
-  transform: translateY(-1px);
-}
-.otto-choice:active {
-  transform: scale(0.985);
-}
-.otto-choice-copy {
-  max-width: 81%;
-}
-.otto-choice-copy strong {
-  font-size: 12px;
-  font-weight: 540;
-}
-.otto-choice-copy small {
-  font-size: 10px;
-  color: #b0b1b7;
-  margin-top: 6px;
-}
-.otto-choice-art {
-  right: -7px;
-  top: -23px;
-  height: 132px;
-  width: 148px;
-  opacity: 0.91;
-  transform: perspective(380px) rotateY(calc(-1 * var(--art-tilt))) rotateZ(-6deg)
-    translate3d(var(--dx), var(--dy), 0);
-  transform-origin: 60% 50%;
-  transition:
-    transform 370ms var(--ease-otto),
-    opacity 240ms;
-}
-.otto-choice:hover .otto-choice-art {
-  opacity: 1;
-}
-
-/* Global settings are a native-sized in-island surface, not a detached modal. */
-
-.otto-settings-head {
-  height: 51px;
-  border-bottom: 1px solid #2b2c2f;
-  padding: 0 15px;
-}
-.otto-settings-head strong {
-  font-size: 13px;
-  font-weight: 550;
-}
-.otto-settings-meta {
-  margin-left: auto;
-  font-size: 11px;
-  color: #777;
-}
-.otto-icon-button {
-  width: 29px;
-  height: 29px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #36373b;
-  background: #242426;
-  color: #eee;
-  border-radius: 9px;
-}
-.otto-icon-button:hover {
-  background: #34353a;
-}
-.otto-settings-layout {
-  grid-template-columns: 118px minmax(0, 1fr);
-}
-.otto-settings-nav {
-  background: #181818;
-  border-right: 1px solid #292b2f;
-  padding: 13px 8px;
-}
-.otto-settings-nav button {
-  height: 35px;
-  text-align: left;
-  color: #929292;
-  background: transparent;
-  border: 0;
-  border-radius: 9px;
-  padding: 0 11px;
-  font-size: 11px;
-}
-.otto-settings-nav button:hover {
-  background: #272729;
-  color: #e9e9e9;
-}
-.otto-settings-nav button.selected {
-  background: #2e3033;
-  color: #fff;
-}
-.otto-settings-content {
-  scrollbar-width: thin;
-  scrollbar-color: #444 transparent;
-  padding: 16px 18px 20px;
-}
-.otto-settings-content h2 {
-  font-size: 14px;
-  font-weight: 550;
-  margin: 0 0 3px;
-}
-.otto-settings-content > p {
-  font-size: 10px;
-  color: #929396;
-  line-height: 1.5;
-  margin: 0 0 16px;
-}
-.otto-setting-group {
-  margin: 0 0 14px;
-}
-.otto-setting-group > span {
-  display: block;
-  font-size: 10px;
-  color: #b2b2b5;
-  margin: 0 0 8px;
-}
-
-.otto-picks button {
-  color: #b3b3b3;
-  border: 1px solid #39393b;
-  background: #262627;
-  font-size: 10px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  min-height: 28px;
-}
-.otto-picks button.selected {
-  background: #393b40;
-  border-color: #888a90;
-  color: #fff;
-}
-.otto-picks button:hover {
-  background: #34353a;
-}
-.otto-settings-reset {
-  color: #b8bdc9;
-  background: transparent;
-  border: 0;
-  font-size: 10px;
-  padding: 4px 0;
-}
-.otto-setting-toggle {
-  padding: 9px 0;
-  min-height: 51px;
-  border-bottom: 1px solid #2b2b2c;
-}
-.otto-setting-toggle strong,
-.otto-setting-toggle small {
-  display: block;
-}
-.otto-setting-toggle strong {
-  font-size: 11px;
-  font-weight: 550;
-}
-.otto-setting-toggle small {
-  color: #8e8e92;
-  font-size: 10px;
-  margin-top: 4px;
-}
-.otto-setting-toggle input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-.otto-setting-toggle i {
-  width: 30px;
-  height: 18px;
-  background: #49494d;
-  border: 1px solid #555;
-  border-radius: 999px;
-  position: relative;
-  flex: none;
-  transition: background 180ms;
-}
-.otto-setting-toggle i::after {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  width: 12px;
-  height: 12px;
-  background: #c4c4c7;
-  border-radius: 50%;
-  transition: transform 180ms;
-}
-.otto-setting-toggle input:checked + i {
-  background: #5d6774;
-}
-.otto-setting-toggle input:checked + i::after {
-  transform: translateX(12px);
-  background: #f5f5f5;
-}
-.otto-setting-toggle input:focus-visible + i {
-  outline: 2px solid #96b4e1;
-  outline-offset: 3px;
-}
-.otto-setting-range {
-  display: block;
-  margin: 13px 0;
-}
-.otto-setting-range > span {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 10px;
-  color: #bdbdc1;
-}
-.otto-setting-range output {
-  color: #8f9198;
-}
-.otto-setting-range input {
-  display: block;
-  width: 100%;
-  accent-color: #bbc1cc;
-  cursor: pointer;
-  height: 17px;
-  margin-top: 6px;
-}
-.otto-placement-grid {
-  margin-bottom: 15px;
-}
-.otto-placement-grid button {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  color: #ddd;
-  background: #242527;
-  border: 1px solid #404043;
-  border-radius: 12px;
-  padding: 10px 7px;
-  font-size: 11px;
-}
-.otto-placement-grid button.selected {
-  border-color: #aaaeb7;
-  background: #2f3034;
-}
-.otto-placement-grid button:disabled {
-  opacity: 0.43;
-}
-.otto-place-graphic {
-  width: 77px;
-  height: 42px;
-  position: relative;
-  display: block;
-  background: #1b1d21;
-  border: 1px solid #515359;
-  border-radius: 5px;
-}
-.otto-place-graphic i {
-  width: 35px;
-  height: 10px;
-  position: absolute;
-  left: 20px;
-  top: 8px;
-  background: #d7d9de;
-  border-radius: 20px;
-}
-.otto-place-graphic.attached i {
-  width: 41px;
-  height: 13px;
-  left: 17px;
-  top: 0;
-  border-radius: 0 0 12px 12px;
-}
-.otto-availability {
-  font-size: 10px !important;
-  color: #939397 !important;
-  margin-top: 12px !important;
-}
-
-/* Agent compact/expanded, based on design/agent.html */
-
-.otto-agent-head {
-  height: 53px;
-  padding: 9px 15px 5px;
-}
-
-.otto-agent-identity strong {
-  font-size: 12px;
-  font-weight: 590;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.otto-agent-identity strong em {
-  font-style: normal;
-  font-weight: 400;
-  color: #86868b;
-}
-.otto-agent-identity small {
-  display: block;
-  font-size: 10px;
-  margin-top: 4px;
-  color: #97979d;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.otto-agent-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  font-size: 10px;
-  color: #b7b7bd;
-}
-.otto-agent-status i {
-  width: 5px;
-  height: 5px;
-  background: #9cb8a8;
-  border-radius: 50%;
-  flex: none;
-}
-.otto-agent[data-status="failed"] .otto-agent-status i {
-  background: #d89197;
-}
-.otto-agent[data-status="stopped"] .otto-agent-status i {
-  background: #97979a;
-}
-.otto-agent-feed {
-  scrollbar-width: none;
-  overscroll-behavior: contain;
-  padding: 7px 18px 9px;
-}
-.otto-agent-feed::-webkit-scrollbar,
-.otto-agent-settings::-webkit-scrollbar {
-  width: 0;
-}
-
-.otto-empty-agent {
-  height: 30px;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  font-size: 11px;
-  color: #83838a;
-}
-.otto-question {
-  align-self: flex-end;
-  max-width: 87%;
-  font-size: 11px;
-  line-height: 1.5;
-  color: #efeff0;
-  background: #29292c;
-  border-radius: 12px 12px 4px 12px;
-  padding: 9px 11px;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-.otto-response {
-  color: #ececee;
-  font-size: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  min-width: 0;
-  width: 100%;
-}
-.otto-caret {
-  display: inline-block;
-  background: #eee;
-  width: 4px;
-  height: 12px;
-  margin-left: 2px;
-  vertical-align: -1px;
-  animation: otto-caret 0.72s step-end infinite;
-}
-@keyframes otto-caret {
-  50% {
-    opacity: 0;
-  }
-}
-.otto-agent-activity {
-  font-size: 10px;
-  color: #b6b6b9;
-}
-.otto-agent-activity .otto-bars {
-  height: 15px;
-  width: 22px;
-  gap: 2px;
-}
-.otto-agent-activity .otto-bars i {
-  width: 2px;
-}
-.otto-agent-hint {
-  margin: 0;
-  font-size: 10px;
-  color: #a8a8ad;
-}
-.otto-response-actions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: transparent;
-  border: 0;
-  padding: 5px 0;
-  color: #a6a6ab;
-  font-size: 10px;
-}
-.otto-response-actions button:hover {
-  color: #fafafa;
-}
-.otto-error-card {
-  border: 1px solid #68484a;
-  background: #2d2425;
-  border-radius: 11px;
-  padding: 12px;
-}
-.otto-error-card strong {
-  font-size: 11px;
-  color: #f0d5d6;
-}
-.otto-error-card p {
-  color: #d1b1b3;
-  font-size: 10px;
-  line-height: 1.5;
-  margin: 8px 0;
-}
-.otto-error-card button {
-  color: #171717;
-  background: #eaeaea;
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 10px;
-}
-.otto-agent-compose-wrap {
-  padding: 7px 12px 12px;
-}
-.otto-agent-composer {
-  min-height: 50px;
-  padding: 5px 7px;
-  border: 1px solid transparent;
-  background: #29292b;
-  border-radius: 999px;
-  transition:
-    border-color 0.16s,
-    background 0.16s;
-}
-.otto-agent-composer:hover {
-  background: #2f2f31;
-}
-.otto-agent-composer:focus-within {
-  border-color: #555760;
-}
-.otto-agent-composer textarea {
-  color: #fafafa;
-  resize: none;
-  border: 0 !important;
-  outline: 0 !important;
-  box-shadow: none !important;
-  background: transparent;
-  flex: 1;
-  min-width: 0;
-  width: 0;
-  min-height: 22px;
-  max-height: 38px;
-  line-height: 1.45;
-  font-size: 12px;
-  padding: 3px 8px;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-.otto-agent-composer textarea::placeholder {
-  color: #a8a8ac;
-}
-.otto-round-action {
-  border: 0;
-  background: transparent;
-  color: #d3d3d6;
-  width: 32px;
-  height: 32px;
-  transition:
-    background 0.14s,
-    transform 0.12s;
-}
-.otto-round-action:hover:not(:disabled) {
-  background: #3d3d40;
-}
-.otto-round-action:active:not(:disabled) {
-  transform: scale(0.95);
-}
-.otto-round-action.primary {
-  background: #f6f6f6;
-  color: #1b1b1e;
-}
-.otto-round-action.primary:hover:not(:disabled) {
-  background: #e5e5e5;
-}
-.otto-round-action:disabled {
-  opacity: 0.35;
-}
-.otto-agent-settings {
-  padding: 1px 18px 15px;
-  scrollbar-width: none;
-}
-.otto-settings-intro {
-  font-size: 10px;
-  color: #a6a6ac;
-  margin: 0 0 14px;
-}
-.otto-field-name {
-  display: block;
-  font-size: 10px;
-  color: #a6a6ab;
-  margin-bottom: 7px;
-}
-
-.otto-provider-grid button {
-  min-width: 0;
-  background: #242426;
-  color: #e6e6e8;
-  border: 1px solid #39393d;
-  border-radius: 10px;
-  padding: 9px 6px;
-  font-size: 11px;
-  line-height: 1.2;
-}
-.otto-provider-grid button small {
-  display: block;
-  color: #8d8d92;
-  font-size: 9px;
-  margin-top: 6px;
-}
-.otto-provider-grid button.selected {
-  background: #303034;
-  border-color: #85858b;
-}
-.otto-provider-grid button:disabled {
-  opacity: 0.5;
-}
-.otto-settings-divider {
-  height: 1px;
-  background: #303033;
-  margin: 13px 0;
-}
-
-.otto-mode-list button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #222224;
-  color: #e9e9e9;
-  border: 1px solid #363639;
-  border-radius: 10px;
-  padding: 9px 11px;
-  width: 100%;
-  text-align: left;
-}
-.otto-mode-list button.selected {
-  border-color: #818186;
-  background: #2b2b2f;
-}
-.otto-mode-list button:disabled {
-  opacity: 0.5;
-}
-.otto-mode-list strong {
-  font-size: 11px;
-  font-weight: 540;
-  display: block;
-}
-.otto-mode-list small {
-  display: block;
-  color: #a9a9ad;
-  font-size: 10px;
-  line-height: 1.35;
-  margin-top: 3px;
-}
-.otto-mode-radio {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1px solid #7a7a81;
-}
-.otto-mode-list .selected .otto-mode-radio::after {
-  content: "";
-  width: 6px;
-  height: 6px;
-  background: #eee;
-  border-radius: 50%;
-}
-.otto-project-input {
-  background: #232326;
-  border: 1px solid #3a3a3e;
-  border-radius: 9px;
-  padding: 0 10px;
-  color: #aaa;
-}
-.otto-project-input:focus-within {
-  border-color: #707077;
-}
-.otto-project-input input {
-  color: #f5f5f5;
-  background: transparent;
-  outline: 0;
-  border: 0;
-  font-size: 11px;
-  min-width: 0;
-  flex: 1;
-  height: 33px;
-}
-.otto-project-input input:disabled {
-  opacity: 0.65;
-}
-.otto-settings-note {
-  color: #95959b;
-  font-size: 10px;
-  line-height: 1.4;
-  margin: 8px 0;
-}
-.otto-agent-settings-bottom {
-  margin-top: auto;
-  padding-top: 12px;
-}
-.otto-agent-settings-bottom > span {
-  color: #88888f;
-  font-size: 9px;
-  line-height: 1.4;
-}
-.otto-settings-done {
-  flex: none;
-  background: #f2f2f2;
-  color: #1a1a1b;
-  border: 0;
-  border-radius: 9px;
-  padding: 8px 14px;
-  font-size: 11px;
-}
-.otto-shell.otto-completed .otto-agent-status i {
-  animation: otto-done 0.36s var(--ease-otto);
-}
-.otto-shell.otto-failed > .otto-agent {
-  animation: otto-shake 0.35s ease-out;
-}
-@keyframes otto-done {
-  50% {
-    transform: scale(1.8);
-  }
-}
-@keyframes otto-shake {
-  24% {
-    transform: translateX(-3px);
-  }
-  50% {
-    transform: translateX(3px);
-  }
-  75% {
-    transform: translateX(-1px);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
-}
-.otto-shell.is-reduced *,
-.otto-shell.is-reduced *::before,
-.otto-shell.is-reduced *::after {
-  animation: none !important;
-  transition: none !important;
-}
-
-.otto-agent-home-link {
-  flex: none;
-  background: transparent;
-  color: #a6a6ab;
-  border: 0;
-  padding: 8px 4px;
-  font-size: 10px;
-}
-.otto-agent-home-link:hover {
-  color: #fafafa;
 }

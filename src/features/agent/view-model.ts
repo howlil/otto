@@ -1,0 +1,59 @@
+import type {
+  AgentMode,
+  AgentProvider,
+  AgentSnapshot,
+  CaptureSource,
+  ProviderReadiness,
+} from "../../platform/tauri";
+import type { AgentErrorKind } from "./useAgent";
+
+export type AgentTranscriptModel = {
+  snapshot: AgentSnapshot;
+  readiness: ProviderReadiness;
+  draft: string;
+  setDraft: (draft: string) => void;
+  error: string | null;
+  busy: boolean;
+  captureBusy: boolean;
+  send: () => Promise<void>;
+  stop: () => Promise<void>;
+  decide: (approvalId: string, decision: "allowOnce" | "deny") => Promise<boolean>;
+  refreshProvider: () => Promise<void>;
+  retryConnection: () => Promise<void>;
+  clearError: () => void;
+  errorKind: AgentErrorKind;
+};
+
+export type CaptureShortcutModel = {
+  source: CaptureSource;
+  targetTitle: string | null;
+  targetWarning: string | null;
+  targetPending: boolean;
+  refreshTarget: () => Promise<void>;
+  selectSource: (source: CaptureSource) => Promise<void>;
+  sourceReady: boolean;
+  sourcePending: boolean;
+  shortcut: string;
+  setShortcut: (value: string) => void;
+  captureMessage: string;
+  savingCapture: boolean;
+  available: boolean;
+  saveShortcut: () => Promise<void>;
+};
+
+export type AgentPanelModel = AgentTranscriptModel & {
+  capture: CaptureShortcutModel;
+  captureNow: () => Promise<void>;
+  cwd: string;
+  setCwd: (cwd: string) => void;
+  mode: AgentMode;
+  setMode: (mode: AgentMode) => void;
+  provider: AgentProvider;
+  model: string | null;
+  setModel: (model: string | null) => void;
+  thinkingEffort: string | null;
+  setThinkingEffort: (effort: string | null) => void;
+  setProvider: (provider: AgentProvider) => void;
+  locked: boolean;
+  newSession: () => Promise<boolean>;
+};

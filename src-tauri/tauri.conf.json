@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Otto",
+        "title": "",
         "width": 92,
         "height": 42,
         "resizable": false,
@@ -31,8 +31,20 @@
       "devCsp": "default-src 'self' http://localhost:1420; script-src 'self' http://localhost:1420; style-src 'self' 'unsafe-inline' http://localhost:1420; img-src 'self' data: http://localhost:1420; connect-src ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420"
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwODU0RDJEMTFFQ0EyRjIKUldUeW91d1JMVTJGSUpOYjRCL2owbkxQMk9hdHcxR00yM3QvN3lQWWFuaGRXUFZNR0Z3T1A3RjUK",
+      "endpoints": [
+        "https://github.com/howlil/otto/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": [
       "nsis"
     ],
