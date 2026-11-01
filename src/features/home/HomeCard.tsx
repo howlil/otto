@@ -71,22 +71,20 @@ export function HomeCard({
     name === "Agent"
       ? "bg-[linear-gradient(118deg,var(--color-otto-art-music-start)_0%,var(--color-otto-art-music-middle)_51%,var(--color-otto-art-music-end)_100%)]"
       : name === "Music"
-        ? "bg-[linear-gradient(118deg,var(--color-otto-selected)_0%,var(--color-otto-art-focus-middle)_55%,var(--color-otto-art-focus-end)_100%)]"
-        : "bg-[linear-gradient(118deg,var(--color-otto-art-alt-start)_0%,var(--color-otto-art-alt-middle)_53%,var(--color-otto-art-alt-end)_100%)]";
+        ? "bg-[linear-gradient(118deg,var(--color-otto-art-card-music-start)_0%,var(--color-otto-art-card-music-middle)_51%,var(--color-otto-art-card-music-end)_100%)]"
+        : "bg-[linear-gradient(118deg,var(--color-otto-art-card-focus-start)_0%,var(--color-otto-art-card-focus-middle)_51%,var(--color-otto-art-card-focus-end)_100%)]";
   return (
     <button
       ref={buttonRef}
       type="button"
-      className={`group relative isolate block min-w-0 overflow-hidden rounded-[15px] border border-otto-line-strong px-[13px] py-[11px] text-left text-otto-text transition-[transform,border-color,background] duration-[260ms] ease-otto [--art-tilt:43deg] [--dx:0px] [--dy:0px] [--shimmer:0.8] before:pointer-events-none before:absolute before:inset-0 before:z-[1] before:bg-[radial-gradient(ellipse_120px_100px_at_78%_30%,var(--color-otto-art-halo),transparent_70%)] before:opacity-[var(--shimmer)] before:mix-blend-screen before:transition-opacity before:duration-[250ms] hover:-translate-y-px hover:border-otto-line-hover focus-visible:-translate-y-px focus-visible:border-otto-line-hover active:scale-[0.985] ${backgroundClass} ${entryMotion}`}
+      className={`group relative isolate block h-[76px] min-w-0 overflow-hidden rounded-[15px] border border-otto-line-strong px-[13px] py-[11px] text-left text-otto-text transition-[transform,border-color,background] duration-[260ms] ease-otto [--art-tilt:43deg] [--dx:0px] [--dy:0px] [--shimmer:0.8] before:pointer-events-none before:absolute before:inset-0 before:z-[1] before:bg-[radial-gradient(ellipse_120px_100px_at_78%_30%,var(--color-otto-art-halo),transparent_70%)] before:opacity-[var(--shimmer)] before:mix-blend-screen before:transition-opacity before:duration-[250ms] after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:bg-[linear-gradient(90deg,var(--color-otto-art-overlay-start)_0%,var(--color-otto-art-overlay-middle)_29%,var(--color-otto-art-overlay-end)_64%,transparent_100%)] hover:border-otto-line-hover focus-visible:border-otto-line-hover active:scale-[0.985] ${backgroundClass} ${entryMotion}`}
       onClick={onClick}
       onPointerMove={move}
       onPointerLeave={reset}
       style={{ "--art-tilt": `${tilt}deg`, "--shimmer": String(gradient / 100) } as CSSProperties}
     >
       <span className="pointer-events-none relative z-[3] flex h-full max-w-[81%] flex-col justify-center whitespace-nowrap">
-        <Text as="strong" variant="title">
-          {name}
-        </Text>
+        <strong className="text-otto-md font-[550] leading-[1.2]">{name}</strong>
         <Text as="small" variant="meta" className="mt-1.5 text-otto-text-floating-muted">
           {subtitle}
         </Text>
