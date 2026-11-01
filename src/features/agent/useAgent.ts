@@ -436,7 +436,7 @@ export function useAgent() {
       try {
         if (nativeAvailable) await selectAgentProvider(next);
         setProvider(next);
-        if (next === "pi") setMode("quickAsk");
+        if (next !== "codex") setMode("quickAsk");
         connection.clearError();
       } catch (error) {
         connection.setRequestError(error);
