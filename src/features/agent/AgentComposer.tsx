@@ -1,7 +1,9 @@
 import type { FormEvent } from "react";
+import type { AgentProvider } from "../../platform/tauri";
 import { IconButton, TextArea, VisuallyHidden } from "../../shared/ui";
 
 export function AgentComposer({
+  provider,
   draft,
   setDraft,
   busy,
@@ -12,6 +14,7 @@ export function AgentComposer({
   send,
   stop,
 }: {
+  provider: AgentProvider;
   draft: string;
   setDraft: (draft: string) => void;
   busy: boolean;
@@ -42,11 +45,11 @@ export function AgentComposer({
           onClick={onConfigureCapture}
           title="Configure screen capture shortcut"
         />
-        <VisuallyHidden htmlFor="otto-prompt">Question for Codex</VisuallyHidden>
+        <VisuallyHidden htmlFor="otto-prompt">Question for the selected agent</VisuallyHidden>
         <TextArea
           id="otto-prompt"
           rows={1}
-          placeholder="Ask Codex…"
+          placeholder={`Ask ${provider === "pi" ? "Pi" : provider === "agy" ? "Agy" : "Codex"}…`}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           className="min-h-[22px] min-w-0 max-h-[38px] w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-2 py-[3px] text-otto-md leading-[1.45] text-otto-text outline-none shadow-none placeholder:text-otto-text-subtle"
@@ -61,7 +64,7 @@ export function AgentComposer({
         {busy ? (
           <IconButton
             icon="stop"
-            label="Stop Codex"
+            label="Stop request"
             variant="primary"
             className="grid shrink-0 place-items-center rounded-full"
             title="Stop"
