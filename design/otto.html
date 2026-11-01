@@ -733,8 +733,11 @@ function lyrics(){if(!state.mediaAvailable)return player();if(!state.lyricsAvail
 }
 function MusicReference({music,setMusic,isCompact,onOpen,onCollapse}){
  const root=useRef(null);
+ const previousTrack=useRef(music.track);
  const track=tracks[music.track];
- const markup=React.useMemo(()=>referenceMusicMarkup(music,isCompact),[music.track,music.playing,music.lyrics,music.mediaAvailable,music.lyricsAvailable,isCompact]);
+ const justChanged=previousTrack.current!==music.track;
+ const markup=React.useMemo(()=>referenceMusicMarkup({...music,changed:justChanged},isCompact),[music.track,music.playing,music.lyrics,music.mediaAvailable,music.lyricsAvailable,isCompact]);
+ previousTrack.current=music.track;
  const seek=pos=>setMusic(m=>({...m,position:Math.max(0,Math.min(tracks[m.track].duration,pos))}));
  useEffect(()=>{
   const box=root.current;if(!box)return;
@@ -783,8 +786,14 @@ function MusicReference({music,setMusic,isCompact,onOpen,onCollapse}){
    const r=seekEl.getBoundingClientRect();if(!r.width)return;
    seek(track.duration*Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)));
  };
+ const seekPreview=e=>{
+  const seekEl=e.target.closest(".seek");if(!seekEl)return;
+  const r=seekEl.getBoundingClientRect();if(!r.width)return;
+  const ratio=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+  const tip=seekEl.querySelector(".seek-tip");if(tip){tip.style.left=(ratio*100)+"%";const pos=track.duration*ratio;tip.textContent=String(Math.floor(pos/60))+":"+String(Math.floor(pos%60)).padStart(2,"0");}
+ };
  return el("div",{ref:root,className:"ref-music"+(music.playing?" is-playing":""),
-   onClick:action,onPointerDown:seekAt,
+   onClick:action,onPointerDown:seekAt,onPointerMove:seekPreview,
    onKeyDown:e=>{const target=e.target.closest(".seek");if(!target)return;if(["ArrowRight","ArrowLeft","Home","End"].includes(e.key)){e.preventDefault();seek(e.key==="Home"?0:e.key==="End"?track.duration:music.position+(e.key==="ArrowRight"?5:-5));}},
    onWheel:e=>{if(e.target.closest(".lyric-lines")&&music.follow!==false)setMusic(m=>({...m,follow:false}));},
    dangerouslySetInnerHTML:{__html:markup}});
@@ -841,9 +850,33 @@ function confirmation(){return `<div class="confirm"><div class="confirmbox" rol
 
  return (isCompact?compact():state.settings?settings():normalExpanded())+(state.confirmPhase?confirmation():"");
 }
-function FocusReference({timer,setTimer,isCompact,onOpen,onCollapse,onToggle,onReset}){
+function FocusReference({timer,setTimer,isCompact,onOpen,onCollapse,onToggle,onReset,motion="Fluid"}){
  const ref=useRef(null);
+ const prev=useRef({status:timer.status,phase:timer.phase,settings:timer.settings});
  const markup=referenceFocusMarkup(timer,isCompact);
+ useEffect(()=>{
+   const prior=prev.current;
+   prev.current={status:timer.status,phase:timer.phase,settings:timer.settings};
+   if(motion==="Reduced"||window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+   const box=ref.current;if(!box)return;
+   const animate=(selector,frames,duration=290)=>{
+     const element=box.querySelector(selector);
+     if(element&&element.animate)element.animate(frames,{duration,easing:"cubic-bezier(.22,1,.36,1)"});
+   };
+   if(prior.status!==timer.status){
+     if(timer.status==="running")animate(".round-icon,.timeblock",[{transform:"scale(.9)",opacity:.65},{transform:"scale(1.07)",opacity:1,offset:.55},{transform:"scale(1)",opacity:1}],360);
+     else if(timer.status==="paused")animate(".compact-meta,.timeblock",[{transform:"translateY(0)",opacity:1},{transform:"translateY(2px)",opacity:.6,offset:.5},{transform:"translateY(0)",opacity:1}],290);
+     else if(timer.status==="ready")animate(".round-icon,.timeblock",[{transform:"rotate(-7deg) scale(.92)"},{transform:"rotate(3deg) scale(1.04)",offset:.65},{transform:"none"}],410);
+     else if(timer.status==="completed"){
+       animate(".finished-title,.compact-time",[{transform:"scale(.87)",opacity:.7},{transform:"scale(1.09)",opacity:1,offset:.5},{transform:"scale(1)",opacity:1}],420);
+       box.querySelectorAll(".completion-sparks i").forEach((dot,i)=>{
+         if(dot.animate)dot.animate([{transform:"translateY(3px) scale(.4)",opacity:0},{transform:"translateY(-7px) scale(1)",opacity:.9,offset:.5},{transform:"translateY(-12px) scale(.5)",opacity:0}],{duration:620,delay:i*65,easing:"cubic-bezier(.22,1,.36,1)"});
+       });
+     }
+   }
+   if(prior.phase!==timer.phase)animate(".timeblock,.compact-meta",[{transform:"translateX(9px)",opacity:.4},{transform:"translateX(-2px)",opacity:1,offset:.7},{transform:"translateX(0)",opacity:1}],380);
+   if(prior.settings!==timer.settings&&timer.settings)animate(".settings",[{transform:"translateY(7px)",opacity:.4},{transform:"translateY(0)",opacity:1}],250);
+ },[timer.status,timer.phase,timer.settings,motion]);
  const switchPhase=(phase,auto=false)=>setTimer(t=>({...t,phase,status:auto?"running":"ready",running:auto,deadline:auto?Date.now()+t.duration[phase]*60000:null,remaining:t.duration[phase]*60,settings:false,confirmPhase:null}));
  const nextPhase=()=>timer.phase==="focus"?(timer.finished%4===0?"long":"short"):"focus";
  const change=(action,el)=>{
@@ -975,9 +1008,9 @@ function App(){
  const shellKey=event?"event-"+event:shape==="compact"?page+"-compact":drawer||page+(music.lyrics?"-lyrics":"");
  const enter=()=>{clearTimeout(pointerLeave.current);if(event||presentation!=="compact"||!prefs.hoverExpand)return;clearTimeout(pointerEnter.current);pointerEnter.current=setTimeout(()=>{pinnedUntil.current=Date.now()+470;setPresentation("preview")},prefs.hoverDelay)};
  const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(prefs.leaveDelay,pinnedUntil.current-Date.now()+140))}};
- const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else collapse()};
+ const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else if(page==="focus"&&timer.confirmPhase){setTimer(t=>({...t,confirmPhase:null}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Provider");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Screen Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer});
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Provider");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Screen Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer});
  const onModuleDemo=phase=>{if(phase==="media"){navigate("music");setMusic(m=>({...m,mediaAvailable:!m.mediaAvailable,playing:!m.mediaAvailable}));}else if(phase==="lyrics"){navigate("music");setMusic(m=>({...m,lyricsAvailable:!m.lyricsAvailable,lyrics:false}));}else if(phase==="finish"){navigate("focus");setTimer(t=>({...t,remaining:0,running:false,deadline:null,status:"completed",finished:t.finished+(t.phase==="focus"?1:0)}));}else if(phase==="focus-reset"){navigate("focus");setTimer(t=>({...t,phase:"focus",remaining:25*60,running:false,deadline:null,duration:{...durations},status:"ready",settings:false,confirmPhase:null,finished:0}));}};
  const onAgentDemo=phase=>{clearInterval(agentRun.current);navigate("agent");if(phase==="run"){setAgent(a=>({...a,readiness:"ready",provider:"Codex"}));sendAgent("How should Otto preserve a CLI session?",true);return}const read=phase==="auth"?"auth":phase==="missing"?"missing":"ready";const actual=phase==="auth"||phase==="missing"?"ready":phase;const sample=phase==="approval"?"Update the session adapter safely.":phase==="error"?"Check why the CLI cannot connect.":"";setAgent(a=>({...a,busy:false,phase:actual,readiness:read,provider:phase==="auth"?"Agy":phase==="missing"?"Pi":"Codex",warning:"",messages:sample?[{role:"user",text:sample}]:[],unread:false}))};
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
