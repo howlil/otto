@@ -27,10 +27,10 @@ use windows_sys::Win32::{
         },
         WindowsAndMessaging::{
             EVENT_SYSTEM_FOREGROUND, GetForegroundWindow, GetMessageW, GetSystemMetrics,
-            GetWindowRect, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow,
-            IsWindowVisible, MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW,
-            SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
-            WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_APP, WM_HOTKEY,
+            GetWindowRect, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+            IsIconic, IsWindow, IsWindowVisible, MSG, PM_NOREMOVE, PeekMessageW,
+            PostThreadMessageW, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+            SM_YVIRTUALSCREEN, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_APP, WM_HOTKEY,
         },
     },
 };
