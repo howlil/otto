@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Button, StatusMessage, Text } from "../../shared/ui";
 import type { CaptureShortcutModel } from "./view-model";
 import type {
   AgentMode,
@@ -7,31 +6,10 @@ import type {
   AgentStatus,
   ProviderReadiness,
 } from "../../platform/tauri";
-import { ModeSettings, ProjectSettings, ProviderSettings } from "./AgentSettingsSections";
-import { AgentCaptureSettings } from "./AgentCaptureSettings";
-import { ModelUsageSettings } from "./ModelUsageSettings";
-import { agentStatusLabel } from "./status";
+import { AgentSettingsNavigation, type AgentSettingsTab } from "./AgentSettingsNavigation";
+import { AgentSettingsDetails } from "./AgentSettingsDetails";
 
-export function AgentSettings({
-  readiness,
-  provider,
-  setProvider,
-  runStatus,
-  approvalPending,
-  onRetry,
-  mode,
-  setMode,
-  locked,
-  cwd,
-  setCwd,
-  hasThread,
-  busy,
-  error,
-  onNewSession,
-  onDone,
-  capture,
-  focusCaptureShortcut,
-}: {
+export type AgentSettingsProps = {
   readiness: ProviderReadiness;
   provider: AgentProvider;
   setProvider: (provider: AgentProvider) => void;
@@ -50,144 +28,19 @@ export function AgentSettings({
   onDone: () => void;
   capture: CaptureShortcutModel;
   focusCaptureShortcut: boolean;
-}) {
-  const [tab, setTab] = useState<"provider" | "mode" | "workspace" | "capture" | "usage">(
-    "provider",
-  );
+};
+
+export function AgentSettings(props: AgentSettingsProps) {
+  const [tab, setTab] = useState<AgentSettingsTab>("provider");
   useEffect(() => {
-    if (focusCaptureShortcut) setTab("capture");
-  }, [focusCaptureShortcut]);
-  const providerStatus =
-    readiness.status === "ready"
-      ? "Ready"
-      : readiness.status === "checking"
-        ? "Checking"
-        : "Setup required";
-  const tabs = [
-    { id: "provider", label: "Provider" },
-    { id: "mode", label: "Mode" },
-    { id: "usage", label: "Model & usage" },
-    { id: "workspace", label: "Workspace" },
-    { id: "capture", label: "Screen Capture" },
-  ] as const;
-  const introductions = {
-    provider: "Select your local CLI. Its capabilities determine the available actions.",
-    mode: "The selected mode controls permissions for the entire conversation.",
-    usage: "Local CLI runtime details are kept in settings, away from your conversation.",
-    workspace: "The working directory belongs to a single provider session.",
-    capture: "Screenshot analysis is native; target and image support must be verified.",
-  };
+    if (props.focusCaptureShortcut) setTab("capture");
+  }, [props.focusCaptureShortcut]);
+
   return (
     <section className="flex min-h-0 flex-1 flex-col">
       <div className="grid min-h-0 flex-1 grid-cols-[118px_minmax(0,1fr)]">
-        <nav
-          aria-labelledby="otto-agent-settings-sections"
-          className="flex flex-col gap-1 border-r border-otto-line-soft bg-otto-nav-bg px-2 py-[13px]"
-        >
-          <span id="otto-agent-settings-sections" className="sr-only">
-            Agent settings sections
-          </span>
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-current={tab === item.id ? "page" : undefined}
-              onClick={() => setTab(item.id)}
-              className={`min-h-[35px] rounded-otto-control px-2.5 text-left text-otto-sm transition-colors hover:bg-otto-control-deep hover:text-otto-text ${tab === item.id ? "bg-otto-control-deep text-otto-text" : "text-otto-text-tertiary"}`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        <div className="min-h-0 min-w-0 overflow-y-auto px-[17px] pb-5 pt-[15px] [overscroll-behavior:contain] [scrollbar-width:none]">
-          <Text as="h2" variant="heading" className="mb-1">
-            {tab === "mode"
-              ? "Interaction mode"
-              : tab === "workspace"
-                ? "Working project"
-                : tab === "usage"
-                  ? "Model & usage"
-                  : tab === "capture"
-                    ? "Screen Capture"
-                    : "Provider"}
-          </Text>
-          <Text
-            as="p"
-            variant="meta"
-            className="mb-[15px] block leading-[1.5] text-otto-text-tertiary"
-          >
-            {introductions[tab]}
-          </Text>
-          {busy && (
-            <StatusMessage
-              tone={approvalPending ? "warn" : "info"}
-              className="mb-2 text-otto-text-tertiary"
-              action={{ label: approvalPending ? "Review" : "Return", onClick: onDone }}
-            >
-              {approvalPending
-                ? "Approval is waiting in the Agent view."
-                : `${agentStatusLabel(runStatus)} request is still active.`}
-            </StatusMessage>
-          )}
-          {tab === "provider" && (
-            <ProviderSettings
-              readiness={readiness}
-              providerStatus={providerStatus}
-              provider={provider}
-              onSelect={setProvider}
-              locked={locked}
-              onRetry={onRetry}
-            />
-          )}
-          {tab === "mode" && (
-            <ModeSettings
-              mode={mode}
-              locked={locked || !readiness.agentSession}
-              setMode={setMode}
-            />
-          )}
-          {tab === "workspace" && <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />}
-          {tab === "capture" && (
-            <div className="space-y-2">
-              {readiness.imageTransport && (
-                <AgentCaptureSettings
-                  capture={capture}
-                  focusCaptureShortcut={focusCaptureShortcut}
-                />
-              )}
-              {!readiness.imageTransport && (
-                <StatusMessage tone="info">
-                  This provider cannot transport screenshots. Choose Codex or a vision-capable Pi
-                  model.
-                </StatusMessage>
-              )}
-              {readiness.imageTransport &&
-                readiness.status === "ready" &&
-                !readiness.imageInput && (
-                  <StatusMessage tone="info">
-                    The selected model does not confirm image input. Choose a vision-capable model
-                    in your CLI and Retry before capturing.
-                  </StatusMessage>
-                )}
-            </div>
-          )}
-          {tab === "usage" && <ModelUsageSettings />}
-          {hasThread && (
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <Text as="span" variant="status" className="text-otto-text-tertiary">
-                New session unlocks the context.
-              </Text>
-              <Button variant="primary" size="sm" disabled={busy} onClick={onNewSession}>
-                New Session
-              </Button>
-            </div>
-          )}
-          {error && (
-            <StatusMessage tone="error" className="mt-3 text-otto-text-tertiary">
-              {error}
-            </StatusMessage>
-          )}
-        </div>
+        <AgentSettingsNavigation tab={tab} onSelect={setTab} />
+        <AgentSettingsDetails {...props} tab={tab} />
       </div>
     </section>
   );
