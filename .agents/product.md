@@ -13,8 +13,8 @@ Alternate context path: B2 → B4 user-triggered screen capture → B3 answer. S
 
 - B1: Otto defaults to an eyes-only Compact idle capsule while the user works elsewhere; other ambient information may be explicitly selected as a later idle presentation.
 - B2: Every module has Compact and Expanded presentations. Hover morphs Compact into a non-focusing Expanded preview; explicit click/keyboard activation pins it for interaction. Expanded Home provides the module entry points, with an operable keyboard alternative to any gesture; dismiss/Escape returns to Compact.
-- B3: User chooses an installed Codex, Agy, or Pi CLI, asks a question, sees partial/final responses, can follow up in the same provider session, and can explicitly stop the current request.
-- B4: An explicit camera action or configured hotkey intentionally captures the last focused non-Otto window without flash/selection UI, sends that image to a selected CLI with image support, and shows the analysis; full-screen capture is an explicit alternative.
+- B3: User chooses an installed Codex, Agy, Pi, or OpenCode CLI, asks a question, sees partial/final responses, can follow up in the same provider session, and can explicitly stop the current request.
+- B4: A configured hotkey intentionally captures the last focused non-Otto window without flash/selection UI, sends that image to a selected CLI with image support, and shows the analysis; full-screen capture is an explicit alternative.
 - B5: Music Compact shows circular artwork, song/artist, and playback-linked activity spectrum; Expanded adds playback details/actions. The spectrum stops when playback stops; lyrics appear only when a source provides them.
 - B6: Pomodoro Compact shows remaining time, phase and a primary control, with no progress line/timeline/percentage or ring; Expanded enables focus/short/long-break durations and phase selection, start/pause/resume/reset, with restrained state-change and completion motion and no progress bar or ring.
 - B7: User selects floating or top-attached placement; the capsule morphs into a rounded Expanded card. Attached uses curved shoulders connected to the screen edge; both placements preserve interaction without trapping or obscuring unrelated desktop actions.
@@ -37,7 +37,7 @@ Material breaks:
 
 ## Constraints
 - C1: Windows 11 first; Tauri 2 + React + Vite + Rust + Tailwind CSS, Bun for JS package management/scripts.
-- C2: Use locally installed Codex, Agy, and Pi CLIs with their existing authentication; no separate AI API, hosted model gateway, or backend service.
+- C2: Use locally installed Codex, Agy, Pi, and OpenCode CLIs with their existing authentication; no separate AI API, hosted model gateway, or backend service.
 - C3: Low idle resource usage, responsive interface, and recoverable external dependencies.
 - C4: Always-on-top and capture exclusion are best effort; secure desktop, fullscreen modes, and third-party capture paths may behave differently.
 - C5: Compact dark UI; UIArc is a visual reference, not a runtime dependency.
@@ -59,7 +59,7 @@ Material breaks:
 - P1 (B1,B7,X5): Given a supported Windows session, when Otto starts/changes placement, it remains accessible at the selected top location; capture-protection limitations are accurately communicated.
 - P2 (B2): Given any Compact module, hover reveals its Expanded preview without focus theft; click/keyboard activation pins the card; exiting/Escape restores Compact, and Expanded Home exposes all module entries without mandatory gesture navigation.
 - P3 (B3,X1,X4): Given a ready CLI, asking produces a real partial/final answer and follow-up; a missing/failed CLI keeps the draft recoverable; explicit Stop/exit ends owned work without a stale answer.
-- P4 (B4,X2,X6,Q5): Given a valid last-focused window and capable provider, only an intentional camera action or configured hotkey sends its image and returns analysis; denied, unsupported, missing or ambiguous targets send nothing and offer recovery.
+- P4 (B4,X2,X6,Q5): Given a valid last-focused window and capable provider, only an intentional hotkey sends its image and returns analysis; denied, unsupported, missing or ambiguous targets send nothing and offer recovery.
 - P5 (B5,X3): Given an active media session, Compact shows song/artist, circular cover and a spectrum only during playback; controls reflect observed state, and absent sessions/lyrics do not display fabricated data.
 - P6 (B6): Given configured focus/break durations, Compact and Expanded show the correct countdown/phase with no progress timeline/bar or ring; start, pause, resume, reset, phase selection and Expanded settings preserve the selected durations without background focus theft.
 - P7 (Q1,Q2): Given a representative Windows build, record idle resource use and interaction/frame timing while a CLI executes; gestures/navigation and Stop remain responsive, with no invented benchmark pass.
@@ -71,7 +71,7 @@ Material breaks:
 - P13 (Q6): Given a question during another app task, the user can ask, read/copy/follow up on the answer, dismiss Otto, and return to the same task without switching to a standalone AI interface.
 
 ## Assumptions
-- A1 [non-blocking]: Codex is the initial supported provider; specific capabilities of Agy and Pi will be checked against installed versions.
+- A1 [non-blocking]: Codex is the initial supported provider; specific capabilities of Agy, Pi, and OpenCode will be checked against installed versions.
 - A2 [non-blocking]: Hard performance budgets are deliberately undefined until Windows idle/active measurements exist.
 - A3 [non-blocking]: Screenshot defaults to the last focused external window; full-screen capture requires an explicit alternative selection. Revisit when implementing B4 if source selection is inadequate.
 - A4 [non-blocking]: Quick Ask defaults to a read-only experience; if a provider cannot enforce it, Quick Ask must be unavailable for that provider rather than silently permitting writes.

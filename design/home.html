@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Otto — Home & Settings | Angled SVG study</title>
+<style>
+:root{font-family:"Segoe UI",system-ui,sans-serif;color:#292929;background:#f5f5f5;--ink:#151515;--text:#fafafa;--muted:#a3a3a3;--raised:#292929;--ease:cubic-bezier(.22,1,.36,1);--dur:420ms}
+*{box-sizing:border-box}button{font:inherit;cursor:pointer}button:focus-visible{outline:2px solid #95b9ee;outline-offset:3px}body{margin:0}svg{display:block;flex-shrink:0}main{max-width:1000px;margin:38px auto;padding:0 22px 50px}
+.mast{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:22px}.brand{font-size:13px;font-weight:700;letter-spacing:-.025em}.overline{display:block;margin-top:4px;color:#858585;font-size:11px;font-weight:400;letter-spacing:0}.topright{font-size:11px;color:#8e8e8e}.heading{font-size:25px;font-weight:540;letter-spacing:-.055em;line-height:1.2;margin:0 0 6px}.desc{font-size:12px;color:#777;line-height:1.6;margin:0 0 21px;max-width:680px}
+.controlrow{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:15px}.controlset{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.control-label{font-size:11px;color:#777}.segments{display:flex;align-items:center;gap:2px;background:#ececec;border:1px solid #dcdcdc;border-radius:11px;padding:3px}.segments button{background:transparent;border:0;border-radius:8px;padding:7px 12px;color:#6e6e6e;font-size:11px;min-height:30px}.segments button.on{background:#fff;color:#222;box-shadow:0 1px 2px #00000012}.moment{background:#fff;border:1px solid #ddd;color:#333;border-radius:10px;padding:9px 12px;font-size:11px;min-height:32px}.moment:hover{background:#f9f9f9}.moment:active{transform:translateY(1px)}
+.stage{height:440px;position:relative;overflow:hidden;isolation:isolate;background:#e9ecf1;border:1px solid #d5dbe3;border-radius:16px}.stage:after{content:"";height:1px;position:absolute;top:0;left:0;right:0;background:#f9fbfe}.stage.attached{border-top-color:#b5bbc4}.desktop-label{position:absolute;left:22px;top:20px;font-size:10px;letter-spacing:.01em;color:#a0a9b5}.wallpaper{position:absolute;inset:0;background:radial-gradient(ellipse 360px 230px at 75% 75%,#e1e5ec 0%,transparent 100%);pointer-events:none}.window{position:absolute;width:405px;height:205px;bottom:41px;left:50%;transform:translateX(-50%);background:#fafbfdc9;border:1px solid #d2d8e0;border-radius:10px;box-shadow:0 12px 35px #64728416;overflow:hidden;opacity:.86;pointer-events:none}.window-bar{height:32px;background:#f3f5f8;border-bottom:1px solid #e0e4ea;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:10px;color:#818a98}.window-body{padding:15px 19px;display:flex;flex-direction:column;gap:9px}.ghost{height:8px;width:75%;border-radius:4px;background:#e8ebef}.ghost.short{width:40%}.ghostline{display:flex;gap:12px;margin-top:11px}.ghosttile{width:55px;height:48px;border-radius:8px;background:#eff1f5;border:1px solid #e5e8ec}
+.shell{--w:92px;--h:42px;--shoulder:0px;--r:999px;position:absolute;top:var(--topgap,20px);left:50%;transform:translateX(-50%);width:var(--w);height:var(--h);background:var(--ink);color:var(--text);border:1px solid #353535;border-radius:var(--r);box-shadow:0 14px 28px #25344924;transition:width var(--dur) var(--ease),height var(--dur) var(--ease),top var(--dur) var(--ease),border-radius var(--dur) var(--ease);z-index:4;will-change:width,height;overflow:hidden}.shell.expanded{--r:28px;box-shadow:0 18px 34px #25344930}.stage.attached .shell{top:0;--shoulder:12px;overflow:visible;border:0;background:transparent;border-radius:0;box-shadow:none}.silhouette{display:none;position:absolute;inset:0;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 9px 14px #1b25352c);pointer-events:none}.stage.attached .silhouette{display:block}.shell-inner{position:absolute;inset:0 var(--shoulder);height:100%;background:transparent;overflow:hidden;border-radius:inherit}.stage.attached .shell-inner{border-radius:0}
+.face{position:absolute;z-index:3;top:50%;left:50%;height:25px;width:33px;display:flex;justify-content:center;align-items:center;transform:translate(-50%,-50%);transition:left var(--dur) var(--ease),top var(--dur) var(--ease);pointer-events:none}.expanded .face{top:29px;left:33px}.eyes{display:flex;align-items:center;justify-content:center;gap:8px;width:33px;height:23px;--gaze-x:0px;--gaze-y:0px}.eyes i{display:block;background:#fafafa;border-radius:7px;width:6px;height:13px;transform:translate(var(--gaze-x),var(--gaze-y));transition:height 200ms var(--ease),width 200ms var(--ease),border-radius 200ms var(--ease),transform 150ms ease,border 200ms;flex-shrink:0}.eyes[data-expression="curious"] i:first-child{height:15px}.eyes[data-expression="curious"] i:last-child{height:10px}.eyes[data-expression="sleepy"] i{height:4px;border-radius:6px}.eyes[data-expression="happy"]{gap:5px}.eyes[data-expression="happy"] i{height:8px;width:11px;background:none;border:2.5px solid #fafafa;border-bottom:0;border-radius:11px 11px 0 0}.eyes.blink i{animation:eyeblink .27s ease-in-out 1}@keyframes eyeblink{0%,100%{scale:1 1}42%,63%{scale:1 .16}}
+.trigger{position:absolute;inset:0;width:100%;height:100%;background:transparent;border:0;border-radius:999px;z-index:5;outline-offset:-3px}.expanded .trigger{opacity:0;pointer-events:none;visibility:hidden}.home-panel{position:absolute;inset:0;visibility:hidden;opacity:0;pointer-events:none;transition:opacity 165ms ease,visibility 0s linear 165ms}.expanded .home-panel{visibility:visible;opacity:1;pointer-events:auto;transition:opacity 180ms ease 140ms,visibility 0s}.home-title{position:absolute;left:54px;top:21px;height:16px;font-size:13px;font-weight:520;letter-spacing:-.01em;transform:translateY(4px);opacity:0;transition:opacity 170ms ease,transform 170ms ease}.expanded .home-title{transform:none;opacity:1;transition-delay:130ms}.home-hint{position:absolute;right:18px;top:22px;font-size:10px;color:#7f7f7f;transform:translateY(4px);opacity:0;transition:opacity 170ms ease,transform 170ms ease}.expanded .home-hint{opacity:1;transform:none;transition-delay:160ms}.choices{position:absolute;left:17px;right:17px;bottom:17px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.choice{min-width:0;height:76px;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:11px 10px 11px 13px;background:#262626;border:1px solid #373737;color:#fafafa;border-radius:15px;opacity:0;transform:translateY(7px);transition:background 160ms, border-color 160ms,opacity 210ms,transform 300ms var(--ease);pointer-events:none}.expanded .choice{opacity:1;transform:translateY(0);pointer-events:auto}.expanded .choice:nth-child(1){transition-delay:0ms,0ms,165ms,165ms}.expanded .choice:nth-child(2){transition-delay:0ms,0ms,190ms,190ms}.expanded .choice:nth-child(3){transition-delay:0ms,0ms,215ms,215ms}.choice:hover{background:#333;border-color:#535353}.choice:active{background:#3d3d3d}.choice strong{display:block;font-size:12px;font-weight:500}.choice small{display:block;color:#a2a2a2;font-size:10px;line-height:1.3;margin-top:6px}.choice svg{color:#c2c2c2}
+.module-panel{position:absolute;inset:0;display:none;padding:17px;flex-direction:column;gap:15px}.shell.in-module .home-panel,.shell.in-module .face{display:none}.shell.in-module .module-panel{display:flex}.module-heading{display:flex;align-items:center;gap:10px}.back{width:30px;height:30px;border:0;border-radius:10px;color:white;background:#2b2b2b;display:grid;place-items:center}.modname{font-size:13px;font-weight:550}.module-content{border:1px solid #383838;border-radius:13px;background:#252525;padding:12px 14px;font-size:11px;line-height:1.5;color:#bdbdbd}.module-content strong{display:block;color:#fff;margin-bottom:4px;font-size:12px;font-weight:500}.module-content p{margin:0}
+.stage-bottom{position:absolute;bottom:15px;left:22px;right:22px;display:flex;align-items:center;justify-content:space-between;gap:16px;color:#8a96a5;font-size:10px;pointer-events:none}.mark{color:#8a96a5}.foot{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:12px;color:#777;font-size:11px}.foot code{font-family:Consolas,monospace;color:#555}.info{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:23px}.info article{border-top:1px solid #dedede;padding-top:12px;min-width:0}.info strong{font-weight:600;font-size:11px}.info p{color:#7c7c7c;font-size:11px;line-height:1.6;margin:6px 0 0}.disclaimer{font-size:10px;color:#999;margin-top:19px;line-height:1.6}
+html[data-motion="reduced"] *{transition:none!important;animation:none!important}html[data-motion="reduced"] .eyes i{transform:none!important}html[data-motion="reduced"] .shell{will-change:auto}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important} .shell{will-change:auto}}
+@media(max-width:600px){main{padding:0 12px;margin:22px auto}.heading{font-size:22px}.topright{display:none}.stage{height:390px}.window{width:78%;height:175px}.stage-bottom{left:12px;right:12px}.desktop-label{left:12px}.shell.expanded{width:min(var(--w),calc(100% - 12px))!important}.choices{left:12px;right:12px;gap:5px;bottom:14px}.choice{padding:9px 7px 9px 10px}.choice svg{width:15px;height:15px}.home-title{left:50px}.info{grid-template-columns:1fr;gap:9px}}
+
+/* Home 02: native SVGs, not raster illustrations. Current typography and grid are unchanged. */
+.choice{position:relative;isolation:isolate;overflow:hidden;display:block;background:linear-gradient(125deg,#292a2c 0%,#232426 65%,#202123 100%);border-color:#3b3d41;transition:background 160ms,border-color 180ms,transform 260ms var(--ease),opacity 210ms;--dx:0px;--dy:0px;--sx:67%;--sy:40%;}
+.choice::before{content:"";pointer-events:none;position:absolute;inset:0;z-index:1;opacity:0;background:radial-gradient(ellipse 88px 72px at var(--sx) var(--sy),#d9e0ef12,transparent 90%);transition:opacity 260ms ease}
+.choice::after{content:"";pointer-events:none;position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,#27282b 0%,#27282bdf 29%,#27282b2e 68%,transparent 100%);opacity:.85}
+.choice:hover,.choice:focus-visible{background:linear-gradient(125deg,#2c2d30,#242629);border-color:#61646a;transform:translateY(-1px)}
+.choice:hover::before,.choice:focus-visible::before{opacity:1}
+.choice:active{transform:scale(.985);border-color:#7e828a}
+.expanded .choice{transform:translateY(0)}.expanded .choice:hover,.expanded .choice:focus-visible{transform:translateY(-1px)}.expanded .choice:active{transform:scale(.985)}
+.choice-copy{position:relative;z-index:3;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;height:100%;max-width:78%;white-space:nowrap;pointer-events:none}
+.choice-copy strong{color:#f5f5f5;font-size:12px;letter-spacing:-.015em;font-weight:550}
+.choice-copy small{color:#aaaeb4;font-size:10px;margin-top:6px}
+.choice-art{position:absolute;right:-11px;top:-9px;height:99px;width:122px;z-index:0;pointer-events:none;opacity:.82;transform:translate(var(--dx),var(--dy)) scale(1);transition:transform 420ms var(--ease),opacity 260ms ease;filter:grayscale(1)}
+.choice:hover .choice-art,.choice:focus-visible .choice-art{opacity:1;transform:translate(var(--dx),var(--dy)) scale(1.055)}
+.choice-art .art-svg{width:100%;height:100%;overflow:visible}
+.agent-art .agent-window{transform-origin:65px 65px;transition:transform 420ms var(--ease)}
+.choice:hover .agent-art .agent-window,.choice:focus-visible .agent-art .agent-window{transform:translate(-2px,-2px)}
+.choice:hover .agent-art .agent-caret,.choice:focus-visible .agent-art .agent-caret{animation:otto-caret 900ms steps(2,start) infinite}
+.music-art .music-note{transform-origin:78px 50px;transition:transform 500ms var(--ease)}
+.choice:hover .music-art .music-note,.choice:focus-visible .music-art .music-note{transform:translateY(-3px) rotate(3deg)}
+.choice:hover .music-art .wave-group,.choice:focus-visible .music-art .wave-group{animation:otto-wave 1600ms ease-in-out infinite alternate}
+.focus-art .clock-hand{transform-origin:78px 49px;transition:transform 900ms var(--ease)}
+.choice:hover .focus-art .clock-hand,.choice:focus-visible .focus-art .clock-hand{transform:rotate(23deg)}
+.focus-art .focus-progress{transition:stroke-dasharray 850ms var(--ease)}
+.choice:hover .focus-art .focus-progress,.choice:focus-visible .focus-art .focus-progress{stroke-dasharray:93 140}
+@keyframes otto-caret{50%{opacity:.15}}@keyframes otto-wave{to{transform:translateY(-7px)}}
+/* All work is deliberate: no animation while cards are idle. */
+html[data-motion="reduced"] .choice-art,html[data-motion="reduced"] .choice,
+html[data-motion="reduced"] .choice .clock-hand{transition:none!important;animation:none!important;transform:none!important}
+@media(prefers-reduced-motion:reduce){.choice-art,.choice,.choice .clock-hand,.wave-group{transition:none!important;animation:none!important;transform:none!important}}
+@media(max-width:600px){.choice-art{right:-28px;width:106px;top:-8px}.choice-copy{max-width:88%}.choice-copy strong{font-size:11px}.choice-copy small{font-size:9px}}
+
+/* HOME 03 — 43-degree leftward native SVG perspective; no image or canvas dependencies. */
+.choice{background:#222426;--shimmer:0.78;--art-tilt:43deg;--card-move-x:0px;--card-move-y:0px;}
+.choice.agent-card{background:linear-gradient(118deg,#26292e 0%,#262a30 51%,#1c2128 100%)}
+.choice.music-card{background:linear-gradient(118deg,#29282d 0%,#282730 51%,#1d1e29 100%)}
+.choice.focus-card{background:linear-gradient(118deg,#28292c 0%,#27282c 51%,#202329 100%)}
+.choice:before{opacity:var(--shimmer);background:radial-gradient(ellipse 120px 100px at 78% 30%,#bccfe039,transparent 70%);mix-blend-mode:screen;z-index:1;transition:opacity .25s}
+.choice.music-card:before{background:radial-gradient(ellipse 120px 98px at 77% 25%,#aab0cc38,transparent 72%)}
+.choice.focus-card:before{background:radial-gradient(ellipse 120px 98px at 77% 27%,#c3bec038,transparent 72%)}
+.choice:after{background:linear-gradient(90deg,#292a2edb 0%,#27292cb0 29%,#27292c28 64%,transparent 100%),linear-gradient(0deg,#22242694,transparent 56%);opacity:.95;}
+.choice-art{right:-7px;top:-23px;height:132px;width:148px;opacity:.91;transform:perspective(380px) rotateY(calc(-1 * var(--art-tilt))) rotateZ(-6deg) translate3d(var(--dx),var(--dy),0);transform-origin:60% 50%;filter:none;transition:transform 370ms var(--ease),opacity 240ms}
+.choice:hover .choice-art,.choice:focus-visible .choice-art{opacity:1;transform:perspective(380px) rotateY(calc(-1 * var(--art-tilt))) rotateZ(-4deg) translate3d(var(--dx),var(--dy),8px)}
+.choice-copy{position:relative;z-index:4;max-width:81%}.choice-copy strong{font-size:12px}.choice-copy small{font-size:10px}
+.choice:hover,.choice:focus-visible{border-color:#666b75;box-shadow:inset 0 1px 0 #ffffff12}
+.choice.music-card:hover{border-color:#696978}.choice.focus-card:hover{border-color:#6b6b74}
+.choice .art-svg{filter:drop-shadow(-8px 6px 10px #0000002a)}
+.choice svg .agent-window,.choice svg .music-note,.choice svg .clock-hand{will-change:transform}
+.settings-key{position:absolute;right:14px;top:11px;z-index:6;border:0;width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:transparent;color:#a8abb0;opacity:0;pointer-events:none;transition:background .18s,opacity .18s}
+.expanded:not(.in-module):not(.in-settings) .settings-key{opacity:1;pointer-events:auto}
+.settings-key:hover,.settings-key:focus-visible{background:#292b2f;color:#fff}
+.shell.in-settings .home-panel,.shell.in-settings .face,.shell.in-settings .module-panel{display:none}
+.settings-panel{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden;background:#151515;border-radius:27px}
+.shell.in-settings .settings-panel{display:flex}
+.stage.attached .settings-panel{border-radius:0 0 27px 27px}
+.settings-top{height:51px;border-bottom:1px solid #2b2c2f;display:flex;align-items:center;gap:10px;padding:0 15px;flex:none}
+.settings-top strong{font-size:13px;font-weight:550}
+.settings-back{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#242426;color:#eee;border:1px solid #36373b}
+.settings-back:hover{background:#34353a}
+.settings-meta{margin-left:auto;color:#777;font-size:11px}
+.settings-body{min-height:0;display:grid;grid-template-columns:118px 1fr;flex:1}
+.settings-nav{padding:13px 8px;border-right:1px solid #292b2f;display:flex;flex-direction:column;align-items:stretch;gap:4px;background:#181818}
+.settings-tab{height:35px;text-align:left;color:#929292;border:0;background:transparent;border-radius:9px;padding:0 11px;font-size:11px;transition:background .16s,color .16s}
+.settings-tab:hover{background:#272729;color:#ececec}
+.settings-tab.active{background:#2e3033;color:#fff}
+.settings-views{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#444 transparent;min-height:0;scrollbar-gutter:stable}
+.settings-view{padding:16px 18px 20px;display:none;color:#fafafa}
+.settings-view.active{display:block}
+.settings-view h2{font-weight:550;font-size:14px;margin:0 0 3px}
+.settings-help{font-size:10px;color:#929396;line-height:1.45;margin:0 0 18px}
+.setting-unit{padding:0 0 15px;margin:0 0 13px;border-bottom:1px solid #2b2b2c}
+.setting-label{display:block;font-size:11px;color:#e3e3e3;margin-bottom:10px}
+.set-pills{display:flex;flex-wrap:wrap;gap:5px}
+.set-pills button{color:#b3b3b3;border:1px solid #39393b;background:#262627;font-size:10px;padding:7px 10px;border-radius:8px;min-height:28px}
+.set-pills button.selected{color:#fff;background:#3c3e40;border-color:#66686e}
+.set-pills button:hover{background:#343537}
+.setting-note{font-size:9px;line-height:1.5;color:#858585;margin:8px 0 0}
+.reset-prefs{font-size:10px;color:#c4c4c4;background:none;border:0;padding:4px 0;text-decoration:underline;text-decoration-color:#626262;text-underline-offset:3px}
+.setting-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:53px;border-bottom:1px solid #2b2b2c;padding:9px 0;cursor:pointer}
+.setting-toggle strong{display:block;font-size:11px;font-weight:500}.setting-toggle small{font-size:9px;color:#909090;display:block;margin-top:4px}
+.setting-toggle input{position:absolute;width:1px;height:1px;opacity:0}
+.setting-toggle i{position:relative;display:block;width:30px;height:18px;border-radius:999px;background:#49494d;border:1px solid #555;flex-shrink:0;transition:background .2s}
+.setting-toggle i:after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#c4c4c7;transition:transform .2s}
+.setting-toggle input:checked + i{background:#c4cbd6;border-color:#c4cbd6}
+.setting-toggle input:checked + i:after{transform:translateX(12px);background:#222}
+.setting-toggle input:focus-visible + i{outline:2px solid #a2c5fc;outline-offset:3px}
+.range-unit{padding-top:14px}.setting-head{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;margin-bottom:10px}.setting-head output{font-size:10px;color:#bfc1c8;font-variant-numeric:tabular-nums}
+.range-unit input[type=range]{display:block;width:100%;accent-color:#bbc1cc;cursor:pointer;height:15px}
+.placement-picks{display:flex;gap:8px;margin-bottom:18px}
+.place-pick{background:#242527;border:1px solid #404043;color:#ddd;border-radius:12px;padding:10px 7px;width:50%;display:flex;align-items:center;flex-direction:column;gap:8px}
+.place-pick.selected{border-color:#b8babe;background:#313235;color:#fff}
+.place-pick strong{font-size:10px;font-weight:500}
+.place-graphic{width:77px;height:42px;display:block;position:relative;border:1px solid #515359;border-radius:5px;background:#1b1d21}
+.place-floating{position:absolute;width:35px;height:10px;background:#d7d9de;border-radius:20px;left:20px;top:8px}
+.place-attached{position:absolute;width:41px;height:13px;background:#d7d9de;border-radius:0 0 12px 12px;left:17px;top:0}
+.placement-footnote{color:#848484;font-size:9px;line-height:1.5}
+#offsetSetting[hidden]{display:none}
+html[data-motion="gentle"] .choice-art{transition-duration:260ms}
+html[data-motion="gentle"] .shell{--dur:300ms}
+html[data-motion="reduced"] .choice-art{transform:perspective(380px) rotateY(calc(-1 * var(--art-tilt))) rotateZ(-6deg)!important;}
+@media(prefers-reduced-motion:reduce){.choice-art{transform:perspective(380px) rotateY(calc(-1 * var(--art-tilt))) rotateZ(-6deg)!important}}
+@media(max-width:600px){.settings-body{grid-template-columns:100px 1fr}.settings-nav{padding:10px 5px}.settings-tab{padding:0 7px}.settings-view{padding:15px 10px}.settings-help{margin-bottom:13px}.choice-art{right:-29px}}
+</style>
+</head>
+<body>
+<main>
+ <div class="mast"><div class="brand">otto <span class="overline">Design / Interaction study · Home 03</span></div><div class="topright">Reference: Otto v9 · Windows 11</div></div>
+ <h1 class="heading">A more dimensional Home.</h1>
+ <p class="desc">Tilted native SVG artwork with a stronger tonal gradient. Open the small gear in Home to tune interaction, motion and placement without changing modules.</p>
+ 
+ <div class="stage" id="stage"><div class="wallpaper"></div><div class="desktop-label">Windows desktop · composition preview</div>
+  <div class="window"><div class="window-bar"><span>Desktop workspace</span><span>− &nbsp; □ &nbsp; ×</span></div><div class="window-body"><div class="ghost short"></div><div class="ghost"></div><div class="ghost" style="width:56%"></div><div class="ghostline"><div class="ghosttile"></div><div class="ghosttile"></div><div class="ghosttile"></div></div></div></div>
+  <div class="shell" id="shell" aria-label="Otto island">
+   <svg class="silhouette" id="silhouette" aria-hidden="true" preserveAspectRatio="none"><path id="notchpath" fill="#151515" stroke="#343434" stroke-width="1"/></svg>
+   <div class="shell-inner">
+    <div class="face" aria-hidden="true"><div class="eyes" id="eyes" data-expression="calm"><i></i><i></i></div></div>
+    <button class="trigger" id="trigger" aria-label="Open Otto Home" aria-expanded="false" title="Open Otto Home"></button>
+    <div class="home-panel" id="homePanel"><span class="home-title">Otto</span><button id="openSettings" class="settings-key" type="button" aria-label="Open Otto Settings" title="Settings"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.8v2M12 18.2v2M20.2 12h-2M5.8 12h-2M17.8 6.2l-1.4 1.4M7.6 16.4l-1.4 1.4M17.8 17.8l-1.4-1.4M7.6 7.6 6.2 6.2"/><circle cx="12" cy="12" r="3.5"/></svg></button>
+     <div class="choices">
+      <button class="choice agent-card" data-go="agent" tabindex="-1" aria-label="Open Agent"><span class="choice-copy"><strong>Agent</strong><small>Ask your CLI</small></span><span class="choice-art" aria-hidden="true"><svg class="art-svg agent-art" viewBox="0 0 128 96" fill="none" aria-hidden="true" focusable="false">
+<defs><linearGradient id="ag-window" x1="26" y1="8" x2="111" y2="93" gradientUnits="userSpaceOnUse"><stop stop-color="#44474C" stop-opacity=".70"/><stop offset="1" stop-color="#2B2C30" stop-opacity=".17"/></linearGradient><linearGradient id="ag-stroke" x1="34" y1="19" x2="109" y2="82"><stop stop-color="#D3D5DA" stop-opacity=".56"/><stop offset="1" stop-color="#7D8087" stop-opacity=".15"/></linearGradient></defs>
+<g class="agent-stack"><rect x="43" y="2" width="84" height="65" rx="13" stroke="#777A81" stroke-opacity=".16" transform="rotate(11 43 2)"/><rect x="27" y="12" width="92" height="68" rx="13" fill="url(#ag-window)" stroke="#8D9198" stroke-opacity=".21"/></g>
+<g class="agent-window"><rect x="17" y="24" width="94" height="68" rx="13" fill="#26282C" fill-opacity=".8" stroke="url(#ag-stroke)" stroke-width="1.1"/><path d="M18 44H110" stroke="#CACCD0" stroke-opacity=".15"/><circle cx="30" cy="34" r="2" fill="#C6C9CE" fill-opacity=".48"/><circle cx="38" cy="34" r="2" fill="#C6C9CE" fill-opacity=".22"/><circle cx="46" cy="34" r="2" fill="#C6C9CE" fill-opacity=".16"/>
+<path class="agent-prompt" d="m32 58 8 7-8 7" stroke="#E0E2E6" stroke-opacity=".89" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><path class="agent-caret" d="M47 72H63" stroke="#E0E2E6" stroke-opacity=".89" stroke-width="3.2" stroke-linecap="round"/>
+<path d="M73 58h18M73 65h13M73 72h18" stroke="#A2A5AD" stroke-opacity=".27" stroke-width="2.5" stroke-linecap="round"/></g></svg></span></button>
+      <button class="choice music-card" data-go="music" tabindex="-1" aria-label="Open Music"><span class="choice-copy"><strong>Music</strong><small>Playback</small></span><span class="choice-art" aria-hidden="true"><svg class="art-svg music-art" viewBox="0 0 128 96" fill="none" aria-hidden="true" focusable="false">
+<defs><linearGradient id="mu-ink" x1="60" y1="10" x2="103" y2="91"><stop stop-color="#DBDDE1" stop-opacity=".9"/><stop offset="1" stop-color="#A3A7B0" stop-opacity=".52"/></linearGradient><linearGradient id="mu-wave" x1="0" y1="0" x2="128" y2="0"><stop stop-color="#666970" stop-opacity="0"/><stop offset=".55" stop-color="#D2D6DB" stop-opacity=".42"/><stop offset="1" stop-color="#9299A3" stop-opacity=".05"/></linearGradient></defs>
+<g class="wave-group"><path class="music-wave one" d="M-6 75C19 55 34 86 60 66s41-40 75-25" stroke="url(#mu-wave)" stroke-width="1.5"/><path class="music-wave two" d="M-5 83C22 63 38 94 65 73s42-35 71-19" stroke="url(#mu-wave)" stroke-opacity=".6" stroke-width="1.1"/><path class="music-wave three" d="M-4 67C18 49 36 76 62 56s43-37 71-28" stroke="url(#mu-wave)" stroke-opacity=".4" stroke-width="1"/></g>
+<g class="music-note" stroke="url(#mu-ink)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M73 72V22L109 14V62"/><path d="M73 23L109 15"/><ellipse cx="61" cy="77" rx="13" ry="8" transform="rotate(-24 61 77)" fill="#92969F" fill-opacity=".32"/><ellipse cx="97" cy="67" rx="13" ry="8" transform="rotate(-24 97 67)" fill="#92969F" fill-opacity=".32"/></g></svg></span></button>
+      <button class="choice focus-card" data-go="focus" tabindex="-1" aria-label="Open Focus"><span class="choice-copy"><strong>Focus</strong><small>Pomodoro</small></span><span class="choice-art" aria-hidden="true"><svg class="art-svg focus-art" viewBox="0 0 128 96" fill="none" aria-hidden="true" focusable="false">
+<defs><linearGradient id="fo-ring" x1="30" y1="0" x2="113" y2="96"><stop stop-color="#D7DADF" stop-opacity=".65"/><stop offset=".56" stop-color="#93979F" stop-opacity=".25"/><stop offset="1" stop-color="#777B84" stop-opacity=".10"/></linearGradient><radialGradient id="fo-face" cx="0" cy="0" r="1" gradientTransform="translate(76 43) rotate(90) scale(53)"><stop stop-color="#3C3E43" stop-opacity=".55"/><stop offset="1" stop-color="#242629" stop-opacity="0"/></radialGradient></defs>
+<circle cx="78" cy="49" r="47" stroke="#9EA1A7" stroke-opacity=".08" stroke-width="1"/><circle cx="78" cy="49" r="37" fill="url(#fo-face)" stroke="url(#fo-ring)" stroke-width="1.5"/><circle class="focus-progress" cx="78" cy="49" r="37" stroke="#B6BAC2" stroke-opacity=".62" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="42 191" transform="rotate(-90 78 49)"/>
+<g stroke="#B8BBC2" stroke-opacity=".40" stroke-linecap="round" stroke-width="1.5"><path d="M78 18v4M78 76v4M47 49h4M105 49h4"/></g>
+<g class="clock-hand" stroke="#D9DCE1" stroke-linecap="round" stroke-width="3.5"><path d="M78 49V27"/><path d="M78 49 94 60" stroke-opacity=".74"/></g><circle cx="78" cy="49" r="4" fill="#C7CBD2"/><circle cx="78" cy="49" r="1.5" fill="#34363B"/></svg></span></button>
+     </div>
+    </div>
+
+    <div class="settings-panel" id="settingsPanel" role="region" aria-label="Otto preferences">
+      <div class="settings-top"><button class="settings-back" id="settingsBack" type="button" aria-label="Back to Home"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><strong>Settings</strong><span class="settings-meta">Otto</span></div>
+      <div class="settings-body">
+        <nav class="settings-nav" aria-label="Settings sections">
+          <button class="settings-tab active" data-tab="general" type="button" aria-current="page">General</button>
+          <button class="settings-tab" data-tab="interaction" type="button">Interaction</button>
+          <button class="settings-tab" data-tab="motion" type="button">Motion</button>
+          <button class="settings-tab" data-tab="placement" type="button">Placement</button>
+        </nav>
+        <div class="settings-views">
+          <section class="settings-view active" data-view="general">
+            <h2>General</h2><p class="settings-help">The smallest possible idle, with personality on demand.</p>
+            <div class="setting-unit"><span class="setting-label">Idle expression</span><div class="set-pills"><button type="button" data-setting="expression" data-value="calm">Calm</button><button type="button" data-setting="expression" data-value="curious">Curious</button><button type="button" data-setting="expression" data-value="happy">Happy</button><button type="button" data-setting="expression" data-value="sleepy">Sleepy</button></div></div>
+            <div class="setting-unit"><span class="setting-label">Idle response</span><div class="set-pills"><button type="button" data-setting="reactive" data-value="quiet">Quiet</button><button type="button" data-setting="reactive" data-value="alive">Alive</button></div><p class="setting-note">Alive adds occasional blinking and pointer gaze. Quiet stays still.</p></div>
+            <button id="resetPrefs" class="reset-prefs" type="button">Restore defaults</button>
+          </section>
+          <section class="settings-view" data-view="interaction">
+            <h2>Interaction</h2><p class="settings-help">Control how the notch responds while you work.</p>
+            <label class="setting-toggle"><span><strong>Expand on hover</strong><small>Preview without taking focus</small></span><input id="hoverExpand" type="checkbox" data-toggle="hoverExpand"><i aria-hidden="true"></i></label>
+            <div class="setting-unit range-unit"><div class="setting-head"><label for="hoverDelay">Hover intent</label><output id="hoverDelayValue">150 ms</output></div><input id="hoverDelay" type="range" min="0" max="450" step="50" data-slider="hoverDelay"></div>
+            <div class="setting-unit range-unit"><div class="setting-head"><label for="leaveDelay">Leave delay</label><output id="leaveDelayValue">350 ms</output></div><input id="leaveDelay" type="range" min="150" max="850" step="50" data-slider="leaveDelay"></div>
+            <label class="setting-toggle"><span><strong>Click outside to close</strong><small>Escape always closes the panel</small></span><input id="clickOutside" type="checkbox" data-toggle="clickOutside"><i aria-hidden="true"></i></label>
+          </section>
+          <section class="settings-view" data-view="motion">
+            <h2>Motion</h2><p class="settings-help">One restrained animation language for Otto.</p>
+            <div class="setting-unit"><span class="setting-label">Motion profile</span><div class="set-pills"><button type="button" data-setting="motion" data-value="fluid">Smooth</button><button type="button" data-setting="motion" data-value="gentle">Subtle</button><button type="button" data-setting="motion" data-value="reduced">Reduced</button></div><p class="setting-note" id="systemMotionNote"></p></div>
+            <label class="setting-toggle"><span><strong>Pointer depth</strong><small>Parallax on the SVG artwork</small></span><input id="parallax" type="checkbox" data-toggle="parallax"><i aria-hidden="true"></i></label>
+            <div class="setting-unit range-unit"><div class="setting-head"><label for="tilt">Artwork tilt</label><output id="tiltValue">43°</output></div><input id="tilt" type="range" min="0" max="55" step="1" data-slider="tilt"></div>
+            <div class="setting-unit range-unit"><div class="setting-head"><label for="gradient">Gradient strength</label><output id="gradientValue">78%</output></div><input id="gradient" type="range" min="0" max="100" step="5" data-slider="gradient"></div>
+          </section>
+          <section class="settings-view" data-view="placement">
+            <h2>Placement</h2><p class="settings-help">Same interaction model in both top-edge layouts.</p>
+            <div class="placement-picks"><button class="place-pick" data-setting="placement" data-value="floating" type="button"><span class="place-graphic"><i class="place-floating"></i></span><strong>Floating</strong></button><button class="place-pick" data-setting="placement" data-value="attached" type="button"><span class="place-graphic"><i class="place-attached"></i></span><strong>Attached</strong></button></div>
+            <div class="setting-unit range-unit" id="offsetSetting"><div class="setting-head"><label for="topOffset">Top offset</label><output id="topOffsetValue">20 px</output></div><input id="topOffset" type="range" min="8" max="48" step="2" data-slider="topOffset"><p class="setting-note">Applies only to Floating. Attached connects to the top edge.</p></div>
+            <p class="placement-footnote">Exact positioning and click regions require Windows validation.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+    <div class="module-panel" id="modulePanel"><div class="module-heading"><button class="back" id="back" aria-label="Back to Home"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button><span class="modname" id="modname">Agent</span></div><div class="module-content"><strong>Module entry is working</strong><p id="modulecopy">This study only designs Idle and Home. This is not a connected module.</p></div></div>
+   </div>
+  </div>
+  <div class="stage-bottom"><span>Hover → preview &nbsp; / &nbsp; Click → pin &nbsp; / &nbsp; Gear → Settings &nbsp; / &nbsp; Esc → close</span><span class="mark">OTTO · MOTION LAB</span></div>
+ </div>
+ <div class="foot"><span id="stateLabel" aria-live="polite">Idle · Compact · Floating</span><code id="dimensions">92 × 42</code></div>
+ <div class="controlrow" style="margin-top:17px;margin-bottom:0"><div class="controlset"><button class="moment" id="blink">Blink once</button><button class="moment" id="reset">Reset to Idle</button><button class="moment" id="demoSettings">Open Settings</button></div><span class="control-label">Preferences are saved locally in this browser preview.</span></div>
+ <div class="info"><article><strong>01 / Angled SVG</strong><p>Artwork spans approximately two-thirds of each card, tilted left in perspective while labels remain in the original positions.</p></article><article><strong>02 / Global preferences</strong><p>A single Settings entry controls interaction, motion, placement, and idle expression. The notch stays a three-action launcher.</p></article><article><strong>03 / Accessible motion</strong><p>Depth only responds to a user gesture; reduced-motion preference removes parallax and movement without removing navigation.</p></article></div>
+ <p class="disclaimer">Standalone browser prototype. No native window, AI provider, music playback, battery data or screen capture is connected. Placement, dimensions and animation timings are reference values requiring Windows/WebView2 validation.</p>
+</main>
+<script>
+(()=>{
+const $=id=>document.getElementById(id), stage=$('stage'),shell=$('shell'),eyes=$('eyes'),trigger=$('trigger'),outline=$('silhouette'),path=$('notchpath');
+const sysReduced=matchMedia('(prefers-reduced-motion: reduce)');
+const defaults={placement:'floating',motion:'fluid',reactive:'quiet',expression:'calm',hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,parallax:true,tilt:43,gradient:80,topOffset:20};
+let stored={};try{stored=JSON.parse(localStorage.getItem('otto-home-preview-v3')||'{}')}catch{}
+const o={...defaults,...stored};
+const s={expanded:false,pinned:false,page:'home',tab:'general'};
+let enterTimer,exitTimer,blinkTimer,blinkRemove,shapeFrame,blinkCount=0;
+const effectiveMotion=()=>sysReduced.matches?'reduced':o.motion;
+const clearHover=()=>{clearTimeout(enterTimer);clearTimeout(exitTimer)};
+const persist=()=>{try{localStorage.setItem('otto-home-preview-v3',JSON.stringify(o))}catch{}};
+function dims(){return [s.expanded?452:92,s.expanded?(s.page==='settings'?314:148):42]}
+function shape(){if(o.placement!=='attached')return;const r=shell.getBoundingClientRect(),w=r.width,h=r.height,S=12,R=Math.max(12,Math.min(s.expanded?28:h*.51,h-10)),right=w-S;const d=`M0 0 C7 0 12 5 12 12 L12 ${h-R} C12 ${h-R*.46} ${12+R*.45} ${h} ${12+R} ${h} L${right-R} ${h} C${right-R*.45} ${h} ${right} ${h-R*.46} ${right} ${h-R} L${right} 12 C${right} 5 ${w-7} 0 ${w} 0 Z`;outline.setAttribute('viewBox',`0 0 ${w} ${h}`);path.setAttribute('d',d)}
+function morphShape(){cancelAnimationFrame(shapeFrame);shape();if(o.placement!=='attached'||effectiveMotion()==='reduced')return;const until=performance.now()+460;const frame=()=>{shape();if(performance.now()<until)shapeFrame=requestAnimationFrame(frame)};shapeFrame=requestAnimationFrame(frame)}
+function blink(){if(effectiveMotion()==='reduced')return;eyes.classList.remove('blink');void eyes.offsetWidth;eyes.classList.add('blink');clearTimeout(blinkRemove);blinkRemove=setTimeout(()=>eyes.classList.remove('blink'),310)}
+function scheduleBlink(){clearTimeout(blinkTimer);if(o.reactive!=='alive'||effectiveMotion()==='reduced'||s.expanded||document.hidden)return;blinkTimer=setTimeout(()=>{blink();scheduleBlink()},9500+(blinkCount++%4)*1800)}
+function syncSettings(){document.querySelectorAll('[data-setting]').forEach(b=>{const selected=String(o[b.dataset.setting])===b.dataset.value;b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected))});document.querySelectorAll('[data-slider]').forEach(i=>{i.value=o[i.dataset.slider];const out=$(i.id+'Value');if(out)out.textContent=o[i.dataset.slider]+({tilt:'°',gradient:'%',topOffset:' px'}[i.id]||' ms')});document.querySelectorAll('[data-toggle]').forEach(i=>i.checked=!!o[i.dataset.toggle]);document.querySelectorAll('[data-tab]').forEach(b=>{const on=b.dataset.tab===s.tab;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});document.querySelectorAll('[data-view]').forEach(v=>v.classList.toggle('active',v.dataset.view===s.tab));$('offsetSetting').hidden=o.placement!=='floating';$('hoverDelay').disabled=!o.hoverExpand;$('leaveDelay').disabled=!o.hoverExpand;$('systemMotionNote').textContent=sysReduced.matches?'Windows/browser Reduce Motion takes priority.':'OS Reduce Motion will override these effects.';}
+function sync(){const [w,h]=dims(),outer=w+(o.placement==='attached'?24:0);shell.style.setProperty('--w',outer+'px');shell.style.setProperty('--h',h+'px');stage.style.setProperty('--topgap',o.topOffset+'px');shell.style.setProperty('--art-tilt',o.tilt+'deg');shell.style.setProperty('--dur',effectiveMotion()==='gentle'?'300ms':'420ms');shell.classList.toggle('expanded',s.expanded);shell.classList.toggle('in-module',s.page!=='home'&&s.page!=='settings');shell.classList.toggle('in-settings',s.page==='settings');stage.classList.toggle('attached',o.placement==='attached');document.documentElement.dataset.motion=effectiveMotion();eyes.dataset.expression=o.expression;trigger.tabIndex=s.expanded?-1:0;trigger.setAttribute('aria-expanded',String(s.expanded));$('openSettings').tabIndex=s.expanded&&s.page==='home'?0:-1;document.querySelectorAll('.choice').forEach(b=>{b.tabIndex=s.expanded&&s.page==='home'?0:-1;b.style.setProperty('--art-tilt',o.tilt+'deg');b.style.setProperty('--shimmer',String(o.gradient/100));});document.querySelectorAll('.settings-tab,.settings-back,.settings-view button,.settings-view input').forEach(b=>b.tabIndex=s.page==='settings'?0:-1);document.querySelectorAll('.module-panel button').forEach(b=>b.tabIndex=s.page!=='home'&&s.page!=='settings'?0:-1);syncSettings();$('stateLabel').textContent=`${s.page==='home'?'Idle / Home':s.page==='settings'?'Settings':s.page[0].toUpperCase()+s.page.slice(1)} · ${s.expanded?'Expanded':'Compact'}${s.pinned?' (pinned)':''} · ${o.placement}`;$('dimensions').textContent=`${outer} × ${h}`;scheduleBlink();morphShape()}
+function expand(pin=false){clearHover();s.expanded=true;s.pinned ||= pin;sync();}
+function collapse(focus=false){clearHover();const was=s.pinned;s.expanded=false;s.pinned=false;s.page='home';eyes.style.setProperty('--gaze-x','0px');eyes.style.setProperty('--gaze-y','0px');sync();if(focus&&was)trigger.focus({preventScroll:true})}
+function toHome(){s.page='home';s.expanded=true;s.pinned=true;sync();$('openSettings').focus({preventScroll:true})}
+function openSettings(){clearHover();s.page='settings';s.tab='general';s.expanded=true;s.pinned=true;sync();$('settingsBack').focus({preventScroll:true})}
+function enter(){clearTimeout(exitTimer);if(s.pinned||s.expanded||!o.hoverExpand)return;clearTimeout(enterTimer);enterTimer=setTimeout(()=>{if(o.reactive==='alive')blink();expand(false)},o.hoverDelay)}
+function leave(){clearTimeout(enterTimer);if(s.pinned)return;clearTimeout(exitTimer);exitTimer=setTimeout(()=>collapse(false),o.leaveDelay)}
+shell.addEventListener('pointerenter',enter);shell.addEventListener('pointerleave',leave);
+trigger.addEventListener('click',e=>{e.stopPropagation();expand(true);setTimeout(()=>{if(s.page==='home')$('openSettings').focus({preventScroll:true})},effectiveMotion()==='reduced'?0:210)});
+shell.addEventListener('click',e=>{if(s.expanded&&!s.pinned&&s.page==='home'&&!e.target.closest('.choice,#openSettings')){expand(true)}});
+$('openSettings').addEventListener('click',e=>{e.stopPropagation();openSettings()});$('demoSettings').addEventListener('click',()=>openSettings());$('settingsBack').addEventListener('click',e=>{e.stopPropagation();toHome()});
+document.querySelectorAll('.choice').forEach(card=>{card.addEventListener('click',e=>{e.stopPropagation();clearHover();s.page=card.dataset.go;s.expanded=true;s.pinned=true;$('modname').textContent=s.page[0].toUpperCase()+s.page.slice(1);$('modulecopy').textContent=`${$('modname').textContent} is outside this Home & Settings design study. No native module is connected.`;sync();$('back').focus({preventScroll:true})});card.addEventListener('pointermove',e=>{if(!o.parallax||effectiveMotion()==='reduced')return;const r=card.getBoundingClientRect(),px=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),py=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)),amp=effectiveMotion()==='gentle'?2:5;card.style.setProperty('--dx',((px-.5)*amp).toFixed(2)+'px');card.style.setProperty('--dy',((py-.5)*amp*.7).toFixed(2)+'px');card.style.setProperty('--sx',(px*100).toFixed(1)+'%');card.style.setProperty('--sy',(py*100).toFixed(1)+'%')});card.addEventListener('pointerleave',()=>{card.style.setProperty('--dx','0px');card.style.setProperty('--dy','0px')})});
+$('back').addEventListener('click',e=>{e.stopPropagation();s.page='home';sync();$('openSettings').focus({preventScroll:true})});
+document.querySelectorAll('[data-setting]').forEach(b=>b.addEventListener('click',()=>{o[b.dataset.setting]=b.dataset.value;persist();sync()}));
+document.querySelectorAll('[data-toggle]').forEach(i=>i.addEventListener('change',()=>{o[i.dataset.toggle]=i.checked;persist();sync()}));
+document.querySelectorAll('[data-slider]').forEach(i=>i.addEventListener('input',()=>{o[i.dataset.slider]=Number(i.value);persist();sync()}));
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{s.tab=b.dataset.tab;syncSettings();b.focus({preventScroll:true})}));
+$('resetPrefs').addEventListener('click',()=>{Object.assign(o,defaults);persist();sync()});$('blink').addEventListener('click',blink);$('reset').addEventListener('click',()=>{collapse(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&s.expanded){e.preventDefault();collapse(true)}});
+document.addEventListener('pointerdown',e=>{if(s.pinned&&o.clickOutside&&!shell.contains(e.target)&&!e.target.closest('#demoSettings,#reset,#blink'))collapse(false)});
+stage.addEventListener('pointermove',e=>{if(o.reactive!=='alive'||effectiveMotion()==='reduced'||s.expanded){eyes.style.setProperty('--gaze-x','0px');eyes.style.setProperty('--gaze-y','0px');return}const r=shell.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),near=Math.hypot(dx,dy)<190;eyes.style.setProperty('--gaze-x',(near?Math.max(-3,Math.min(3,dx/35)):0).toFixed(1)+'px');eyes.style.setProperty('--gaze-y',(near?Math.max(-2,Math.min(2,dy/36)):0).toFixed(1)+'px')});
+stage.addEventListener('pointerleave',()=>{eyes.style.setProperty('--gaze-x','0px');eyes.style.setProperty('--gaze-y','0px')});document.addEventListener('visibilitychange',scheduleBlink);sysReduced.addEventListener?.('change',sync);new ResizeObserver(()=>{if(o.placement==='attached')shape()}).observe(shell);sync();
+})();
+</script>
+</body>
+</html>
