@@ -352,7 +352,7 @@ impl AgentRuntime {
             return Err("Finish or Stop the current answer before capturing.".into());
         }
         if state.provider == "agy" {
-            return Err("Agy headless image input is not verified. Select Codex or Pi.".into());
+            return Err("Agy headless streaming accepts text only. Select Codex or Pi.".into());
         }
         if state.thread_id.is_some() && state.mode != "quickAsk" {
             return Err("Start a new Quick Ask session before using screen capture.".into());
@@ -442,7 +442,7 @@ impl AgentRuntime {
             return Err("This provider supports tool-free Quick Ask only.".into());
         }
         if provider == "agy" && capture.is_some() {
-            return Err("Agy headless image input is not verified.".into());
+            return Err("Agy headless streaming accepts text only.".into());
         }
         let cwd =
             std::fs::canonicalize(cwd).map_err(|_| "Working folder does not exist.".to_string())?;
