@@ -301,7 +301,7 @@ function useNewAgentSession({
   clearError: () => void;
   setMode: React.Dispatch<React.SetStateAction<AgentMode>>;
   setRequestError: (reason: unknown) => void;
-  submitted: { current: string | null };
+  submitted: { current: SubmittedDraft | null };
 }) {
   return useCallback(async () => {
     if (busy) return false;
