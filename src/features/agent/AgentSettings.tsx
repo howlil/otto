@@ -118,26 +118,30 @@ export function AgentSettings({
             />
           )}
           {tab === "workspace" && <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />}
-          {tab === "capture" &&
-            (readiness.imageTransport ? (
-                <>
-                  <AgentCaptureSettings
-                    capture={capture}
-                    focusCaptureShortcut={focusCaptureShortcut}
-                  />
-                  {readiness.status === "ready" && !readiness.imageInput && (
-                    <StatusMessage tone="info" className="mt-2">
-                      The selected model does not confirm image input. Choose a vision-capable model
-                      in your CLI and Retry before capturing.
-                    </StatusMessage>
-                  )}
-                </>
-              ) : (
+          {tab === "capture" && (
+            <div className="space-y-2">
+              {readiness.imageTransport && (
+                <AgentCaptureSettings
+                  capture={capture}
+                  focusCaptureShortcut={focusCaptureShortcut}
+                />
+              )}
+              {!readiness.imageTransport && (
                 <StatusMessage tone="info">
                   This provider cannot transport screenshots. Choose Codex or a vision-capable Pi
                   model.
                 </StatusMessage>
-              ))}
+              )}
+              {readiness.imageTransport &&
+                readiness.status === "ready" &&
+                !readiness.imageInput && (
+                  <StatusMessage tone="info">
+                    The selected model does not confirm image input. Choose a vision-capable model
+                    in your CLI and Retry before capturing.
+                  </StatusMessage>
+                )}
+            </div>
+          )}
           {hasThread && (
             <div className="mt-3 flex items-center justify-between gap-2">
               <Text as="span" variant="status" className="text-otto-text-tertiary">
