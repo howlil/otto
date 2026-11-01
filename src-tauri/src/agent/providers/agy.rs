@@ -314,11 +314,7 @@ fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
     false
 }
 
-pub async fn run(
-    mut controls: mpsc::Receiver<Control>,
-    events: ProviderEvents,
-    initial: Control,
-) {
+pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, initial: Control) {
     let Control::Ask {
         text,
         cwd,
@@ -333,13 +329,13 @@ pub async fn run(
         return;
     };
     if let Err(reason) = ensure_profile() {
-        events.fail( run_id, &reason);
+        events.fail(run_id, &reason);
         return;
     }
     let mut rpc = match Rpc::launch(&cwd) {
         Ok(value) => value,
         Err(reason) => {
-            events.fail( run_id, &reason);
+            events.fail(run_id, &reason);
             return;
         }
     };
@@ -349,7 +345,7 @@ pub async fn run(
             if matches!(action, Some(Control::Stop)) {
                 events.stopped(run_id);
             } else {
-                events.fail( run_id, "Agy startup interrupted.");
+                events.fail(run_id, "Agy startup interrupted.");
             }
             rpc.terminate().await;
             return;
@@ -359,7 +355,7 @@ pub async fn run(
         Ok(Ok(frame)) => match safe_init(&frame) {
             Ok(session) => session,
             Err(reason) => {
-                events.fail( run_id, &reason);
+                events.fail(run_id, &reason);
                 rpc.terminate().await;
                 return;
             }
@@ -378,7 +374,7 @@ pub async fn run(
         session_id: session,
     });
     if rpc.send(&text).await.is_err() {
-        events.fail( run_id, "Agy rejected the prompt.");
+        events.fail(run_id, "Agy rejected the prompt.");
         rpc.terminate().await;
         return;
     }
@@ -403,11 +399,11 @@ pub async fn run(
                 }
                 Some(Control::Ask {text, cwd, run_id, capture: None}) if active.is_none() => {
                     if cwd.as_path() != Path::new(&events.snapshot().cwd) {
-                        events.fail( run_id, "Agy context changed. Start a new session.");
+                        events.fail(run_id, "Agy context changed. Start a new session.");
                         continue;
                     }
                     if rpc.send(&text).await.is_err() {
-                        events.fail( run_id, "Agy follow-up could not start.");
+                        events.fail(run_id, "Agy follow-up could not start.");
                         rpc.terminate().await;
                         break;
                     }
@@ -438,7 +434,7 @@ pub async fn run(
                         && value["step_update"]["step_type"] == "agent_response"
                         && !acknowledged
                     {
-                        events.fail( id, "Agy output arrived before request acceptance.");
+                        events.fail(id, "Agy output arrived before request acceptance.");
                         rpc.terminate().await;
                         break;
                     }
@@ -452,7 +448,7 @@ pub async fn run(
                 }
                 Err(reason) => {
                     if let Some(id) = active {
-                        events.fail( id, &reason);
+                        events.fail(id, &reason);
                     }
                     rpc.terminate().await;
                     break;
