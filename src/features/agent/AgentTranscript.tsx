@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { AgentComposer } from "./AgentComposer";
 import { providerIssue, providerIssueTitle } from "./status";
 import { TranscriptMessages } from "./TranscriptMessages";
@@ -11,6 +11,7 @@ import {
   withPromptPreset,
 } from "./conversation";
 import { ConversationToolbar } from "./ConversationToolbar";
+import { useTranscriptViewport } from "./useTranscriptViewport";
 
 export function AgentTranscript({
   agent,
@@ -50,9 +51,6 @@ export function AgentTranscript({
     retryConnection,
     clearError,
   } = agent;
-  const feed = useRef<HTMLDivElement>(null);
-  const composer = useRef<HTMLDivElement>(null);
-  const nearBottom = useRef(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [matchCursor, setMatchCursor] = useState(0);
@@ -60,35 +58,14 @@ export function AgentTranscript({
   const matches = searchOpen ? matchingMessages(snapshot.messages, searchTerm) : [];
   const activeMatch = matches.length ? matches[matchCursor % matches.length] : null;
   const markdown = conversationAsMarkdown(snapshot.messages, snapshot.provider, snapshot.cwd);
-  const measure = useCallback(() => {
-    const stack = feed.current?.firstElementChild;
-    const composerHeight = composer.current?.offsetHeight;
-    if (!stack || composerHeight === undefined) return;
-    const accessoryHeight = (searchOpen || exportError ? 40 : 0) + (captureActionError ? 24 : 0);
-    onMeasured(53 + stack.scrollHeight + 16 + composerHeight + accessoryHeight);
-  }, [onMeasured, searchOpen, exportError, captureActionError]);
-
-  useLayoutEffect(() => {
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    const stack = feed.current?.firstElementChild;
-    if (stack) observer.observe(stack);
-    if (composer.current) observer.observe(composer.current);
-    return () => observer.disconnect();
-  }, [measure]);
-
-  useEffect(() => {
-    if (snapshot.seq > 0 && nearBottom.current && !searchOpen) {
-      feed.current?.scrollTo({ top: feed.current.scrollHeight });
-    }
-  }, [snapshot.seq, searchOpen]);
-
-  useEffect(() => {
-    if (activeMatch === null) return;
-    const rows = feed.current?.querySelectorAll("[data-conversation-message]");
-    rows?.[activeMatch]?.scrollIntoView({ block: "nearest", behavior: "auto" });
-  }, [activeMatch]);
+  const { feed, composer, onFeedScroll } = useTranscriptViewport({
+    onMeasured,
+    searchOpen,
+    exportError,
+    captureActionError,
+    seq: snapshot.seq,
+    activeMatch,
+  });
 
   const exportMarkdown = () => {
     if (!markdown) return;
@@ -146,10 +123,7 @@ export function AgentTranscript({
         className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[18px] pb-[9px] pt-[7px] [overscroll-behavior:contain] [scrollbar-width:none]"
         ref={feed}
         role="log"
-        onScroll={(event) => {
-          const el = event.currentTarget;
-          nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-        }}
+        onScroll={onFeedScroll}
       >
         <div className="flex min-w-0 flex-col gap-[11px]">
           <TranscriptMessages
