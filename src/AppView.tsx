@@ -14,11 +14,13 @@ export function ShellView({
   surfaceError,
   agentHomeCopy,
   artProps,
+  onAgentMeasured,
 }: {
   agent: AgentModel;
   shell: ShellModel;
   surfaceError: string | null;
   agentHomeCopy: string;
+  onAgentMeasured: (height: number) => void;
   artProps: {
     parallax: boolean;
     reduced: boolean;
@@ -38,7 +40,7 @@ export function ShellView({
         if (shell.expanded && !shell.pinned) shell.pin();
       }}
     >
-      <ShellContent agent={agent} shell={shell} agentHomeCopy={agentHomeCopy} artProps={artProps} />
+      <ShellContent agent={agent} shell={shell} agentHomeCopy={agentHomeCopy} artProps={artProps} onAgentMeasured={onAgentMeasured} />
       <SurfaceError message={surfaceError} expanded={shell.expanded} />
     </main>
   );
@@ -49,6 +51,7 @@ function ShellContent({
   shell,
   agentHomeCopy,
   artProps,
+  onAgentMeasured,
 }: {
   agent: AgentModel;
   shell: ShellModel;
@@ -129,6 +132,7 @@ function ShellContent({
           onBack={() => shell.open("home")}
           motionClass={`${surfaceMotion} ${nudgeMotion}`.trim()}
           eventMotion={shell.eventMotion}
+          onMeasured={onAgentMeasured}
         />
       )}
     </>
