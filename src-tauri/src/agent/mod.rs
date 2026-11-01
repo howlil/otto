@@ -510,6 +510,10 @@ impl AgentRuntime {
     }
 
     pub async fn new_session(&self) -> Result<(), String> {
+        self.new_session_with_timeout(Duration::from_secs(5)).await
+    }
+
+    async fn new_session_with_timeout(&self, close_timeout: Duration) -> Result<(), String> {
         let mut guard = self.control.lock().await;
         let current = self.snapshot();
         if matches!(
@@ -531,18 +535,16 @@ impl AgentRuntime {
                     finished,
                 })
                 .map_err(|_| "Agent provider is busy. Try again.".to_string())?;
-            match timeout(Duration::from_secs(5), &mut closed).await {
+            match timeout(close_timeout, &mut closed).await {
                 Ok(Ok(())) => {}
                 Ok(Err(_)) => {
-                    return Err("Codex closed unexpectedly; session was not reset.".into());
+                    return Err("Agent closed unexpectedly; session was not reset.".into());
                 }
                 Err(_) if !claimed.swap(true, Ordering::SeqCst) => {
-                    return Err("Codex did not accept session close; session was not reset.".into());
+                    return Err("Agent did not accept session close; session was not reset.".into());
                 }
                 Err(_) => {
-                    closed
-                        .await
-                        .map_err(|_| "Codex closed unexpectedly; session was not reset.")?;
+                    return Err("Agent is still closing; session was not reset.".into());
                 }
             }
         }
@@ -891,6 +893,45 @@ mod tests {
         assert!(snapshot.messages.is_empty());
         assert!(runtime.control.lock().await.is_none());
         assert!(snapshot.run_id > 8);
+    }
+
+    #[tokio::test]
+    async fn claimed_close_without_ack_has_a_bounded_deadline_and_preserves_session() {
+        let runtime = AgentRuntime::new();
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+        mutate(&runtime.updates, |s| {
+            s.run_id = 8;
+            s.status = "completed".into();
+            s.thread_id = Some("thread-8".into());
+        });
+        let (seen, observed) = oneshot::channel();
+        let (release, proceed) = oneshot::channel::<()>();
+        let worker = tokio::spawn(async move {
+            let Some(Control::Close { claimed, finished }) = receiver.recv().await else {
+                panic!("close required");
+            };
+            assert!(!claimed.swap(true, Ordering::SeqCst));
+            seen.send(()).unwrap();
+            proceed.await.unwrap();
+            finished.send(()).ok();
+        });
+
+        let closing = runtime.new_session_with_timeout(Duration::from_millis(30));
+        tokio::pin!(closing);
+        tokio::select! {
+            _ = &mut closing => panic!("close must not reset before the worker acknowledges"),
+            result = observed => assert!(result.is_ok()),
+        }
+        let result = closing.await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("still closing"));
+        assert_eq!(runtime.snapshot().status, "completed");
+        assert_eq!(runtime.snapshot().thread_id.as_deref(), Some("thread-8"));
+        release.send(()).unwrap();
+        worker.await.unwrap();
+        runtime.new_session_with_timeout(Duration::from_secs(1)).await.expect("retry after closure");
+        assert_eq!(runtime.snapshot().status, "idle");
     }
 
     #[test]
