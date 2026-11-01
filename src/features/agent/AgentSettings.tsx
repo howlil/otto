@@ -96,8 +96,8 @@ export function AgentSettings({
           </>
         ) : (
           <StatusMessage tone="info" className="mt-2">
-            Agy headless image input is not verified. Use Codex or Pi with a vision-capable model
-            for screenshots.
+            Agy headless streaming accepts text only. Use Codex or Pi with a vision-capable
+            model for screenshots.
           </StatusMessage>
         )}
         {hasThread && (
