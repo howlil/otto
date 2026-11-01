@@ -7,10 +7,13 @@ Windows-first Tauri 2, Rust edition 2024, React 19, Vite 8, TypeScript 6, Tailwi
 Install: `bun install`; dev frontend: `bun run dev`; desktop: `bun run tauri dev`.
 Frontend: `bun run check` (Biome), `bun run format` (fix), `bun run build` (TS/Vite).
 Rust: `cd src-tauri && cargo fmt --all -- --check`; `cargo clippy --all-targets -- -D warnings`; `cargo check` on Windows MSVC.
-Tests: TBD — no feature suite for static bootstrap. Generate/commit Bun and Cargo locks when dependency resolution becomes available for a reproducible build; do not fabricate locks.
+Tests: `cargo test --manifest-path src-tauri/Cargo.toml` (Rust core); no frontend unit runner is configured yet. Generate/commit Bun and Cargo locks when dependency resolution becomes available for a reproducible build; do not fabricate locks.
 
 ## Verification gate
-Use the cheapest proof for changed behavior; don't call Windows native functionality verified without Windows run. Stage map: `.agents/engineering.md` ## Verification.
+Critical-path or core-logic changes **must** have an automated behavior test at the cheapest faithful boundary (unit for pure rules/state; integration when correctness depends on OS, process, persistence or IPC). Reuse existing proof if it already catches the regression; missing proof blocks review/merge. Cosmetic, trivial wiring and docs changes do not require ceremonial new tests.
+For critical logic, use **TDD by default**: identify the invariant and a concrete failure, write a regression test that fails for the defect (Red), implement the minimum fix (Green), then refactor with tests passing. If Red cannot be demonstrated safely or faithfully, state why and provide equivalent behavioral proof; do not claim TDD without observed Red.
+Tests must assert observable decisions, state transitions or external effects, including meaningful failure/edge cases; reject tests of mocks themselves, trivial getters, static constants or coverage-for-coverage's-sake. Show that critical proof would catch the intended defect; a green test count alone is insufficient. Reviewers must block missing or ceremonial critical-path proof.
+Use existing test commands and proportionate stages; do not add test frameworks/workflows without a concrete untestable risk. Don't call Windows native functionality verified without Windows runtime proof. Stage map: `.agents/engineering.md` ## Verification.
 
 ## Conventions / boundaries
 TypeScript/React: `PascalCase` components/types, `useX` Hooks, `camelCase` functions, kebab-case feature directories. Rust: snake_case modules/functions, PascalCase types, Rustfmt/Clippy. Prefer explicit errors and single state owners; SOLID describes responsibilities, not mandatory classes/interfaces. Add patterns only for a proven need; keep changes scoped.
