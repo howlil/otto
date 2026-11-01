@@ -4,7 +4,12 @@ import { providerIssue, providerIssueTitle } from "./status";
 import { TranscriptMessages } from "./TranscriptMessages";
 import { TranscriptOutcome } from "./TranscriptOutcome";
 import type { AgentTranscriptModel } from "./view-model";
-import { conversationAsMarkdown, matchingMessages, quoteForFollowUp, withPromptPreset } from "./conversation";
+import {
+  conversationAsMarkdown,
+  matchingMessages,
+  quoteForFollowUp,
+  withPromptPreset,
+} from "./conversation";
 import { ConversationToolbar } from "./ConversationToolbar";
 
 export function AgentTranscript({
