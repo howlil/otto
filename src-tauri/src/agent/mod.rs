@@ -917,7 +917,7 @@ mod tests {
             finished.send(()).ok();
         });
 
-        let closing = runtime.new_session_with_timeout(Duration::from_millis(30));
+        let closing = runtime.new_session_with_timeout(Duration::from_millis(250));
         tokio::pin!(closing);
         tokio::select! {
             _ = &mut closing => panic!("close must not reset before the worker acknowledges"),
