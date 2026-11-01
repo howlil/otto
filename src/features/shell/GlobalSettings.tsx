@@ -53,6 +53,9 @@ export function GlobalSettings({
               <Text as="h2" variant="heading" className="m-0 mb-[3px]">
                 General
               </Text>
+              <Text as="p" variant="meta" className="m-0 mb-4 leading-[1.5] text-otto-label-muted">
+                The smallest possible idle, with personality on demand.
+              </Text>
               <div className="mb-[14px]">
                 <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
                   Idle expression
@@ -80,6 +83,9 @@ export function GlobalSettings({
                     { value: "alive", label: "Alive" },
                   ]}
                 />
+                <Text as="p" variant="caption" className="mt-2 leading-[1.5] text-otto-label-muted">
+                  Alive adds occasional blinking and pointer gaze. Quiet stays still.
+                </Text>
               </div>
               <Button
                 variant="quiet"
@@ -95,6 +101,9 @@ export function GlobalSettings({
             <>
               <Text as="h2" variant="heading" className="m-0 mb-[3px]">
                 Interaction
+              </Text>
+              <Text as="p" variant="meta" className="m-0 mb-4 leading-[1.5] text-otto-label-muted">
+                Control how the notch responds while you work.
               </Text>
               <Toggle
                 title="Expand on hover"
