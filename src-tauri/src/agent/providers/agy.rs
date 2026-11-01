@@ -43,12 +43,19 @@ fn install_safe_agent(home: &Path) -> Result<(), String> {
     if file.is_file() {
         return match std::fs::read_to_string(&file) {
             Ok(existing) if existing == AGENT_DEFINITION => Ok(()),
-            _ => Err("An existing Agy agent profile conflicts with Otto. Resolve it before using Agy.".into()),
+            _ => Err(
+                "An existing Agy agent profile conflicts with Otto. Resolve it before using Agy."
+                    .into(),
+            ),
         };
     }
     let parent = file.parent().ok_or("Invalid Agy profile path.")?;
     std::fs::create_dir_all(parent).map_err(|_| "Cannot prepare the Otto Agy profile.")?;
-    match std::fs::OpenOptions::new().write(true).create_new(true).open(&file) {
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&file)
+    {
         Ok(mut output) => {
             use std::io::Write;
             output
@@ -100,7 +107,9 @@ impl Rpc {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .kill_on_drop(true);
-        let mut child = command.spawn().map_err(|_| "Cannot start Agy stream-json mode.")?;
+        let mut child = command
+            .spawn()
+            .map_err(|_| "Cannot start Agy stream-json mode.")?;
         let job = match child.id().and_then(|pid| Job::attach(pid).ok()) {
             Some(job) => job,
             None => {
@@ -162,10 +171,16 @@ fn safe_init(frame: &Value) -> Result<String, String> {
     let Some(tools) = frame["init"]["tools"].as_array() else {
         return Err("Agy did not disclose its available tools.".into());
     };
-    if tools.iter().any(|tool| tool.as_str() != Some("send_message")) {
+    if tools
+        .iter()
+        .any(|tool| tool.as_str() != Some("send_message"))
+    {
         return Err("Agy exposed tools outside Otto's Quick Ask policy.".into());
     }
-    let Some(session) = frame["conversation_id"].as_str().filter(|value| !value.is_empty()) else {
+    let Some(session) = frame["conversation_id"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+    else {
         return Err("Agy did not return a conversation identity.".into());
     };
     Ok(session.to_owned())
@@ -178,7 +193,11 @@ fn available_models(value: &Value) -> bool {
 
 pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
     let Some(binary) = executable() else {
-        return ProviderReadiness::new("missing", "Agy CLI was not found.", "Install Agy, then Retry.");
+        return ProviderReadiness::new(
+            "missing",
+            "Agy CLI was not found.",
+            "Install Agy, then Retry.",
+        );
     };
     if let Err(reason) = ensure_profile() {
         return ProviderReadiness::new("unsupported", &reason, "Review Agy setup, then Retry.");
@@ -273,11 +292,19 @@ fn observe(frame: &Value, id: u64, updates: &watch::Sender<Snapshot>) -> bool {
             && let Some(delta) = step["text_delta"].as_str()
         {
             if snapshot.status == "starting" {
-                fail(updates, id, "Agy returned output before the request was acknowledged.");
+                fail(
+                    updates,
+                    id,
+                    "Agy returned output before the request was acknowledged.",
+                );
                 return true;
             }
             mutate(updates, |s| {
-                if let Some(last) = s.messages.last_mut().filter(|entry| entry.role == "assistant") {
+                if let Some(last) = s
+                    .messages
+                    .last_mut()
+                    .filter(|entry| entry.role == "assistant")
+                {
                     last.text.push_str(delta);
                 }
             });
@@ -295,7 +322,11 @@ fn observe(frame: &Value, id: u64, updates: &watch::Sender<Snapshot>) -> bool {
         }
         mutate(updates, |s| {
             if s.run_id == id && s.status == "streaming" {
-                if let Some(last) = s.messages.last_mut().filter(|entry| entry.role == "assistant") {
+                if let Some(last) = s
+                    .messages
+                    .last_mut()
+                    .filter(|entry| entry.role == "assistant")
+                {
                     last.text = response.into();
                 }
                 s.status = "completed".into();
@@ -312,8 +343,18 @@ pub async fn run(
     updates: watch::Sender<Snapshot>,
     initial: Control,
 ) {
-    let Control::Ask { text, cwd, run_id, capture: None } = initial else {
-        fail(&updates, updates.borrow().run_id, "Agy only supports tool-free text Quick Ask.");
+    let Control::Ask {
+        text,
+        cwd,
+        run_id,
+        capture: None,
+    } = initial
+    else {
+        fail(
+            &updates,
+            updates.borrow().run_id,
+            "Agy only supports tool-free text Quick Ask.",
+        );
         return;
     };
     if let Err(reason) = ensure_profile() {
@@ -349,12 +390,20 @@ pub async fn run(
             }
         },
         _ => {
-            fail(&updates, run_id, "Agy startup did not confirm tool-free capabilities.");
+            fail(
+                &updates,
+                run_id,
+                "Agy startup did not confirm tool-free capabilities.",
+            );
             rpc.terminate().await;
             return;
         }
     };
-    mutate(&updates, |s| if s.run_id == run_id { s.thread_id = Some(session); });
+    mutate(&updates, |s| {
+        if s.run_id == run_id {
+            s.thread_id = Some(session);
+        }
+    });
     if rpc.send(&text).await.is_err() {
         fail(&updates, run_id, "Agy rejected the prompt.");
         rpc.terminate().await;
@@ -439,8 +488,15 @@ pub async fn run(
         }
     }
     let snapshot = updates.borrow().clone();
-    if matches!(snapshot.status.as_str(), "starting" | "streaming" | "approvalRequired") {
-        fail(&updates, snapshot.run_id, "Agy terminated before completion.");
+    if matches!(
+        snapshot.status.as_str(),
+        "starting" | "streaming" | "approvalRequired"
+    ) {
+        fail(
+            &updates,
+            snapshot.run_id,
+            "Agy terminated before completion.",
+        );
     } else if snapshot.status == "stopping" {
         mutate(&updates, |s| s.status = "stopped".into());
     }
@@ -452,9 +508,19 @@ mod tests {
 
     #[test]
     fn profile_is_tool_free_and_existing_config_is_not_overwritten() {
-        let root = std::env::temp_dir().join(format!("otto-agy-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let root = std::env::temp_dir().join(format!(
+            "otto-agy-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         install_safe_agent(&root).unwrap();
-        assert_eq!(std::fs::read_to_string(agent_file(&root)).unwrap(), AGENT_DEFINITION);
+        assert_eq!(
+            std::fs::read_to_string(agent_file(&root)).unwrap(),
+            AGENT_DEFINITION
+        );
         std::fs::write(agent_file(&root), "different config").unwrap();
         assert!(install_safe_agent(&root).is_err());
         std::fs::remove_dir_all(root).unwrap();
@@ -466,7 +532,10 @@ mod tests {
         assert_eq!(safe_init(&safe).unwrap(), "conversation-1");
         assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-quick-ask","tools":["write_to_file"]}})).is_err());
         assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"default","tools":[]}})).is_err());
-        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{}})).is_err());
+        assert!(
+            safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{}}))
+                .is_err()
+        );
     }
 
     #[test]
@@ -480,23 +549,57 @@ mod tests {
     #[test]
     fn result_does_not_accept_failure_or_empty_response() {
         let (tx, _) = watch::channel(Snapshot {
-            run_id: 7, seq: 0, status: "streaming".into(), mode: "quickAsk".into(),
-            provider: "agy".into(), cwd: String::new(), thread_id: None,
-            messages: vec![ChatMessage { id: "7:assistant".into(), role: "assistant".into(), text: String::new() }],
-            activity: None, approval: None, error: None,
+            run_id: 7,
+            seq: 0,
+            status: "streaming".into(),
+            mode: "quickAsk".into(),
+            provider: "agy".into(),
+            cwd: String::new(),
+            thread_id: None,
+            messages: vec![ChatMessage {
+                id: "7:assistant".into(),
+                role: "assistant".into(),
+                text: String::new(),
+            }],
+            activity: None,
+            approval: None,
+            error: None,
         });
-        assert!(observe(&json!({"event":"result","result":{"status":"SUCCESS","response":""}}), 7, &tx));
+        assert!(observe(
+            &json!({"event":"result","result":{"status":"SUCCESS","response":""}}),
+            7,
+            &tx
+        ));
         assert_eq!(tx.borrow().status, "failed");
 
         let (done, _) = watch::channel(Snapshot {
-            run_id: 8, seq: 0, status: "streaming".into(), mode: "quickAsk".into(),
-            provider: "agy".into(), cwd: String::new(), thread_id: None,
-            messages: vec![ChatMessage { id: "8:assistant".into(), role: "assistant".into(), text: String::new() }],
-            activity: None, approval: None, error: None,
+            run_id: 8,
+            seq: 0,
+            status: "streaming".into(),
+            mode: "quickAsk".into(),
+            provider: "agy".into(),
+            cwd: String::new(),
+            thread_id: None,
+            messages: vec![ChatMessage {
+                id: "8:assistant".into(),
+                role: "assistant".into(),
+                text: String::new(),
+            }],
+            activity: None,
+            approval: None,
+            error: None,
         });
-        assert!(observe(&json!({"event":"result","result":{"status":"SUCCESS","response":"answer"}}), 8, &done));
+        assert!(observe(
+            &json!({"event":"result","result":{"status":"SUCCESS","response":"answer"}}),
+            8,
+            &done
+        ));
         assert_eq!(done.borrow().status, "completed");
         assert_eq!(done.borrow().messages[0].text, "answer");
-        assert!(!observe(&json!({"event":"result","result":{"status":"SUCCESS","response":"late"}}), 7, &done));
+        assert!(!observe(
+            &json!({"event":"result","result":{"status":"SUCCESS","response":"late"}}),
+            7,
+            &done
+        ));
     }
 }
