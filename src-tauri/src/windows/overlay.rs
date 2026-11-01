@@ -3,7 +3,8 @@ use tauri::WebviewWindow;
 use windows_sys::Win32::{
     Foundation::{GetLastError, HWND, SetLastError},
     UI::WindowsAndMessaging::{
-        GWL_EXSTYLE, GetWindowDisplayAffinity, GetWindowLongPtrW, SWP_FRAMECHANGED,
+        GWL_EXSTYLE, GetWindowDisplayAffinity, GetWindowLongPtrW, GetWindowTextLengthW,
+        SWP_FRAMECHANGED,
         SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowDisplayAffinity,
         SetWindowLongPtrW, SetWindowPos, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
     },
@@ -101,22 +102,41 @@ fn apply_capture_exclusion(hwnd: HWND) -> io::Result<()> {
     Ok(())
 }
 
+fn clear_picker_title(window: &WebviewWindow, hwnd: HWND) -> io::Result<()> {
+    window.set_title("").map_err(io::Error::other)?;
+
+    unsafe {
+        SetLastError(0);
+        let length = GetWindowTextLengthW(hwnd);
+        if length != 0 {
+            return Err(io::Error::other("The overlay window title was not cleared."));
+        }
+        if GetLastError() != 0 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+
+    Ok(())
+}
+
 pub fn configure(window: &WebviewWindow) -> io::Result<()> {
     let hwnd = window.hwnd().map_err(io::Error::other)?.0 as _;
-    let style = apply_tool_style(hwnd);
-    let affinity = apply_capture_exclusion(hwnd);
+    let mut failures = Vec::new();
 
-    match (style, affinity) {
-        (Ok(()), Ok(())) => Ok(()),
-        (Err(error), Ok(())) => Err(io::Error::other(format!(
-            "Tool-window classification failed: {error}"
-        ))),
-        (Ok(()), Err(error)) => Err(io::Error::other(format!(
-            "Capture exclusion failed: {error}"
-        ))),
-        (Err(style), Err(affinity)) => Err(io::Error::other(format!(
-            "Tool-window classification failed: {style}; capture exclusion failed: {affinity}"
-        ))),
+    if let Err(error) = clear_picker_title(window, hwnd) {
+        failures.push(format!("Window title suppression failed: {error}"));
+    }
+    if let Err(error) = apply_tool_style(hwnd) {
+        failures.push(format!("Tool-window classification failed: {error}"));
+    }
+    if let Err(error) = apply_capture_exclusion(hwnd) {
+        failures.push(format!("Capture exclusion failed: {error}"));
+    }
+
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(io::Error::other(failures.join("; ")))
     }
 }
 
@@ -136,6 +156,19 @@ mod tests {
         assert_eq!(adjusted & WS_EX_LAYERED as isize, WS_EX_LAYERED as isize);
         assert_eq!(adjusted & unrelated, unrelated);
         assert_eq!(overlay_window_style(adjusted), adjusted);
+    }
+
+    #[test]
+    fn overlay_configuration_keeps_window_untitled_and_capture_protected() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        let window = &config["app"]["windows"][0];
+
+        assert_eq!(window["label"], "main");
+        assert_eq!(window["title"], "");
+        assert_eq!(window["contentProtected"], true);
+        assert_eq!(window["alwaysOnTop"], true);
+        assert_eq!(window["skipTaskbar"], true);
     }
 
     #[test]
