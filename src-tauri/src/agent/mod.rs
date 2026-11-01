@@ -1,4 +1,5 @@
 mod policy;
+mod recovery;
 mod providers;
 pub mod session;
 
@@ -106,24 +107,38 @@ pub struct AgentRuntime {
     next_run_id: AtomicU64,
     subscriptions: StdMutex<Option<(u64, oneshot::Sender<()>)>>,
     next_subscription_id: AtomicU64,
+    recovery: Option<recovery::RecoveryMarker>,
 }
 
 impl AgentRuntime {
     pub fn new() -> Self {
+        Self::with_recovery(None)
+    }
+
+    pub fn persistent(path: PathBuf) -> Self {
+        Self::with_recovery(Some(recovery::RecoveryMarker::new(path)))
+    }
+
+    fn with_recovery(recovery: Option<recovery::RecoveryMarker>) -> Self {
+        let interrupted = recovery
+            .as_ref()
+            .is_some_and(recovery::RecoveryMarker::take_interrupted);
         let cwd = std::env::current_dir()
             .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default();
         let (updates, _) = watch::channel(Snapshot {
             run_id: 0,
-            seq: 0,
-            status: "idle".into(),
+            seq: u64::from(interrupted),
+            status: if interrupted { "failed" } else { "idle" }.into(),
             mode: InteractionMode::QuickAsk.as_str().into(),
             cwd,
             thread_id: None,
             messages: Vec::new(),
             activity: None,
             approval: None,
-            error: None,
+            error: interrupted.then(|| {
+                "Previous Codex request may have been interrupted. No answer was restored. Ask again to start a new session.".into()
+            }),
         });
         Self {
             updates,
@@ -131,7 +146,23 @@ impl AgentRuntime {
             next_run_id: AtomicU64::new(0),
             subscriptions: StdMutex::new(None),
             next_subscription_id: AtomicU64::new(0),
+            recovery,
         }
+    }
+
+    pub fn start_recovery_observer(&self) {
+        let Some(marker) = self.recovery.clone() else {
+            return;
+        };
+        let mut receiver = self.updates.subscribe();
+        tauri::async_runtime::spawn(async move {
+            while receiver.changed().await.is_ok() {
+                let snapshot = receiver.borrow_and_update().clone();
+                if matches!(snapshot.status.as_str(), "completed" | "failed" | "stopped") {
+                    marker.clear_if(snapshot.run_id);
+                }
+            }
+        });
     }
 
     pub fn snapshot(&self) -> Snapshot {
@@ -336,6 +367,9 @@ impl AgentRuntime {
                 .try_reserve()
                 .map_err(|_| "Codex is busy. Try again.".to_string())?;
 
+            if let Some(marker) = &self.recovery {
+                marker.mark(run_id);
+            }
             mutate(&self.updates, |s| {
                 s.run_id = run_id;
                 s.status = "starting".into();
@@ -352,6 +386,9 @@ impl AgentRuntime {
             return Ok(());
         }
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
+        if let Some(marker) = &self.recovery {
+            marker.mark(run_id);
+        }
         mutate(&self.updates, |s| {
             s.run_id = run_id;
             s.status = "starting".into();
@@ -421,6 +458,9 @@ impl AgentRuntime {
             }
         }
         *guard = None;
+        if let Some(marker) = &self.recovery {
+            marker.clear_if(current.run_id);
+        }
         self.next_run_id
             .fetch_max(current.run_id, Ordering::Relaxed);
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;

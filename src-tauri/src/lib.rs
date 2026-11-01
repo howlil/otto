@@ -7,7 +7,6 @@ use tauri::{Manager, PhysicalPosition};
 
 pub fn run() {
     tauri::Builder::default()
-        .manage(agent::AgentRuntime::new())
         .manage(commands::NotchMotion::default())
         .invoke_handler(tauri::generate_handler![
             commands::agent_snapshot,
@@ -24,6 +23,12 @@ pub fn run() {
             commands::notch_set_surface,
         ])
         .setup(|app| {
+            let agent = match app.path().app_local_data_dir() {
+                Ok(path) => agent::AgentRuntime::persistent(path.join("agent-active.marker")),
+                Err(_) => agent::AgentRuntime::new(),
+            };
+            agent.start_recovery_observer();
+            app.manage(agent);
             #[cfg(windows)]
             app.manage(windows::capture::start_hotkey(app.handle().clone()));
             if let Some(window) = app.get_webview_window("main")
