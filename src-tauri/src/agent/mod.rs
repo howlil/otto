@@ -1,6 +1,7 @@
 mod events;
 mod policy;
 mod providers;
+mod readiness_probe;
 mod recovery;
 pub mod session;
 
@@ -215,6 +216,7 @@ pub struct AgentRuntime {
     updates: watch::Sender<Snapshot>,
     control: Mutex<Option<mpsc::Sender<Control>>>,
     selected_runtime: StdMutex<ModelSelection>,
+    readiness_probes: StdMutex<readiness_probe::ReadinessProbeState>,
     next_run_id: AtomicU64,
     subscriptions: StdMutex<Option<(u64, oneshot::Sender<()>)>>,
     next_subscription_id: AtomicU64,
@@ -261,6 +263,7 @@ impl AgentRuntime {
             updates,
             control: Mutex::new(None),
             selected_runtime: StdMutex::new(ModelSelection::default()),
+            readiness_probes: StdMutex::new(readiness_probe::ReadinessProbeState::default()),
             next_run_id: AtomicU64::new(0),
             subscriptions: StdMutex::new(None),
             next_subscription_id: AtomicU64::new(0),
@@ -405,6 +408,34 @@ impl AgentRuntime {
                 model: state.model.clone(),
                 thinking_effort: state.thinking_effort.clone(),
             }
+        }
+    }
+
+    pub async fn probe_provider_readiness(
+        &self,
+        request_id: u64,
+        provider: &str,
+        requested_cwd: Option<&str>,
+        model: Option<&str>,
+    ) -> Result<ProviderReadiness, String> {
+        let mut cancelled = self
+            .readiness_probes
+            .lock()
+            .map_err(|_| "Readiness controller unavailable.".to_string())?
+            .begin(request_id)?;
+        let result = tokio::select! {
+            _ = &mut cancelled => Err("Readiness probe cancelled.".to_string()),
+            readiness = self.provider_readiness_for(provider, requested_cwd, model) => Ok(readiness),
+        };
+        if let Ok(mut probes) = self.readiness_probes.lock() {
+            probes.finish(request_id);
+        }
+        result
+    }
+
+    pub fn cancel_provider_readiness(&self, request_id: u64) {
+        if let Ok(mut probes) = self.readiness_probes.lock() {
+            probes.cancel(request_id);
         }
     }
 

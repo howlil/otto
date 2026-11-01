@@ -30,10 +30,16 @@ pub async fn agent_provider_readiness(
     provider: String,
     cwd: Option<String>,
     model: Option<String>,
+    request_id: u64,
 ) -> Result<crate::agent::ProviderReadiness, String> {
-    Ok(runtime
-        .provider_readiness_for(&provider, cwd.as_deref(), model.as_deref())
-        .await)
+    runtime
+        .probe_provider_readiness(request_id, &provider, cwd.as_deref(), model.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub fn agent_cancel_provider_readiness(runtime: State<'_, AgentRuntime>, request_id: u64) {
+    runtime.cancel_provider_readiness(request_id);
 }
 
 #[tauri::command]

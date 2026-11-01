@@ -114,9 +114,13 @@ export async function getCodexReadiness(cwd?: string): Promise<ProviderReadiness
 export async function getAgentReadiness(
   provider: AgentProvider,
   cwd?: string,
-  model?: string | null,
+  model: string | null = null,
+  requestId: number,
 ): Promise<ProviderReadiness> {
-  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd, model });
+  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd, model, requestId });
+}
+export async function cancelAgentReadiness(requestId: number): Promise<void> {
+  await invoke("agent_cancel_provider_readiness", { requestId });
 }
 export type AgentSubscription = {
   channel: Channel<AgentSnapshot>;
