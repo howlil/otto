@@ -113,9 +113,9 @@ export async function getCodexReadiness(cwd?: string): Promise<ProviderReadiness
 }
 export async function getAgentReadiness(
   provider: AgentProvider,
+  requestId: number,
   cwd?: string,
   model: string | null = null,
-  requestId: number,
 ): Promise<ProviderReadiness> {
   return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd, model, requestId });
 }

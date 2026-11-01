@@ -107,7 +107,7 @@ function useProviderReadiness(
     const probe = new ReadinessProbeController(
       ({ cwd, provider, model }, requestId) =>
         nativeAvailable
-          ? getAgentReadiness(provider, cwd || undefined, model, requestId)
+          ? getAgentReadiness(provider, requestId, cwd || undefined, model)
           : Promise.resolve(unavailable),
       (requestId) => nativeAvailable ? cancelAgentReadiness(requestId) : Promise.resolve(),
       setReadiness,
