@@ -34,7 +34,12 @@ function SettingsHeader({ tab }: { tab: AgentSettingsTab }) {
   );
 }
 
-function ActiveRunNotice({ busy, approvalPending, runStatus, onDone }: {
+function ActiveRunNotice({
+  busy,
+  approvalPending,
+  runStatus,
+  onDone,
+}: {
   busy: boolean;
   approvalPending: boolean;
   runStatus: AgentStatus;
@@ -54,10 +59,11 @@ function ActiveRunNotice({ busy, approvalPending, runStatus, onDone }: {
   );
 }
 
-function CaptureSettings({ readiness, capture, focusCaptureShortcut }: Pick<
-  AgentSettingsProps,
-  "readiness" | "capture" | "focusCaptureShortcut"
->) {
+function CaptureSettings({
+  readiness,
+  capture,
+  focusCaptureShortcut,
+}: Pick<AgentSettingsProps, "readiness" | "capture" | "focusCaptureShortcut">) {
   return (
     <div className="space-y-2">
       {readiness.imageTransport && (
@@ -103,10 +109,12 @@ function ModelUsageSettings() {
   );
 }
 
-function SettingsFooter({ hasThread, busy, onNewSession, error }: Pick<
-  AgentSettingsProps,
-  "hasThread" | "busy" | "onNewSession" | "error"
->) {
+function SettingsFooter({
+  hasThread,
+  busy,
+  onNewSession,
+  error,
+}: Pick<AgentSettingsProps, "hasThread" | "busy" | "onNewSession" | "error">) {
   return (
     <>
       {hasThread && (
