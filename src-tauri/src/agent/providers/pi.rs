@@ -445,7 +445,7 @@ fn accepted_prompt(frame: &Value, run_id: u64) -> Result<bool, String> {
     }
     if frame["command"] != "prompt"
         || frame["success"] != true
-        || frame["data"]["disposition"] != "started"
+        || (!frame["data"]["disposition"].is_null() && frame["data"]["disposition"] != "started")
     {
         return Err("Pi rejected the requested turn.".into());
     }
@@ -995,6 +995,13 @@ mod tests {
 
     #[test]
     fn pi_prompt_ack_auth_and_model_gates_fail_closed() {
+        assert!(
+            accepted_prompt(
+                &json!({"type":"response","id":"otto-7","command":"prompt","success":true}),
+                7
+            )
+            .unwrap()
+        );
         assert!(
             accepted_prompt(
                 &json!({"type":"response","id":"otto-7","command":"prompt",
