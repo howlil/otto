@@ -25,7 +25,19 @@ export function AgentPanel({
   motionClass = "",
   eventMotion,
 }: Props) {
-  const { snapshot, readiness, cwd, setCwd, mode, setMode, provider, setProvider, locked, busy, newSession } = agent;
+  const {
+    snapshot,
+    readiness,
+    cwd,
+    setCwd,
+    mode,
+    setMode,
+    provider,
+    setProvider,
+    locked,
+    busy,
+    newSession,
+  } = agent;
   const [denied, setDenied] = useState(false);
   const [captureSettingsEntry, setCaptureSettingsEntry] = useState(false);
   const approval = snapshot.approval;

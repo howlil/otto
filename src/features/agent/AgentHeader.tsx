@@ -72,7 +72,8 @@ export function AgentHeader({
             "Agent settings"
           ) : (
             <>
-              {provider === "pi" ? "Pi" : "Codex"} <em className="font-normal text-otto-line-focused">/ {project}</em>
+              {provider === "pi" ? "Pi" : "Codex"}{" "}
+              <em className="font-normal text-otto-line-focused">/ {project}</em>
             </>
           )}
         </Text>

@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B3 Pi Quick Ask native RPC and provider UI.
+# Verification dispatch: B3 Pi provider integration after frontend formatter corrections.
 
 'on':
   push:

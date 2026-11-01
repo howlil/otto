@@ -69,7 +69,10 @@ export async function codexInstalled(): Promise<boolean> {
 export async function getCodexReadiness(cwd?: string): Promise<ProviderReadiness> {
   return invoke<ProviderReadiness>("agent_codex_readiness", { cwd });
 }
-export async function getAgentReadiness(provider: AgentProvider, cwd?: string): Promise<ProviderReadiness> {
+export async function getAgentReadiness(
+  provider: AgentProvider,
+  cwd?: string,
+): Promise<ProviderReadiness> {
   return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd });
 }
 export type AgentSubscription = {
@@ -88,7 +91,12 @@ export async function subscribeAgent(
     unsubscribe: () => invoke("agent_unsubscribe", { subscriptionId }),
   };
 }
-export async function askAgent(text: string, cwd: string, mode: AgentMode, provider: AgentProvider): Promise<void> {
+export async function askAgent(
+  text: string,
+  cwd: string,
+  mode: AgentMode,
+  provider: AgentProvider,
+): Promise<void> {
   await invoke("agent_ask", { text, cwd, mode, provider });
 }
 export async function decideAgentApproval(

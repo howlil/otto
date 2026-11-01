@@ -84,10 +84,7 @@ function useProviderReadiness(cwd: string, provider: AgentProvider) {
       return;
     }
     try {
-      const status = await getAgentReadiness(
-        providerRef.current,
-        projectRef.current || undefined,
-      );
+      const status = await getAgentReadiness(providerRef.current, projectRef.current || undefined);
       if (probeRef.current === probe) setReadiness(status);
     } catch {
       if (probeRef.current === probe) {
@@ -241,7 +238,18 @@ function useAgentRequestActions({
       void refreshProvider();
       return;
     }
-  }, [busy, clearError, cwd, draft, mode, provider, refreshProvider, setDraft, setRequestError, submitted]);
+  }, [
+    busy,
+    clearError,
+    cwd,
+    draft,
+    mode,
+    provider,
+    refreshProvider,
+    setDraft,
+    setRequestError,
+    submitted,
+  ]);
 
   const stop = useCallback(async () => {
     clearError();

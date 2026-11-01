@@ -1,6 +1,11 @@
 import { Button, StatusMessage, Text } from "../../shared/ui";
 import type { CaptureShortcutModel } from "./view-model";
-import type { AgentMode, AgentProvider, AgentStatus, ProviderReadiness } from "../../platform/tauri";
+import type {
+  AgentMode,
+  AgentProvider,
+  AgentStatus,
+  ProviderReadiness,
+} from "../../platform/tauri";
 import { ModeSettings, ProjectSettings, ProviderSettings } from "./AgentSettingsSections";
 import { AgentCaptureSettings } from "./AgentCaptureSettings";
 import { agentStatusLabel } from "./status";
