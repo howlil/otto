@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B4 Pi RPC PNG images and selected-model safety proof.
+# Verification dispatch: B4 Pi screenshot RPC and native capture transport, pass 2.
 
 'on':
   push:
