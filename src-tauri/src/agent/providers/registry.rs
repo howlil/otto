@@ -1,5 +1,7 @@
 use crate::agent::policy::InteractionMode;
-use crate::agent::{Control, ProviderReadiness, Snapshot, fail};
+use crate::agent::{Control, ProviderReadiness, Snapshot};
+#[cfg(not(windows))]
+use crate::agent::fail;
 use std::path::PathBuf;
 use tokio::sync::{mpsc, watch};
 
