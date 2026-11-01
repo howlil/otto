@@ -744,7 +744,7 @@ mod tests {
 
     #[cfg(windows)]
     #[tokio::test]
-    async fn unverified_agy_image_input_blocks_capture_before_first_chat() {
+    async fn agy_text_only_headless_input_blocks_capture_before_first_chat() {
         let runtime = AgentRuntime::new();
         runtime
             .select_provider("agy".into())
@@ -758,7 +758,7 @@ mod tests {
             .await;
         assert_eq!(
             capture.unwrap_err(),
-            "Agy headless image input is not verified. Select Codex or Pi."
+            "Agy headless streaming accepts text only. Select Codex or Pi."
         );
         assert!(runtime.snapshot().messages.is_empty());
     }
