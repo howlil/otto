@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Button, StatusMessage, Text, TextField } from "../../shared/ui";
 import type { CaptureShortcutModel } from "./view-model";
 import type { AgentMode, AgentStatus, ProviderReadiness } from "../../platform/tauri";
@@ -21,6 +22,7 @@ export function AgentSettings({
   onBack,
   onDone,
   capture,
+  focusCaptureShortcut,
 }: {
   readiness: ProviderReadiness;
   runStatus: AgentStatus;
@@ -38,8 +40,17 @@ export function AgentSettings({
   onBack: () => void;
   onDone: () => void;
   capture: CaptureShortcutModel;
+  focusCaptureShortcut: boolean;
 }) {
   const { shortcut, setShortcut, captureMessage, savingCapture, available, saveShortcut } = capture;
+  useEffect(() => {
+    if (!focusCaptureShortcut || !available) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById("otto-capture-shortcut")?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusCaptureShortcut, available]);
+
   const providerStatus =
     readiness.status === "ready"
       ? "Ready"
@@ -95,8 +106,14 @@ export function AgentSettings({
             </Button>
           </div>
           <Text as="p" variant="caption" className="mt-1.5 text-otto-text-tertiary">
-            Use Ctrl with Shift or Alt and one letter. Capture works from another application.
+            Use Ctrl with Shift or Alt and one letter. Capture is triggered only by the shortcut;
+            image analysis requires a compatible provider.
           </Text>
+          {!available && (
+            <StatusMessage tone="info" className="mt-2">
+              Screen capture shortcuts can only be configured in Otto for Windows.
+            </StatusMessage>
+          )}
           {captureMessage && (
             <StatusMessage tone="info" className="mt-2">
               {captureMessage}

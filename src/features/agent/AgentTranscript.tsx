@@ -10,11 +10,13 @@ export function AgentTranscript({
   denied,
   approvalPending,
   onDenied,
+  onConfigureCapture,
 }: {
   agent: AgentTranscriptModel;
   denied: boolean;
   approvalPending: boolean;
   onDenied: () => void;
+  onConfigureCapture: () => void;
 }) {
   const {
     snapshot,
@@ -91,6 +93,7 @@ export function AgentTranscript({
         approvalPending={approvalPending}
         canSend={canSend}
         stopping={snapshot.status === "stopping"}
+        onConfigureCapture={onConfigureCapture}
         send={send}
         stop={stop}
       />

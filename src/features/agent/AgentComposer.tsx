@@ -8,6 +8,7 @@ export function AgentComposer({
   approvalPending,
   canSend,
   stopping,
+  onConfigureCapture,
   send,
   stop,
 }: {
@@ -17,6 +18,7 @@ export function AgentComposer({
   approvalPending: boolean;
   canSend: boolean;
   stopping: boolean;
+  onConfigureCapture: () => void;
   send: () => Promise<void>;
   stop: () => Promise<void>;
 }) {
@@ -32,12 +34,13 @@ export function AgentComposer({
         onSubmit={submit}
       >
         <IconButton
+          id="otto-capture-setup"
           icon="camera"
-          label="Capture not available yet"
+          label="Configure screen capture shortcut"
           variant="round"
           className="grid shrink-0 place-items-center rounded-full"
-          disabled
-          title="Screen capture is not available in this slice"
+          onClick={onConfigureCapture}
+          title="Configure screen capture shortcut"
         />
         <VisuallyHidden htmlFor="otto-prompt">Question for Codex</VisuallyHidden>
         <TextArea

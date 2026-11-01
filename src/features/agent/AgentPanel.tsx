@@ -29,6 +29,7 @@ export function AgentPanel({
 }: Props) {
   const { snapshot, readiness, cwd, setCwd, mode, setMode, locked, busy, newSession } = agent;
   const [denied, setDenied] = useState(false);
+  const [captureSettingsEntry, setCaptureSettingsEntry] = useState(false);
   const approval = snapshot.approval;
   const approvalPending = snapshot.status === "approvalRequired" && Boolean(approval);
   const project =
@@ -38,6 +39,15 @@ export function AgentPanel({
   useEffect(() => {
     if (snapshot.status === "starting") setDenied(false);
   }, [snapshot.status]);
+
+  useEffect(() => {
+    if (settings || !captureSettingsEntry) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById("otto-capture-setup")?.focus({ preventScroll: true });
+      setCaptureSettingsEntry(false);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [settings, captureSettingsEntry]);
 
   return (
     <section
@@ -53,7 +63,10 @@ export function AgentPanel({
         readiness={readiness.status}
         activity={Boolean(snapshot.activity)}
         eventMotion={eventMotion}
-        onSettings={onSettings}
+        onSettings={() => {
+          setCaptureSettingsEntry(false);
+          onSettings();
+        }}
         onSettingsBack={onSettingsBack}
         onCollapse={onCollapse}
       />
@@ -61,6 +74,7 @@ export function AgentPanel({
         <AgentSettings
           readiness={readiness}
           capture={agent.capture}
+          focusCaptureShortcut={captureSettingsEntry}
           runStatus={snapshot.status}
           approvalPending={approvalPending}
           onRetry={() => void agent.refreshProvider()}
@@ -82,6 +96,10 @@ export function AgentPanel({
           denied={denied}
           approvalPending={approvalPending}
           onDenied={() => setDenied(true)}
+          onConfigureCapture={() => {
+            setCaptureSettingsEntry(true);
+            onSettings();
+          }}
         />
       )}
     </section>
