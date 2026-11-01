@@ -1,5 +1,6 @@
 import type {
   AgentMode,
+  AgentProvider,
   AgentSnapshot,
   CaptureSource,
   ProviderReadiness,
@@ -45,6 +46,8 @@ export type AgentPanelModel = AgentTranscriptModel & {
   setCwd: (cwd: string) => void;
   mode: AgentMode;
   setMode: (mode: AgentMode) => void;
+  provider: AgentProvider;
+  setProvider: (provider: AgentProvider) => void;
   locked: boolean;
   newSession: () => Promise<boolean>;
 };

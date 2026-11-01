@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCaptureSource } from "./useCaptureSource";
 import {
-  askCodex,
-  getCodexReadiness,
+  askAgent,
+  getAgentReadiness,
   getCaptureTargetTitle,
   configureCaptureShortcut,
   nativeAvailable,
@@ -12,6 +12,7 @@ import {
   stopCodex,
   subscribeAgent,
   type AgentMode,
+  type AgentProvider,
   type AgentSnapshot,
   type AgentSubscription,
   type ProviderReadiness,
@@ -50,6 +51,7 @@ const initial: AgentSnapshot = {
   seq: 0,
   status: "idle",
   mode: "quickAsk",
+  provider: "codex",
   cwd: "",
   threadId: null,
   messages: [],
@@ -63,9 +65,10 @@ const checking: ProviderReadiness = {
   imageInput: false,
 };
 
-function useProviderReadiness(cwd: string) {
+function useProviderReadiness(cwd: string, provider: AgentProvider) {
   const [readiness, setReadiness] = useState<ProviderReadiness>(checking);
   const projectRef = useRef("");
+  const providerRef = useRef<AgentProvider>("codex");
   const probeRef = useRef(0);
 
   const refreshProvider = useCallback(async () => {
@@ -81,7 +84,10 @@ function useProviderReadiness(cwd: string) {
       return;
     }
     try {
-      const status = await getCodexReadiness(projectRef.current || undefined);
+      const status = await getAgentReadiness(
+        providerRef.current,
+        projectRef.current || undefined,
+      );
       if (probeRef.current === probe) setReadiness(status);
     } catch {
       if (probeRef.current === probe) {
@@ -97,11 +103,12 @@ function useProviderReadiness(cwd: string) {
 
   useEffect(() => {
     projectRef.current = cwd;
+    providerRef.current = provider;
     probeRef.current += 1;
     setReadiness(checking);
     const timer = setTimeout(() => void refreshProvider(), 350);
     return () => clearTimeout(timer);
-  }, [cwd, refreshProvider]);
+  }, [cwd, provider, refreshProvider]);
 
   return { readiness, refreshProvider };
 }
@@ -202,6 +209,7 @@ function useAgentRequestActions({
   cwd,
   draft,
   mode,
+  provider,
   refreshProvider,
   setDraft,
   submitted,
@@ -212,6 +220,7 @@ function useAgentRequestActions({
   cwd: string;
   draft: string;
   mode: AgentMode;
+  provider: AgentProvider;
   refreshProvider: () => Promise<void>;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   submitted: { current: string | null };
@@ -224,7 +233,7 @@ function useAgentRequestActions({
     clearError();
     submitted.current = question;
     try {
-      await askCodex(question, cwd, mode);
+      await askAgent(question, cwd, mode, provider);
       setDraft("");
     } catch (reason) {
       submitted.current = null;
@@ -232,7 +241,7 @@ function useAgentRequestActions({
       void refreshProvider();
       return;
     }
-  }, [busy, clearError, cwd, draft, mode, refreshProvider, setDraft, setRequestError, submitted]);
+  }, [busy, clearError, cwd, draft, mode, provider, refreshProvider, setDraft, setRequestError, submitted]);
 
   const stop = useCallback(async () => {
     clearError();
@@ -375,9 +384,10 @@ export function useAgent() {
   const [draft, setDraft] = useState("");
   const [cwd, setCwd] = useState("");
   const [mode, setMode] = useState<AgentMode>("quickAsk");
+  const [provider, setProvider] = useState<AgentProvider>("codex");
   const busy = ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status);
   const locked = busy || snapshot.threadId !== null;
-  const { readiness, refreshProvider } = useProviderReadiness(cwd);
+  const { readiness, refreshProvider } = useProviderReadiness(cwd, provider);
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
   const receive = useCallback((next: AgentSnapshot) => {
     setSnapshot((prev) => (next.seq >= prev.seq ? next : prev));
@@ -397,6 +407,7 @@ export function useAgent() {
     cwd,
     draft,
     mode,
+    provider,
     refreshProvider,
     setDraft,
     submitted,
@@ -422,6 +433,12 @@ export function useAgent() {
     setCwd,
     mode,
     setMode,
+    provider,
+    setProvider: (next: AgentProvider) => {
+      if (locked) return;
+      setProvider(next);
+      if (next === "pi") setMode("quickAsk");
+    },
     locked,
     error: connection.error ?? snapshot.error,
     busy,

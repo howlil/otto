@@ -11,6 +11,7 @@ export type AgentStatus =
   | "failed";
 
 export type AgentMode = "quickAsk" | "agentSession";
+export type AgentProvider = "codex" | "pi";
 export type CaptureSource = "window" | "fullScreen";
 
 export type ProviderReadiness = {
@@ -36,6 +37,7 @@ export type AgentSnapshot = {
   seq: number;
   status: AgentStatus;
   mode: AgentMode;
+  provider: AgentProvider;
   cwd: string;
   threadId: string | null;
   messages: Array<{ id: string; role: "user" | "assistant"; text: string }>;
@@ -67,6 +69,9 @@ export async function codexInstalled(): Promise<boolean> {
 export async function getCodexReadiness(cwd?: string): Promise<ProviderReadiness> {
   return invoke<ProviderReadiness>("agent_codex_readiness", { cwd });
 }
+export async function getAgentReadiness(provider: AgentProvider, cwd?: string): Promise<ProviderReadiness> {
+  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd });
+}
 export type AgentSubscription = {
   channel: Channel<AgentSnapshot>;
   unsubscribe: () => Promise<void>;
@@ -83,8 +88,8 @@ export async function subscribeAgent(
     unsubscribe: () => invoke("agent_unsubscribe", { subscriptionId }),
   };
 }
-export async function askCodex(text: string, cwd: string, mode: AgentMode): Promise<void> {
-  await invoke("agent_ask", { text, cwd, mode });
+export async function askAgent(text: string, cwd: string, mode: AgentMode, provider: AgentProvider): Promise<void> {
+  await invoke("agent_ask", { text, cwd, mode, provider });
 }
 export async function decideAgentApproval(
   approvalId: string,
