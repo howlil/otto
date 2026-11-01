@@ -149,7 +149,8 @@ export function AgentSettings({
             </div>
           )}
           {tab === "usage" && (
-            <section aria-label="Model and context usage">
+            <section aria-labelledby="otto-model-usage-title">
+              <h2 id="otto-model-usage-title" className="sr-only">Model and context usage</h2>
               <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 text-otto-sm">
                 <dt className="text-otto-text-tertiary">Active model</dt>
                 <dd>Not detected</dd>
