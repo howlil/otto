@@ -677,16 +677,27 @@ impl AgentRuntime {
             );
         }
 
-        let readiness = self
-            .provider_readiness_for(&provider, Some(&cwd.to_string_lossy()), model.as_deref())
-            .await;
-        if readiness.status != "ready" {
-            return Err(format!("{} {}", readiness.message, readiness.recovery));
+        let reused_agy = guard.as_ref().is_some_and(|sender| !sender.is_closed())
+            && can_reuse_agy_session(
+                &current,
+                &cwd,
+                mode,
+                model.as_deref(),
+                thinking_effort.as_deref(),
+                capture.is_some(),
+            );
+        if !reused_agy {
+            let readiness = self
+                .provider_readiness_for(&provider, Some(&cwd.to_string_lossy()), model.as_deref())
+                .await;
+            if readiness.status != "ready" {
+                return Err(format!("{} {}", readiness.message, readiness.recovery));
+            }
+            if capture.is_some() && !readiness.image_input {
+                return Err("The selected provider model cannot accept an image.".into());
+            }
+            validate_runtime_options(&readiness, model.as_deref(), thinking_effort.as_deref())?;
         }
-        if capture.is_some() && !readiness.image_input {
-            return Err("The selected provider model cannot accept an image.".into());
-        }
-        validate_runtime_options(&readiness, model.as_deref(), thinking_effort.as_deref())?;
         if let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
             if std::path::Path::new(&current.cwd) != cwd.as_path() {
                 return Err(
@@ -904,6 +915,25 @@ impl AgentRuntime {
     }
 }
 
+fn can_reuse_agy_session(
+    snapshot: &Snapshot,
+    cwd: &std::path::Path,
+    mode: InteractionMode,
+    model: Option<&str>,
+    thinking_effort: Option<&str>,
+    has_capture: bool,
+) -> bool {
+    snapshot.provider == "agy"
+        && snapshot.status == "completed"
+        && snapshot.thread_id.is_some()
+        && snapshot.mode == mode.as_str()
+        && mode == InteractionMode::QuickAsk
+        && std::path::Path::new(&snapshot.cwd) == cwd
+        && model.is_none()
+        && thinking_effort.is_none()
+        && !has_capture
+}
+
 fn validate_runtime_options(
     readiness: &ProviderReadiness,
     model: Option<&str>,
@@ -944,6 +974,92 @@ pub(crate) fn mutate(updates: &watch::Sender<Snapshot>, action: impl FnOnce(&mut
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn agy_reuse_requires_a_completed_unchanged_quick_ask() {
+        let cwd = std::fs::canonicalize(std::env::current_dir().unwrap()).unwrap();
+        let runtime = AgentRuntime::new();
+        let mut snapshot = runtime.snapshot();
+        snapshot.provider = "agy".into();
+        snapshot.status = "completed".into();
+        snapshot.mode = "quickAsk".into();
+        snapshot.thread_id = Some("agy-conversation".into());
+        snapshot.cwd = cwd.to_string_lossy().into_owned();
+
+        let eligible = |snapshot: &Snapshot, cwd: &std::path::Path, model: Option<&str>| {
+            can_reuse_agy_session(
+                snapshot,
+                cwd,
+                InteractionMode::QuickAsk,
+                model,
+                None,
+                false,
+            )
+        };
+        assert!(eligible(&snapshot, &cwd, None));
+        assert!(!eligible(&snapshot, &cwd, Some("different-model")));
+        assert!(!can_reuse_agy_session(
+            &snapshot,
+            &cwd,
+            InteractionMode::QuickAsk,
+            None,
+            Some("high"),
+            false,
+        ));
+        assert!(!can_reuse_agy_session(
+            &snapshot,
+            &cwd,
+            InteractionMode::QuickAsk,
+            None,
+            None,
+            true,
+        ));
+        assert!(!can_reuse_agy_session(
+            &snapshot,
+            &cwd,
+            InteractionMode::AgentSession,
+            None,
+            None,
+            false,
+        ));
+        assert!(!eligible(&snapshot, &cwd.join("different"), None));
+        snapshot.thread_id = None;
+        assert!(!eligible(&snapshot, &cwd, None));
+        snapshot.thread_id = Some("agy-conversation".into());
+        snapshot.status = "failed".into();
+        assert!(!eligible(&snapshot, &cwd, None));
+        snapshot.status = "completed".into();
+        snapshot.provider = "pi".into();
+        assert!(!eligible(&snapshot, &cwd, None));
+    }
+
+    #[tokio::test]
+    async fn completed_agy_followup_uses_owned_runtime_without_reprobing_cli() {
+        let runtime = AgentRuntime::new();
+        runtime.select_provider("agy".into()).await.unwrap();
+        let cwd = std::fs::canonicalize(std::env::current_dir().unwrap()).unwrap();
+        mutate(&runtime.updates, |state| {
+            state.status = "completed".into();
+            state.mode = "quickAsk".into();
+            state.thread_id = Some("agy-conversation".into());
+            state.cwd = cwd.to_string_lossy().into_owned();
+        });
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+        runtime
+            .ask(
+                "continue the explanation".into(),
+                cwd.to_string_lossy().into_owned(),
+                "quickAsk".into(),
+                "agy".into(),
+                None,
+                None,
+            )
+            .await
+            .expect("a completed Agy conversation must not require another CLI probe");
+        assert!(matches!(receiver.try_recv(), Ok(Control::Ask { .. })));
+        assert_eq!(runtime.snapshot().status, "starting");
+    }
 
     #[cfg(windows)]
     #[test]
