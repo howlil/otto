@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: RV1–RV4 compile, tests and Clippy after approval fixture correction.
+# Verification dispatch: Home/Agent design parity, screenshot action, Windows Rust and frontend gates.
 
 'on':
   push:
