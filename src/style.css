@@ -59,6 +59,15 @@
   --color-otto-art-alt-middle: #292b2b;
   --color-otto-art-alt-end: #212424;
   --color-otto-art-halo: #bccfe039;
+  --color-otto-art-card-music-start: #29282d;
+  --color-otto-art-card-music-middle: #282730;
+  --color-otto-art-card-music-end: #1d1e29;
+  --color-otto-art-card-focus-start: #28292c;
+  --color-otto-art-card-focus-middle: #27282c;
+  --color-otto-art-card-focus-end: #202329;
+  --color-otto-art-overlay-start: #292a2edb;
+  --color-otto-art-overlay-middle: #27292cb0;
+  --color-otto-art-overlay-end: #27292c28;
   --color-otto-text-floating-muted: #b0b1b7;
   --color-otto-placeholder-deep: #777;
   --color-otto-scrollbar-track: #444;
@@ -87,7 +96,7 @@
   --color-otto-label-faded: #aaa;
   --color-otto-disabled-selected: #707077;
   --font-otto-ui:
-    "Plus Jakarta Sans Variable", "Plus Jakarta Sans", "Jakarta Sans", "Segoe UI", system-ui,
+    Inter, "Segoe UI Variable", "Segoe UI", system-ui,
     sans-serif;
   --font-otto-mono: Consolas, monospace;
 
