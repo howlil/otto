@@ -464,7 +464,7 @@ function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSetti
   approval,hint,error,
   unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
   !agent.busy&&phase==="complete"&&lastAnswer?el("button",{type:"button",className:"af-copy",onClick:()=>{if(navigator.clipboard?.writeText)navigator.clipboard.writeText(lastAnswer.text)}} ,h(Icon,{name:"Copy",size:14}),"Copy answer"):null,
-  agent.warning?el("div",{className:"af-warning"},agent.warning,el("button",{type:"button",className:"as-textbutton",onClick:onCaptureSettings},"Screen Capture settings")):null));
+  agent.warning?el("div",{className:"af-warning"},agent.warning,el("button",{type:"button",className:"as-textbutton",onClick:/capture|screenshot|hotkey|window|image/i.test(agent.warning)?onCaptureSettings:onSettings},/capture|screenshot|hotkey|window|image/i.test(agent.warning)?"Screen Capture settings":"Provider settings")):null));
  const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(ready&&draft.trim()&&phase!=="approval"){onSend(draft.trim());onDraft("")}};
  const composer=el("div",{className:"af-composewrap"},el("form",{className:"af-composer",onSubmit:send},
   h(IconButton,{name:"Camera",label:"Capture screen now",onClick:onCapture}),
