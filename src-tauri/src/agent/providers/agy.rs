@@ -100,6 +100,7 @@ struct Rpc {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+    partial_frame: Vec<u8>,
     stderr_task: tokio::task::JoinHandle<String>,
 }
 
@@ -138,12 +139,13 @@ impl Rpc {
             child,
             stdin,
             stdout: BufReader::new(stdout),
+            partial_frame: Vec::new(),
             stderr_task,
         })
     }
 
     async fn read(&mut self) -> Result<Value, String> {
-        match read_frame(&mut self.stdout).await? {
+        match read_frame(&mut self.stdout, &mut self.partial_frame).await? {
             Some(frame) => Ok(frame),
             None => {
                 let diagnostics = timeout(Duration::from_millis(250), &mut self.stderr_task)
@@ -179,8 +181,10 @@ impl Rpc {
     }
 }
 
-async fn read_frame<R: AsyncBufRead + Unpin>(reader: &mut R) -> Result<Option<Value>, String> {
-    let mut frame = Vec::new();
+async fn read_frame<R: AsyncBufRead + Unpin>(
+    reader: &mut R,
+    frame: &mut Vec<u8>,
+) -> Result<Option<Value>, String> {
     loop {
         let chunk = reader
             .fill_buf()
@@ -203,9 +207,11 @@ async fn read_frame<R: AsyncBufRead + Unpin>(reader: &mut R) -> Result<Option<Va
             break;
         }
     }
-    serde_json::from_slice(&frame)
+    let parsed = serde_json::from_slice(frame)
         .map(Some)
-        .map_err(|_| "Agy emitted invalid stream-json.".into())
+        .map_err(|_| "Agy emitted invalid stream-json.".into());
+    frame.clear();
+    parsed
 }
 
 fn safe_init(frame: &Value) -> Result<String, String> {
@@ -636,23 +642,25 @@ mod tests {
     async fn ndjson_stream_preserves_sequential_frames_and_eof() {
         let input = b"{\"event\":\"init\"}\n{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\"}}\r\n";
         let mut reader = BufReader::with_capacity(7, &input[..]);
+        let mut pending = Vec::new();
         assert_eq!(
-            read_frame(&mut reader).await.unwrap().unwrap()["event"],
+            read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
             "init"
         );
         assert_eq!(
-            read_frame(&mut reader).await.unwrap().unwrap()["event"],
+            read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
             "result"
         );
-        assert!(read_frame(&mut reader).await.unwrap().is_none());
+        assert!(read_frame(&mut reader, &mut pending).await.unwrap().is_none());
     }
 
     #[tokio::test]
     async fn ndjson_stream_rejects_oversized_frame_before_allocating_it() {
         let oversized = vec![b'a'; 1_000_001];
         let mut reader = BufReader::with_capacity(32, &oversized[..]);
+        let mut pending = Vec::new();
         assert_eq!(
-            read_frame(&mut reader).await.unwrap_err(),
+            read_frame(&mut reader, &mut pending).await.unwrap_err(),
             "Agy message exceeded the supported limit."
         );
     }
@@ -661,10 +669,34 @@ mod tests {
     async fn ndjson_stream_rejects_malformed_frame() {
         let input = b"{not-json}\n";
         let mut reader = BufReader::with_capacity(4, &input[..]);
+        let mut pending = Vec::new();
         assert_eq!(
-            read_frame(&mut reader).await.unwrap_err(),
+            read_frame(&mut reader, &mut pending).await.unwrap_err(),
             "Agy emitted invalid stream-json."
         );
+    }
+
+    #[tokio::test]
+    async fn ndjson_read_cancellation_retains_partial_frame() {
+        let (mut output, input) = tokio::io::duplex(64);
+        let mut reader = BufReader::with_capacity(4, input);
+        let mut pending = Vec::new();
+        output.write_all(b"{\\"event\\":").await.unwrap();
+        assert!(
+            timeout(
+                Duration::from_millis(30),
+                read_frame(&mut reader, &mut pending)
+            )
+            .await
+            .is_err()
+        );
+        assert!(!pending.is_empty());
+        output.write_all(b"\\"init\\"}\\n").await.unwrap();
+        assert_eq!(
+            read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
+            "init"
+        );
+        assert!(pending.is_empty());
     }
 
     #[test]
