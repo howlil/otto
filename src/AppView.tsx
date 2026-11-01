@@ -56,6 +56,7 @@ function ShellContent({
   agent: AgentModel;
   shell: ShellModel;
   agentHomeCopy: string;
+  onAgentMeasured: (height: number) => void;
   artProps: {
     parallax: boolean;
     reduced: boolean;
