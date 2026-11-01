@@ -180,6 +180,85 @@ button{touch-action:manipulation}
 @media(max-width:690px){.lab{display:block}.rail{min-height:0;flex-direction:row;flex-wrap:wrap;gap:8px;padding:12px}.rail .brand{width:100%}.rail .rail-group{flex-direction:row;flex-wrap:wrap}.rail .nav{width:auto}.rail .rail-footer,.rail .rail-rule,.rail .segment,.rail .label{display:none}.top{padding:12px 16px;height:70px}.top-status{display:none}.content{padding:10px}.canvas{min-height:460px}.notch{transform:scale(.8);transform-origin:top center}.corner-note{display:none}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}.notch{will-change:auto}}
 .motion-reduced .notch,.motion-reduced .notch-content,.motion-reduced .module-art,.motion-reduced .eye,.motion-reduced .micro-meter i{transition:none!important;animation:none!important}
+
+/* Home + Agent fidelity pass: references design/home.html and design/agent.html */
+.desktop{background:#e9ecf1;border-color:#d5dbe3}
+.desktop:before{background:radial-gradient(ellipse 360px 230px at 75% 75%,#dce1e9,transparent 100%)}
+.desktop-top{background:transparent;border-color:transparent;color:#a0a9b5}
+.window{background:#fafbfdc9;border-color:#d2d8e0;opacity:.82;box-shadow:0 12px 35px #64728416}
+.win-top{border-color:#e0e4ea}.win-top span{border-color:#c2c7ce}.win-line{background:#e0e4ea}
+.canvas-note,.corner-note{color:#9ba5b2}.canvas-note kbd{border-color:#aeb9c6;color:#8996a8}
+.notch{background:#151515;border-color:#353535;box-shadow:0 14px 28px #25344924}
+.notch.attached:before{background:radial-gradient(circle at 0 100%,transparent 13.5px,#151515 14px)}
+.notch.attached:after{background:radial-gradient(circle at 100% 100%,transparent 13.5px,#151515 14px)}
+.hf{padding:12px 17px 17px}
+.hf-head{height:26px;display:flex;gap:9px;align-items:center;flex:none}
+.hf-head strong{font-size:13px;font-weight:520;letter-spacing:-.01em}
+.hf-eyes{width:28px;height:23px;display:flex;align-items:center;justify-content:center;gap:8px}
+.hf-eyes i{height:13px;width:6px;border-radius:6px;background:#fafafa}
+.hf-head .icon-button{width:28px;height:28px;border-radius:9px}
+.home-panels{margin-top:8px;gap:9px}
+.module{height:76px;min-height:0;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:11px 10px 11px 13px;border:1px solid #373737;border-radius:15px;background:#262626;position:relative;overflow:hidden;transition:background 160ms,border-color 160ms}
+.module.agent-card{background:linear-gradient(118deg,#26292e 0%,#262a30 51%,#1c2128 100%)}
+.module.music-card{background:linear-gradient(118deg,#29282d 0%,#282730 51%,#1d1e29 100%)}
+.module.focus-card{background:linear-gradient(118deg,#28292c 0%,#27282c 51%,#202329 100%)}
+.module:before{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse 120px 98px at 78% 25%,#bccfe039,transparent 72%)}
+.module:after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,#292a2edb 0%,#27292cb0 29%,#27292c28 64%,transparent 100%)}
+.module:hover{border-color:#535353}
+.hf-copy{position:relative;z-index:2;display:flex;flex-direction:column;gap:6px;white-space:nowrap}
+.hf-copy strong{font-size:12px;color:#f5f5f5;font-weight:550}
+.hf-copy small{font-size:10px;color:#aaaeb4;margin:0}
+.module-art{position:absolute;right:-7px;top:-23px;height:132px;width:148px;z-index:0;opacity:.9;transform:perspective(380px) rotateY(-43deg) rotateZ(-6deg);transform-origin:60% 50%;transition:transform 370ms var(--ease),opacity 240ms ease}
+.module-art svg{width:100%;height:100%;stroke-width:initial}
+.module:hover .module-art{transform:perspective(380px) rotateY(-39deg) rotateZ(-5deg) translate3d(-3px,2px,0);opacity:1}
+.af{height:100%;width:100%;display:flex;flex-direction:column;min-height:0}
+.af-head{height:53px;padding:9px 15px 5px;display:flex;align-items:center;gap:9px;flex:none}
+.af-eyebutton{width:34px;height:34px;background:#29292c;border:0;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:6px;flex:none}
+.af-eyebutton i{height:12px;width:5px;background:#f4f4f4;border-radius:7px}
+.af-eyebutton:hover{background:#37373a}
+.af-identity{min-width:0;flex:1}
+.af-identity strong{font-size:12px;font-weight:590;white-space:nowrap;display:block;overflow:hidden;text-overflow:ellipsis}
+.af-identity strong em{color:#86868b;font-style:normal;font-weight:400}
+.af-identity small{font-size:10px;color:#97979d;display:block;margin-top:4px}
+.af-state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:10px;color:#b7b7bd}
+.af-state i{height:5px;width:5px;border-radius:50%;background:#9cb8a8}
+.af-state i.warn{background:#deb17b}.af-state i.bad{background:#d89197}
+.af-feed{flex:1;min-height:0;overflow:auto;padding:7px 18px 9px;scrollbar-width:none}
+.af-feedstack{display:flex;flex-direction:column;gap:11px}
+.af-empty{display:flex;align-items:center;height:30px;font-size:11px;color:#83838a}
+.af-question{align-self:flex-end;max-width:87%;border-radius:12px 12px 4px 12px;background:#29292c;color:#efeff0;padding:9px 11px;font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.af-response{font-size:12px;color:#ececee;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.af-composewrap{flex:none;padding:7px 12px 12px}
+.af-composer{background:#29292b;min-height:50px;display:flex;gap:5px;align-items:center;padding:5px 7px;border-radius:999px;border:1px solid transparent;transition:background 160ms,border-color 160ms}
+.af-composer:hover{background:#2f2f31}.af-composer:focus-within{border-color:#555760}
+.af-composer textarea{color:#fafafa;resize:none;flex:1;width:0;min-width:0;max-height:38px;background:transparent;border:0;outline:0;line-height:1.45;font-size:12px;padding:3px 8px}
+.af-composer textarea::placeholder{color:#a8a8ac}
+.af-send{border:0;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;flex:none;background:#f6f6f6;color:#1b1b1e}
+.af-send:disabled{opacity:.4}
+.af-approval{background:#28241f;border:1px solid #574936;border-radius:11px;padding:12px;color:#f2ddc6}
+.af-approval strong{display:flex;align-items:center;gap:7px;font-size:12px}
+.af-approval p,.af-error p{font-size:10px;line-height:1.5}
+.af-approval code{display:block;background:#1e1b19;border-radius:7px;padding:9px;font:10px/1.5 Consolas,monospace}
+.af-approvalbuttons{display:flex;gap:7px;margin-top:10px}
+.af-approvalbuttons button,.af-error button{border:0;border-radius:8px;background:#eaeaea;color:#171717;padding:8px 12px;font-size:10px}
+.af-approvalbuttons button+button{background:#433c34;color:#fff}
+.af-error{background:#2d2425;border:1px solid #68484a;border-radius:11px;padding:12px}
+.af-warning{background:#272729;border:1px solid #36363a;border-radius:9px;padding:9px;font-size:10px;color:#c2c2c7}
+.af-settings{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;padding:1px 18px 15px}
+.af-sectiontitle{font-size:10px;color:#a6a6ab;margin:9px 0 7px}
+.af-providergrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.af-provider{border:1px solid #39393d;border-radius:10px;background:#242426;color:#e6e6e8;padding:9px 6px;font-size:11px}
+.af-provider.selected{background:#303034;border-color:#85858b}
+.af-provider small{display:block;color:#8d8d92;font-size:9px;margin-top:6px}
+.af-settings hr{width:100%;height:1px;border:0;background:#303033;margin:13px 0}
+.af-mode{width:100%;background:#222224;color:#e9e9e9;border:1px solid #363639;border-radius:10px;padding:9px 11px;text-align:left;display:flex;gap:10px;align-items:center;margin-bottom:6px}
+.af-mode.selected{border-color:#818186;background:#2b2b2f}
+.af-mode strong{display:block;font-size:11px}.af-mode small{display:block;font-size:10px;color:#a9a9ad;margin-top:3px}
+.af-radio{width:14px;height:14px;border:1px solid #7a7a81;border-radius:50%;display:grid;place-items:center}
+.af-mode.selected .af-radio:after{content:"";height:6px;width:6px;border-radius:50%;background:#eee}
+.af-project{background:#232326;border:1px solid #3a3a3e;border-radius:9px;height:33px;color:#fff;padding:0 10px}
+.af-done{display:flex;justify-content:flex-end;margin-top:auto;padding-top:16px}
+@media(prefers-reduced-motion:reduce){.module-art{transition:none!important}}
 </style>
 </head>
 <body>
@@ -225,39 +304,53 @@ function Compact({page,agent,music,timer,open,onToggle}){
   page==="focus"?h(IconButton,{name:timer.running?"Pause":"Play",label:timer.running?"Pause timer":"Start timer",onClick:onToggle}):null
  );
 }
+
+const HOME_ART={"agent":"<svg class=\"art-svg agent-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"ag-window\" x1=\"26\" y1=\"8\" x2=\"111\" y2=\"93\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#44474C\" stop-opacity=\".70\"/><stop offset=\"1\" stop-color=\"#2B2C30\" stop-opacity=\".17\"/></linearGradient><linearGradient id=\"ag-stroke\" x1=\"34\" y1=\"19\" x2=\"109\" y2=\"82\"><stop stop-color=\"#D3D5DA\" stop-opacity=\".56\"/><stop offset=\"1\" stop-color=\"#7D8087\" stop-opacity=\".15\"/></linearGradient></defs>\n<g class=\"agent-stack\"><rect x=\"43\" y=\"2\" width=\"84\" height=\"65\" rx=\"13\" stroke=\"#777A81\" stroke-opacity=\".16\" transform=\"rotate(11 43 2)\"/><rect x=\"27\" y=\"12\" width=\"92\" height=\"68\" rx=\"13\" fill=\"url(#ag-window)\" stroke=\"#8D9198\" stroke-opacity=\".21\"/></g>\n<g class=\"agent-window\"><rect x=\"17\" y=\"24\" width=\"94\" height=\"68\" rx=\"13\" fill=\"#26282C\" fill-opacity=\".8\" stroke=\"url(#ag-stroke)\" stroke-width=\"1.1\"/><path d=\"M18 44H110\" stroke=\"#CACCD0\" stroke-opacity=\".15\"/><circle cx=\"30\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".48\"/><circle cx=\"38\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".22\"/><circle cx=\"46\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".16\"/>\n<path class=\"agent-prompt\" d=\"m32 58 8 7-8 7\" stroke=\"#E0E2E6\" stroke-opacity=\".89\" stroke-width=\"3.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path class=\"agent-caret\" d=\"M47 72H63\" stroke=\"#E0E2E6\" stroke-opacity=\".89\" stroke-width=\"3.2\" stroke-linecap=\"round\"/>\n<path d=\"M73 58h18M73 65h13M73 72h18\" stroke=\"#A2A5AD\" stroke-opacity=\".27\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></g></svg>","music":"<svg class=\"art-svg music-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"mu-ink\" x1=\"60\" y1=\"10\" x2=\"103\" y2=\"91\"><stop stop-color=\"#DBDDE1\" stop-opacity=\".9\"/><stop offset=\"1\" stop-color=\"#A3A7B0\" stop-opacity=\".52\"/></linearGradient><linearGradient id=\"mu-wave\" x1=\"0\" y1=\"0\" x2=\"128\" y2=\"0\"><stop stop-color=\"#666970\" stop-opacity=\"0\"/><stop offset=\".55\" stop-color=\"#D2D6DB\" stop-opacity=\".42\"/><stop offset=\"1\" stop-color=\"#9299A3\" stop-opacity=\".05\"/></linearGradient></defs>\n<g class=\"wave-group\"><path class=\"music-wave one\" d=\"M-6 75C19 55 34 86 60 66s41-40 75-25\" stroke=\"url(#mu-wave)\" stroke-width=\"1.5\"/><path class=\"music-wave two\" d=\"M-5 83C22 63 38 94 65 73s42-35 71-19\" stroke=\"url(#mu-wave)\" stroke-opacity=\".6\" stroke-width=\"1.1\"/><path class=\"music-wave three\" d=\"M-4 67C18 49 36 76 62 56s43-37 71-28\" stroke=\"url(#mu-wave)\" stroke-opacity=\".4\" stroke-width=\"1\"/></g>\n<g class=\"music-note\" stroke=\"url(#mu-ink)\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M73 72V22L109 14V62\"/><path d=\"M73 23L109 15\"/><ellipse cx=\"61\" cy=\"77\" rx=\"13\" ry=\"8\" transform=\"rotate(-24 61 77)\" fill=\"#92969F\" fill-opacity=\".32\"/><ellipse cx=\"97\" cy=\"67\" rx=\"13\" ry=\"8\" transform=\"rotate(-24 97 67)\" fill=\"#92969F\" fill-opacity=\".32\"/></g></svg>","focus":"<svg class=\"art-svg focus-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"fo-ring\" x1=\"30\" y1=\"0\" x2=\"113\" y2=\"96\"><stop stop-color=\"#D7DADF\" stop-opacity=\".65\"/><stop offset=\".56\" stop-color=\"#93979F\" stop-opacity=\".25\"/><stop offset=\"1\" stop-color=\"#777B84\" stop-opacity=\".10\"/></linearGradient><radialGradient id=\"fo-face\" cx=\"0\" cy=\"0\" r=\"1\" gradientTransform=\"translate(76 43) rotate(90) scale(53)\"><stop stop-color=\"#3C3E43\" stop-opacity=\".55\"/><stop offset=\"1\" stop-color=\"#242629\" stop-opacity=\"0\"/></radialGradient></defs>\n<circle cx=\"78\" cy=\"49\" r=\"47\" stroke=\"#9EA1A7\" stroke-opacity=\".08\" stroke-width=\"1\"/><circle cx=\"78\" cy=\"49\" r=\"37\" fill=\"url(#fo-face)\" stroke=\"url(#fo-ring)\" stroke-width=\"1.5\"/><circle class=\"focus-progress\" cx=\"78\" cy=\"49\" r=\"37\" stroke=\"#B6BAC2\" stroke-opacity=\".62\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"42 191\" transform=\"rotate(-90 78 49)\"/>\n<g stroke=\"#B8BBC2\" stroke-opacity=\".40\" stroke-linecap=\"round\" stroke-width=\"1.5\"><path d=\"M78 18v4M78 76v4M47 49h4M105 49h4\"/></g>\n<g class=\"clock-hand\" stroke=\"#D9DCE1\" stroke-linecap=\"round\" stroke-width=\"3.5\"><path d=\"M78 49V27\"/><path d=\"M78 49 94 60\" stroke-opacity=\".74\"/></g><circle cx=\"78\" cy=\"49\" r=\"4\" fill=\"#C7CBD2\"/><circle cx=\"78\" cy=\"49\" r=\"1.5\" fill=\"#34363B\"/></svg>"};
 function Home({onHomeSettings,onNavigate,agent}){
- return el("div",{className:"panel"},h(Header,{title:"otto",context:agent.unread?"Answer ready":"",onSettings:onHomeSettings}),
- el("div",{className:"home-panels"},[
-  ["agent","Terminal","Agent",agent.unread?"Answer ready":"Ask your CLI"],
-  ["music","Music2","Music","Playback"],
-  ["focus","Timer","Focus","Pomodoro"]].map(([page,ic,name,sub])=>
-    el("button",{key:page,className:"module "+page,onClick:()=>onNavigate(page)},
-      el("span",{className:"module-art"},h(Icon,{name:ic})),
-      el("strong",null,name),el("small",null,sub)))));
+ const cards=[["agent","Agent",agent.unread?"Answer ready":"Ask your CLI"],["music","Music","Playback"],["focus","Focus","Pomodoro"]];
+ const head=el("div",{className:"hf-head"},el("span",{className:"hf-eyes"},el("i"),el("i")),el("strong",null,"Otto"),el("span",{style:{flex:1}}),h(IconButton,{name:"Settings2",label:"Global settings",onClick:onHomeSettings}));
+ const items=cards.map(([page,title,sub])=>el("button",{key:page,type:"button",className:"module "+page+"-card",onClick:()=>onNavigate(page)},
+    el("span",{className:"hf-copy"},el("strong",null,title),el("small",null,sub)),
+    el("span",{className:"module-art",dangerouslySetInnerHTML:{__html:HOME_ART[page]}})));
+ return el("div",{className:"panel hf"},head,el("div",{className:"home-panels"},items));
 }
-function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onHome,onCapture}){
- const feed=useRef(null);
- useEffect(()=>{if(feed.current)feed.current.scrollTop=feed.current.scrollHeight},[agent.messages,agent.busy]);
- const submit=(e)=>{e.preventDefault();if(agent.busy)onStop();else if(draft.trim()){onSend(draft.trim());onDraft("")}};
- return el("div",{className:"panel"},
-  h(Header,{title:agent.provider,context:agent.cwd+" · "+agent.mode,onSettings,onHome}),
-  el("div",{className:"agent-feed",ref:feed,"aria-live":"polite"},agent.messages.length===0?
-    el("div",{className:"agent-empty"},h(Icon,{name:"MessageSquare",size:25}),el("div",null,"Ask your CLI without leaving your desktop"),el("span",{className:"small"},"Simulated provider session")):
-    agent.messages.map((m,i)=>el("div",{key:i,className:m.role==="user"?"bubble":"reply"+(agent.busy&&i===agent.messages.length-1?" pending":"")},m.text))),
-  agent.warning?el("div",{className:"status-banner warning",role:"status"},agent.warning):null,
-  el("form",{className:"compose",onSubmit:submit},h(IconButton,{name:"Camera",label:"Screen capture settings",onClick:onCapture}),
-    el("input",{value:draft,onChange:e=>onDraft(e.target.value),placeholder:"Ask about your work...",id:"agent-prompt","aria-label":"Ask "+agent.provider}),
-    el("button",{type:"submit",className:"primary",disabled:!agent.busy&&!draft.trim(),"aria-label":agent.busy?"Stop request":"Send question"},h(Icon,{name:agent.busy?"Square":"Send",size:15}))));
+
+function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onHome,onCapture,onApprove,onDeny,onRetry}){
+ const feedRef=useRef(null);
+ useEffect(()=>{if(feedRef.current)feedRef.current.scrollTop=feedRef.current.scrollHeight},[agent.messages,agent.busy,agent.phase]);
+ const phase=agent.phase||"ready";
+ const state=phase==="approval"?"Approval needed":phase==="error"?"Disconnected":agent.busy?"Responding":phase==="complete"?"Answer ready":"Ready";
+ const head=el("div",{className:"af-head"},
+  el("button",{type:"button",className:"af-eyebutton",onClick:onHome,"aria-label":"Home"},el("i"),el("i")),
+  el("div",{className:"af-identity"},el("strong",null,agent.provider,el("em",null," / "+agent.cwd.split("/").pop())),el("small",null,agent.mode+" · Local CLI preview")),
+  el("span",{className:"af-state"},el("i",{className:phase==="error"?"bad":phase==="approval"?"warn":""}),state),
+  h(IconButton,{name:"Settings2",label:"Agent settings",onClick:onSettings}));
+ const feed=el("div",{className:"af-feed",ref:feedRef,"aria-live":"polite"},el("div",{className:"af-feedstack"},
+   agent.messages.length===0&&phase==="ready"?el("div",{className:"af-empty"},"Ask "+agent.provider+" about your current task"):null,
+   agent.messages.map((m,i)=>el("div",{key:i,className:m.role==="user"?"af-question":"af-response"},m.text||"Reading context…")),
+   phase==="approval"?el("div",{className:"af-approval"},
+     el("strong",null,h(Icon,{name:"AlertCircle",size:15})," Approval required"),
+     el("p",null,agent.provider+" requests permission to modify a project file."),
+     el("code",null,"Write · src/agent/session.ts"),
+     el("div",{className:"af-approvalbuttons"},el("button",{onClick:onApprove},"Allow once"),el("button",{onClick:onDeny},"Deny"))):null,
+   phase==="error"?el("div",{className:"af-error"},el("strong",null,"Cannot reach "+agent.provider),el("p",null,"Simulated provider error. Draft preserved."),el("button",{onClick:onRetry},"Retry")):null,
+   agent.warning?el("div",{className:"af-warning"},agent.warning):null
+ ));
+ const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(draft.trim()){onSend(draft.trim());onDraft("")}};
+ const composer=el("div",{className:"af-composewrap"},el("form",{className:"af-composer",onSubmit:send},
+  h(IconButton,{name:"Camera",label:"Capture settings",onClick:onCapture}),
+  el("textarea",{rows:1,value:draft,placeholder:"Ask "+agent.provider+"…",onChange:e=>onDraft(e.target.value),"aria-label":"Agent prompt"}),
+  el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:phase==="approval"||(!agent.busy&&!draft.trim()),"aria-label":agent.busy?"Stop":"Send"},
+   h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16}))));
+ return el("div",{className:"af"},head,feed,composer);
 }
+
 function AgentSettings({agent,setAgent,onBack}){
- return el("div",{className:"panel"},h(Header,{title:"Agent settings",context:"Provider and permissions",onBack}),
-  el("div",{className:"setting-body"},
-   el("label",{className:"setting-line"},"CLI provider",el("select",{value:agent.provider,onChange:e=>setAgent(a=>({...a,provider:e.target.value,warning:e.target.value==="Codex"?"":"Provider adapter not connected in prototype"}))},["Codex","Agy","Pi","OpenCode"].map(x=>el("option",{key:x},x)))),
-   el("div",{className:"setting-line"},"Interaction mode",el("div",{className:"choice"},["Quick Ask","Agent Session"].map(m=>el("button",{key:m,type:"button",className:agent.mode===m?"selected":"",onClick:()=>setAgent(a=>({...a,mode:m}))},m==="Quick Ask"?"Quick Ask":"Session")))),
-   el("label",{className:"setting-line"},"Working project",el("input",{value:agent.cwd,onChange:e=>setAgent(a=>({...a,cwd:e.target.value}))})),
-   el("div",{className:"setting-line"},"Capture source",el("span",null,"Last active window")),
-   el("p",{className:"muted small"},"Native authentication, capture permissions and approvals are not connected in this design study."),
-   el("div",{style:{marginTop:10}},h(Primary,{name:"Check",onClick:onBack},"Done"))));
+ const head=el("div",{className:"af-head"},h(IconButton,{name:"ArrowLeft",label:"Back",onClick:onBack}),el("div",{className:"af-identity"},el("strong",null,"Agent settings"),el("small",null,"Local configuration preview")));
+ const providers=el("div",{className:"af-providergrid"},["Codex","Agy","Pi","OpenCode"].map(p=>el("button",{key:p,className:"af-provider"+(agent.provider===p?" selected":""),onClick:()=>setAgent(a=>({...a,provider:p,phase:p==="Codex"?"ready":"error",warning:p==="Codex"?"":"Adapter unavailable in prototype"}))},p,el("small",null,p==="Codex"?"Demo":"Offline"))));
+ const modes=["Quick Ask","Agent Session"].map(p=>el("button",{key:p,className:"af-mode"+(agent.mode===p?" selected":""),onClick:()=>setAgent(a=>({...a,mode:p}))},el("span",{className:"af-radio"}),el("span",null,el("strong",null,p),el("small",null,p==="Quick Ask"?"One question, quick response":"Continue in a CLI session"))));
+ const body=el("div",{className:"af-settings"},el("p",{className:"muted small"},"Choose what Otto uses when you send a request."),el("p",{className:"af-sectiontitle"},"Provider"),providers,el("hr"),el("p",{className:"af-sectiontitle"},"Interaction mode"),...modes,el("hr"),el("p",{className:"af-sectiontitle"},"Working project"),el("input",{className:"af-project",value:agent.cwd,onChange:e=>setAgent(a=>({...a,cwd:e.target.value}))}),el("p",{className:"muted small"},"CLI authentication and permissions are simulated."),el("div",{className:"af-done"},h(Primary,{name:"Check",onClick:onBack},"Done")));
+ return el("div",{className:"af"},head,body);
 }
 function Album(){return el("div",{className:"album"},h(Icon,{name:"Disc3",size:42}))}
 function MusicPanel({music,setMusic,onHome}){
@@ -324,7 +417,7 @@ function App(){
  const [drawer,setDrawer]=useState(null);
  const [tab,setTab]=useState("General");
  const [prefs,setPrefs]=useState({expression:"Calm",reactive:"Quiet",hover:"On",motion:"Fluid",placement:"Floating"});
- const [agent,setAgent]=useState({provider:"Codex",cwd:"~/projects/otto",mode:"Quick Ask",messages:[],busy:false,warning:"",unread:false});
+ const [agent,setAgent]=useState({provider:"Codex",cwd:"~/projects/otto",mode:"Quick Ask",messages:[],busy:false,warning:"",unread:false,phase:"ready"});
  const [agentDraft,setAgentDraft]=useState("");
  const [music,setMusic]=useState({track:0,position:71,playing:true,lyrics:false,line:2});
  const [timer,setTimer]=useState({phase:"focus",remaining:1500,running:false,deadline:null,duration:{...durations}});
@@ -340,24 +433,24 @@ function App(){
  useEffect(()=>{if(!timer.running)return;const handle=setInterval(()=>setTimer(t=>{if(!t.running||!t.deadline)return t;const remaining=Math.max(0,Math.ceil((t.deadline-Date.now())/1000));return remaining===0?{...t,remaining:0,running:false,deadline:null}:{...t,remaining}}),250);return()=>clearInterval(handle)},[timer.running]);
  useEffect(()=>{if(!music.playing)return;const handle=setInterval(()=>setMusic(m=>{const pos=m.position+1;return pos>=tracks[m.track].duration?{...m,playing:false,position:tracks[m.track].duration}:{...m,position:pos}}),1000);return()=>clearInterval(handle)},[music.playing]);
  useEffect(()=>()=>{clearInterval(agentRun.current);clearTimeout(completion.current);clearTimeout(pointerEnter.current);clearTimeout(pointerLeave.current)},[]);
- const stopAgent=()=>{clearInterval(agentRun.current);setAgent(a=>({...a,busy:false,warning:"Request stopped"}))};
+ const stopAgent=()=>{clearInterval(agentRun.current);setAgent(a=>({...a,busy:false,phase:"stopped",warning:"Request stopped"}))};
  const sendAgent=text=>{if(agent.provider!=="Codex"){setAgent(a=>({...a,warning:"Provider adapter unavailable in this prototype"}));return}
  clearInterval(agentRun.current);
- setAgent(a=>({...a,busy:true,warning:"",messages:[...a.messages,{role:"user",text},{role:"assistant",text:""}]}));
+ setAgent(a=>({...a,busy:true,phase:"thinking",warning:"",messages:[...a.messages,{role:"user",text},{role:"assistant",text:""}]}));
  const chunks=["This is a simulated response from Otto's unified design study. ","The real CLI adapter would stream output into this same surface. ","Collapse and reopening preserve the current conversation."];
  let index=0;
- agentRun.current=setInterval(()=>{if(index===chunks.length){clearInterval(agentRun.current);setAgent(a=>({...a,busy:false,unread:currentPage.current!=="agent"}));return}
- const chunk=chunks[index++];setAgent(a=>({...a,messages:a.messages.map((m,i)=>i===a.messages.length-1?{...m,text:m.text+chunk}:m)}))},560);
+ agentRun.current=setInterval(()=>{if(index===chunks.length){clearInterval(agentRun.current);setAgent(a=>({...a,busy:false,phase:"complete",unread:currentPage.current!=="agent"}));return}
+ const chunk=chunks[index++];setAgent(a=>({...a,phase:"streaming",messages:a.messages.map((m,i)=>i===a.messages.length-1?{...m,text:m.text+chunk}:m)}))},560);
  };
  const onEvent=name=>{clearTimeout(completion.current);setEvent(name);completion.current=setTimeout(()=>setEvent(null),2200)};
- const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,290]:drawer==="agent"?[526,315]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,agent.messages.length?300:220]:page==="music"?[444,music.lyrics?212:178]:[408,174];
+ const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,agent.phase==="approval"?336:agent.phase==="error"?270:agent.busy?346:agent.messages.length?346:170]:page==="music"?[444,music.lyrics?212:178]:[408,174];
  const shape=event?"event":presentation==="compact"?"compact":"expanded";
  const shellKey=event?"event-"+event:shape==="compact"?page+"-compact":drawer||page+(music.lyrics?"-lyrics":"");
  const enter=()=>{clearTimeout(pointerLeave.current);if(event||presentation!=="compact"||prefs.hover==="Off")return;clearTimeout(pointerEnter.current);pointerEnter.current=setTimeout(()=>{pinnedUntil.current=Date.now()+470;setPresentation("preview")},150)};
  const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(340,pinnedUntil.current-Date.now()+140))}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer}):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null)}):drawer==="agent"?h(AgentSettings,{agent,setAgent,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>setDrawer("global"),onNavigate:navigate,agent}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onSettings:()=>setDrawer("agent"),onCapture:()=>setDrawer("agent"),onHome:()=>navigate("home")}):page==="music"?h(MusicPanel,{music,setMusic,onHome:()=>navigate("home")}):h(FocusPanel,{timer,setTimer,onToggle:toggleTimer,onReset:resetTimer,onSettings:()=>setDrawer("focus"),onHome:()=>navigate("home")});
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer}):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null)}):drawer==="agent"?h(AgentSettings,{agent,setAgent,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>setDrawer("global"),onNavigate:navigate,agent}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>setDrawer("agent"),onCapture:()=>setDrawer("agent"),onHome:()=>navigate("home")}):page==="music"?h(MusicPanel,{music,setMusic,onHome:()=>navigate("home")}):h(FocusPanel,{timer,setTimer,onToggle:toggleTimer,onReset:resetTimer,onSettings:()=>setDrawer("focus"),onHome:()=>navigate("home")});
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
  const eventNav=[["volume","Volume2","Volume"],["wifi","Wifi","Wi-Fi"],["bluetooth","Bluetooth","Bluetooth"],["brightness","Sun","Brightness"],["battery","BatteryCharging","Battery"],["headphones","Headphones","Headset"]];
  return el("div",{className:"lab"+(reduce?" motion-reduced":"")},
