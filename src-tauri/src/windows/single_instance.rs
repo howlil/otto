@@ -11,7 +11,8 @@ pub fn acquire() -> io::Result<Option<InstanceGuard>> {
 }
 
 fn acquire_named(name: &str) -> io::Result<Option<InstanceGuard>> {
-    let wide_name = name.encode_utf16().chain(std::iter::once(0)).collect::<Vec<_>>();
+    let mut wide_name = name.encode_utf16().collect::<Vec<_>>();
+    wide_name.push(0);
     let handle = unsafe { CreateMutexW(std::ptr::null(), 0, wide_name.as_ptr()) };
     let error = unsafe { GetLastError() };
 
@@ -60,16 +61,16 @@ mod tests {
                 let acquired = Arc::clone(&acquired);
                 thread::spawn(move || {
                     start.wait();
-                    let guard = acquire_named(&name).unwrap();
+                    let guard = acquire_named(&name);
                     acquired.wait();
-                    guard.is_some()
+                    guard.map(|guard| guard.is_some())
                 })
             })
             .collect::<Vec<_>>();
 
         let owners = threads
             .into_iter()
-            .map(|thread| thread.join().unwrap())
+            .map(|thread| thread.join().unwrap().expect("mutex acquisition should succeed"))
             .filter(|owns| *owns)
             .count();
         assert_eq!(owners, 1);
