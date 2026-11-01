@@ -3,6 +3,7 @@ import { useCaptureSource } from "./useCaptureSource";
 import { clearAcceptedDraft, restoreRejectedDraft, type SubmittedDraft } from "./draft-state";
 import {
   askAgent,
+  captureAgentNow,
   getAgentReadiness,
   getCaptureTargetTitle,
   selectAgentProvider,
@@ -485,6 +486,7 @@ export function useAgent() {
     installed,
     readiness,
     capture,
+    captureNow: captureAgentNow,
     draft,
     setDraft: editDraft,
     cwd,

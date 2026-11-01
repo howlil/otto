@@ -42,6 +42,7 @@ export type CaptureShortcutModel = {
 
 export type AgentPanelModel = AgentTranscriptModel & {
   capture: CaptureShortcutModel;
+  captureNow: () => Promise<void>;
   cwd: string;
   setCwd: (cwd: string) => void;
   mode: AgentMode;

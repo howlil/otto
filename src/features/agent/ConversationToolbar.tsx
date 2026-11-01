@@ -47,7 +47,6 @@ export function ConversationToolbar({
         <fieldset
           id="otto-conversation-menu"
           ref={menu}
-          aria-label="Conversation actions"
           className="absolute right-[42px] top-[49px] z-20 flex w-[184px] flex-col gap-1 rounded-otto-card border border-otto-line-hover bg-otto-control-deep p-2"
           onKeyDown={(event) => {
             if (event.key === "Escape") {
@@ -57,6 +56,7 @@ export function ConversationToolbar({
             }
           }}
         >
+          <legend className="sr-only">Conversation actions</legend>
           <button
             type="button"
             className="rounded-otto-control px-2 py-2 text-left text-otto-sm text-otto-text hover:bg-otto-selected-hover"

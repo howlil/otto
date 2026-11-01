@@ -54,10 +54,10 @@ export function AgentComposer({
       {runtimeOpen && (
         <section
           className="absolute bottom-[calc(100%+2px)] left-3 right-3 z-20 max-h-[240px] overflow-y-auto rounded-[15px] border border-otto-line-hover bg-otto-control-deep p-3 text-otto-text [scrollbar-width:none]"
-          aria-label="Model and context usage"
+          aria-labelledby="otto-model-context-heading"
         >
           <div className="flex items-center justify-between gap-2">
-            <strong className="text-otto-md">Model &amp; context</strong>
+            <strong id="otto-model-context-heading" className="text-otto-md">Model &amp; context</strong>
             <button
               type="button"
               className="rounded-otto-control px-2 py-1 text-otto-xs text-otto-text-secondary hover:bg-otto-control-hover"
@@ -129,7 +129,6 @@ export function AgentComposer({
             ref={runtimeButton}
             type="button"
             aria-expanded={runtimeOpen}
-            aria-label="Model, thinking and context usage"
             className="min-w-0 rounded-otto-control px-1.5 py-1 text-otto-xs text-otto-text-tertiary hover:bg-otto-selected-hover hover:text-otto-text"
             onClick={() => setRuntimeOpen((open) => !open)}
           >

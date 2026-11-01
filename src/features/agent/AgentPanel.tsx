@@ -3,7 +3,6 @@ import { AgentSettings } from "./AgentSettings";
 import { AgentHeader } from "./AgentHeader";
 import { AgentTranscript } from "./AgentTranscript";
 import type { AgentPanelModel } from "./view-model";
-import { captureAgentNow } from "../../platform/tauri";
 
 type Props = {
   agent: AgentPanelModel;
@@ -117,7 +116,7 @@ export function AgentPanel({
           setActionsOpen={setActionsOpen}
           onCapture={() => {
             setCaptureActionError(null);
-            void captureAgentNow().catch((error: unknown) =>
+            void agent.captureNow().catch((error: unknown) =>
               setCaptureActionError(
                 typeof error === "string"
                   ? error
