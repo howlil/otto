@@ -104,16 +104,17 @@ function useProviderReadiness(
       message: "Could not check provider readiness.",
       recovery: "Retry the connection.",
     };
-    const probe = new ReadinessProbeController(
-      ({ cwd, provider, model }, requestId) =>
+    const probe = new ReadinessProbeController({
+      read: ({ cwd, provider, model }, requestId) =>
         nativeAvailable
           ? getAgentReadiness(provider, requestId, cwd || undefined, model)
           : Promise.resolve(unavailable),
-      (requestId) => nativeAvailable ? cancelAgentReadiness(requestId) : Promise.resolve(),
-      setReadiness,
+      cancel: (requestId) =>
+        nativeAvailable ? cancelAgentReadiness(requestId) : Promise.resolve(),
+      publish: setReadiness,
       checking,
       failed,
-    );
+    });
     controller.current = probe;
     return () => {
       probe.dispose();

@@ -10,6 +10,15 @@ type ReadProbe = (selection: ReadinessSelection, requestId: number) => Promise<P
 type CancelProbe = (requestId: number) => Promise<void>;
 type Scheduler = (run: () => void, delay: number) => () => void;
 type Cache = { selection: ReadinessSelection; result: ProviderReadiness; expiresAt: number };
+type ReadinessProbeDependencies = {
+  read: ReadProbe;
+  cancel: CancelProbe;
+  publish: (result: ProviderReadiness) => void;
+  checking: ProviderReadiness;
+  failed: ProviderReadiness;
+  schedule?: Scheduler;
+  now?: () => number;
+};
 
 let lastRequestId = 0;
 const nextRequestId = () => {
@@ -43,22 +52,14 @@ export class ReadinessProbeController {
   private readonly schedule: Scheduler;
   private readonly now: () => number;
 
-  constructor(
-    read: ReadProbe,
-    cancel: CancelProbe,
-    publish: (result: ProviderReadiness) => void,
-    checking: ProviderReadiness,
-    failed: ProviderReadiness,
-    schedule: Scheduler = defaultScheduler,
-    now: () => number = Date.now,
-  ) {
-    this.read = read;
-    this.cancel = cancel;
-    this.publish = publish;
-    this.checking = checking;
-    this.failed = failed;
-    this.schedule = schedule;
-    this.now = now;
+  constructor(deps: ReadinessProbeDependencies) {
+    this.read = deps.read;
+    this.cancel = deps.cancel;
+    this.publish = deps.publish;
+    this.checking = deps.checking;
+    this.failed = deps.failed;
+    this.schedule = deps.schedule ?? defaultScheduler;
+    this.now = deps.now ?? Date.now;
   }
 
   update(next: ReadinessSelection | null): void {

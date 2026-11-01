@@ -18,17 +18,17 @@ function harness(read = async () => ready) {
       task.cancelled = true;
     };
   };
-  const controller = new ReadinessProbeController(
+  const controller = new ReadinessProbeController({
     read,
-    async (id) => {
+    cancel: async (id) => {
       cancelled.push(id);
     },
-    (status) => statuses.push(status),
+    publish: (status) => statuses.push(status),
     checking,
     failed,
     schedule,
-    () => clock,
-  );
+    now: () => clock,
+  });
   const flush = () => {
     for (const task of tasks.splice(0)) {
       if (!task.cancelled) task.run();

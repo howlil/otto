@@ -24,8 +24,7 @@ function agentHomeSubtitle(
   if (snapshot.capture.phase !== "idle") return capturePhaseLabel(snapshot.capture.phase);
   if (error) return "Connection issue";
   if (snapshot.status !== "idle") return agentStatusLabel(snapshot.status, readiness.status);
-  if (readiness.status === "checking")
-    return "Open Agent to check";
+  if (readiness.status === "checking") return "Open Agent to check";
   if (readiness.status !== "ready") return "Setup required";
   return snapshot.messages.length > 0 ? "Continue session" : "Ask your CLI";
 }
