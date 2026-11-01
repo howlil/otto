@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: X10 minimal interrupted-session recovery marker.
+# Verification dispatch: B4 single-flight native hotkey gate regression.
 
 'on':
   push:

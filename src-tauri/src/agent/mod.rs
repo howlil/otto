@@ -66,6 +66,26 @@ pub struct Snapshot {
     pub error: Option<String>,
 }
 
+#[cfg(windows)]
+struct CaptureReservation<'a>(&'a AtomicBool);
+
+#[cfg(windows)]
+impl<'a> CaptureReservation<'a> {
+    fn acquire(in_flight: &'a AtomicBool) -> Result<Self, String> {
+        in_flight
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| "Screen capture is already in progress.".to_string())?;
+        Ok(Self(in_flight))
+    }
+}
+
+#[cfg(windows)]
+impl Drop for CaptureReservation<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
 pub struct CapturedImage(PathBuf);
 
 impl CapturedImage {
@@ -108,6 +128,8 @@ pub struct AgentRuntime {
     subscriptions: StdMutex<Option<(u64, oneshot::Sender<()>)>>,
     next_subscription_id: AtomicU64,
     recovery: Option<recovery::RecoveryMarker>,
+    #[cfg(windows)]
+    capture_in_flight: AtomicBool,
 }
 
 impl AgentRuntime {
@@ -147,6 +169,8 @@ impl AgentRuntime {
             subscriptions: StdMutex::new(None),
             next_subscription_id: AtomicU64::new(0),
             recovery,
+            #[cfg(windows)]
+            capture_in_flight: AtomicBool::new(false),
         }
     }
 
@@ -250,6 +274,7 @@ impl AgentRuntime {
     where
         F: FnOnce() -> Result<CapturedImage, String> + Send + 'static,
     {
+        let _reservation = CaptureReservation::acquire(&self.capture_in_flight)?;
         let state = self.snapshot();
         if matches!(
             state.status.as_str(),
@@ -561,6 +586,18 @@ pub(crate) fn fail(updates: &watch::Sender<Snapshot>, run_id: u64, message: &str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn capture_reservation_rejects_overlap_and_releases_on_drop() {
+        let in_flight = AtomicBool::new(false);
+        let first = CaptureReservation::acquire(&in_flight).expect("first trigger accepted");
+        assert!(CaptureReservation::acquire(&in_flight).is_err());
+        drop(first);
+        let again = CaptureReservation::acquire(&in_flight).expect("retry accepted");
+        drop(again);
+        assert!(!in_flight.load(Ordering::Acquire));
+    }
 
     #[test]
     fn old_run_cannot_replace_new_terminal_state() {
