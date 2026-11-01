@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  Button,
   IconButton,
   Range,
   SegmentedControl,
@@ -8,7 +7,7 @@ import {
   Toggle,
   TransitionContent,
 } from "../../shared/ui";
-import { type Preferences, type SettingsTab } from "./preferences";
+import type { Preferences, SettingsTab } from "./preferences";
 import { PlacementSettings } from "./PlacementSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import type { AppUpdateState } from "./useAppUpdate";
