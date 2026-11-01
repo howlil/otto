@@ -98,7 +98,6 @@ export function AgentPanel({
           busy={busy}
           error={agent.error}
           onNewSession={() => void newSession()}
-          onBack={onBack}
           onDone={onSettingsBack}
         />
       ) : (
