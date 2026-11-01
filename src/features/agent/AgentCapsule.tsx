@@ -29,7 +29,7 @@ export function AgentCapsule({
       type="button"
       onClick={onOpen}
     >
-      <span className="grid h-[31px] w-[31px] shrink-0 place-items-center rounded-full bg-otto-control-deep text-otto-text-bright">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-otto-compact-icon text-otto-text-bright">
         <Icon name="terminal" size={16} />
       </span>
       <span className="min-w-0 flex-1">
