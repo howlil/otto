@@ -28,3 +28,21 @@ Project contracts: `.agents/product.md`, `.agents/engineering.md`, `.agents/DESI
 For desktop acceptance, select Actions > Otto CI > Run workflow, select the branch and suite=full. This builds a debug Otto.exe and runs P8 streaming/Home/reopen/background completion through a deterministic Codex CLI fixture, without AI authentication or paid API calls. Select suite=fast to skip native E2E. The separate release workflow keeps its versioned publishing behavior.
 
 Windows E2E is unverified until a matching GitHub Actions run passes. Existing P8 proof does not claim coverage of P3 Stop, P9 approvals, P11 readiness, native capture or P12 restart.
+
+## Native E2E — P8 background continuity
+
+A dependency-free WebDriver harness exercises **Otto.exe → Tauri IPC → Rust Codex adapter → subprocess fixture**, including streaming, navigating Home, reopening the same run, and completion in the background. No AI login or network model call is used.
+
+**GitHub Actions is the primary test runner.** Open the **Otto CI** workflow in GitHub Actions, choose **Run workflow** and select the E2E branch (or the HEAD you want to verify). The single `windows-latest` job executes frontend checks, fixture contract tests, Rustfmt/check/test/Clippy, builds the Tauri debug executable, matches Edge WebDriver to WebView2, and runs the native P8 test. No local Windows setup, AI credentials, release packaging or hosted AI calls are required. The workflow only runs when explicitly dispatched, so pushing commits does not trigger it.
+
+For optional local debugging on Windows 11, install Node.js 22+, `tauri-driver` (`cargo install tauri-driver --version 2.0.6 --locked`), and `msedgedriver.exe` matching the Edge WebView2 runtime. Put both drivers on PATH. Use an isolated Windows test account and close any existing Otto instance before the run.
+
+```powershell
+bun install --frozen-lockfile
+bun run tauri build --debug --no-bundle
+bun run test:e2e:native
+```
+
+`OTTO_E2E_APP` may point to an alternative compiled Otto executable; `OTTO_E2E_PORT` defaults to 4540. The fixture injects `codex.cmd` only into the spawned test driver PATH; it does not modify CLI authentication or production settings. Run `bun run test:frontend:critical` for the fast fixture protocol contract (no Windows desktop needed).
+
+Native P8 proof is **not verified** until the exact branch SHA passes the GitHub Actions Windows job. Do not treat a passing fixture unit test as desktop E2E proof.
