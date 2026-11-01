@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: Pi B3 post-format and Clippy verification at f5de269d.
+# Verification dispatch: Pi B3 provider reconnect and rustfmt fixes at 9a091c2f.
 
 'on':
   push:
