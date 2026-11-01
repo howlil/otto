@@ -82,7 +82,7 @@ function ShellContent({
           aria-expanded={expanded}
           onClick={() => (expanded ? shell.collapse() : shell.open("home"))}
         >
-          <Eyes expression={shell.prefs.expression} reactive={shell.prefs.reactive} />
+          <Eyes expression={shell.prefs.expression} reactive={shell.prefs.reactive} compact={!expanded} />
           <VisuallyHidden>{expanded ? "Collapse Otto" : "Open Otto"}</VisuallyHidden>
         </button>
       )}
