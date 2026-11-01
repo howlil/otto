@@ -32,7 +32,7 @@ async function subscribeToAgentEvents(
     });
     return { subscription: channel, error: null };
   } catch {
-    return { subscription: null, error: "Cannot listen to Codex events." };
+    return { subscription: null, error: "Cannot listen to agent events." };
   }
 }
 
@@ -61,7 +61,7 @@ const initial: AgentSnapshot = {
 
 const checking: ProviderReadiness = {
   status: "checking",
-  message: "Checking Codex…",
+  message: "Checking provider…",
   recovery: "",
   imageInput: false,
 };
@@ -78,7 +78,7 @@ function useProviderReadiness(cwd: string, provider: AgentProvider) {
     if (!nativeAvailable) {
       setReadiness({
         status: "unavailable",
-        message: "Codex readiness requires the Otto desktop app.",
+        message: "Provider readiness requires the Otto desktop app.",
         recovery: "Open Otto on Windows.",
         imageInput: false,
       });
@@ -91,7 +91,7 @@ function useProviderReadiness(cwd: string, provider: AgentProvider) {
       if (probeRef.current === probe) {
         setReadiness({
           status: "unavailable",
-          message: "Could not check Codex readiness.",
+          message: "Could not check provider readiness.",
           recovery: "Retry the connection.",
           imageInput: false,
         });
