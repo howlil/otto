@@ -642,15 +642,6 @@ pub(crate) fn mutate(updates: &watch::Sender<Snapshot>, action: impl FnOnce(&mut
     });
 }
 
-pub(crate) fn fail(updates: &watch::Sender<Snapshot>, run_id: u64, message: &str) {
-    mutate(updates, |s| {
-        if s.run_id == run_id && s.status != "stopped" && s.status != "completed" {
-            s.status = "failed".into();
-            s.error = Some(message.to_owned());
-        }
-    });
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -691,7 +682,7 @@ mod tests {
             approval: None,
             error: None,
         });
-        fail(&tx, 1, "late failure");
+        events::ProviderEvents::new(tx.clone()).fail(1, "late failure");
         assert_eq!(tx.borrow().status, "completed");
         assert_eq!(tx.borrow().error, None);
     }
