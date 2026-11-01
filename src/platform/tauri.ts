@@ -102,6 +102,10 @@ export type NotchSurface =
 
 export const nativeAvailable = isTauri();
 
+export async function getOverlayProtectionStatus(): Promise<boolean> {
+  return invoke<boolean>("overlay_protection_status");
+}
+
 export async function getAgentSnapshot(): Promise<AgentSnapshot> {
   return invoke<AgentSnapshot>("agent_snapshot");
 }
