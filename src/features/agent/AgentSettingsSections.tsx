@@ -56,11 +56,7 @@ export function ProviderSettings({
               name={name}
               mark={mark}
               tone={tone}
-              status={
-                selected
-                  ? providerStatus
-                  : "Select"
-              }
+              status={selected ? providerStatus : "Select"}
               selected={selected}
               onSelect={
                 !locked
