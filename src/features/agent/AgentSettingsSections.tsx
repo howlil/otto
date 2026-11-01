@@ -121,7 +121,7 @@ export function ModeSettings({
         className="mt-2.5 block border border-otto-line-mid rounded-otto-chip bg-otto-field-deep p-[9px_10px] text-otto-text-tertiary [&>div>p]:m-0 [&>div>p]:mt-0.5"
         title="Execution scope"
       >
-        Quick Ask uses a read-only Codex sandbox or tool-free Pi/Agy sessions. Agent Session is
+        Quick Ask uses a read-only Codex sandbox or tool-free Pi/Agy sessions. Pi also accepts screenshots with a vision model. Agent Session is
         currently Codex-only.
       </StatusMessage>
     </section>
