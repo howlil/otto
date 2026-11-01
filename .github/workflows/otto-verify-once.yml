@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B4 correct WinEvent constants and native checks.
+# Verification dispatch: B4 final native WinEvent import formatting.
 
 'on':
   push:

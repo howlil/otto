@@ -24,9 +24,9 @@ use windows_sys::Win32::{
             MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, RegisterHotKey, UnregisterHotKey,
         },
         WindowsAndMessaging::{
-            GetForegroundWindow, GetMessageW, GetWindowRect, GetWindowTextLengthW,
-            EVENT_SYSTEM_FOREGROUND, GetWindowThreadProcessId, IsIconic, IsWindow,
-            IsWindowVisible, MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW, WINEVENT_OUTOFCONTEXT,
+            EVENT_SYSTEM_FOREGROUND, GetForegroundWindow, GetMessageW, GetWindowRect,
+            GetWindowTextLengthW, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible,
+            MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW, WINEVENT_OUTOFCONTEXT,
             WINEVENT_SKIPOWNPROCESS, WM_APP, WM_HOTKEY,
         },
     },
