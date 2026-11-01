@@ -280,6 +280,51 @@ button{touch-action:manipulation}
 .af-capture-controls button{background:#26272c;border:1px solid #484951;color:#ddd;border-radius:8px;padding:7px 9px;font-size:10px}
 .af-capture-controls button.selected{background:#55565e;color:#fff;border-color:#81828d}
 
+
+/* Agent conversation controls stay inside the approved 526px silhouette. */
+.af{position:relative}
+.af-more{position:relative;flex:none}
+.af-menu{position:absolute;z-index:16;right:15px;top:48px;width:184px;border:1px solid #414147;border-radius:12px;background:#252528;padding:5px;box-shadow:0 14px 28px #0006}
+.af-menu button{width:100%;display:flex;align-items:center;gap:10px;background:transparent;border:0;color:#e2e2e6;font-size:11px;text-align:left;padding:9px;border-radius:8px}
+.af-menu button:hover,.af-menu button:focus-visible{background:#393a40}
+.af-menu button:disabled{opacity:.4;cursor:default}
+.af-menu .af-menu-note{display:block;font-size:9px;color:#a5a6ad;padding:7px 9px 5px;line-height:1.45;border-top:1px solid #3e3e43}
+.af-search{display:flex;align-items:center;gap:6px;padding:5px 12px;border-bottom:1px solid #2f3034;flex:none}
+.af-search input{min-width:0;flex:1;height:28px;color:#f0f0f2;background:#26262a;border:1px solid #404047;border-radius:8px;font-size:11px;padding:0 9px;outline:0}
+.af-search input:focus{border-color:#838591}
+.af-search span{color:#a3a5ac;font-size:10px;white-space:nowrap}
+.af-search button{width:25px;height:25px;display:grid;place-items:center;border:0;border-radius:7px;background:transparent;color:#d2d2d5;flex:none}
+.af-search button:hover:not(:disabled){background:#35353b}
+.af-search button:disabled{opacity:.35}
+.af-searchhit{outline:1px solid #747783;outline-offset:3px}
+.af-searchhit.active{outline-color:#d0d1d5}
+.af-msgtools{display:flex;gap:7px;align-items:center;margin-top:4px}
+.af-msgtools button{border:0;background:transparent;color:#9598a2;font-size:10px;padding:5px 4px;border-radius:6px;display:inline-flex;align-items:center;gap:5px}
+.af-msgtools button:hover{color:#f4f4f5;background:#303034}
+.af-rich{white-space:normal;overflow-wrap:anywhere}
+.af-rich p{margin:0 0 7px}
+.af-rich h2,.af-rich h3{font-size:12px;margin:8px 0 5px;font-weight:620}
+.af-rich ul,.af-rich ol{margin:4px 0 9px;padding-left:18px}
+.af-rich li{margin:3px 0}
+.af-rich blockquote{border-left:2px solid #666971;margin:5px 0;padding-left:9px;color:#b4b6bf}
+.af-rich code{font:11px/1.5 "Cascadia Code",Consolas,monospace;color:#dddfe5;background:#34353b;padding:1px 4px;border-radius:4px}
+.af-code{border:1px solid #3b3c43;border-radius:10px;background:#1b1c20;overflow:hidden;margin:8px 0 11px}
+.af-code-head{display:flex;align-items:center;justify-content:space-between;padding:5px 9px;color:#a5a7af;font-size:10px;background:#292a2f;border-bottom:1px solid #383942}
+.af-code-head button{display:flex;gap:5px;align-items:center;color:#dedfe2;border:0;background:transparent;font-size:10px;border-radius:5px;padding:3px 6px}
+.af-code-head button:hover{background:#3e3f46}
+.af-code pre{font:10px/1.55 "Cascadia Code",Consolas,monospace;padding:10px;margin:0;white-space:pre;overflow-x:auto}
+.af-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.af-presets button{border:1px solid #3e4047;border-radius:999px;background:#282a2f;color:#cfd0d5;padding:6px 10px;font-size:10px}
+.af-presets button:hover{background:#3a3b40;color:#fff}
+.af-feedback{font-size:10px;color:#b6bdc7;padding:0 12px 4px}
+.as-mode:disabled,.as-provider:disabled{opacity:.5;cursor:not-allowed}
+.as-available{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0 8px}
+.as-available span{font-size:9px;padding:5px 7px;background:#2c2d31;color:#cfd0d3;border-radius:999px}
+.as-available .unavailable{color:#a0a0a5;background:#242428}
+.as-newsession{display:flex;gap:8px;align-items:center;margin:8px 0 12px;border:1px solid #45454b;border-radius:9px;background:#2a2a2e;color:#eee;padding:9px 10px;font-size:10px}
+.as-newsession:hover{background:#35363b}
+@media(prefers-reduced-motion:reduce){.af-menu,.af-search,.af-rich{scroll-behavior:auto}}
+
 /* Canonical Global Settings: design/home.html panel layout and controls */
 .gs-root{width:100%;height:100%;background:#151515;border-radius:inherit;display:flex;flex-direction:column;overflow:hidden;color:#fafafa}
 .gs-head{height:51px;flex:none;border-bottom:1px solid #2b2c2f;display:flex;align-items:center;gap:10px;padding:0 15px}
@@ -577,9 +622,9 @@ button{touch-action:manipulation}
 <script type="module">
 import React,{createElement as h,useState,useEffect,useRef,useCallback} from "react";
 import {createRoot} from "react-dom/client";
-import {House,Terminal,Music2,Timer,Settings2,ArrowLeft,ChevronRight,ChevronDown,Play,Pause,SkipBack,SkipForward,Camera,Send,Square,Copy,Check,Wifi,Bluetooth,Volume2,Sun,BatteryCharging,Headphones,Mouse,Monitor,SlidersHorizontal,MessageSquare,RotateCcw,Plus,Minus,Music,Disc3,Focus,Command,CheckCircle2,AlertCircle,ArrowUpRight} from "lucide-react";
+import {House,Terminal,Music2,Timer,Settings2,ArrowLeft,ChevronRight,ChevronDown,Play,Pause,SkipBack,SkipForward,Camera,Send,Square,Copy,Check,Wifi,Bluetooth,Volume2,Sun,BatteryCharging,Headphones,Mouse,Monitor,SlidersHorizontal,MessageSquare,RotateCcw,Plus,Minus,Music,Disc3,Focus,Command,CheckCircle2,AlertCircle,ArrowUpRight,Search,MoreHorizontal,Download,Quote,LockKeyhole,X} from "lucide-react";
 
-const ICONS={House,Terminal,Music2,Timer,Settings2,ArrowLeft,ChevronRight,ChevronDown,Play,Pause,SkipBack,SkipForward,Camera,Send,Square,Copy,Check,Wifi,Bluetooth,Volume2,Sun,BatteryCharging,Headphones,Mouse,Monitor,SlidersHorizontal,MessageSquare,RotateCcw,Plus,Minus,Music,Disc3,Focus,Command,CheckCircle2,AlertCircle,ArrowUpRight};
+const ICONS={House,Terminal,Music2,Timer,Settings2,ArrowLeft,ChevronRight,ChevronDown,Play,Pause,SkipBack,SkipForward,Camera,Send,Square,Copy,Check,Wifi,Bluetooth,Volume2,Sun,BatteryCharging,Headphones,Mouse,Monitor,SlidersHorizontal,MessageSquare,RotateCcw,Plus,Minus,Music,Disc3,Focus,Command,CheckCircle2,AlertCircle,ArrowUpRight,Search,MoreHorizontal,Download,Quote,LockKeyhole,X};
 const el=(tag,props,...children)=>h(tag,props,...children);
 const Icon=({name,size=16,...rest})=>h(ICONS[name],{size,strokeWidth:1.7,"aria-hidden":true,...rest});
 const durations={focus:25,short:5,long:15};
@@ -629,92 +674,199 @@ function Home({onHomeSettings,onNavigate,agent,prefs,reduce}){
 }
 
 
+
+const AGENT_CAPABILITIES={
+ Codex:{tools:true,image:true,session:true,detail:"Text · image input · tool approvals"},
+ Pi:{tools:false,image:true,session:false,detail:"Text · image input · no tools"},
+ Agy:{tools:false,image:false,session:false,detail:"Text only · no tools"}
+};
+const AGENT_PRESETS=[
+ {label:"Explain",prompt:"Explain this concept with one concrete example: "},
+ {label:"Debug",prompt:"Help me debug this. Expected behavior: "},
+ {label:"Summarize",prompt:"Summarize the key points of: "}
+];
+const markdownTranscript=(agent)=>{
+ const lines=["# Otto conversation","","Provider: "+agent.provider,"Project: "+agent.cwd,"Mode: "+agent.mode,"","Prototype transcript — no native CLI execution.",""];
+ agent.messages.forEach(message=>lines.push("## "+(message.role==="user"?"User":"Assistant"),"",message.text,""));
+ return lines.join("\n");
+};
+async function copyPrototypeText(value){
+ if(!value)return false;
+ try{
+  if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(value);return true}
+  const input=document.createElement("textarea");input.value=value;input.style.position="fixed";input.style.opacity="0";
+  document.body.appendChild(input);input.select();const copied=document.execCommand("copy");input.remove();return copied;
+ }catch{return false}
+}
+function AgentRichText({text,onCopy}){
+ const lines=String(text).replace(/\r\n?/g,"\n").split("\n"),fence=String.fromCharCode(96).repeat(3),blocks=[];
+ let paragraph=[],list=[];
+ const flush=()=>{
+  if(paragraph.length){blocks.push(el("p",{key:"p"+blocks.length},...paragraph.map((line,i)=>i?el(React.Fragment,{key:i},el("span",null," "),line):line)));paragraph=[]}
+  if(list.length){const ordered=list[0].ordered;blocks.push(el(ordered?"ol":"ul",{key:"l"+blocks.length},...list.map((item,i)=>el("li",{key:i},item.text))));list=[]}
+ };
+ for(let i=0;i<lines.length;i++){
+  const line=lines[i],trim=line.trim();
+  if(trim.startsWith(fence)){
+   flush();const lang=trim.slice(3).trim().slice(0,20);const code=[];
+   for(i++;i<lines.length&&!lines[i].trim().startsWith(fence);i++)code.push(lines[i]);
+   const value=code.join("\n");
+   blocks.push(el("div",{className:"af-code",key:"c"+blocks.length},
+    el("div",{className:"af-code-head"},el("span",null,lang||"Code"),el("button",{type:"button",onClick:()=>onCopy(value,"Code copied")},h(Icon,{name:"Copy",size:12}),"Copy")),
+    el("pre",null,el("code",null,value))));continue;
+  }
+  if(!trim){flush();continue}
+  const heading=/^(#{1,3})\s+(.+)$/.exec(line);
+  if(heading){flush();blocks.push(el(heading[1].length===1?"h2":"h3",{key:"h"+blocks.length},heading[2]));continue}
+  const item=/^\s*([-*]|\d+\.)\s+(.+)$/.exec(line);
+  if(item){if(paragraph.length)flush();const ordered=/\d/.test(item[1]);if(list.length&&list[0].ordered!==ordered)flush();list.push({ordered,text:item[2]});continue}
+  if(list.length)flush();
+  if(trim.startsWith("> ")){flush();blocks.push(el("blockquote",{key:"q"+blocks.length},trim.slice(2)));continue}
+  paragraph.push(line);
+ }
+ flush();
+ return el("div",{className:"af-rich"},...blocks);
+}
+
+
 function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onCaptureSettings,onHome,onCapture,onApprove,onDeny,onRetry}){
- const feedRef=useRef(null);
- useEffect(()=>{if(feedRef.current)feedRef.current.scrollTop=feedRef.current.scrollHeight},[agent.messages,agent.busy,agent.phase,agent.readiness]);
- const phase=agent.phase||"ready", ready=agent.readiness==="ready";
- const status=agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="approval"?"Approval needed":phase==="interrupted"?"Interrupted":phase==="error"?"Disconnected":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Ready";
- const unread=agent.unread&&!agent.busy;
+ const feedRef=useRef(null),menuButton=useRef(null),searchInput=useRef(null);
+ const [toolsOpen,setToolsOpen]=useState(false),[searchOpen,setSearchOpen]=useState(false);
+ const [query,setQuery]=useState(""),[matchIndex,setMatchIndex]=useState(0),[feedback,setFeedback]=useState("");
+ const phase=agent.phase||"ready",ready=agent.readiness==="ready",unread=agent.unread&&!agent.busy;
+ const capability=AGENT_CAPABILITIES[agent.provider]||AGENT_CAPABILITIES.Codex;
+ const searchHits=query.trim()?agent.messages.map((message,index)=>message.text.toLowerCase().includes(query.trim().toLowerCase())?index:-1).filter(index=>index>=0):[];
+ const activeHit=searchHits.length?searchHits[Math.min(matchIndex,searchHits.length-1)]:-1;
+ useEffect(()=>{if(feedRef.current&&!searchOpen)feedRef.current.scrollTop=feedRef.current.scrollHeight},[agent.messages,agent.busy,agent.phase,agent.readiness,searchOpen]);
+ useEffect(()=>{if(searchOpen&&activeHit>=0){feedRef.current?.querySelector('[data-agent-message="'+activeHit+'"]')?.scrollIntoView({block:"nearest",behavior:"auto"})}},[searchOpen,activeHit,query,agent.messages]);
+ useEffect(()=>{if(searchOpen)searchInput.current?.focus()},[searchOpen]);
+ const notify=message=>setFeedback(message);
+ const copy=async(value,success)=>notify(await copyPrototypeText(value)?success:"Clipboard unavailable — select text to copy");
+ const exportConversation=()=>{
+  if(!agent.messages.length)return;
+  try{
+   const file=new Blob([markdownTranscript(agent)],{type:"text/markdown;charset=utf-8"});
+   const url=URL.createObjectURL(file),anchor=document.createElement("a");
+   anchor.href=url;anchor.download="otto-conversation.md";document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
+   notify("Markdown download requested — prototype only");
+  }catch{notify("Download unavailable. Use Copy Markdown instead")}
+ };
+ const openSearch=()=>{setSearchOpen(true);setToolsOpen(false);setMatchIndex(0)};
+ const onKeyDown=e=>{
+  if(e.key==="Escape"&&(toolsOpen||searchOpen)){e.stopPropagation();e.preventDefault();if(toolsOpen)setToolsOpen(false);else{setSearchOpen(false);setQuery("")}menuButton.current?.focus()}
+ };
+ const status=agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="approval"?"Approval needed":phase==="interrupted"?"Interrupted":phase==="error"?"Disconnected":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Preview ready";
  const head=el("div",{className:"af-head"},
   el("button",{type:"button",className:"af-eyebutton",onClick:onHome,"aria-label":"Return to Home"},el("i"),el("i")),
-  el("div",{className:"af-identity"},el("strong",null,agent.provider,el("em",null," / "+agent.cwd.split("/").pop())),el("small",null,agent.mode+" · Local CLI preview")),
+  el("div",{className:"af-identity"},el("strong",null,agent.provider,el("em",null," / "+agent.cwd.split("/").pop())),el("small",null,agent.mode+" · Prototype, no CLI connected")),
   el("span",{className:"af-state"+(ready?"":" af-attention"),role:"status"},el("i",{className:!ready||phase==="approval"?"warn":phase==="error"?"bad":""}),status),
+  el("button",{type:"button",className:"icon-button af-more",title:"Conversation actions","aria-label":"Conversation actions","aria-expanded":toolsOpen,ref:menuButton,onClick:()=>setToolsOpen(!toolsOpen)},h(Icon,{name:"MoreHorizontal",size:17})),
   h(IconButton,{name:"Settings2",label:"Agent settings",onClick:onSettings}));
- const messages=agent.messages.map((m,i)=>el("div",{key:i,className:m.role==="user"?"af-question":"af-response"},m.text||el("span",{className:"af-thinking"},el("span",{className:"activity playing"},el("i"),el("i"),el("i")),"Reading context…")));
+ const menu=toolsOpen?el("div",{className:"af-menu",role:"menu","aria-label":"Conversation actions"},
+  el("button",{type:"button",role:"menuitem",onClick:openSearch},h(Icon,{name:"Search",size:14}),"Find in conversation"),
+  el("button",{type:"button",role:"menuitem",disabled:!agent.messages.length,onClick:()=>{setToolsOpen(false);void copy(markdownTranscript(agent),"Markdown copied")}},h(Icon,{name:"Copy",size:14}),"Copy Markdown"),
+  el("button",{type:"button",role:"menuitem",disabled:!agent.messages.length,onClick:()=>{setToolsOpen(false);exportConversation()}},h(Icon,{name:"Download",size:14}),"Export .md"),
+  el("span",{className:"af-menu-note"},"Utilities work locally; no AI request is sent.")):null;
+ const search=searchOpen?el("div",{className:"af-search"},
+  h(Icon,{name:"Search",size:14}),
+  el("input",{ref:searchInput,placeholder:"Find in this conversation",value:query,"aria-label":"Find in this conversation",onChange:e=>{setQuery(e.target.value);setMatchIndex(0)},onKeyDown:e=>{if(e.key==="Enter"&&searchHits.length){e.preventDefault();setMatchIndex(n=>(n+1)%searchHits.length)}}}),
+  el("span",{role:"status"},searchHits.length?(Math.min(matchIndex,searchHits.length-1)+1)+"/"+searchHits.length:query?"No matches":"Search"),
+  el("button",{type:"button",title:"Previous match","aria-label":"Previous match",disabled:!searchHits.length,onClick:()=>setMatchIndex(n=>(n-1+searchHits.length)%searchHits.length)},h(Icon,{name:"ChevronDown",size:14,style:{transform:"rotate(180deg)"}})),
+  el("button",{type:"button",title:"Next match","aria-label":"Next match",disabled:!searchHits.length,onClick:()=>setMatchIndex(n=>(n+1)%searchHits.length)},h(Icon,{name:"ChevronDown",size:14})),
+  el("button",{type:"button",title:"Close search","aria-label":"Close search",onClick:()=>{setSearchOpen(false);setQuery("");menuButton.current?.focus()}},h(Icon,{name:"X",size:14}))):null;
+ const messages=agent.messages.map((m,i)=>{
+  const isAnswer=m.role==="assistant"&&m.text.trim();
+  const actions=isAnswer?el("div",{className:"af-msgtools"},
+    el("button",{type:"button",onClick:()=>void copy(m.text,"Answer copied")},h(Icon,{name:"Copy",size:12}),"Copy"),
+    el("button",{type:"button",onClick:()=>{onDraft(draft+(draft.trim()?"\n\n":"")+m.text.trim().slice(0,1200).split("\n").map(line=>"> "+line).join("\n")+(m.text.trim().length>1200?"\n> …":"")+"\n\n");notify("Answer quoted in the draft")}},h(Icon,{name:"Quote",size:12}),"Quote")):null;
+  return el("div",{key:i,"data-agent-message":i,className:(m.role==="user"?"af-question":"af-response")+(searchHits.includes(i)?" af-searchhit"+(activeHit===i?" active":""):"")},
+   m.role==="assistant"&&m.text?h(AgentRichText,{text:m.text,onCopy:copy}):m.text||el("span",{className:"af-thinking"},el("span",{className:"activity playing"},el("i"),el("i"),el("i")),"Reading context…"),actions);
+ });
  const hint=!ready?el("div",{className:"af-inline-state"},
   el("div",{className:"af-inline-heading"},h(Icon,{name:"AlertCircle",size:15}),status),
-  el("p",null,agent.readiness==="auth"?"The selected CLI needs authentication. Your draft is retained.":agent.readiness==="missing"?"CLI executable not found. Install it or choose a working provider.":"This provider cannot fulfill the selected capability or mode."),
+  el("p",null,agent.readiness==="auth"?"The selected CLI needs authentication. Your draft is retained.":agent.readiness==="missing"?"CLI executable not found. Install it or choose a working provider.":"This provider or model cannot fulfill the selected capability."),
   el("button",{type:"button",onClick:onSettings},"Configure provider")):null;
  const approval=phase==="approval"?el("div",{className:"af-approval"},
-  el("strong",null,h(Icon,{name:"AlertCircle",size:15})," Approval required"),
-  el("p",null,agent.provider+" requests permission to modify a project file. No action happens without a decision."),
+  el("strong",null,h(Icon,{name:"AlertCircle",size:15})," Approval needed · preview"),
+  el("p",null,"Codex Agent Session requests permission to change a project file. Confirm the action and target."),
   el("code",null,"Write · src/agent/session.ts"),
-  el("div",{className:"af-approvalbuttons"},el("button",{onClick:onApprove},"Allow once"),el("button",{onClick:onDeny},"Deny"))):null;
+  el("div",{className:"af-approvalbuttons"},el("button",{type:"button",onClick:onApprove},"Allow once"),el("button",{type:"button",onClick:onDeny},"Deny"))):null;
  const error=["error","interrupted"].includes(phase)?el("div",{className:"af-error"},
-  el("strong",null,phase==="interrupted"?"Session interrupted":"Cannot reach "+agent.provider),
-  el("p",null,phase==="interrupted"?"The previous CLI session cannot be confirmed after restart. Its outcome is unknown.":"Provider request failed. Your draft and previous output are preserved."),
-  el("button",{onClick:onRetry},phase==="interrupted"?"Start new request":"Retry")):null;
- const lastAnswer=[...agent.messages].reverse().find(m=>m.role==="assistant"&&m.text);
+  el("strong",null,phase==="interrupted"?"Previous run interrupted":"Cannot reach "+agent.provider),
+  el("p",null,phase==="interrupted"?"The previous run outcome is unknown. No reply was restored. Start a new request.":"Provider request failed. Keep your draft; retry after recovery."),
+  el("button",{type:"button",onClick:onRetry},phase==="interrupted"?"Start fresh":"Retry")):null;
  const feed=el("div",{className:"af-feed",ref:feedRef,"aria-live":"polite"},el("div",{className:"af-feedstack"},
-  agent.messages.length===0&&ready&&phase==="ready"?el("div",{className:"af-empty"},"Ask "+agent.provider+" about your current task"):null,
+  agent.messages.length===0&&ready&&phase==="ready"?el("div",null,
+   el("div",{className:"af-empty"},"Ask "+agent.provider+" about your current task"),
+   el("div",{className:"af-presets"},...AGENT_PRESETS.map(p=>el("button",{type:"button",key:p.label,onClick:()=>onDraft(draft?draft.trimEnd()+"\n\n"+p.prompt:p.prompt)},p.label)))):null,
   ...messages,
   agent.busy?el("div",{className:"af-working"},el("span",{className:"activity playing"},el("i"),el("i"),el("i")),phase==="thinking"?"Reading context":"Streaming output · simulated"):null,
   approval,hint,error,
   unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
-  !agent.busy&&phase==="complete"&&lastAnswer?el("button",{type:"button",className:"af-copy",onClick:()=>{if(navigator.clipboard?.writeText)navigator.clipboard.writeText(lastAnswer.text)}} ,h(Icon,{name:"Copy",size:14}),"Copy answer"):null,
   agent.warning?el("div",{className:"af-warning"},agent.warning,el("button",{type:"button",className:"as-textbutton",onClick:/capture|screenshot|hotkey|window|image/i.test(agent.warning)?onCaptureSettings:onSettings},/capture|screenshot|hotkey|window|image/i.test(agent.warning)?"Screen Capture settings":"Provider settings")):null));
  const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(ready&&draft.trim()&&phase!=="approval"){onSend(draft.trim());onDraft("")}};
- const composer=el("div",{className:"af-composewrap"},el("form",{className:"af-composer",onSubmit:send},
-  h(IconButton,{name:"Camera",label:"Capture screen now",onClick:onCapture}),
-  el("textarea",{rows:1,value:draft,placeholder:ready?"Ask "+agent.provider+"…":"Configure "+agent.provider+" to send","aria-label":"Agent prompt",onChange:e=>onDraft(e.target.value)}),
-  el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:!agent.busy&&(!draft.trim()||!ready||phase==="approval"),"aria-label":agent.busy?"Stop request":"Send"},
-   h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16}))));
- return el("div",{className:"af"},head,feed,composer);
+ const composer=el("div",{className:"af-composewrap"},
+  feedback?el("div",{className:"af-feedback",role:"status"},feedback):null,
+  el("form",{className:"af-composer",onSubmit:send},
+   h(IconButton,{name:"Camera",label:capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy}),
+   el("textarea",{rows:1,value:draft,placeholder:ready?"Ask "+agent.provider+"…":"Configure "+agent.provider+" to send","aria-label":"Agent prompt",onChange:e=>{onDraft(e.target.value);if(feedback)setFeedback("")}}),
+   el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:!agent.busy&&(!draft.trim()||!ready||phase==="approval"),"aria-label":agent.busy?"Stop request":"Send"},h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16}))));
+ return el("div",{className:"af",onKeyDown},head,menu,search,feed,composer);
 }
 
 
 
-function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack}){
+function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack,onNewSession}){
  const names=["Provider","Mode","Workspace","Screen Capture"];
- const statusText={ready:"Ready · simulated",auth:"Sign-in required",missing:"Not installed",unsupported:"Capability unverified"};
+ const caps=AGENT_CAPABILITIES[agent.provider]||AGENT_CAPABILITIES.Codex;
+ const locked=agent.busy||agent.messages.length>0;
+ const statusText={ready:"Preview ready",auth:"Sign-in required",missing:"Not installed",unsupported:"Not verified"};
  const intro=(heading,help)=>el("div",{className:"as-intro"},el("h2",null,heading),el("p",null,help));
  const field=(label,control,note)=>el("div",{className:"as-field"},el("div",{className:"as-fieldlabel"},label),control,note?el("p",{className:"as-help"},note):null);
  const status=(heading,note)=>el("div",{className:"as-status",role:"status"},h(Icon,{name:"AlertCircle",size:15}),el("div",null,el("strong",null,heading),el("small",null,note)));
- const modeButton=(name,desc,active,callback)=>el("button",{type:"button",className:"as-mode"+(active?" active":""),onClick:callback},el("i",{className:"as-radio"}),el("span",null,el("strong",null,name),el("small",null,desc)));
+ const modeButton=(name,desc,active,callback,disabled=false)=>el("button",{type:"button",className:"as-mode"+(active?" active":""),onClick:callback,disabled},el("i",{className:"as-radio"}),el("span",null,el("strong",null,name),el("small",null,desc)));
+ const reset=locked?el("button",{type:"button",className:"as-newsession",disabled:agent.busy,onClick:onNewSession},h(Icon,{name:"Plus",size:14}),"New session · change provider, mode or project"):null;
+ const capabilityPills=el("div",{className:"as-available"},
+  el("span",null,"Text + follow-up"),el("span",{className:caps.image?"":"unavailable"},caps.image?"Image transport":"No image input"),
+  el("span",{className:caps.session?"":"unavailable"},caps.session?"Agent tools + approval":"Quick Ask only"));
  const parts=[];
  if(tab==="Provider"){
-  parts.push(intro("Provider","Choose a local CLI; readiness below is only a design simulation."));
-  const providers=["Codex","Agy","Pi"].map(name=>{
-   const readiness=name==="Codex"?"ready":name==="Agy"?"auth":"unsupported";
-   return el("button",{type:"button",key:name,disabled:agent.busy,className:"as-provider"+(agent.provider===name?" active":""),onClick:()=>setAgent(a=>({...a,provider:name,readiness,phase:"ready",warning:""}))},
-     h(Icon,{name:"Terminal",size:15}),el("span",null,el("strong",null,name),el("small",null,statusText[readiness])));
+  parts.push(intro("Provider","Select your local CLI. Its capabilities determine the available actions."));
+  const providers=["Codex","Pi","Agy"].map(name=>{
+   const item=AGENT_CAPABILITIES[name];
+   return el("button",{type:"button",key:name,disabled:locked,className:"as-provider"+(agent.provider===name?" active":""),onClick:()=>setAgent(a=>({...a,provider:name,mode:"Quick Ask",readiness:"ready",phase:"ready",warning:""}))},
+    h(Icon,{name:"Terminal",size:15}),el("span",null,el("strong",null,name),el("small",null,item.detail)));
   });
-  parts.push(field("Installed CLI",el("div",{className:"as-providerlist"},...providers)));
-  parts.push(status(agent.provider+" · "+(statusText[agent.readiness]||"Unknown"),agent.readiness==="auth"?"Sign in through the CLI, then retry.":agent.readiness==="unsupported"?"Check installed version and supported capabilities.":"Native capability detection is not running in this preview."));
-  if(agent.readiness!=="ready")parts.push(el("button",{type:"button",className:"as-textbutton",onClick:()=>setAgent(a=>({...a,warning:"Readiness check requires the native adapter. Status unchanged."}))},"Recheck readiness"));
+  parts.push(field("Local CLI",el("div",{className:"as-providerlist"},...providers)));
+  parts.push(capabilityPills);
+  parts.push(status(agent.provider+" · "+(statusText[agent.readiness]||"Unknown"),"Prototype status only. Installed CLI, model, and authentication require native readiness checks."));
+  if(agent.readiness!=="ready")parts.push(el("button",{type:"button",className:"as-textbutton",onClick:()=>setAgent(a=>({...a,warning:"Native readiness checks are not available in this standalone HTML."}))},"Retry readiness"));
+  if(reset)parts.push(reset);
  }else if(tab==="Mode"){
-  parts.push(intro("Interaction mode","Set permissions before starting agent work."));
-  const quick=modeButton("Quick Ask","Single request · file writes must be disabled.",agent.mode==="Quick Ask",()=>setAgent(a=>({...a,mode:"Quick Ask"})));
-  const session=modeButton("Agent Session","Multi-turn context · tool approvals required.",agent.mode==="Agent Session",()=>setAgent(a=>({...a,mode:"Agent Session"})));
-  parts.push(field("Execution mode",el("div",{className:"as-modes"},quick,session)));
-  parts.push(status(agent.mode==="Quick Ask"?"Read-only enforcement required":"Privileged operations require approval",agent.mode==="Quick Ask"?"Disable Quick Ask when the provider cannot enforce no file changes.":"Do not auto-approve tool requests."));
+  parts.push(intro("Interaction mode","The selected mode controls permissions for the entire conversation."));
+  parts.push(field("Execution mode",el("div",{className:"as-modes"},
+   modeButton("Quick Ask","Follow-up supported · no tools or file changes.",agent.mode==="Quick Ask",()=>setAgent(a=>({...a,mode:"Quick Ask"})),locked),
+   modeButton("Agent Session",caps.session?"Codex only · tool actions require Allow once / Deny.":"Unavailable for "+agent.provider+" · text-only Quick Ask",agent.mode==="Agent Session",()=>setAgent(a=>({...a,mode:"Agent Session"})),locked||!caps.session))));
+  parts.push(status(locked?"Mode locked for this session":agent.mode==="Quick Ask"?"Tool-free Quick Ask":"Approval is mandatory",locked?"Create a new session before changing modes.":agent.mode==="Quick Ask"?"No provider may silently execute file-changing tools.":"Each sensitive action needs an explicit decision."));
+  if(reset)parts.push(reset);
  }else if(tab==="Workspace"){
-  parts.push(intro("Working project","Your directory and context are visible before submission."));
-  const input=el("input",{value:agent.cwd,disabled:agent.busy,"aria-label":"Working project directory",onChange:e=>setAgent(a=>({...a,cwd:e.target.value}))});
-  parts.push(field("Project directory",el("label",{className:"as-input"},h(Icon,{name:"Terminal",size:15}),input),"Validated by the native adapter. Changes apply to the next request."));
-  parts.push(status("Session context",agent.busy?"Current run continues; context changes are locked.":"New requests use the chosen project."));
+  parts.push(intro("Working project","The working directory belongs to a single provider session."));
+  const input=el("input",{value:agent.cwd,disabled:locked,"aria-label":"Working project directory",onChange:e=>setAgent(a=>({...a,cwd:e.target.value}))});
+  parts.push(field("Project directory",el("label",{className:"as-input"},h(Icon,{name:"Terminal",size:15}),input),"Native validates the directory before a request; the HTML preview does not access files."));
+  parts.push(status(locked?"Project locked":"Project selected",locked?"New session is required before changing the current project.":"The path is contextual. No files are read by the prototype."));
+  if(reset)parts.push(reset);
  }else{
-  parts.push(intro("Screen Capture","Configure here. The camera button or hotkey performs the explicit capture action."));
-  const windowChoice=modeButton("Last focused window","Default · last non-Otto active window.",capture.source==="Last focused window",()=>setCapture(c=>({...c,source:"Last focused window"})));
-  const fullChoice=modeButton("Full screen","Explicit alternative · desktop image.",capture.source==="Full screen",()=>setCapture(c=>({...c,source:"Full screen"})));
+  parts.push(intro("Screen Capture","Hotkey-triggered screenshot analysis is native. No images are captured in this HTML."));
+  const windowChoice=modeButton("Last focused window","Capture the most recent non-Otto window.",capture.source==="Last focused window",()=>setCapture(c=>({...c,source:"Last focused window"})));
+  const fullChoice=modeButton("Full screen","Explicit alternative · may include other windows.",capture.source==="Full screen",()=>setCapture(c=>({...c,source:"Full screen"})));
   parts.push(field("Capture source",el("div",{className:"as-modes"},windowChoice,fullChoice)));
-  const shortcut=el("input",{value:capture.hotkey,"aria-label":"Capture hotkey",placeholder:"Ctrl + Shift + X",onChange:e=>setCapture(c=>({...c,hotkey:e.target.value,hotkeyStatus:"unverified"}))});
-  parts.push(field("Shortcut",el("label",{className:"as-input"},h(Icon,{name:"Command",size:15}),shortcut),"Windows must register and validate shortcut conflicts."));
-  const condition=capture.permission==="denied"?"Permission denied":capture.permission==="missing target"?"Target window missing":capture.hotkeyStatus==="conflict"?"Hotkey conflict":"Capture capability unverified";
-  const help=condition==="Permission denied"?"No image may be sent.":condition==="Target window missing"?"Retry a valid window or choose screen explicitly.":condition==="Hotkey conflict"?"Assign a different key combination.":"Verify foreground target, permission and image support before capture.";
+  const shortcut=el("input",{value:capture.hotkey,"aria-label":"Capture hotkey",placeholder:"Ctrl + Shift + O",onChange:e=>setCapture(c=>({...c,hotkey:e.target.value,hotkeyStatus:"unverified"}))});
+  parts.push(field("Shortcut",el("label",{className:"as-input"},h(Icon,{name:"Command",size:15}),shortcut),"Windows must register the shortcut; conflicts must be resolved before capture."));
+  const condition=capture.permission==="denied"?"Permission denied":capture.permission==="missing target"?"Target unavailable":capture.hotkeyStatus==="conflict"?"Hotkey conflict":"Capture not verified";
+  const help=condition==="Permission denied"?"No image will be sent.":condition==="Target unavailable"?"Focus a valid window and retry.":condition==="Hotkey conflict"?"Choose a different combination.":"Native verifies target identity, selected model vision, and consent.";
   parts.push(status(condition,help));
-  parts.push(status("Provider image input · "+agent.provider,"Image capability requires native verification; no screenshot is taken here."));
-  parts.push(el("p",{className:"as-privacy"},"No periodic screenshots. Transmit only on explicit request. Capture exclusion is best effort."));
+  parts.push(status(agent.provider+(caps.image?" · Image transport supported":" · Screenshots unsupported"),caps.image?"The selected model must separately confirm image input before capture.":"This CLI transport accepts text only. Choose Codex or a vision-capable Pi model."));
+  parts.push(el("p",{className:"as-privacy"},"Hotkey is the implemented native trigger. The camera control is a prototype affordance, not proof of a native click-to-capture command. Capture protection is best effort; never automatic."));
  }
  const header=el("header",{className:"as-header"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("strong",null,"Agent settings"),el("span",{className:"as-meta"},agent.provider));
  const sidebar=el("nav",{className:"as-nav","aria-label":"Agent settings sections"},...names.map(name=>el("button",{type:"button",key:name,className:"as-navitem"+(tab===name?" active":""),onClick:()=>setTab(name)},name)));
@@ -995,7 +1147,7 @@ function App(){
  const [music,setMusic]=useState({track:0,position:74,playing:true,lyrics:false,line:2,follow:true,lyricsAvailable:true,mediaAvailable:true});
  const [timer,setTimer]=useState({phase:"focus",remaining:1500,running:false,deadline:null,duration:{...durations},status:"ready",settings:false,confirmPhase:null,finished:0});
  const [event,setEvent]=useState(null);
- const [capture,setCapture]=useState({source:"Last focused window",permission:"unknown",hotkey:"Ctrl + Shift + X",hotkeyStatus:"unverified"});
+ const [capture,setCapture]=useState({source:"Last focused window",permission:"unknown",hotkey:"Ctrl + Shift + O",hotkeyStatus:"unverified"});
  const [agentSettingsTab,setAgentSettingsTab]=useState("Provider");
  const pointerEnter=useRef(null),pointerLeave=useRef(null),completion=useRef(null),agentRun=useRef(null),pinnedUntil=useRef(0);
  const currentPage=useRef(page);currentPage.current=page;
@@ -1012,12 +1164,12 @@ function App(){
  const sendAgent=(text,forceDemo=false)=>{if(!forceDemo&&agent.readiness!=="ready"){setAgent(a=>({...a,warning:"Provider adapter unavailable in this prototype"}));return}
  clearInterval(agentRun.current);
  setAgent(a=>({...a,busy:true,phase:"thinking",warning:"",messages:[...a.messages,{role:"user",text},{role:"assistant",text:""}]}));
- const chunks=["This is a simulated response from Otto's unified design study. ","The real CLI adapter would stream output into this same surface. ","Collapse and reopening preserve the current conversation."];
+ const chunks=["Session state should stay in one authoritative owner.\n\n","Use a provider-specific adapter to translate CLI events.\n\n","### Example\n"+String.fromCharCode(96).repeat(3)+"ts\nconst event = { type: \"Completed\", runId: 7 };\n"+String.fromCharCode(96).repeat(3)+"\n\nThis output is simulated; no CLI was run."];
  let index=0;
  agentRun.current=setInterval(()=>{if(index===chunks.length){clearInterval(agentRun.current);setAgent(a=>({...a,busy:false,phase:"complete",unread:currentPage.current!=="agent"}));return}
  const chunk=chunks[index++];setAgent(a=>({...a,phase:"streaming",messages:a.messages.map((m,i)=>i===a.messages.length-1?{...m,text:m.text+chunk}:m)}))},560);
  };
- const requestCapture=()=>{const reason=agent.readiness!=="ready"?"Selected CLI is unavailable.":agent.provider!=="Codex"?"Image input is not verified for this provider.":capture.hotkeyStatus==="conflict"?"Hotkey conflict; choose another shortcut.":capture.permission==="denied"?"Windows capture permission denied.":capture.permission==="missing target"?"Last focused window is missing or ambiguous.":capture.source==="Full screen"?"Full-screen capture requires the native Windows host.":"Last-focused-window capture requires the native Windows host.";setAgent(a=>({...a,warning:reason+" No image was captured or transmitted in this HTML preview."}));};
+ const requestCapture=()=>{const reason=agent.readiness!=="ready"?"Selected CLI is unavailable.":!AGENT_CAPABILITIES[agent.provider]?.image?"This provider accepts text only.":capture.hotkeyStatus==="conflict"?"Hotkey conflict; choose another shortcut.":capture.permission==="denied"?"Windows capture permission denied.":capture.permission==="missing target"?"Last focused window is missing or ambiguous.":capture.source==="Full screen"?"Full-screen capture requires the native Windows host.":"Last-focused-window capture requires the native Windows host.";setAgent(a=>({...a,warning:reason+" No image was captured or transmitted in this HTML preview."}));};
  const onEvent=name=>{clearTimeout(completion.current);setEvent(name);completion.current=setTimeout(()=>setEvent(null),2200)};
  const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,agent.phase==="approval"?336:agent.phase==="error"||agent.phase==="interrupted"||agent.readiness!=="ready"?270:agent.busy?346:agent.messages.length?346:170]:page==="music"?[444,music.lyrics&&music.lyricsAvailable?212:178]:[408,timer.settings?328:174];
  const shape=event?"event":presentation==="compact"?"compact":"expanded";
@@ -1026,9 +1178,9 @@ function App(){
  const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(prefs.leaveDelay,pinnedUntil.current-Date.now()+140))}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else if(page==="focus"&&timer.confirmPhase){setTimer(t=>({...t,confirmPhase:null}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Provider");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Screen Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null),onNewSession:()=>{clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",mode:"Quick Ask",unread:false,warning:""}));setAgentDraft("")}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Provider");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Screen Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
  const onModuleDemo=phase=>{if(phase==="media"){navigate("music");setMusic(m=>({...m,mediaAvailable:!m.mediaAvailable,playing:!m.mediaAvailable}));}else if(phase==="lyrics"){navigate("music");setMusic(m=>({...m,lyricsAvailable:!m.lyricsAvailable,lyrics:false}));}else if(phase==="finish"){navigate("focus");setTimer(t=>({...t,remaining:0,running:false,deadline:null,status:"completed",finished:t.finished+(t.phase==="focus"?1:0)}));}else if(phase==="focus-reset"){navigate("focus");setTimer(t=>({...t,phase:"focus",remaining:25*60,running:false,deadline:null,duration:{...durations},status:"ready",settings:false,confirmPhase:null,finished:0}));}};
- const onAgentDemo=phase=>{clearInterval(agentRun.current);navigate("agent");if(phase==="run"){setAgent(a=>({...a,readiness:"ready",provider:"Codex"}));sendAgent("How should Otto preserve a CLI session?",true);return}const read=phase==="auth"?"auth":phase==="missing"?"missing":"ready";const actual=phase==="auth"||phase==="missing"?"ready":phase;const sample=phase==="approval"?"Update the session adapter safely.":phase==="error"?"Check why the CLI cannot connect.":"";setAgent(a=>({...a,busy:false,phase:actual,readiness:read,provider:phase==="auth"?"Agy":phase==="missing"?"Pi":"Codex",warning:"",messages:sample?[{role:"user",text:sample}]:[],unread:false}))};
+ const onAgentDemo=phase=>{clearInterval(agentRun.current);navigate("agent");if(phase==="run"){setAgent(a=>({...a,readiness:"ready",provider:"Codex"}));sendAgent("How should Otto preserve a CLI session?",true);return}const read=phase==="auth"?"auth":phase==="missing"?"missing":"ready";const actual=phase==="auth"||phase==="missing"?"ready":phase;const sample=phase==="approval"?"Update the session adapter safely.":phase==="error"?"Check why the CLI cannot connect.":"";setAgent(a=>({...a,busy:false,phase:actual,readiness:read,provider:phase==="auth"?"Agy":phase==="missing"?"Pi":"Codex",warning:"",messages:sample?[{role:"user",text:sample}]:[],mode:phase==="approval"?"Agent Session":"Quick Ask",unread:false}))};
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
  const eventNav=[["volume","Volume2","Volume"],["wifi","Wifi","Wi-Fi"],["bluetooth","Bluetooth","Bluetooth"],["brightness","Sun","Brightness"],["battery","BatteryCharging","Battery"],["headphones","Headphones","Headset"]];
  return el("div",{className:"lab"+(reduce?" motion-reduced":"")},
