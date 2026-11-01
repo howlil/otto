@@ -191,9 +191,60 @@ fn safe_init(frame: &Value) -> Result<String, String> {
     Ok(session.to_owned())
 }
 
+fn model_discovery_args() -> &'static [&'static str] {
+    &["--output-format", "json", "models"]
+}
+
 fn available_models(value: &Value) -> bool {
-    let models = value.as_array().or_else(|| value["models"].as_array());
-    models.is_some_and(|items| !items.is_empty())
+    if value
+        .get("status")
+        .and_then(Value::as_str)
+        .is_some_and(|status| status != "SUCCESS")
+    {
+        return false;
+    }
+    value
+        .pointer("/command/data/models")
+        .or_else(|| value.get("models"))
+        .or_else(|| value.as_array().map(|_| value))
+        .and_then(Value::as_array)
+        .is_some_and(|models| !models.is_empty())
+}
+
+fn model_discovery_failure(stdout: &[u8], stderr: &[u8]) -> ProviderReadiness {
+    let detail = format!(
+        "{} {}",
+        String::from_utf8_lossy(stdout),
+        String::from_utf8_lossy(stderr)
+    )
+    .to_ascii_lowercase();
+    if [
+        "sign in",
+        "sign-in",
+        "not signed in",
+        "log in",
+        "login",
+        "not authenticated",
+        "authentication required",
+        "unauthorized",
+        "invalid credentials",
+        "expired credentials",
+    ]
+    .iter()
+    .any(|signal| detail.contains(signal))
+    {
+        ProviderReadiness::new(
+            "authRequired",
+            "Agy authentication is required.",
+            "Sign in to Agy, then Retry.",
+        )
+    } else {
+        ProviderReadiness::new(
+            "unavailable",
+            "Agy model discovery failed.",
+            "Run agy --output-format json models in PowerShell, then Retry.",
+        )
+    }
 }
 
 pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
@@ -209,10 +260,10 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
     }
     let mut command = Command::new(binary);
     command
-        .args(["models", "--output-format", "json"])
+        .args(model_discovery_args())
         .current_dir(cwd)
         .stdin(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .kill_on_drop(true);
     match timeout(Duration::from_secs(12), command.output()).await {
         Ok(Ok(output)) if output.status.success() => {
@@ -227,12 +278,8 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
                 );
             }
         }
-        Ok(Ok(_)) => {
-            return ProviderReadiness::new(
-                "authRequired",
-                "Agy is not signed in or has no accessible model.",
-                "Open Agy, sign in, then Retry.",
-            );
+        Ok(Ok(output)) => {
+            return model_discovery_failure(&output.stdout, &output.stderr);
         }
         _ => {
             return ProviderReadiness::new(
@@ -511,8 +558,46 @@ mod tests {
     fn model_catalog_must_be_nonempty() {
         assert!(available_models(&json!([{"id":"gemini"}])));
         assert!(available_models(&json!({"models":[{"id":"gemini"}]})));
+        assert!(available_models(&json!({
+            "conversation_id": "",
+            "status": "SUCCESS",
+            "command": {
+                "name": "models",
+                "data": {
+                    "models": [
+                        {"id": "gemini-4-argon-medium", "label": "Gemini 4 Argon (Medium)"},
+                        {"id": "claude-opus-5-5-high", "label": "Claude Opus 5.5 (High)"}
+                    ]
+                }
+            }
+        })));
         assert!(!available_models(&json!({"models":[]})));
+        assert!(!available_models(&json!({"status":"ERROR","command":{"data":{"models":[{"id":"gemini"}]}}})));
         assert!(!available_models(&json!({"message":"auth required"})));
+    }
+
+    #[test]
+    fn model_discovery_uses_supported_global_flag_order() {
+        assert_eq!(
+            model_discovery_args(),
+            &["--output-format", "json", "models"]
+        );
+    }
+
+    #[test]
+    fn model_discovery_does_not_misclassify_cli_errors_as_sign_in() {
+        assert_eq!(
+            model_discovery_failure(b"", b"error: unexpected argument --output-format").status,
+            "unavailable"
+        );
+        assert_eq!(
+            model_discovery_failure(b"", b"please sign in to continue").status,
+            "authRequired"
+        );
+        assert_eq!(
+            model_discovery_failure(b"login required", b"").status,
+            "authRequired"
+        );
     }
 
     #[test]
