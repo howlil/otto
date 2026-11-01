@@ -65,6 +65,8 @@ const checking: ProviderReadiness = {
   message: "Checking provider…",
   recovery: "",
   imageInput: false,
+  imageTransport: false,
+  agentSession: false,
 };
 
 function useProviderReadiness(cwd: string, provider: AgentProvider) {
@@ -82,6 +84,10 @@ function useProviderReadiness(cwd: string, provider: AgentProvider) {
         message: "Provider readiness requires the Otto desktop app.",
         recovery: "Open Otto on Windows.",
         imageInput: false,
+  imageTransport: false,
+  agentSession: false,
+    imageTransport: false,
+    agentSession: false,
       });
       return;
     }
@@ -95,6 +101,10 @@ function useProviderReadiness(cwd: string, provider: AgentProvider) {
           message: "Could not check provider readiness.",
           recovery: "Retry the connection.",
           imageInput: false,
+  imageTransport: false,
+  agentSession: false,
+    imageTransport: false,
+    agentSession: false,
         });
       }
     }
@@ -441,7 +451,7 @@ export function useAgent() {
       try {
         if (nativeAvailable) await selectAgentProvider(next);
         setProvider(next);
-        if (next !== "codex") setMode("quickAsk");
+        setMode("quickAsk");
         connection.clearError();
       } catch (error) {
         connection.setRequestError(error);
