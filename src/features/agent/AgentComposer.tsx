@@ -36,15 +36,17 @@ export function AgentComposer({
         className="flex min-h-[50px] items-center gap-[5px] rounded-full border border-transparent bg-otto-control-deep px-[7px] py-[5px] transition-[border-color,background] duration-150 hover:bg-otto-control-deep focus-within:border-otto-line-hover focus-within:outline focus-within:outline-2 focus-within:outline-otto-focus focus-within:outline-offset-2"
         onSubmit={submit}
       >
-        <IconButton
-          id="otto-capture-setup"
-          icon="camera"
-          label="Configure screen capture shortcut"
-          variant="round"
-          className="grid shrink-0 place-items-center rounded-full"
-          onClick={onConfigureCapture}
-          title="Configure screen capture shortcut"
-        />
+        {provider !== "agy" && (
+          <IconButton
+            id="otto-capture-setup"
+            icon="camera"
+            label="Configure screen capture shortcut"
+            variant="round"
+            className="grid shrink-0 place-items-center rounded-full"
+            onClick={onConfigureCapture}
+            title="Configure screen capture shortcut"
+          />
+        )}
         <VisuallyHidden htmlFor="otto-prompt">Question for the selected agent</VisuallyHidden>
         <TextArea
           id="otto-prompt"
