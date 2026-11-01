@@ -742,8 +742,8 @@ mod tests {
             })
             .await;
         assert_eq!(
-            capture.as_deref(),
-            Err("Screen capture requires Codex. Select it in a new session.")
+            capture.unwrap_err(),
+            "Screen capture requires Codex. Select it in a new session."
         );
         assert!(runtime.snapshot().messages.is_empty());
         runtime
