@@ -41,7 +41,7 @@ export function MessageContent({ text }: { text: string }) {
     return { block, key };
   });
   return (
-    <div className="min-w-0 space-y-2 text-otto-md leading-[1.5]">
+    <div className="min-w-0 space-y-2 text-otto-md leading-[1.6]">
       {blocks.map(({ block, key }) => {
         if (block.kind === "code") {
           return (
