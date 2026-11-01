@@ -6,7 +6,11 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
-import { getOverlayProtectionStatus, nativeAvailable, onNotchFocusChanged } from "../../platform/tauri";
+import {
+  getOverlayProtectionStatus,
+  nativeAvailable,
+  onNotchFocusChanged,
+} from "../../platform/tauri";
 import { readPreferences, type Page, type Preferences } from "./preferences";
 
 type ShellMode = "compact" | "preview" | "pinned";
