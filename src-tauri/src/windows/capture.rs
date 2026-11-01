@@ -12,14 +12,16 @@ use std::{
 };
 use tauri::Manager;
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, GetLastError, HWND, RECT, ERROR_INVALID_PARAMETER},
+    Foundation::{CloseHandle, ERROR_INVALID_PARAMETER, GetLastError, HWND, RECT},
     Graphics::Gdi::{
         BI_RGB, BITMAPINFO, BitBlt, CAPTUREBLT, CreateCompatibleBitmap, CreateCompatibleDC,
         DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetDIBits, GetWindowDC, ReleaseDC, SRCCOPY,
         SelectObject,
     },
     Storage::Xps::PrintWindow,
-    System::Threading::{GetCurrentThreadId, GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
+    System::Threading::{
+        GetCurrentThreadId, GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    },
     UI::{
         Accessibility::{SetWinEventHook, UnhookWinEvent},
         Input::KeyboardAndMouse::{
@@ -322,9 +324,7 @@ fn capture_file_owner(file_name: &str) -> Option<u32> {
         .strip_prefix(CAPTURE_FILE_PREFIX)?
         .strip_suffix(".png")?;
     let (pid, nonce) = stem.split_once('-')?;
-    if !(16..=24).contains(&nonce.len())
-        || !nonce.bytes().all(|byte| byte.is_ascii_digit())
-    {
+    if !(16..=24).contains(&nonce.len()) || !nonce.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
     pid.parse::<u32>().ok().filter(|pid| *pid != 0)
@@ -641,24 +641,31 @@ mod tests {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let directory = std::env::temp_dir().join(format!(
-            "otto-cleanup-test-{}-{nonce}",
-            std::process::id()
-        ));
+        let directory =
+            std::env::temp_dir().join(format!("otto-cleanup-test-{}-{nonce}", std::process::id()));
         fs::create_dir(&directory).unwrap();
         let old = now - Duration::from_secs(48 * 60 * 60);
         let dead_pid = u32::MAX - 1;
         let active_pid = u32::MAX - 2;
         let dead_file = directory.join(format!("{CAPTURE_FILE_PREFIX}{dead_pid}-{nonce}.png"));
         let active_file = directory.join(format!("{CAPTURE_FILE_PREFIX}{active_pid}-{nonce}.png"));
-        let recent_file = directory.join(format!("{CAPTURE_FILE_PREFIX}{dead_pid}-1234567890123456.png"));
+        let recent_file = directory.join(format!(
+            "{CAPTURE_FILE_PREFIX}{dead_pid}-1234567890123456.png"
+        ));
         let unrelated_file = directory.join(format!("user-{dead_pid}-{nonce}.png"));
         let invalid_file = directory.join(format!("{CAPTURE_FILE_PREFIX}{dead_pid}-invalid.png"));
 
-        for path in [&dead_file, &active_file, &recent_file, &unrelated_file, &invalid_file] {
+        for path in [
+            &dead_file,
+            &active_file,
+            &recent_file,
+            &unrelated_file,
+            &invalid_file,
+        ] {
             let file = fs::File::create(path).unwrap();
             if path != &recent_file {
-                file.set_times(fs::FileTimes::new().set_modified(old)).unwrap();
+                file.set_times(fs::FileTimes::new().set_modified(old))
+                    .unwrap();
             }
         }
 
@@ -678,7 +685,10 @@ mod tests {
 
     #[test]
     fn capture_cleanup_rejects_unowned_or_ambiguous_names() {
-        assert_eq!(capture_file_owner("otto-capture-42-1234567890123456.png"), Some(42));
+        assert_eq!(
+            capture_file_owner("otto-capture-42-1234567890123456.png"),
+            Some(42)
+        );
         for name in [
             "otto-42-1234567890123456.png",
             "otto-capture-0-1234567890123456.png",
