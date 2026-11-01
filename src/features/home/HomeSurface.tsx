@@ -34,9 +34,9 @@ export function HomeSurface({
 }) {
   return (
     <section
-      className={`flex h-full w-[452px] flex-col gap-[10px] px-[17px] pb-[17px] pt-[15px] ${motionClass}`}
+      className={`flex h-full w-[452px] flex-col gap-2 px-[17px] pb-[17px] pt-3 ${motionClass}`}
     >
-      <header className="flex h-6 shrink-0 items-center gap-2 pl-[37px]">
+      <header className="flex h-[26px] shrink-0 items-center gap-[9px] pl-[37px]">
         <Text as="strong" variant="display">
           Otto
         </Text>
@@ -57,7 +57,7 @@ export function HomeSurface({
           onClick={onOpenSettings}
         />
       </header>
-      <main className="grid min-h-0 grid-cols-3 gap-[9px]">
+      <main className="grid min-h-0 flex-1 grid-cols-3 gap-[9px]">
         <HomeCard
           name="Agent"
           subtitle={agentSubtitle}
