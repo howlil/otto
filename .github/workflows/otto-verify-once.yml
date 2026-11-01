@@ -30,6 +30,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Reconcile Cargo lock once
+        shell: pwsh
+        run: |
+          cargo metadata --manifest-path src-tauri/Cargo.toml --format-version 1 > $null
+          if ($LASTEXITCODE -ne 0) { throw 'Cargo metadata resolution failed' }
+          $raw = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([IO.File]::ReadAllText('src-tauri/Cargo.lock')))
+          Write-Output 'CARGO_LOCK_B64_START'
+          for ($i = 0; $i -lt $raw.Length; $i += 2000) {
+            Write-Output $raw.Substring($i, [Math]::Min(2000, $raw.Length - $i))
+          }
+          Write-Output 'CARGO_LOCK_B64_END'
       - name: Rust format
         run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
       - name: Inspect Cargo lock delta
