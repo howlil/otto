@@ -12,7 +12,7 @@ export function TranscriptMessages({ snapshot, busy }: { snapshot: AgentSnapshot
           variant="body-compact"
           className="m-0 flex h-[30px] items-center text-otto-line-muted"
         >
-          Ask Codex about your current task
+          Ask {snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex"} about your current task
         </Text>
       )}
       {snapshot.messages.map((message, index) =>
