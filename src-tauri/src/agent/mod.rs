@@ -326,9 +326,7 @@ impl AgentRuntime {
         ) {
             return Err("Finish or Stop the current answer before capturing.".into());
         }
-        if !ProviderId::parse(&state.provider)
-            .is_some_and(ProviderId::image_transport)
-        {
+        if !ProviderId::parse(&state.provider).is_some_and(ProviderId::image_transport) {
             return Err("Agy headless streaming accepts text only. Select Codex or Pi.".into());
         }
         if state.thread_id.is_some() && state.mode != "quickAsk" {
@@ -412,8 +410,7 @@ impl AgentRuntime {
             return Err("Enter a question (up to 12,000 bytes).".into());
         }
         let mode = InteractionMode::parse(&mode)?;
-        let selected = ProviderId::parse(&provider)
-            .ok_or("Selected provider is unavailable.")?;
+        let selected = ProviderId::parse(&provider).ok_or("Selected provider is unavailable.")?;
         selected.validate(mode, capture.is_some())?;
         let cwd =
             std::fs::canonicalize(cwd).map_err(|_| "Working folder does not exist.".to_string())?;
