@@ -1,7 +1,7 @@
-use crate::agent::policy::InteractionMode;
-use crate::agent::{Control, ProviderReadiness, Snapshot};
 #[cfg(not(windows))]
 use crate::agent::fail;
+use crate::agent::policy::InteractionMode;
+use crate::agent::{Control, ProviderReadiness, Snapshot};
 use std::path::PathBuf;
 use tokio::sync::{mpsc, watch};
 
@@ -99,25 +99,37 @@ mod tests {
         assert!(ProviderId::parse("Codex").is_none());
         for id in ["codex", "pi", "agy"] {
             assert_eq!(ProviderId::parse(id).unwrap().as_str(), id);
-            assert!(ProviderId::parse(id)
-                .unwrap()
-                .validate(InteractionMode::QuickAsk, false)
-                .is_ok());
+            assert!(
+                ProviderId::parse(id)
+                    .unwrap()
+                    .validate(InteractionMode::QuickAsk, false)
+                    .is_ok()
+            );
         }
-        assert!(ProviderId::Pi
-            .validate(InteractionMode::AgentSession, false)
-            .is_err());
-        assert!(ProviderId::Agy
-            .validate(InteractionMode::AgentSession, false)
-            .is_err());
-        assert!(ProviderId::Agy
-            .validate(InteractionMode::QuickAsk, true)
-            .is_err());
-        assert!(ProviderId::Pi
-            .validate(InteractionMode::QuickAsk, true)
-            .is_ok());
-        assert!(ProviderId::Codex
-            .validate(InteractionMode::AgentSession, false)
-            .is_ok());
+        assert!(
+            ProviderId::Pi
+                .validate(InteractionMode::AgentSession, false)
+                .is_err()
+        );
+        assert!(
+            ProviderId::Agy
+                .validate(InteractionMode::AgentSession, false)
+                .is_err()
+        );
+        assert!(
+            ProviderId::Agy
+                .validate(InteractionMode::QuickAsk, true)
+                .is_err()
+        );
+        assert!(
+            ProviderId::Pi
+                .validate(InteractionMode::QuickAsk, true)
+                .is_ok()
+        );
+        assert!(
+            ProviderId::Codex
+                .validate(InteractionMode::AgentSession, false)
+                .is_ok()
+        );
     }
 }
