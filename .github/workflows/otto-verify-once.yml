@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B4 last external focus window selection and stale target validation.
+# Verification dispatch: B4 last external window selection and Rustfmt corrections.
 
 'on':
   push:

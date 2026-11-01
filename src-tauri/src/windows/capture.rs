@@ -3,7 +3,10 @@ use std::{
     fs::OpenOptions,
     io::BufWriter,
     path::PathBuf,
-    sync::{atomic::{AtomicIsize, Ordering}, mpsc::{self, Receiver, Sender, SyncSender}},
+    sync::{
+        atomic::{AtomicIsize, Ordering},
+        mpsc::{self, Receiver, Sender, SyncSender},
+    },
     time::{Duration, SystemTime},
 };
 use tauri::Manager;
@@ -16,7 +19,10 @@ use windows_sys::Win32::{
     Storage::Xps::PrintWindow,
     System::Threading::GetCurrentThreadId,
     UI::{
-        Accessibility::{EVENT_SYSTEM_FOREGROUND, SetWinEventHook, UnhookWinEvent, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS},
+        Accessibility::{
+            EVENT_SYSTEM_FOREGROUND, SetWinEventHook, UnhookWinEvent, WINEVENT_OUTOFCONTEXT,
+            WINEVENT_SKIPOWNPROCESS,
+        },
         Input::KeyboardAndMouse::{
             MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, RegisterHotKey, UnregisterHotKey,
         },
@@ -70,12 +76,13 @@ fn external_window(hwnd: HWND) -> bool {
 }
 
 fn valid_capture_window(hwnd: HWND) -> bool {
-    external_window(hwnd) && unsafe {
-        IsWindow(hwnd) != 0
-            && IsWindowVisible(hwnd) != 0
-            && IsIconic(hwnd) == 0
-            && GetWindowTextLengthW(hwnd) > 0
-    }
+    external_window(hwnd)
+        && unsafe {
+            IsWindow(hwnd) != 0
+                && IsWindowVisible(hwnd) != 0
+                && IsIconic(hwnd) == 0
+                && GetWindowTextLengthW(hwnd) > 0
+        }
 }
 
 unsafe extern "system" fn on_foreground(
@@ -92,7 +99,11 @@ unsafe extern "system" fn on_foreground(
     }
     if external_window(hwnd) {
         LAST_EXTERNAL_WINDOW.store(
-            if valid_capture_window(hwnd) { hwnd as isize } else { 0 },
+            if valid_capture_window(hwnd) {
+                hwnd as isize
+            } else {
+                0
+            },
             Ordering::SeqCst,
         );
     }
@@ -106,7 +117,9 @@ fn select_capture_target() -> Result<isize, String> {
         LAST_EXTERNAL_WINDOW.load(Ordering::SeqCst)
     };
     if !valid_capture_window(target as HWND) {
-        return Err("Previous application window is no longer available. Focus it and retry.".into());
+        return Err(
+            "Previous application window is no longer available. Focus it and retry.".into(),
+        );
     }
     Ok(target)
 }
@@ -114,7 +127,9 @@ fn select_capture_target() -> Result<isize, String> {
 fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
     let hwnd = target as HWND;
     if !valid_capture_window(hwnd) {
-        return Err("Previous application window changed or disappeared. Focus it and retry.".into());
+        return Err(
+            "Previous application window changed or disappeared. Focus it and retry.".into(),
+        );
     }
     let mut rect: RECT = unsafe { std::mem::zeroed() };
     if unsafe { GetWindowRect(hwnd, &mut rect) } == 0 {
@@ -353,7 +368,9 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
                 let runtime = handle.state::<AgentRuntime>();
                 match target {
                     Ok(window) => {
-                        if let Err(reason) = runtime.capture_hotkey(window, capture_foreground).await {
+                        if let Err(reason) =
+                            runtime.capture_hotkey(window, capture_foreground).await
+                        {
                             runtime.capture_error(&reason);
                         }
                     }
