@@ -56,12 +56,13 @@ export function ModelUsageSettings({
   busy: boolean;
 }) {
   const selectedModel = model ?? readiness.model;
+  const observedUsage = selectedModel && snapshot.model === selectedModel ? snapshot.usage : null;
   const selectedOption = readiness.models.find((option) => option.id === selectedModel);
   const efforts = selectedOption?.thinkingEfforts ?? readiness.thinkingEfforts;
   const selectedEffort =
     thinkingEffort ?? selectedOption?.defaultThinkingEffort ?? readiness.thinkingEffort ?? "";
-  const contextUsed = snapshot.usage?.contextTokens;
-  const contextWindow = snapshot.usage?.modelContextWindow ?? selectedOption?.contextWindow;
+  const contextUsed = observedUsage?.contextTokens;
+  const contextWindow = observedUsage?.modelContextWindow ?? selectedOption?.contextWindow;
   const contextRemaining =
     contextUsed != null && contextWindow != null ? Math.max(0, contextWindow - contextUsed) : null;
   const contextPercent =
@@ -122,7 +123,7 @@ export function ModelUsageSettings({
           )}
         </div>
       </div>
-      {snapshot.usage ? (
+      {observedUsage ? (
         <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 pt-3 text-otto-sm">
           <dt className="text-otto-text-tertiary">Active model</dt>
           <dd>{snapshot.model ?? selectedModel ?? "Not detected"}</dd>
@@ -137,11 +138,11 @@ export function ModelUsageSettings({
           <dt className="text-otto-text-tertiary">Context remaining</dt>
           <dd>{formatTokens(contextRemaining)}</dd>
           <dt className="text-otto-text-tertiary">Session tokens</dt>
-          <dd>{formatTokens(snapshot.usage?.sessionTokens)}</dd>
+          <dd>{formatTokens(observedUsage?.sessionTokens)}</dd>
         </dl>
       ) : (
         <Text as="p" variant="caption" className="mt-3 text-otto-text-tertiary">
-          Provider usage unavailable.
+          Usage unavailable until the provider reports session statistics.
         </Text>
       )}
       {contextPercent != null && (

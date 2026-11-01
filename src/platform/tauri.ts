@@ -37,12 +37,12 @@ export type AgentModelOption = {
 };
 
 export type AgentUsage = {
-  contextTokens: number;
+  contextTokens: number | null;
   sessionTokens: number;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
-  reasoningOutputTokens: number;
+  reasoningOutputTokens: number | null;
   modelContextWindow: number | null;
 };
 
@@ -114,8 +114,9 @@ export async function getCodexReadiness(cwd?: string): Promise<ProviderReadiness
 export async function getAgentReadiness(
   provider: AgentProvider,
   cwd?: string,
+  model?: string | null,
 ): Promise<ProviderReadiness> {
-  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd });
+  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd, model });
 }
 export type AgentSubscription = {
   channel: Channel<AgentSnapshot>;

@@ -47,11 +47,11 @@ impl ProviderId {
         Ok(())
     }
 
-    pub async fn readiness(self, cwd: &PathBuf) -> ProviderReadiness {
+    pub async fn readiness(self, cwd: &PathBuf, model: Option<&str>) -> ProviderReadiness {
         let mut ready = match self {
             Self::Codex => super::codex::readiness(cwd).await,
             #[cfg(windows)]
-            Self::Pi => super::pi::readiness(cwd).await,
+            Self::Pi => super::pi::readiness(cwd, model).await,
             #[cfg(windows)]
             Self::Agy => super::agy::readiness(cwd).await,
             #[cfg(not(windows))]

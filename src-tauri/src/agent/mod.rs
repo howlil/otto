@@ -44,12 +44,12 @@ pub struct ModelOption {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageSnapshot {
-    pub context_tokens: i64,
+    pub context_tokens: Option<i64>,
     pub session_tokens: i64,
     pub input_tokens: i64,
     pub cached_input_tokens: i64,
     pub output_tokens: i64,
-    pub reasoning_output_tokens: i64,
+    pub reasoning_output_tokens: Option<i64>,
     pub model_context_window: Option<i64>,
 }
 
@@ -367,7 +367,16 @@ impl AgentRuntime {
         provider: &str,
         requested_cwd: Option<&str>,
     ) -> ProviderReadiness {
-        let Some(provider) = ProviderId::parse(provider) else {
+        self.provider_readiness_for(provider, requested_cwd, None).await
+    }
+
+    pub async fn provider_readiness_for(
+        &self,
+        provider: &str,
+        requested_cwd: Option<&str>,
+        model: Option<&str>,
+    ) -> ProviderReadiness {
+        let Some(provider_id) = ProviderId::parse(provider) else {
             return ProviderReadiness::new(
                 "unsupported",
                 "Provider adapter unavailable.",
@@ -392,7 +401,7 @@ impl AgentRuntime {
                 "Select a valid folder, then Retry.",
             );
         }
-        provider.readiness(&cwd).await
+        provider_id.readiness(&cwd, model).await
     }
 
     pub async fn codex_readiness(&self, requested_cwd: Option<&str>) -> ProviderReadiness {
@@ -447,7 +456,7 @@ impl AgentRuntime {
             return Err("Start a new Quick Ask session before using screen capture.".into());
         }
         let ready = self
-            .provider_readiness(&state.provider, Some(&state.cwd))
+            .provider_readiness_for(&state.provider, Some(&state.cwd), state.model.as_deref())
             .await;
         if ready.status != "ready" || !ready.image_input {
             return Err(
@@ -593,7 +602,7 @@ impl AgentRuntime {
         }
 
         let readiness = self
-            .provider_readiness(&provider, Some(&cwd.to_string_lossy()))
+            .provider_readiness_for(&provider, Some(&cwd.to_string_lossy()), model.as_deref())
             .await;
         if readiness.status != "ready" {
             return Err(format!("{} {}", readiness.message, readiness.recovery));

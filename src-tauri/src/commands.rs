@@ -29,8 +29,9 @@ pub async fn agent_provider_readiness(
     runtime: State<'_, AgentRuntime>,
     provider: String,
     cwd: Option<String>,
+    model: Option<String>,
 ) -> Result<crate::agent::ProviderReadiness, String> {
-    Ok(runtime.provider_readiness(&provider, cwd.as_deref()).await)
+    Ok(runtime.provider_readiness_for(&provider, cwd.as_deref(), model.as_deref()).await)
 }
 
 #[tauri::command]

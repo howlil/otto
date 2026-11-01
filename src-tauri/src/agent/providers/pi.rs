@@ -2,7 +2,7 @@ use super::job::Job;
 use crate::agent::events::{AgentEvent, ProviderEvents};
 #[cfg(test)]
 use crate::agent::{CaptureSnapshot, ChatMessage, Snapshot};
-use crate::agent::{CapturedImage, Control, ProviderReadiness};
+use crate::agent::{CapturedImage, Control, ModelOption, ProviderReadiness, UsageSnapshot};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
@@ -53,6 +53,7 @@ struct Rpc {
     child: Child,
     stdin: ChildStdin,
     stdout: Lines<BufReader<ChildStdout>>,
+    next_id: u64,
 }
 
 impl Rpc {
@@ -81,6 +82,7 @@ impl Rpc {
             child,
             stdin,
             stdout: BufReader::new(stdout).lines(),
+            next_id: 0,
         })
     }
 
@@ -110,22 +112,92 @@ impl Rpc {
         serde_json::from_str(&line).map_err(|_| "Pi returned invalid RPC data.".into())
     }
 
-    async fn state(&mut self) -> Result<Value, String> {
-        self.send(json!({"id":"otto-state","type":"get_state"}))
-            .await?;
+
+    async fn request(&mut self, mut command: Value) -> Result<Value, String> {
+        self.next_id += 1;
+        let id = format!("otto-pi-{}", self.next_id);
+        let kind = command["type"]
+            .as_str()
+            .ok_or("Invalid Pi command.")?
+            .to_owned();
+        command["id"] = json!(id);
+        self.send(command).await?;
         timeout(Duration::from_secs(8), async {
             loop {
                 let frame = self.read().await?;
-                if frame["type"] == "response" && frame["id"] == "otto-state" {
-                    if frame["command"] != "get_state" || frame["success"] != true {
-                        return Err("Pi could not confirm RPC state.".into());
+                if frame["type"] == "tool_execution_start"
+                    || frame["type"] == "extension_ui_request"
+                {
+                    return Err("Pi exposed an unsupported action.".into());
+                }
+                if frame["type"] == "response" && frame["id"] == id {
+                    if frame["command"] != kind || frame["success"] != true {
+                        return Err(format!("Pi rejected {kind}."));
                     }
                     return Ok(frame["data"].clone());
                 }
             }
         })
         .await
-        .map_err(|_| "Pi RPC state timed out.".to_string())?
+        .map_err(|_| format!("Pi {kind} timed out."))?
+    }
+
+    async fn state(&mut self) -> Result<Value, String> {
+        self.request(json!({"type":"get_state"})).await
+    }
+
+    async fn configure(
+        &mut self,
+        selected: Option<&str>,
+        thinking: Option<&str>,
+    ) -> Result<(String, Option<String>, bool, String), String> {
+        if let Some(selected) = selected {
+            let models = available_models(
+                &self.request(json!({"type":"get_available_models"})).await?,
+            )?;
+            let model = models
+                .iter()
+                .find(|model| model_key(model).as_deref() == Some(selected))
+                .ok_or("Selected Pi model is not available in the isolated runtime.")?;
+            let current = self.state().await?;
+            if model_identity(&current).as_deref() != Some(selected) {
+                self.request(json!({
+                    "type":"set_model",
+                    "provider":model["provider"],
+                    "modelId":model["id"]
+                }))
+                .await?;
+            }
+        }
+        let levels = thinking_levels(
+            &self.request(json!({"type":"get_available_thinking_levels"})).await?,
+        )?;
+        if let Some(thinking) = thinking {
+            if !levels.iter().any(|level| level == thinking) {
+                return Err("Selected thinking level is not supported by this Pi model.".into());
+            }
+            self.request(json!({"type":"set_thinking_level","level":thinking}))
+                .await?;
+        }
+        let state = self.state().await?;
+        let model = model_identity(&state).ok_or("Pi has no active text model.")?;
+        if selected.is_some_and(|selected| selected != model.as_str()) {
+            return Err("Pi did not apply the requested model.".into());
+        }
+        if thinking.is_some_and(|value| state["thinkingLevel"].as_str() != Some(value)) {
+            return Err("Pi did not apply the requested thinking level.".into());
+        }
+        let session = state["sessionId"]
+            .as_str()
+            .filter(|id| !id.is_empty())
+            .ok_or("Pi did not provide a session ID.")?
+            .to_owned();
+        Ok((
+            model,
+            state["thinkingLevel"].as_str().map(str::to_owned),
+            model_accepts_images(&state),
+            session,
+        ))
     }
 
     async fn terminate(&mut self) {
@@ -135,22 +207,91 @@ impl Rpc {
     }
 }
 
-fn model_identity(state: &Value) -> Option<String> {
-    let model = &state["model"];
-    let (provider, id) = (model["provider"].as_str()?, model["id"].as_str()?);
-    if provider.is_empty()
-        || id.is_empty()
-        || !model["input"].as_array()?.iter().any(|part| part == "text")
+
+fn model_key(model: &Value) -> Option<String> {
+    let provider = model["provider"].as_str().filter(|value| !value.is_empty())?;
+    let id = model["id"].as_str().filter(|value| !value.is_empty())?;
+    if !model["input"]
+        .as_array()?
+        .iter()
+        .any(|part| part == "text")
     {
         return None;
     }
     Some(format!("{provider}/{id}"))
 }
 
+fn model_identity(state: &Value) -> Option<String> {
+    model_key(&state["model"])
+}
+
 fn model_accepts_images(state: &Value) -> bool {
     state["model"]["input"]
         .as_array()
         .is_some_and(|inputs| inputs.iter().any(|part| part == "image"))
+}
+
+fn model_option(model: &Value) -> Option<ModelOption> {
+    let id = model_key(model)?;
+    let name = model["name"]
+        .as_str()
+        .or_else(|| model["id"].as_str())
+        .unwrap_or("Unknown");
+    Some(ModelOption {
+        id,
+        display_name: format!("{} · {name}", model["provider"].as_str()?),
+        context_window: model["contextWindow"].as_i64(),
+        image_input: model["input"]
+            .as_array()
+            .is_some_and(|inputs| inputs.iter().any(|part| part == "image")),
+        thinking_efforts: Vec::new(),
+        default_thinking_effort: None,
+    })
+}
+
+fn available_models(data: &Value) -> Result<Vec<Value>, String> {
+    let models = data["models"]
+        .as_array()
+        .ok_or("Pi model catalog has an invalid format.")?;
+    let usable = models
+        .iter()
+        .filter(|model| model_key(model).is_some())
+        .cloned()
+        .collect::<Vec<_>>();
+    if usable.is_empty() {
+        return Err("Pi isolated runtime exposes no text model.".into());
+    }
+    Ok(usable)
+}
+
+fn thinking_levels(data: &Value) -> Result<Vec<String>, String> {
+    let levels = data["levels"]
+        .as_array()
+        .ok_or("Pi thinking levels are unavailable.")?;
+    let supported = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+    let result = levels
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|value| supported.contains(value))
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    if result.is_empty() {
+        return Err("Pi returned no supported thinking levels.".into());
+    }
+    Ok(result)
+}
+
+fn usage_snapshot(data: &Value) -> Option<UsageSnapshot> {
+    let tokens = &data["tokens"];
+    Some(UsageSnapshot {
+        context_tokens: data["contextUsage"]["tokens"].as_i64(),
+        session_tokens: tokens["total"].as_i64()?,
+        input_tokens: tokens["input"].as_i64()?,
+        cached_input_tokens: tokens["cacheRead"].as_i64()?,
+        output_tokens: tokens["output"].as_i64()?,
+        reasoning_output_tokens: None,
+        model_context_window: data["contextUsage"]["contextWindow"].as_i64(),
+    })
 }
 
 fn authentication(state: &Value) -> ProviderReadiness {
@@ -169,7 +310,8 @@ fn authentication(state: &Value) -> ProviderReadiness {
     }
 }
 
-pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
+
+pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderReadiness {
     let Some(binary) = executable() else {
         return ProviderReadiness::new(
             "missing",
@@ -184,16 +326,59 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             "Update Pi and Retry.",
         );
     };
-    let model = rpc.state().await.ok().and_then(|state| {
-        model_identity(&state).map(|identity| (identity, model_accepts_images(&state)))
-    });
+    let probe = timeout(Duration::from_secs(18), async {
+        let catalog =
+            available_models(&rpc.request(json!({"type":"get_available_models"})).await?)?;
+        let state = rpc.state().await?;
+        let selected = selected_model
+            .map(str::to_owned)
+            .or_else(|| model_identity(&state))
+            .or_else(|| catalog.first().and_then(model_key))
+            .ok_or("Pi has no available text model.")?;
+        let chosen = catalog
+            .iter()
+            .find(|model| model_key(model).as_deref() == Some(selected.as_str()))
+            .ok_or("Pi selected model is not available in the isolated runtime.")?;
+        if model_identity(&state).as_deref() != Some(selected.as_str()) {
+            rpc.request(json!({
+                "type":"set_model",
+                "provider":chosen["provider"],
+                "modelId":chosen["id"]
+            }))
+            .await?;
+        }
+        let confirmed = rpc.state().await?;
+        if model_identity(&confirmed).as_deref() != Some(selected.as_str()) {
+            return Err("Pi did not confirm the selected model.".into());
+        }
+        let efforts = thinking_levels(
+            &rpc.request(json!({"type":"get_available_thinking_levels"})).await?,
+        )?;
+        let mut models = catalog.iter().filter_map(model_option).collect::<Vec<_>>();
+        if let Some(model) = models.iter_mut().find(|model| model.id == selected) {
+            model.thinking_efforts = efforts.clone();
+            model.default_thinking_effort =
+                confirmed["thinkingLevel"].as_str().map(str::to_owned);
+        }
+        Ok::<_, String>((
+            selected,
+            models,
+            efforts,
+            confirmed["thinkingLevel"].as_str().map(str::to_owned),
+            model_accepts_images(&confirmed),
+        ))
+    })
+    .await;
     rpc.terminate().await;
-    let Some((model, image_input)) = model else {
-        return ProviderReadiness::new(
-            "unsupported",
-            "Pi has no confirmed text model or RPC support.",
-            "Choose a Pi model or update Pi, then Retry.",
-        );
+    let (model, models, efforts, thinking, image_input) = match probe {
+        Ok(Ok(ready)) => ready,
+        _ => {
+            return ProviderReadiness::new(
+                "unsupported",
+                "Pi model catalog or selected model could not be confirmed.",
+                "Check the isolated Pi RPC models and Retry.",
+            );
+        }
     };
     let mut command = Command::new(binary);
     command
@@ -202,13 +387,9 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .kill_on_drop(true);
-    match timeout(Duration::from_secs(10), command.output()).await {
+    let mut readiness = match timeout(Duration::from_secs(10), command.output()).await {
         Ok(Ok(output)) => match serde_json::from_slice::<Value>(&output.stdout) {
-            Ok(value) => {
-                let mut readiness = authentication(&value);
-                readiness.image_input = readiness.status == "ready" && image_input;
-                readiness
-            }
+            Ok(value) => authentication(&value),
             Err(_) => ProviderReadiness::new(
                 "unsupported",
                 "Pi auth probe is incompatible.",
@@ -220,7 +401,13 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             "Pi authentication check timed out.",
             "Retry after checking Pi.",
         ),
-    }
+    };
+    readiness.image_input = readiness.status == "ready" && image_input;
+    readiness.model = Some(model);
+    readiness.models = models;
+    readiness.thinking_effort = thinking;
+    readiness.thinking_efforts = efforts;
+    readiness
 }
 
 const MAX_CAPTURE_BYTES: u64 = 24 * 1024 * 1024;
@@ -337,8 +524,9 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         text,
         cwd,
         run_id,
+        model,
+        thinking_effort,
         capture,
-        ..
     } = initial
     else {
         events.fail(events.snapshot().run_id, "Pi only supports text Quick Ask.");
@@ -351,8 +539,9 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
             return;
         }
     };
-    let state = tokio::select! {
-        response = rpc.state() => response,
+
+    let configured = tokio::select! {
+        response = rpc.configure(model.as_deref(), thinking_effort.as_deref()) => response,
         control = controls.recv() => {
             if matches!(control, Some(Control::Stop)) {
                 events.stopped(run_id);
@@ -363,16 +552,19 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
             return;
         }
     };
-    let Some((session, image_input)) = state.ok().and_then(|s| {
-        model_identity(&s)?;
-        s["sessionId"]
-            .as_str()
-            .map(|id| (id.to_owned(), model_accepts_images(&s)))
-    }) else {
-        events.fail(run_id, "Pi session or text model is unavailable.");
-        rpc.terminate().await;
-        return;
+    let (active_model, active_thinking, image_input, session) = match configured {
+        Ok(configured) => configured,
+        Err(reason) => {
+            events.fail(run_id, &reason);
+            rpc.terminate().await;
+            return;
+        }
     };
+    events.emit(AgentEvent::RuntimeChanged {
+        run_id,
+        model: Some(active_model),
+        thinking_effort: active_thinking,
+    });
     if capture.is_some() && !image_input {
         events.fail(run_id, "The selected Pi model cannot accept screenshots.");
         rpc.terminate().await;
@@ -399,7 +591,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
     let mut pending_text = text;
     let mut active = Some(run_id);
     let mut acknowledged = false;
-    let mut settled = false;
+    let mut settled: Option<Value> = None;
     let mut buffered: Vec<Value> = Vec::new();
     loop {
         tokio::select! {
@@ -418,15 +610,28 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     let _ = finished.send(());
                     break;
                 }
-                Some(Control::Ask {text, cwd, run_id, capture, ..}) if active.is_none() => {
+                Some(Control::Ask {text, cwd, run_id, model, thinking_effort, capture}) if active.is_none() => {
                     if cwd.as_path() != Path::new(&events.snapshot().cwd) {
                         events.fail(run_id, "Pi context changed. Start a new session.");
                         continue;
                     }
-                    if capture.is_some() && !image_input {
+                    let configured = rpc.configure(model.as_deref(), thinking_effort.as_deref()).await;
+                    let (active_model, active_thinking, selected_images, _) = match configured {
+                        Ok(configured) => configured,
+                        Err(reason) => {
+                            events.fail(run_id, &reason);
+                            continue;
+                        }
+                    };
+                    if capture.is_some() && !selected_images {
                         events.fail(run_id, "The selected Pi model cannot accept screenshots.");
                         continue;
                     }
+                    events.emit(AgentEvent::RuntimeChanged {
+                        run_id,
+                        model: Some(active_model),
+                        thinking_effort: active_thinking,
+                    });
                     let request = match prompt_command(run_id, &text, capture.as_ref()).await {
                         Ok(request) => request,
                         Err(reason) => {
@@ -443,7 +648,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     pending_text = text;
                     active = Some(run_id);
                     acknowledged = false;
-                    settled = false;
+                    settled = None;
                     buffered.clear();
                 }
                 None => { rpc.terminate().await; break; }
@@ -469,12 +674,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                         Err(reason) => { events.fail(id, &reason); rpc.terminate().await; break; }
                     }
                     if value["type"] == "agent_settled" {
-                        settled = true;
-                        if !acknowledged {
-                            buffered.push(value);
-                        } else {
-                            observe(&value, id, &events);
-                        }
+                        settled = Some(value);
                     } else if value["type"] == "message_update" || value["type"] == "message_end" {
                         if acknowledged {
                             observe(&value, id, &events);
@@ -490,9 +690,39 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                         rpc.terminate().await;
                         break;
                     }
-                    if acknowledged && settled {
-                        active = None;
-                        drop(active_capture.take());
+                    if acknowledged {
+                        if let Some(settlement) = settled.take() {
+                            if settlement["aborted"] != true {
+                                let stats = tokio::select! {
+                                    result = timeout(
+                                        Duration::from_secs(2),
+                                        rpc.request(json!({"type":"get_session_stats"}))
+                                    ) => result.ok().and_then(Result::ok),
+                                    control = controls.recv() => {
+                                        match control {
+                                            Some(Control::Stop) => events.stopped(id),
+                                            Some(Control::Close { claimed, finished }) => {
+                                                if !finished.is_closed()
+                                                    && !claimed.swap(true, Ordering::SeqCst)
+                                                {
+                                                    let _ = finished.send(());
+                                                }
+                                                events.stopped(id);
+                                            }
+                                            _ => events.stopped(id),
+                                        }
+                                        rpc.terminate().await;
+                                        break;
+                                    }
+                                };
+                                if let Some(usage) = stats.as_ref().and_then(usage_snapshot) {
+                                    events.emit(AgentEvent::UsageUpdated { run_id: id, usage });
+                                }
+                            }
+                            observe(&settlement, id, &events);
+                            active = None;
+                            drop(active_capture.take());
+                        }
                     }
 
                 }
@@ -691,6 +921,80 @@ mod tests {
             &aborted_events
         ));
         assert_eq!(aborted.borrow().status, "failed");
+    }
+
+    #[test]
+    fn pi_catalog_preserves_provider_and_slashes_in_model_ids() {
+        let catalog = json!({"models":[
+            {
+                "provider":"netra",
+                "id":"deepseek/deepseek-v4.1-flash",
+                "name":"DeepSeek",
+                "input":["text"],
+                "reasoning":true,
+                "contextWindow":1000000
+            },
+            {
+                "provider":"opencode-go",
+                "id":"gpt-6-luna",
+                "input":["text","image"],
+                "reasoning":true,
+                "contextWindow":1100000
+            },
+            {
+                "provider":"other",
+                "id":"image-only",
+                "input":["image"]
+            }
+        ]});
+        let models = available_models(&catalog).unwrap();
+        assert_eq!(models.len(), 2);
+        let first = model_option(&models[0]).unwrap();
+        assert_eq!(first.id, "netra/deepseek/deepseek-v4.1-flash");
+        assert_eq!(first.context_window, Some(1000000));
+        assert!(!first.image_input);
+        let other = model_option(&models[1]).unwrap();
+        assert_eq!(other.id, "opencode-go/gpt-6-luna");
+        assert!(other.image_input);
+        assert!(available_models(&json!({"models":[]})).is_err());
+    }
+
+    #[test]
+    fn pi_thinking_levels_come_from_runtime_not_model_guesses() {
+        assert_eq!(
+            thinking_levels(&json!({"levels":["off"]})).unwrap(),
+            vec!["off"]
+        );
+        assert_eq!(
+            thinking_levels(&json!({"levels":["off","low","high","max"]})).unwrap(),
+            vec!["off", "low", "high", "max"]
+        );
+        assert!(thinking_levels(&json!({"levels":["impossible"]})).is_err());
+    }
+
+    #[test]
+    fn pi_usage_preserves_unknown_context_after_compaction() {
+        let usage = usage_snapshot(&json!({
+            "tokens": {
+                "input":50000,
+                "output":10000,
+                "cacheRead":40000,
+                "cacheWrite":5000,
+                "total":105000
+            },
+            "contextUsage": {
+                "tokens":null,
+                "contextWindow":200000,
+                "percent":null
+            }
+        }))
+        .unwrap();
+        assert_eq!(usage.context_tokens, None);
+        assert_eq!(usage.model_context_window, Some(200000));
+        assert_eq!(usage.session_tokens, 105000);
+        assert_eq!(usage.cached_input_tokens, 40000);
+        assert_eq!(usage.reasoning_output_tokens, None);
+        assert!(usage_snapshot(&json!({"tokens":{"input":7}})).is_none());
     }
 
     #[test]

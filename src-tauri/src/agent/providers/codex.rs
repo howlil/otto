@@ -773,12 +773,12 @@ fn usage_snapshot(value: &Value) -> Option<UsageSnapshot> {
     let last = &token_usage["last"];
     let total = &token_usage["total"];
     token_usage.is_object().then(|| UsageSnapshot {
-        context_tokens: last["totalTokens"].as_i64().unwrap_or(0),
+        context_tokens: last["totalTokens"].as_i64(),
         session_tokens: total["totalTokens"].as_i64().unwrap_or(0),
         input_tokens: last["inputTokens"].as_i64().unwrap_or(0),
         cached_input_tokens: last["cachedInputTokens"].as_i64().unwrap_or(0),
         output_tokens: last["outputTokens"].as_i64().unwrap_or(0),
-        reasoning_output_tokens: last["reasoningOutputTokens"].as_i64().unwrap_or(0),
+        reasoning_output_tokens: last["reasoningOutputTokens"].as_i64(),
         model_context_window: token_usage["modelContextWindow"].as_i64(),
     })
 }

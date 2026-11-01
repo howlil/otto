@@ -79,10 +79,11 @@ const checking: ProviderReadiness = {
   thinkingEfforts: [],
 };
 
-function useProviderReadiness(cwd: string, provider: AgentProvider) {
+function useProviderReadiness(cwd: string, provider: AgentProvider, model: string | null) {
   const [readiness, setReadiness] = useState<ProviderReadiness>(checking);
   const projectRef = useRef("");
   const providerRef = useRef<AgentProvider>("codex");
+  const modelRef = useRef<string | null>(null);
   const probeRef = useRef(0);
 
   const refreshProvider = useCallback(async () => {
@@ -104,7 +105,7 @@ function useProviderReadiness(cwd: string, provider: AgentProvider) {
       return;
     }
     try {
-      const status = await getAgentReadiness(providerRef.current, projectRef.current || undefined);
+      const status = await getAgentReadiness(providerRef.current, projectRef.current || undefined, modelRef.current);
       if (probeRef.current === probe) setReadiness(status);
     } catch {
       if (probeRef.current === probe) {
@@ -127,11 +128,12 @@ function useProviderReadiness(cwd: string, provider: AgentProvider) {
   useEffect(() => {
     projectRef.current = cwd;
     providerRef.current = provider;
+    modelRef.current = model;
     probeRef.current += 1;
     setReadiness(checking);
     const timer = setTimeout(() => void refreshProvider(), 350);
     return () => clearTimeout(timer);
-  }, [cwd, provider, refreshProvider]);
+  }, [cwd, provider, model, refreshProvider]);
 
   return { readiness, refreshProvider };
 }
@@ -466,7 +468,7 @@ export function useAgent() {
   const busy = ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status);
   const captureBusy = captureIsWorking(snapshot.capture.phase);
   const locked = busy || captureBusy || snapshot.threadId !== null;
-  const { readiness, refreshProvider } = useProviderReadiness(cwd, provider);
+  const { readiness, refreshProvider } = useProviderReadiness(cwd, provider, model);
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
   useEffect(() => {
     if (readiness.status !== "ready") return;
