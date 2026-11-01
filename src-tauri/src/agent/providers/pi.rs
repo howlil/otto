@@ -1,5 +1,6 @@
 use super::job::Job;
-use crate::agent::{ChatMessage, Control, ProviderReadiness, Snapshot, fail, mutate};
+use crate::agent::{CapturedImage, ChatMessage, Control, ProviderReadiness, Snapshot, fail, mutate};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -141,6 +142,12 @@ fn model_identity(state: &Value) -> Option<String> {
     Some(format!("{provider}/{id}"))
 }
 
+fn model_accepts_images(state: &Value) -> bool {
+    state["model"]["input"]
+        .as_array()
+        .is_some_and(|inputs| inputs.iter().any(|part| part == "image"))
+}
+
 fn authentication(state: &Value) -> ProviderReadiness {
     match state["status"].as_str() {
         Some("ready") => ProviderReadiness::new("ready", "Pi is ready for text.", ""),
@@ -172,13 +179,11 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             "Update Pi and Retry.",
         );
     };
-    let model = rpc
-        .state()
-        .await
-        .ok()
-        .and_then(|state| model_identity(&state));
+    let model = rpc.state().await.ok().and_then(|state| {
+        model_identity(&state).map(|identity| (identity, model_accepts_images(&state)))
+    });
     rpc.terminate().await;
-    let Some(model) = model else {
+    let Some((model, image_input)) = model else {
         return ProviderReadiness::new(
             "unsupported",
             "Pi has no confirmed text model or RPC support.",
@@ -194,7 +199,11 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         .kill_on_drop(true);
     match timeout(Duration::from_secs(10), command.output()).await {
         Ok(Ok(output)) => match serde_json::from_slice::<Value>(&output.stdout) {
-            Ok(value) => authentication(&value),
+            Ok(value) => {
+                let mut readiness = authentication(&value);
+                readiness.image_input = readiness.status == "ready" && image_input;
+                readiness
+            },
             Err(_) => ProviderReadiness::new(
                 "unsupported",
                 "Pi auth probe is incompatible.",
@@ -207,6 +216,39 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             "Retry after checking Pi.",
         ),
     }
+}
+
+const MAX_CAPTURE_BYTES: u64 = 24 * 1024 * 1024;
+const PNG_MAGIC: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
+
+fn encode_png_capture(path: &Path) -> Result<String, String> {
+    let length = std::fs::metadata(path)
+        .map_err(|_| "Captured image is unavailable.".to_string())?
+        .len();
+    if length == 0 || length > MAX_CAPTURE_BYTES {
+        return Err("Captured image exceeds Pi's supported size limit.".into());
+    }
+    let bytes = std::fs::read(path).map_err(|_| "Cannot read captured image.".to_string())?;
+    if !bytes.starts_with(&PNG_MAGIC) || bytes.len() as u64 > MAX_CAPTURE_BYTES {
+        return Err("Captured image is not a valid supported PNG.".into());
+    }
+    Ok(STANDARD.encode(bytes))
+}
+
+async fn prompt_command(
+    run_id: u64,
+    text: &str,
+    capture: Option<&CapturedImage>,
+) -> Result<Value, String> {
+    let mut request = json!({"type":"prompt","id":format!("otto-{run_id}"),"message":text});
+    if let Some(image) = capture {
+        let path = image.path().to_owned();
+        let encoded = tokio::task::spawn_blocking(move || encode_png_capture(&path))
+            .await
+            .map_err(|_| "Image preparation was interrupted.".to_string())??;
+        request["images"] = json!([{"type":"image","data":encoded,"mimeType":"image/png"}]);
+    }
+    Ok(request)
 }
 
 fn accepted_prompt(frame: &Value, run_id: u64) -> Result<bool, String> {
@@ -327,7 +369,7 @@ pub async fn run(
         text,
         cwd,
         run_id,
-        capture: None,
+        capture,
     } = initial
     else {
         fail(
@@ -356,24 +398,34 @@ pub async fn run(
             return;
         }
     };
-    let Some(session) = state.ok().and_then(|s| {
+    let Some((session, image_input)) = state.ok().and_then(|s| {
         model_identity(&s)?;
-        s["sessionId"].as_str().map(str::to_owned)
+        s["sessionId"].as_str().map(|id| (id.to_owned(), model_accepts_images(&s)))
     }) else {
         fail(&updates, run_id, "Pi session or text model is unavailable.");
         rpc.terminate().await;
         return;
     };
+    if capture.is_some() && !image_input {
+        fail(&updates, run_id, "The selected Pi model cannot accept screenshots.");
+        rpc.terminate().await;
+        return;
+    }
     mutate(&updates, |s| {
         if s.run_id == run_id {
             s.thread_id = Some(session);
         }
     });
-    if rpc
-        .send(json!({"type":"prompt","id":format!("otto-{run_id}"),"message":text}))
-        .await
-        .is_err()
-    {
+    let mut active_capture = capture;
+    let request = match prompt_command(run_id, &text, active_capture.as_ref()).await {
+        Ok(request) => request,
+        Err(reason) => {
+            fail(&updates, run_id, &reason);
+            rpc.terminate().await;
+            return;
+        }
+    };
+    if rpc.send(request).await.is_err() {
         fail(&updates, run_id, "Cannot submit the Pi request.");
         rpc.terminate().await;
         return;
@@ -400,16 +452,28 @@ pub async fn run(
                     let _ = finished.send(());
                     break;
                 }
-                Some(Control::Ask {text, cwd, run_id, capture: None}) if active.is_none() => {
+                Some(Control::Ask {text, cwd, run_id, capture}) if active.is_none() => {
                     if cwd.as_path() != Path::new(&updates.borrow().cwd) {
                         fail(&updates, run_id, "Pi context changed. Start a new session.");
                         continue;
                     }
-                    if rpc.send(json!({"type":"prompt","id":format!("otto-{run_id}"),"message":text})).await.is_err() {
+                    if capture.is_some() && !image_input {
+                        fail(&updates, run_id, "The selected Pi model cannot accept screenshots.");
+                        continue;
+                    }
+                    let request = match prompt_command(run_id, &text, capture.as_ref()).await {
+                        Ok(request) => request,
+                        Err(reason) => {
+                            fail(&updates, run_id, &reason);
+                            continue;
+                        }
+                    };
+                    if rpc.send(request).await.is_err() {
                         fail(&updates, run_id, "Pi follow-up could not start.");
                         rpc.terminate().await;
                         break;
                     }
+                    active_capture = capture;
                     pending_text = text;
                     active = Some(run_id);
                     acknowledged = false;
@@ -462,6 +526,7 @@ pub async fn run(
                     }
                     if acknowledged && settled {
                         active = None;
+                        drop(active_capture.take());
                     }
 
                 }
