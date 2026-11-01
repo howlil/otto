@@ -65,10 +65,9 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
-        RecoveryMarker::new(std::env::temp_dir().join(format!(
-            "otto-recovery-test-{}-{nonce}",
-            std::process::id()
-        )))
+        RecoveryMarker::new(
+            std::env::temp_dir().join(format!("otto-recovery-test-{}-{nonce}", std::process::id())),
+        )
     }
 
     #[test]

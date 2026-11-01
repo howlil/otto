@@ -1,6 +1,6 @@
 mod policy;
-mod recovery;
 mod providers;
+mod recovery;
 pub mod session;
 
 use policy::InteractionMode;
