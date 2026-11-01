@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCaptureSource } from "./useCaptureSource";
 import {
   askCodex,
   getCodexReadiness,
   configureCaptureShortcut,
-  configureCaptureSource,
   nativeAvailable,
   decideAgentApproval,
   getAgentSnapshot,
@@ -11,7 +11,6 @@ import {
   stopCodex,
   subscribeAgent,
   type AgentMode,
-  type CaptureSource,
   type AgentSnapshot,
   type AgentSubscription,
   type ProviderReadiness,
@@ -289,14 +288,9 @@ function useNewAgentSession({
 }
 
 function useCaptureShortcut() {
-  const [source, setSource] = useState<CaptureSource>(() => {
-    try {
-      return localStorage.getItem("otto.capture.source") === "fullScreen" ? "fullScreen" : "window";
-    } catch {
-      return "window";
-    }
-  });
-  const initialSource = useRef(source);
+  const [captureMessage, setCaptureMessage] = useState("");
+  const { source, selectSource, sourceReady, sourcePending } =
+    useCaptureSource(setCaptureMessage);
   const [shortcut, setShortcut] = useState(() => {
     try {
       return localStorage.getItem("otto.capture.shortcut") || "Ctrl+Shift+O";
@@ -304,37 +298,18 @@ function useCaptureShortcut() {
       return "Ctrl+Shift+O";
     }
   });
-  const [captureMessage, setCaptureMessage] = useState("");
   const [savingCapture, setSavingCapture] = useState(false);
   const initialShortcut = useRef(shortcut);
 
   useEffect(() => {
-    if (!nativeAvailable) return;
-    void configureCaptureSource(initialSource.current)
-      .then(() => configureCaptureShortcut(initialShortcut.current))
-      .catch((cause: unknown) => {
-        setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
-      });
-  }, []);
-
-  const selectSource = useCallback(async (next: CaptureSource) => {
-    if (!nativeAvailable) return;
-    try {
-      await configureCaptureSource(next);
-      setSource(next);
-      try {
-        localStorage.setItem("otto.capture.source", next);
-        setCaptureMessage("Capture source selected. Press the configured hotkey to capture.");
-      } catch {
-        setCaptureMessage("Source selected; preference could not be saved.");
-      }
-    } catch (cause) {
-      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
-    }
-  }, []);
+    if (!nativeAvailable || !sourceReady) return;
+    void configureCaptureShortcut(initialShortcut.current).catch((cause: unknown) => {
+      setCaptureMessage(String(cause));
+    });
+  }, [sourceReady]);
 
   const saveShortcut = useCallback(async () => {
-    if (!nativeAvailable) return;
+    if (!nativeAvailable || !sourceReady || sourcePending || savingCapture) return;
     setSavingCapture(true);
     try {
       await configureCaptureShortcut(shortcut);
@@ -345,15 +320,17 @@ function useCaptureShortcut() {
         setCaptureMessage("Shortcut active; preference could not be saved for next launch.");
       }
     } catch (cause) {
-      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
+      setCaptureMessage(String(cause));
     } finally {
       setSavingCapture(false);
     }
-  }, [shortcut]);
+  }, [shortcut, sourceReady, sourcePending, savingCapture]);
 
   return {
     source,
     selectSource,
+    sourceReady,
+    sourcePending,
     shortcut,
     setShortcut,
     captureMessage,

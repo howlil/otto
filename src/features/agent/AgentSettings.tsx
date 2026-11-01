@@ -50,6 +50,8 @@ export function AgentSettings({
   const {
     source,
     selectSource,
+    sourceReady,
+    sourcePending,
     shortcut,
     setShortcut,
     captureMessage,
@@ -106,14 +108,14 @@ export function AgentSettings({
               value={shortcut}
               onChange={(event) => setShortcut(event.target.value)}
               placeholder="Ctrl+Shift+O"
-              disabled={!available || savingCapture}
+              disabled={!available || savingCapture || sourcePending || !sourceReady}
               spellCheck={false}
               className="h-[34px] min-w-0 flex-1 bg-transparent text-otto-sm text-otto-knob outline-none"
             />
             <Button
               variant="primary"
               size="sm"
-              disabled={!available || savingCapture}
+              disabled={!available || savingCapture || sourcePending || !sourceReady}
               onClick={() => void saveShortcut()}
             >
               Apply
@@ -131,9 +133,23 @@ export function AgentSettings({
                 { value: "fullScreen", label: "Full desktop" },
               ]}
               onChange={(next) => void selectSource(next)}
-              disabled={!available || savingCapture}
+              disabled={!available || savingCapture || sourcePending}
             />
           </div>
+          {available && sourcePending && (
+            <Text as="p" variant="caption" className="mt-2 text-otto-text-tertiary" role="status">
+              Confirming capture source…
+            </Text>
+          )}
+          {available && !sourcePending && !sourceReady && (
+            <StatusMessage
+              tone="warn"
+              className="mt-2"
+              action={{ label: "Retry", onClick: () => void selectSource(source) }}
+            >
+              Capture source is not confirmed. Retry before using the shortcut.
+            </StatusMessage>
+          )}
           <Text as="p" variant="caption" className="mt-2 text-otto-text-tertiary">
             {source === "fullScreen"
               ? "Full desktop may include Otto and other visible applications. Press the hotkey to capture."

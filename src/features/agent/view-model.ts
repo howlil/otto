@@ -25,6 +25,8 @@ export type AgentTranscriptModel = {
 export type CaptureShortcutModel = {
   source: CaptureSource;
   selectSource: (source: CaptureSource) => Promise<void>;
+  sourceReady: boolean;
+  sourcePending: boolean;
   shortcut: string;
   setShortcut: (value: string) => void;
   captureMessage: string;
