@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: Codex/Pi/Agy agent runtime and draft regression.
+# Verification dispatch: B3 Agy adapter full verification after frontend format fixes.
 
 'on':
   push:
