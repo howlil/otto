@@ -1332,7 +1332,10 @@ mod tests {
         started_rx.await.expect("worker entered blocking operation");
         drop(reservation);
         let outcome = attempt.await.expect("timeout task completed");
-        assert!(outcome.unwrap_err().contains("timed out"));
+        match outcome {
+            Err(message) => assert!(message.contains("timed out")),
+            Ok(_) => panic!("blocked capture must time out"),
+        }
         assert!(CaptureReservation::acquire(Arc::clone(&in_flight)).is_err());
         release_tx.send(()).unwrap();
         timeout(Duration::from_secs(2), async {

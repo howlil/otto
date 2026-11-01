@@ -35,6 +35,9 @@ describe('release version policy', () => {
     );
     expect(config.plugins.updater.windows.installMode).toBe('quiet');
     expect(config.bundle.windows.nsis.installMode).toBe('currentUser');
+    expect(config.plugins.updater.endpoints).toEqual([
+      'https://raw.githubusercontent.com/howlil/otto/updates/latest.json',
+    ]);
   });
 
   test('recognizes squash and merge-commit titles and pre-1.0 breaking changes', () => {

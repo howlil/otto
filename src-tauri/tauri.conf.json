@@ -35,7 +35,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwODU0RDJEMTFFQ0EyRjIKUldUeW91d1JMVTJGSUpOYjRCL2owbkxQMk9hdHcxR00yM3QvN3lQWWFuaGRXUFZNR0Z3T1A3RjUK",
       "endpoints": [
-        "https://github.com/howlil/otto/releases/latest/download/latest.json"
+        "https://raw.githubusercontent.com/howlil/otto/updates/latest.json"
       ],
       "windows": {
         "installMode": "quiet"
