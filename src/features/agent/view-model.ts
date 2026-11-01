@@ -1,4 +1,4 @@
-import type { AgentMode, AgentSnapshot, ProviderReadiness } from "../../platform/tauri";
+import type { AgentMode, AgentSnapshot, CaptureSource, ProviderReadiness } from "../../platform/tauri";
 import type { AgentErrorKind } from "./useAgent";
 
 export type AgentTranscriptModel = {
@@ -18,6 +18,8 @@ export type AgentTranscriptModel = {
 };
 
 export type CaptureShortcutModel = {
+  source: CaptureSource;
+  selectSource: (source: CaptureSource) => Promise<void>;
   shortcut: string;
   setShortcut: (value: string) => void;
   captureMessage: string;

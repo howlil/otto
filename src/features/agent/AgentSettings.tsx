@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { Button, StatusMessage, Text, TextField } from "../../shared/ui";
+import { Button, ChoiceGroup, StatusMessage, Text, TextField } from "../../shared/ui";
 import type { CaptureShortcutModel } from "./view-model";
-import type { AgentMode, AgentStatus, ProviderReadiness } from "../../platform/tauri";
+import type { AgentMode, AgentStatus, CaptureSource, ProviderReadiness } from "../../platform/tauri";
 import { ModeSettings, ProjectSettings, ProviderSettings } from "./AgentSettingsSections";
 import { agentStatusLabel } from "./status";
 
@@ -42,7 +42,7 @@ export function AgentSettings({
   capture: CaptureShortcutModel;
   focusCaptureShortcut: boolean;
 }) {
-  const { shortcut, setShortcut, captureMessage, savingCapture, available, saveShortcut } = capture;
+  const { source, selectSource, shortcut, setShortcut, captureMessage, savingCapture, available, saveShortcut } = capture;
   useEffect(() => {
     if (!focusCaptureShortcut || !available) return;
     const frame = requestAnimationFrame(() => {
@@ -108,6 +108,22 @@ export function AgentSettings({
           <Text as="p" variant="caption" className="mt-1.5 text-otto-text-tertiary">
             Use Ctrl with Shift or Alt and one letter. Capture is triggered only by the shortcut;
             image analysis requires a compatible provider.
+          </Text>
+          <div className="mt-3">
+            <ChoiceGroup<CaptureSource>
+              value={source}
+              choices={[
+                { value: "window", label: "Last window" },
+                { value: "fullScreen", label: "Full desktop" },
+              ]}
+              onChange={(next) => void selectSource(next)}
+              disabled={!available || savingCapture}
+            />
+          </div>
+          <Text as="p" variant="caption" className="mt-2 text-otto-text-tertiary">
+            {source === "fullScreen"
+              ? "Full desktop may include Otto and other visible applications. Press the hotkey to capture."
+              : "Last window captures the recent external application. Press the hotkey to capture."}
           </Text>
           {!available && (
             <StatusMessage tone="info" className="mt-2">

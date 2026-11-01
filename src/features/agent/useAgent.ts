@@ -3,6 +3,7 @@ import {
   askCodex,
   getCodexReadiness,
   configureCaptureShortcut,
+  configureCaptureSource,
   nativeAvailable,
   decideAgentApproval,
   getAgentSnapshot,
@@ -10,6 +11,7 @@ import {
   stopCodex,
   subscribeAgent,
   type AgentMode,
+  type CaptureSource,
   type AgentSnapshot,
   type AgentSubscription,
   type ProviderReadiness,
@@ -287,6 +289,14 @@ function useNewAgentSession({
 }
 
 function useCaptureShortcut() {
+  const [source, setSource] = useState<CaptureSource>(() => {
+    try {
+      return localStorage.getItem("otto.capture.source") === "fullScreen" ? "fullScreen" : "window";
+    } catch {
+      return "window";
+    }
+  });
+  const initialSource = useRef(source);
   const [shortcut, setShortcut] = useState(() => {
     try {
       return localStorage.getItem("otto.capture.shortcut") || "Ctrl+Shift+O";
@@ -303,6 +313,25 @@ function useCaptureShortcut() {
     void configureCaptureShortcut(initialShortcut.current).catch((cause: unknown) => {
       setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
     });
+    void configureCaptureSource(initialSource.current).catch((cause: unknown) => {
+      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
+    });
+  }, []);
+
+  const selectSource = useCallback(async (next: CaptureSource) => {
+    if (!nativeAvailable) return;
+    try {
+      await configureCaptureSource(next);
+      setSource(next);
+      try {
+        localStorage.setItem("otto.capture.source", next);
+        setCaptureMessage("Capture source selected. Press the configured hotkey to capture.");
+      } catch {
+        setCaptureMessage("Source selected; preference could not be saved.");
+      }
+    } catch (cause) {
+      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
+    }
   }, []);
 
   const saveShortcut = useCallback(async () => {
@@ -324,6 +353,8 @@ function useCaptureShortcut() {
   }, [shortcut]);
 
   return {
+    source,
+    selectSource,
     shortcut,
     setShortcut,
     captureMessage,

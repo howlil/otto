@@ -11,6 +11,7 @@ export type AgentStatus =
   | "failed";
 
 export type AgentMode = "quickAsk" | "agentSession";
+export type CaptureSource = "window" | "fullScreen";
 
 export type ProviderReadiness = {
   status: "checking" | "ready" | "authRequired" | "missing" | "unsupported" | "unavailable";
@@ -93,6 +94,10 @@ export async function decideAgentApproval(
 }
 export async function configureCaptureShortcut(shortcut: string): Promise<void> {
   await invoke("agent_configure_capture_shortcut", { shortcut });
+}
+
+export async function configureCaptureSource(source: CaptureSource): Promise<void> {
+  await invoke("agent_configure_capture_source", { source });
 }
 
 export async function stopCodex(): Promise<void> {
