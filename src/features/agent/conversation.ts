@@ -13,6 +13,10 @@ export const promptPresets = [
   { label: "Summarize", prompt: "Summarize the following information into key points: " },
 ] as const;
 
+export function withPromptPreset(draft: string, preset: string): string {
+  if (!preset.trim()) return draft;
+  return draft.trim() ? `${draft.trimEnd()}\n\n${preset}` : preset;
+}
 export function quoteForFollowUp(answer: string, draft: string): string {
   const excerpt = answer.trim().slice(0, 1200);
   if (!excerpt) return draft;

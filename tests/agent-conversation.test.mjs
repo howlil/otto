@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   conversationAsMarkdown, matchingMessages, parseMarkdown,
-  promptPresets, quoteForFollowUp,
+  promptPresets, quoteForFollowUp, withPromptPreset,
 } from "../src/features/agent/conversation.ts";
 
 describe("Agent conversation utilities", () => {
@@ -30,6 +30,12 @@ describe("Agent conversation utilities", () => {
     expect(quoteForFollowUp("first\nsecond", "Follow-up:")).toBe("Follow-up:\n\n> first\n> second");
     expect(quoteForFollowUp("", "existing")).toBe("existing");
     expect(quoteForFollowUp("x".repeat(1500), "")).toContain("(excerpt)");
+  });
+
+  test("preset insertion never discards an existing unsent draft", () => {
+    expect(withPromptPreset("my draft", "Explain: ")).toBe("my draft\n\nExplain: ");
+    expect(withPromptPreset("", "Explain: ")).toBe("Explain: ");
+    expect(withPromptPreset("my draft", " ")).toBe("my draft");
   });
 
   test("search is case-insensitive and returns stable message indices", () => {

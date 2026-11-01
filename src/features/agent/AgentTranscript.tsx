@@ -4,7 +4,7 @@ import { providerIssue, providerIssueTitle } from "./status";
 import { TranscriptMessages } from "./TranscriptMessages";
 import { TranscriptOutcome } from "./TranscriptOutcome";
 import type { AgentTranscriptModel } from "./view-model";
-import { conversationAsMarkdown, matchingMessages, quoteForFollowUp } from "./conversation";
+import { conversationAsMarkdown, matchingMessages, quoteForFollowUp, withPromptPreset } from "./conversation";
 import { ConversationToolbar } from "./ConversationToolbar";
 
 export function AgentTranscript({
@@ -122,7 +122,7 @@ export function AgentTranscript({
             busy={busy}
             matching={matches}
             activeMatch={activeMatch}
-            onPreset={(prompt) => setDraft(prompt)}
+            onPreset={(prompt) => setDraft(withPromptPreset(draft, prompt))}
             onQuote={(answer) => {
               setDraft(quoteForFollowUp(answer, draft));
               document.getElementById("otto-prompt")?.focus({ preventScroll: true });
