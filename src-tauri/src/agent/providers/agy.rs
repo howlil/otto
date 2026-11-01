@@ -2,7 +2,7 @@ use super::job::Job;
 use crate::agent::events::{AgentEvent, ProviderEvents};
 #[cfg(test)]
 use crate::agent::{CaptureSnapshot, ChatMessage, Snapshot};
-use crate::agent::{Control, ProviderReadiness};
+use crate::agent::{Control, ProviderReadiness, UsageSnapshot};
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -211,14 +211,9 @@ fn available_models(value: &Value) -> bool {
         .is_some_and(|models| !models.is_empty())
 }
 
-fn model_discovery_failure(stdout: &[u8], stderr: &[u8]) -> ProviderReadiness {
-    let detail = format!(
-        "{} {}",
-        String::from_utf8_lossy(stdout),
-        String::from_utf8_lossy(stderr)
-    )
-    .to_ascii_lowercase();
-    if [
+fn authentication_required(detail: &str) -> bool {
+    let detail = detail.to_ascii_lowercase();
+    [
         "sign in",
         "sign-in",
         "not signed in",
@@ -232,7 +227,16 @@ fn model_discovery_failure(stdout: &[u8], stderr: &[u8]) -> ProviderReadiness {
     ]
     .iter()
     .any(|signal| detail.contains(signal))
-    {
+}
+
+fn model_discovery_failure(stdout: &[u8], stderr: &[u8]) -> ProviderReadiness {
+    let detail = format!(
+        "{} {}",
+        String::from_utf8_lossy(stdout),
+        String::from_utf8_lossy(stderr)
+    )
+    .to_ascii_lowercase();
+    if authentication_required(&detail) {
         ProviderReadiness::new(
             "authRequired",
             "Agy authentication is required.",
@@ -306,6 +310,33 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
     }
 }
 
+fn result_failure_message(error: Option<&str>) -> &'static str {
+    let detail = error.unwrap_or_default().to_ascii_lowercase();
+    if authentication_required(&detail) {
+        "Agy authentication expired. Sign in to Agy, then Retry."
+    } else if ["rate limit", "rate-limit", "quota", "429", "resource exhausted"]
+        .iter()
+        .any(|signal| detail.contains(signal))
+    {
+        "Agy rate limit or quota reached. Retry later."
+    } else {
+        "Agy could not finish this request."
+    }
+}
+
+fn usage_snapshot(value: &Value) -> Option<UsageSnapshot> {
+    let tokens = |name: &str| value[name].as_i64().filter(|count| *count >= 0);
+    Some(UsageSnapshot {
+        context_tokens: None,
+        session_tokens: tokens("total_tokens")?,
+        input_tokens: tokens("input_tokens")?,
+        cached_input_tokens: tokens("cache_read_tokens")?,
+        output_tokens: tokens("output_tokens")?,
+        reasoning_output_tokens: tokens("thinking_tokens"),
+        model_context_window: None,
+    })
+}
+
 fn result_confirms_prompt(frame: &Value) -> bool {
     frame["event"] == "result" && frame["result"]["status"] == "SUCCESS"
 }
@@ -346,13 +377,19 @@ fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
     }
     if frame["event"] == "result" {
         if frame["result"]["status"] != "SUCCESS" {
-            events.fail(id, "Agy could not finish this request.");
+            events.fail(
+                id,
+                result_failure_message(frame["result"]["error"].as_str()),
+            );
             return true;
         }
         let response = frame["result"]["response"].as_str().unwrap_or("");
         if response.trim().is_empty() {
             events.fail(id, "Agy returned an empty answer.");
             return true;
+        }
+        if let Some(usage) = usage_snapshot(&frame["result"]["usage"]) {
+            events.emit(AgentEvent::UsageUpdated { run_id: id, usage });
         }
         events.emit(AgentEvent::TextFinal {
             run_id: id,
@@ -603,6 +640,49 @@ mod tests {
     }
 
     #[test]
+    fn agy_reports_cumulative_tokens_without_inventing_context_window() {
+        let usage = usage_snapshot(&json!({
+            "input_tokens": 10418,
+            "output_tokens": 589,
+            "thinking_tokens": 551,
+            "cache_read_tokens": 8113,
+            "total_tokens": 11007
+        }))
+        .unwrap();
+        assert_eq!(usage.session_tokens, 11007);
+        assert_eq!(usage.input_tokens, 10418);
+        assert_eq!(usage.output_tokens, 589);
+        assert_eq!(usage.cached_input_tokens, 8113);
+        assert_eq!(usage.reasoning_output_tokens, Some(551));
+        assert_eq!(usage.context_tokens, None);
+        assert_eq!(usage.model_context_window, None);
+        assert!(usage_snapshot(&json!({"input_tokens": 1})).is_none());
+        assert!(usage_snapshot(&json!({
+            "input_tokens": 1,
+            "output_tokens": -1,
+            "cache_read_tokens": 0,
+            "total_tokens": 1
+        }))
+        .is_none());
+    }
+
+    #[test]
+    fn agy_stream_errors_are_actionable_without_exposing_provider_details() {
+        assert_eq!(
+            result_failure_message(Some("authentication required for user@example.com")),
+            "Agy authentication expired. Sign in to Agy, then Retry."
+        );
+        assert_eq!(
+            result_failure_message(Some("rate limit exceeded")),
+            "Agy rate limit or quota reached. Retry later."
+        );
+        assert_eq!(
+            result_failure_message(Some("internal provider error: private context")),
+            "Agy could not finish this request."
+        );
+    }
+
+    #[test]
     fn failed_result_before_user_input_does_not_acknowledge_prompt() {
         assert!(!result_confirms_prompt(
             &json!({"event":"result","result":{"status":"ERROR","response":""}})
@@ -691,12 +771,13 @@ mod tests {
         });
         let done_events = ProviderEvents::new(done.clone());
         assert!(observe(
-            &json!({"event":"result","result":{"status":"SUCCESS","response":"answer"}}),
+            &json!({"event":"result","result":{"status":"SUCCESS","response":"answer","usage":{"input_tokens":30,"output_tokens":10,"thinking_tokens":3,"cache_read_tokens":20,"total_tokens":40}}}),
             8,
             &done_events
         ));
         assert_eq!(done.borrow().status, "completed");
         assert_eq!(done.borrow().messages[0].text, "answer");
+        assert_eq!(done.borrow().usage.as_ref().map(|usage| usage.session_tokens), Some(40));
         assert!(!observe(
             &json!({"event":"result","result":{"status":"SUCCESS","response":"late"}}),
             7,
