@@ -572,7 +572,9 @@ mod tests {
             }
         })));
         assert!(!available_models(&json!({"models":[]})));
-        assert!(!available_models(&json!({"status":"ERROR","command":{"data":{"models":[{"id":"gemini"}]}}})));
+        assert!(!available_models(
+            &json!({"status":"ERROR","command":{"data":{"models":[{"id":"gemini"}]}}})
+        ));
         assert!(!available_models(&json!({"message":"auth required"})));
     }
 

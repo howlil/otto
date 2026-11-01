@@ -112,7 +112,6 @@ impl Rpc {
         serde_json::from_str(&line).map_err(|_| "Pi returned invalid RPC data.".into())
     }
 
-
     async fn request(&mut self, mut command: Value) -> Result<Value, String> {
         self.next_id += 1;
         let id = format!("otto-pi-{}", self.next_id);
@@ -152,9 +151,8 @@ impl Rpc {
         thinking: Option<&str>,
     ) -> Result<(String, Option<String>, bool, String), String> {
         if let Some(selected) = selected {
-            let models = available_models(
-                &self.request(json!({"type":"get_available_models"})).await?,
-            )?;
+            let models =
+                available_models(&self.request(json!({"type":"get_available_models"})).await?)?;
             let model = models
                 .iter()
                 .find(|model| model_key(model).as_deref() == Some(selected))
@@ -170,7 +168,9 @@ impl Rpc {
             }
         }
         let levels = thinking_levels(
-            &self.request(json!({"type":"get_available_thinking_levels"})).await?,
+            &self
+                .request(json!({"type":"get_available_thinking_levels"}))
+                .await?,
         )?;
         if let Some(thinking) = thinking {
             if !levels.iter().any(|level| level == thinking) {
@@ -207,15 +207,12 @@ impl Rpc {
     }
 }
 
-
 fn model_key(model: &Value) -> Option<String> {
-    let provider = model["provider"].as_str().filter(|value| !value.is_empty())?;
+    let provider = model["provider"]
+        .as_str()
+        .filter(|value| !value.is_empty())?;
     let id = model["id"].as_str().filter(|value| !value.is_empty())?;
-    if !model["input"]
-        .as_array()?
-        .iter()
-        .any(|part| part == "text")
-    {
+    if !model["input"].as_array()?.iter().any(|part| part == "text") {
         return None;
     }
     Some(format!("{provider}/{id}"))
@@ -310,7 +307,6 @@ fn authentication(state: &Value) -> ProviderReadiness {
     }
 }
 
-
 pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderReadiness {
     let Some(binary) = executable() else {
         return ProviderReadiness::new(
@@ -352,13 +348,13 @@ pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderR
             return Err("Pi did not confirm the selected model.".into());
         }
         let efforts = thinking_levels(
-            &rpc.request(json!({"type":"get_available_thinking_levels"})).await?,
+            &rpc.request(json!({"type":"get_available_thinking_levels"}))
+                .await?,
         )?;
         let mut models = catalog.iter().filter_map(model_option).collect::<Vec<_>>();
         if let Some(model) = models.iter_mut().find(|model| model.id == selected) {
             model.thinking_efforts = efforts.clone();
-            model.default_thinking_effort =
-                confirmed["thinkingLevel"].as_str().map(str::to_owned);
+            model.default_thinking_effort = confirmed["thinkingLevel"].as_str().map(str::to_owned);
         }
         Ok::<_, String>((
             selected,

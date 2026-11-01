@@ -367,7 +367,8 @@ impl AgentRuntime {
         provider: &str,
         requested_cwd: Option<&str>,
     ) -> ProviderReadiness {
-        self.provider_readiness_for(provider, requested_cwd, None).await
+        self.provider_readiness_for(provider, requested_cwd, None)
+            .await
     }
 
     pub async fn provider_readiness_for(
