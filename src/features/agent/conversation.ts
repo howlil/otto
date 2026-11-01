@@ -16,7 +16,10 @@ export const promptPresets = [
 export function quoteForFollowUp(answer: string, draft: string): string {
   const excerpt = answer.trim().slice(0, 1200);
   if (!excerpt) return draft;
-  const quoted = excerpt.split("\n").map((line) => "> " + line).join("\n");
+  const quoted = excerpt
+    .split("\n")
+    .map((line) => "> " + line)
+    .join("\n");
   const suffix = answer.trim().length > 1200 ? "\n> … (excerpt)" : "";
   return [draft.trim(), quoted + suffix].filter(Boolean).join("\n\n");
 }
@@ -29,9 +32,19 @@ export function matchingMessages(messages: Message[], term: string): number[] {
   );
 }
 
-export function conversationAsMarkdown(messages: Message[], provider: string, project: string): string {
+export function conversationAsMarkdown(
+  messages: Message[],
+  provider: string,
+  project: string,
+): string {
   if (!messages.length) return "";
-  const lines = ["# Otto conversation", "", "Provider: " + provider, "Project: " + (project || "Default"), ""];
+  const lines = [
+    "# Otto conversation",
+    "",
+    "Provider: " + provider,
+    "Project: " + (project || "Default"),
+    "",
+  ];
   for (const message of messages) {
     lines.push("## " + (message.role === "user" ? "User" : "Assistant"), "", message.text, "");
   }
@@ -56,7 +69,10 @@ export function parseMarkdown(input: string): MarkdownBlock[] {
       blocks.push({ kind: "code", language: fence[1], text: code.join("\n") });
       continue;
     }
-    if (!line.trim()) { flush(); continue; }
+    if (!line.trim()) {
+      flush();
+      continue;
+    }
     const heading = /^(#{1,3})\s+(.+)$/.exec(line);
     if (heading) {
       flush();

@@ -18,7 +18,13 @@ function feedbackAnnouncement(state: CopyFeedbackState) {
   return "";
 }
 
-export function CopyAnswerButton({ value, label = "Copy answer" }: { value: string; label?: string }) {
+export function CopyAnswerButton({
+  value,
+  label = "Copy answer",
+}: {
+  value: string;
+  label?: string;
+}) {
   const { state, copy } = useCopyFeedback();
 
   return (

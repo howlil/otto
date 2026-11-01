@@ -35,7 +35,11 @@ export function AgentHeader({
   const statusColor = agentStatusColor(status, readiness);
   const statusMotion = eventMotion === "otto-completed" ? "motion-safe:animate-otto-done" : "";
   const scopeLabel =
-    mode === "agentSession" ? "Agent Session · Workspace write" : provider === "codex" ? "Quick Ask · Read-only sandbox" : "Quick Ask · Tools disabled";
+    mode === "agentSession"
+      ? "Agent Session · Workspace write"
+      : provider === "codex"
+        ? "Quick Ask · Read-only sandbox"
+        : "Quick Ask · Tools disabled";
   useEffect(() => {
     if (settings) back.current?.focus({ preventScroll: true });
     else if (previousSettings.current) gear.current?.focus({ preventScroll: true });
