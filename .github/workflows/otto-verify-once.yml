@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: final Agent conversation utilities and draft regression.
+# Verification dispatch: Agent static adapter registry and capability contract.
 
 'on':
   push:
