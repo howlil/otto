@@ -24,6 +24,14 @@ impl ProviderEvents {
         self.updates.borrow().clone()
     }
 
+    pub fn fail(&self, run_id: u64, message: &str) {
+        self.emit(AgentEvent::Failed { run_id, message: message.to_owned() });
+    }
+
+    pub fn stopped(&self, run_id: u64) {
+        self.emit(AgentEvent::Stopped { run_id });
+    }
+
     pub fn emit(&self, event: AgentEvent) {
         self.updates.send_modify(|state| {
             if reduce(state, event) {
