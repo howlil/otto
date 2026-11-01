@@ -3,3 +3,5 @@ pub mod codex;
 mod job;
 #[cfg(windows)]
 pub mod pi;
+#[cfg(windows)]
+pub mod agy;
