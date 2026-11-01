@@ -1,6 +1,9 @@
+use crate::agent::events::{AgentEvent, ProviderEvents};
 use crate::agent::policy::{self, InteractionMode};
 use crate::agent::session::{self, ApprovalDecision, PendingApproval, ToolActivity};
-use crate::agent::{ChatMessage, Control, ProviderReadiness, Snapshot, fail, mutate};
+use crate::agent::{Control, ProviderReadiness, Snapshot};
+#[cfg(test)]
+use crate::agent::{ChatMessage, mutate};
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
 use tokio::{
@@ -152,6 +155,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             approval: None,
             error: None,
         });
+        let updates = ProviderEvents::new(updates);
         let mut approvals = Approvals::for_mode(InteractionMode::QuickAsk, 0);
         rpc.request(
             "initialize",
@@ -482,7 +486,7 @@ enum StartupControl {
 fn classify_startup_control(
     command: Option<Control>,
     approvals: &mut Approvals,
-    updates: &watch::Sender<Snapshot>,
+    updates: &ProviderEvents,
 ) -> Result<StartupControl, String> {
     match command {
         Some(Control::Stop) => Ok(StartupControl::Stop),
@@ -492,6 +496,10 @@ fn classify_startup_control(
             decision,
         }) => {
             if let Some(reply) = approvals.decide(&approval_id, decision) {
+                updates.emit(AgentEvent::ApprovalResolved {
+                    run_id: updates.snapshot().run_id,
+                    approval_id,
+                });
                 Ok(StartupControl::Reply(reply))
             } else {
                 publish_approval(approvals, updates);
@@ -561,7 +569,7 @@ impl Rpc {
         method: &str,
         params: Value,
         approvals: &mut Approvals,
-        updates: &watch::Sender<Snapshot>,
+        updates: &ProviderEvents,
     ) -> Result<(Value, Vec<Value>), String> {
         self.request_controlled(method, params, approvals, updates, None)
             .await?
@@ -573,7 +581,7 @@ impl Rpc {
         method: &str,
         params: Value,
         approvals: &mut Approvals,
-        updates: &watch::Sender<Snapshot>,
+        updates: &ProviderEvents,
         mut controls: Option<&mut mpsc::Receiver<Control>>,
     ) -> Result<Option<(Value, Vec<Value>)>, String> {
         self.next_id += 1;
@@ -636,19 +644,14 @@ impl Rpc {
     }
 }
 
-fn publish_approval(approvals: &Approvals, updates: &watch::Sender<Snapshot>) {
-    let Some(pending) = approvals.pending.as_ref() else {
-        return;
-    };
-    let approval = pending.approval.clone();
-    mutate(updates, |s| {
-        if s.run_id != approval.run_id {
-            return;
-        }
-        s.status = "approvalRequired".into();
-        s.activity = None;
-        s.approval = Some(approval);
-    });
+fn publish_approval(approvals: &Approvals, updates: &ProviderEvents) {
+    if let Some(pending) = approvals.pending.as_ref() {
+        let approval = pending.approval.clone();
+        updates.emit(AgentEvent::ApprovalRequested {
+            run_id: approval.run_id,
+            approval,
+        });
+    }
 }
 
 fn is_for_turn(value: &Value, thread: &str, turn: &str) -> bool {
@@ -681,75 +684,39 @@ fn activity_for(item: &Value) -> Option<ToolActivity> {
     })
 }
 
-fn handle_delta(value: &Value, run_id: u64, updates: &watch::Sender<Snapshot>) {
+fn handle_delta(value: &Value, run_id: u64, updates: &ProviderEvents) {
     if let Some(delta) = value["params"]["delta"].as_str() {
-        mutate(updates, |s| {
-            if s.run_id != run_id || s.status != "streaming" {
-                return;
-            }
-
-            s.activity = None;
-            if let Some(message) = s.messages.last_mut().filter(|m| {
-                m.role == "assistant" && m.text.len().saturating_add(delta.len()) <= 128_000
-            }) {
-                message.text.push_str(delta);
-            }
+        updates.emit(AgentEvent::TextDelta {
+            run_id,
+            delta: delta.to_owned(),
         });
     }
 }
 
-fn handle_item_started(value: &Value, run_id: u64, updates: &watch::Sender<Snapshot>) {
+fn handle_item_started(value: &Value, run_id: u64, updates: &ProviderEvents) {
     if let Some(activity) = activity_for(&value["params"]["item"]) {
-        mutate(updates, |s| {
-            if s.run_id == run_id && s.status == "streaming" {
-                s.activity = Some(activity);
-            }
-        });
+        updates.emit(AgentEvent::ActivityChanged { run_id, activity });
     }
 }
 
-fn handle_item_completed(value: &Value, run_id: u64, updates: &watch::Sender<Snapshot>) {
+fn handle_item_completed(value: &Value, run_id: u64, updates: &ProviderEvents) {
     let item = &value["params"]["item"];
     if item["type"].as_str() == Some("agentMessage")
         && let Some(text) = item["text"].as_str()
     {
-        mutate(updates, |s| {
-            if s.run_id != run_id || s.status != "streaming" {
-                return;
-            }
-            if let Some(m) = s.messages.last_mut().filter(|m| m.role == "assistant") {
-                m.text = text.chars().take(128_000).collect();
-            }
-
-            s.activity = None;
+        updates.emit(AgentEvent::TextFinal {
+            run_id,
+            text: text.to_owned(),
         });
     }
 }
 
-fn handle_turn_completed(value: &Value, run_id: u64, updates: &watch::Sender<Snapshot>) {
-    let status = value["params"]["turn"]["status"]
-        .as_str()
-        .unwrap_or("failed");
-    mutate(updates, |s| {
-        if s.run_id != run_id {
-            return;
-        }
-        if matches!(s.status.as_str(), "completed" | "stopped" | "failed") {
-            return;
-        }
-        s.status = match status {
-            _ if s.status == "stopping" => "stopped",
-            "completed" => "completed",
-            "interrupted" => "stopped",
-            _ => "failed",
-        }
-        .into();
-        s.approval = None;
-        s.activity = None;
-        if s.status == "failed" {
-            s.error = Some("Codex turn did not complete.".into());
-        }
-    });
+fn handle_turn_completed(value: &Value, run_id: u64, updates: &ProviderEvents) {
+    match value["params"]["turn"]["status"].as_str() {
+        Some("completed") => updates.emit(AgentEvent::Completed { run_id }),
+        Some("interrupted") => updates.stopped(run_id),
+        _ => updates.fail(run_id, "Codex turn did not complete."),
+    }
 }
 
 fn handle_event(
@@ -757,7 +724,7 @@ fn handle_event(
     thread: &str,
     turn: &str,
     run_id: u64,
-    updates: &watch::Sender<Snapshot>,
+    updates: &ProviderEvents,
 ) -> bool {
     if !is_for_turn(value, thread, turn) {
         return false;
@@ -787,7 +754,7 @@ async fn begin_turn(
     run_id: u64,
     mode: InteractionMode,
     approvals: &mut Approvals,
-    updates: &watch::Sender<Snapshot>,
+    updates: &ProviderEvents,
     controls: Option<&mut mpsc::Receiver<Control>>,
 ) -> Result<Option<(String, Vec<Value>)>, String> {
     approvals.prepare_turn(input.thread, run_id);
@@ -809,31 +776,9 @@ async fn begin_turn(
         .ok_or("Codex returned no turn ID.")?
         .to_owned();
     approvals.context(input.thread, &turn, run_id);
-    mutate(updates, |s| {
-        if s.run_id != run_id {
-            return;
-        }
-        s.error = None;
-        s.messages.push(ChatMessage {
-            id: format!("{run_id}:user"),
-            role: "user".into(),
-            text: input.text.to_owned(),
-        });
-        s.messages.push(ChatMessage {
-            id: format!("{run_id}:assistant"),
-            role: "assistant".into(),
-            text: String::new(),
-        });
-        if s.messages.len() > 24 {
-            s.messages.drain(0..2);
-        }
-
-        if s.status == "approvalRequired" {
-            return;
-        }
-        s.status = "streaming".into();
-        s.activity = None;
-        s.approval = None;
+    updates.emit(AgentEvent::TurnStarted {
+        run_id,
+        text: input.text.to_owned(),
     });
     Ok(Some((turn, buffered)))
 }
@@ -843,22 +788,23 @@ async fn resolve_approval(
     approvals: &mut Approvals,
     approval_id: &str,
     decision: ApprovalDecision,
-    updates: &watch::Sender<Snapshot>,
+    updates: &ProviderEvents,
 ) {
     if let Some(reply) = approvals.decide(approval_id, decision) {
-        let _ = rpc.send(reply).await;
+        if rpc.send(reply).await.is_ok() {
+            updates.emit(AgentEvent::ApprovalResolved {
+                run_id: updates.snapshot().run_id,
+                approval_id: approval_id.to_owned(),
+            });
+        }
     } else {
         publish_approval(approvals, updates);
     }
 }
 
-fn terminal_after_stop() -> &'static str {
-    "stopped"
-}
-
 pub async fn run(
     mut controls: mpsc::Receiver<Control>,
-    updates: watch::Sender<Snapshot>,
+    updates: ProviderEvents,
     initial: Control,
     mode: InteractionMode,
 ) {
@@ -876,7 +822,7 @@ pub async fn run(
     let mut rpc = match Rpc::launch(&cwd) {
         Ok(rpc) => rpc,
         Err(e) => {
-            fail(&updates, run_id, &e);
+            updates.fail(run_id, &e);
             return;
         }
     };
@@ -904,20 +850,15 @@ pub async fn run(
             }
             let thread = thread_response.pointer("/thread/id").and_then(Value::as_str)
                 .ok_or("Codex returned no thread ID.")?.to_owned();
-            mutate(&updates, |s| s.thread_id = Some(thread.clone()));
+            updates.emit(AgentEvent::SessionReady { run_id, session_id: thread.clone() });
             Ok::<_, String>(thread)
         } => result,
         command = controls.recv() => {
 
             if !matches!(command, Some(Control::Stop)) {
-                fail(&updates, run_id, "Unexpected Codex control during initialization.");
+                updates.fail(run_id, "Unexpected Codex control during initialization.");
             } else {
-                mutate(&updates, |s| {
-                    if s.run_id == run_id {
-                        s.status = terminal_after_stop().into();
-                        s.approval = None;
-                    }
-                });
+                updates.stopped(run_id);
             }
             rpc.terminate().await;
             return;
@@ -926,7 +867,7 @@ pub async fn run(
     let thread = match result {
         Ok(thread) => thread,
         Err(error) => {
-            fail(&updates, run_id, &error);
+            updates.fail(run_id, &error);
             rpc.terminate().await;
             return;
         }
@@ -949,18 +890,12 @@ pub async fn run(
     {
         Ok(Some(value)) => value,
         Ok(None) => {
-            mutate(&updates, |s| {
-                if s.run_id == run_id {
-                    s.status = "stopped".into();
-                    s.approval = None;
-                    s.activity = None;
-                }
-            });
+            updates.stopped(run_id);
             rpc.terminate().await;
             return;
         }
         Err(error) => {
-            fail(&updates, run_id, &error);
+            updates.fail(run_id, &error);
             rpc.terminate().await;
             return;
         }
@@ -990,13 +925,7 @@ pub async fn run(
                         let _ = timeout(Duration::from_secs(5),
                             rpc.request("turn/interrupt", json!({ "threadId": thread, "turnId": turn }), &mut approvals, &updates)
                         ).await;
-                        mutate(&updates, |s| {
-                            if s.run_id == id && !matches!(s.status.as_str(), "completed" | "failed") {
-                                s.status = "stopped".into();
-                                s.approval = None;
-                                s.activity = None;
-                            }
-                        });
+                        updates.stopped(id);
                         rpc.terminate().await;
                         break;
                     }
@@ -1005,8 +934,8 @@ pub async fn run(
                     resolve_approval(&mut rpc, &mut approvals, &approval_id, decision, &updates).await;
                 }
                 Some(Control::Ask { text, cwd, run_id, capture }) if active.is_none() => {
-                    if cwd.as_path() != std::path::Path::new(&updates.borrow().cwd) {
-                        fail(&updates, run_id, "Working context changed. Restart Otto.");
+                    if cwd.as_path() != std::path::Path::new(&updates.snapshot().cwd) {
+                        updates.fail(run_id, "Working context changed. Restart Otto.");
                         continue;
                     }
 
@@ -1031,18 +960,12 @@ pub async fn run(
                             }
                         }
                         Ok(None) => {
-                            mutate(&updates, |s| {
-                                if s.run_id == run_id {
-                                    s.status = "stopped".into();
-                                    s.approval = None;
-                                    s.activity = None;
-                                }
-                            });
+                            updates.stopped(run_id);
                             rpc.terminate().await;
                             break;
                         }
                         Err(error) => {
-                            fail(&updates, run_id, &error);
+                            updates.fail(run_id, &error);
                             rpc.terminate().await;
                             break;
                         }
@@ -1055,7 +978,7 @@ pub async fn run(
                 match line {
                     Ok(Some(line)) => {
                         let Ok(msg) = serde_json::from_str::<Value>(&line) else {
-                            if let Some(id) = active { fail(&updates, id, "Invalid Codex stream."); }
+                            if let Some(id) = active { updates.fail(id, "Invalid Codex stream."); }
                             rpc.terminate().await;
                             break;
                         };
@@ -1069,7 +992,7 @@ pub async fn run(
                             if let Some(reply) = reply
                                 && rpc.send(reply).await.is_err()
                             {
-                                if let Some(id) = active { fail(&updates, id, "Cannot answer unsupported Codex request."); }
+                                if let Some(id) = active { updates.fail(id, "Cannot answer unsupported Codex request."); }
                                 rpc.terminate().await;
                                 break;
                             }
@@ -1081,7 +1004,7 @@ pub async fn run(
                         }
                     }
                     _ => {
-                        if let Some(id) = active { fail(&updates, id, "Codex disconnected."); }
+                        if let Some(id) = active { updates.fail(id, "Codex disconnected."); }
                         break;
                     }
                 }
@@ -1089,17 +1012,13 @@ pub async fn run(
         }
     }
 
-    let state = updates.borrow().clone();
+    let state = updates.snapshot();
     match state.status.as_str() {
-        "starting" | "streaming" | "approvalRequired" => fail(
-            &updates,
+        "starting" | "streaming" | "approvalRequired" => updates.fail(
             state.run_id,
             "Codex connection closed before the answer finished.",
         ),
-        "stopping" => mutate(&updates, |s| {
-            s.status = "stopped".into();
-            s.approval = None;
-        }),
+        "stopping" => updates.stopped(state.run_id),
         _ => {}
     }
 }
@@ -1281,7 +1200,7 @@ mod tests {
             "real",
             "turn",
             5,
-            &tx,
+            &ProviderEvents::new(tx.clone()),
         );
         assert!(tx.borrow().messages[0].text.is_empty());
     }
@@ -1293,13 +1212,13 @@ mod tests {
             "method": "turn/completed",
             "params": { "threadId": "thread", "turn": { "id": "turn", "status": "completed" } }
         });
-        assert!(handle_event(&completed, "thread", "turn", 7, &tx));
+        assert!(handle_event(&completed, "thread", "turn", 7, &ProviderEvents::new(tx.clone())));
         assert_eq!(tx.borrow().status, "stopped");
         let late = json!({
             "method": "item/agentMessage/delta",
             "params": { "threadId": "thread", "turnId": "turn", "delta": "late" }
         });
-        handle_event(&late, "thread", "turn", 7, &tx);
+        handle_event(&late, "thread", "turn", 7, &ProviderEvents::new(tx.clone()));
         assert!(tx.borrow().messages[0].text.is_empty());
     }
 
@@ -1312,7 +1231,7 @@ mod tests {
             approvals.parse(&command_request(1, "thread", "turn")),
             ServerRequest::Recorded
         ));
-        publish_approval(&approvals, &tx);
+        publish_approval(&approvals, &ProviderEvents::new(tx.clone()));
         let snapshot = tx.borrow();
         assert_eq!(snapshot.status, "approvalRequired");
         let approval = snapshot.approval.as_ref().expect("pending approval");
@@ -1423,7 +1342,7 @@ mod tests {
             approvals.parse(&command_request(1, "thread", "turn")),
             ServerRequest::Recorded
         ));
-        publish_approval(&approvals, &tx);
+        publish_approval(&approvals, &ProviderEvents::new(tx.clone()));
         assert_eq!(
             tx.borrow().status,
             "approvalRequired",
@@ -1453,7 +1372,7 @@ mod tests {
                     "item": { "type": "commandExecution", "command": "cargo test" } }
             }),
             3,
-            &tx,
+            &ProviderEvents::new(tx.clone()),
         );
         assert!(tx.borrow().activity.is_some());
         handle_event(
@@ -1464,7 +1383,7 @@ mod tests {
             "thread",
             "turn",
             3,
-            &tx,
+            &ProviderEvents::new(tx.clone()),
         );
         assert!(
             tx.borrow().activity.is_none(),
@@ -1480,7 +1399,7 @@ mod tests {
         assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
         assert!(approvals.pending.is_none());
         let tx = snapshot("streaming", 9);
-        publish_approval(&approvals, &tx);
+        publish_approval(&approvals, &ProviderEvents::new(tx.clone()));
         assert_eq!(tx.borrow().status, "streaming");
         assert!(tx.borrow().approval.is_none());
         assert_eq!(
@@ -1592,14 +1511,14 @@ mod tests {
                     "item": { "type": "commandExecution", "command": "cargo test" } }
             }),
             3,
-            &tx,
+            &ProviderEvents::new(tx.clone()),
         );
         assert_eq!(tx.borrow().activity.as_ref().unwrap().summary, "cargo test");
 
         handle_item_started(
             &json!({ "method": "item/started", "params": { "item": { "type": "agentMessage" } } }),
             3,
-            &tx,
+            &ProviderEvents::new(tx.clone()),
         );
         assert!(tx.borrow().activity.is_some());
     }
@@ -1621,7 +1540,7 @@ mod tests {
             "method": "turn/completed",
             "params": { "threadId": "thread", "turn": { "id": "turn", "status": "interrupted" } }
         });
-        assert!(handle_event(&interrupted, "thread", "turn", 7, &tx));
+        assert!(handle_event(&interrupted, "thread", "turn", 7, &ProviderEvents::new(tx.clone())));
         assert_eq!(tx.borrow().status, "stopped");
         assert!(tx.borrow().approval.is_none());
     }
@@ -1644,7 +1563,7 @@ mod tests {
             ServerRequest::Recorded
         ));
 
-        publish_approval(&approvals, &updates);
+        publish_approval(&approvals, &ProviderEvents::new(updates.clone()));
         let snap = updates.borrow();
         assert_eq!(snap.status, "approvalRequired");
         let approval = snap
@@ -1661,7 +1580,7 @@ mod tests {
                 decision: ApprovalDecision::AllowOnce,
             }),
             &mut approvals,
-            &updates,
+            &ProviderEvents::new(updates.clone()),
         )
         .expect("decision must remain available before the ack");
         let StartupControl::Reply(reply) = action else {
@@ -1696,7 +1615,7 @@ mod tests {
             ServerRequest::Recorded
         ));
         let tx = snapshot("approvalRequired", 9);
-        publish_approval(&approvals, &tx);
+        publish_approval(&approvals, &ProviderEvents::new(tx.clone()));
         let approval_id = approvals
             .pending
             .as_ref()
@@ -1710,7 +1629,7 @@ mod tests {
                 decision: ApprovalDecision::AllowOnce,
             }),
             &mut approvals,
-            &tx,
+            &ProviderEvents::new(tx.clone()),
         )
         .unwrap();
         let StartupControl::Reply(reply) = action else {
@@ -1722,7 +1641,7 @@ mod tests {
         );
         assert!(approvals.pending.is_none());
         assert!(matches!(
-            classify_startup_control(Some(Control::Stop), &mut approvals, &tx).unwrap(),
+            classify_startup_control(Some(Control::Stop), &mut approvals, &ProviderEvents::new(tx.clone())).unwrap(),
             StartupControl::Stop
         ));
     }
@@ -1742,7 +1661,7 @@ mod tests {
                 decision: ApprovalDecision::Deny,
             }),
             &mut approvals,
-            &tx,
+            &ProviderEvents::new(tx.clone()),
         )
         .unwrap();
         assert!(matches!(action, StartupControl::Continue));
