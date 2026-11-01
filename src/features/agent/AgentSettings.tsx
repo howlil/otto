@@ -118,8 +118,8 @@ export function AgentSettings({
             />
           )}
           {tab === "workspace" && <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />}
-          {tab === "capture" && (
-            readiness.imageTransport ? (
+          {tab === "capture" &&
+            (readiness.imageTransport ? (
                 <>
                   <AgentCaptureSettings
                     capture={capture}
@@ -137,8 +137,7 @@ export function AgentSettings({
                   This provider cannot transport screenshots. Choose Codex or a vision-capable Pi
                   model.
                 </StatusMessage>
-              )
-          )}
+              ))}
           {hasThread && (
             <div className="mt-3 flex items-center justify-between gap-2">
               <Text as="span" variant="status" className="text-otto-text-tertiary">
