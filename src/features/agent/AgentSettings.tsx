@@ -96,8 +96,8 @@ export function AgentSettings({
           </>
         ) : (
           <StatusMessage tone="info" className="mt-2">
-            This provider cannot transport screenshots. Select an image-capable provider
-            for screenshots.
+            This provider cannot transport screenshots. Select an image-capable provider for
+            screenshots.
           </StatusMessage>
         )}
         {hasThread && (
