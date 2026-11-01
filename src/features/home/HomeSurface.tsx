@@ -34,10 +34,10 @@ export function HomeSurface({
 }) {
   return (
     <section
-      className={`flex h-full w-[452px] flex-col gap-2 px-[17px] pb-[17px] pt-3 ${motionClass}`}
+      className={`flex h-full w-full flex-col gap-2 px-[17px] pb-[17px] pt-3 ${motionClass}`}
     >
       <header className="flex h-[26px] shrink-0 items-center gap-[9px] pl-[37px]">
-        <Text as="strong" variant="display">
+        <Text as="strong" variant="display" className="tracking-[-0.01em]">
           Otto
         </Text>
         <Text
