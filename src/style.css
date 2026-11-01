@@ -251,3 +251,94 @@ button {
 button:disabled {
   cursor: not-allowed;
 }
+
+@keyframes otto-page-enter {
+  from {
+    opacity: 0.18;
+    transform: translate3d(var(--otto-enter-x), 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes otto-page-exit {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(var(--otto-exit-x), 0, 0);
+  }
+}
+
+@keyframes otto-tab-enter {
+  from {
+    opacity: 0.2;
+    transform: translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes otto-tab-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.otto-page-forward-enter {
+  --otto-enter-x: 6px;
+  animation: otto-page-enter 210ms var(--ease-otto) 70ms both;
+}
+
+.otto-page-back-enter {
+  --otto-enter-x: -6px;
+  animation: otto-page-enter 210ms var(--ease-otto) 70ms both;
+}
+
+.otto-page-forward-exit {
+  --otto-exit-x: -4px;
+  animation: otto-page-exit 125ms ease-in both;
+}
+
+.otto-page-back-exit {
+  --otto-exit-x: 4px;
+  animation: otto-page-exit 125ms ease-in both;
+}
+
+.otto-compact-enter {
+  animation: otto-tab-enter 180ms var(--ease-otto) 65ms both;
+}
+
+.otto-compact-exit {
+  animation: otto-tab-exit 260ms ease-out both;
+}
+
+.otto-tab-enter {
+  animation: otto-tab-enter 170ms var(--ease-otto) both;
+}
+
+.otto-tab-exit {
+  animation: otto-tab-exit 115ms ease-in both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .otto-page-forward-enter,
+  .otto-page-back-enter,
+  .otto-page-forward-exit,
+  .otto-page-back-exit,
+  .otto-compact-enter,
+  .otto-compact-exit,
+  .otto-tab-enter,
+  .otto-tab-exit {
+    animation: none !important;
+  }
+}

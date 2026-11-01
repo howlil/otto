@@ -7,6 +7,12 @@ import {
   useAgent,
 } from "./features/agent";
 import { resolveSurface, useAppUpdate, useNotchShell } from "./features/shell";
+import {
+  isContentResize,
+  shouldAnimateNotch,
+  updateMeasuredHeights,
+  type NotchGeometry,
+} from "./features/shell/motion";
 import { setNotchSurface } from "./platform/tauri";
 import type { AgentSnapshot, ProviderReadiness } from "./platform/tauri";
 
@@ -41,13 +47,15 @@ export default function App() {
   const shell = useNotchShell();
   const agent = useAgent(shell.expanded && shell.isAgent);
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
-  const [contentHeight, setContentHeight] = useState(170);
-  const onContentMeasured = useCallback((height: number) => {
-    const bounded = Math.max(1, Math.min(610, Math.ceil(height)));
-    setContentHeight((current) => (Math.abs(current - bounded) > 2 ? bounded : current));
-  }, []);
+  const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
   const appUpdate = useAppUpdate();
   const { page, expanded, prefs, reducedMotion, isAgent, setEventMotion } = shell;
+  const onContentMeasured = useCallback(
+    (height: number) => {
+      setContentHeights((current) => updateMeasuredHeights(current, page, height));
+    },
+    [page],
+  );
 
   const surface = resolveSurface({
     expanded,
@@ -61,16 +69,19 @@ export default function App() {
     gradient: prefs.gradient,
   };
 
-  const previousSurface = useRef<string | null>(null);
+  const previousGeometry = useRef<NotchGeometry | null>(null);
   const measuredHeight =
-    expanded && (page === "agent" || page === "agent-settings" || page === "global-settings")
-      ? contentHeight
+    expanded &&
+    (page === "agent" || page === "agent-settings" || page === "global-settings")
+      ? contentHeights[page]
       : undefined;
   useEffect(() => {
     let active = true;
-    const animate = !reducedMotion && previousSurface.current !== surface;
-    previousSurface.current = surface;
-    void setNotchSurface(surface, prefs.topOffset, animate, measuredHeight)
+    const nextGeometry: NotchGeometry = { surface, height: measuredHeight };
+    const animate = shouldAnimateNotch(previousGeometry.current, nextGeometry, reducedMotion);
+    const contentOnly = isContentResize(previousGeometry.current, nextGeometry);
+    previousGeometry.current = nextGeometry;
+    void setNotchSurface(surface, prefs.topOffset, animate, measuredHeight, contentOnly)
       .then(() => {
         if (active) setSurfaceError(null);
       })

@@ -35,13 +35,16 @@ button{touch-action:manipulation}
 .preview-group button.active{background:#45464b;border-color:transparent}
 .preview-stage{position:relative;flex:1;min-height:calc(100vh - 56px);background:#151515;overflow:hidden}
 .mount{position:absolute;left:50%;top:0;transform:translateX(-50%);z-index:10;display:flex;justify-content:center;width:100%;pointer-events:none}
-.notch{position:relative;pointer-events:auto;background:#0e0f10;border:1px solid #34363c;border-radius:var(--rad,999px);width:var(--w,92px);height:var(--h,42px);overflow:visible;isolation:isolate;box-shadow:0 14px 39px #0007,inset 0 1px 0 #ffffff1b;transition:width 470ms var(--ease),height 470ms var(--ease),border-radius 470ms var(--ease),box-shadow 200ms ease;will-change:width,height}
+.notch{position:relative;pointer-events:auto;background:#0e0f10;border:1px solid #34363c;border-radius:var(--rad,999px);width:var(--w,92px);height:var(--h,42px);overflow:visible;isolation:isolate;box-shadow:0 14px 39px #0007,inset 0 1px 0 #ffffff1b;transition:width 420ms var(--ease),height 420ms var(--ease),border-radius 420ms var(--ease),box-shadow 200ms ease;will-change:width,height}
 .notch.attached{border-radius:0 0 24px 24px;border-top-color:transparent}
 .notch.attached:before,.notch.attached:after{content:"";position:absolute;top:-1px;width:14px;height:14px;pointer-events:none}
 .notch.attached:before{right:100%;background:radial-gradient(circle at 0 100%,transparent 13.5px,#0e0f10 14px)}
 .notch.attached:after{left:100%;background:radial-gradient(circle at 100% 100%,transparent 13.5px,#0e0f10 14px)}
 .notch-clip{width:100%;height:100%;border-radius:inherit;overflow:hidden;contain:paint}
-.notch-content{height:100%;animation:reveal 260ms var(--ease) both;animation-delay:85ms}
+.notch-content{height:100%;animation:reveal 210ms var(--ease) 70ms both}
+.notch-transition{position:relative;height:100%;width:100%}
+.notch-outgoing{position:absolute;inset:0;z-index:2;pointer-events:none;animation:notch-exit 125ms ease-in both}
+@keyframes notch-exit{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-4px)}}
 @keyframes reveal{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .eye-pair{width:100%;height:100%;display:flex;align-items:center;justify-content:center;gap:17px;border:0;background:transparent;color:inherit}
 .eye{height:14px;width:10px;border-radius:50%;background:#f2f2f3;transition:height 190ms var(--ease),width 190ms var(--ease),transform 190ms var(--ease)}
@@ -1082,6 +1085,26 @@ function GlobalSettings({prefs,setPrefs,tab,setTab,onBack,onPlacementChange}){
 }
 const defaultGlobalPrefs={expression:"Calm",reactive:"Quiet",hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,motion:"Fluid",tilt:43,gradient:80,topOffset:20};
 
+function PrototypeTransition({id,panel,reduce}){
+ const latest=useRef({id,panel});
+ const [retained,setRetained]=useState(null);
+ const switching=latest.current.id!==id;
+ const outgoing=reduce?null:switching?latest.current:retained;
+ useLayoutEffect(()=>{
+  if(latest.current.id!==id)setRetained(reduce?null:latest.current);
+  else if(reduce)setRetained(null);
+  latest.current={id,panel};
+ },[id,panel,reduce]);
+ useEffect(()=>{
+  if(!retained)return;
+  const timer=setTimeout(()=>setRetained(current=>current===retained?null:current),160);
+  return()=>clearTimeout(timer);
+ },[retained]);
+ return el("div",{className:"notch-transition"},
+  outgoing&&outgoing.id!==id?el("div",{key:outgoing.id,className:"notch-outgoing","aria-hidden":true,inert:true},outgoing.panel):null,
+  el("div",{key:id,className:"notch-content"},panel));
+}
+
 function App(){
  const [page,setPage]=useState("home");
  const [presentation,setPresentation]=useState("pinned");
@@ -1159,7 +1182,7 @@ function App(){
       style:{"--w":dim[0]+"px","--h":dim[1]+"px","--rad":presentation==="compact"||event?"999px":"27px",maxHeight:page==="agent"&&!drawer&&presentation!=="compact"?"calc(100dvh - 92px)":undefined},
       onMouseEnter:enter,onMouseLeave:leave,
       onPointerDownCapture:()=>{if(presentation==="preview")setPresentation("pinned")}},
-     el("div",{className:"notch-clip"},el("div",{key:shellKey,className:"notch-content"},panel))))));
+     el("div",{className:"notch-clip"},h(PrototypeTransition,{id:shellKey,panel,reduce}))))));
 
 
 }

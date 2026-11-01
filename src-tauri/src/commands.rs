@@ -327,6 +327,7 @@ pub async fn notch_set_surface(
     top_offset: u32,
     animate: bool,
     content_height: Option<u32>,
+    content_only: bool,
 ) -> Result<(), String> {
     if surface_size(&surface).is_none() {
         return Err("Invalid notch surface.".to_string());
@@ -351,7 +352,8 @@ pub async fn notch_set_surface(
         return frame.apply(&window, target_w, target_h, top_offset);
     }
     let start = tokio::time::Instant::now();
-    let duration = std::time::Duration::from_millis(420);
+    let height_only = content_only && (start_w - target_w).abs() < 1.0;
+    let duration = std::time::Duration::from_millis(if height_only { 170 } else { 420 });
     let mut tick = tokio::time::interval(std::time::Duration::from_millis(16));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     tick.tick().await;
@@ -371,6 +373,9 @@ pub async fn notch_set_surface(
         tick.tick().await;
     }
 
+    if motion.epoch.load(Ordering::SeqCst) != token {
+        return Ok(());
+    }
     frame.apply(&window, target_w, target_h, top_offset)
 }
 

@@ -3,6 +3,7 @@ import { AgentSettings } from "./AgentSettings";
 import { AgentHeader } from "./AgentHeader";
 import { AgentTranscript } from "./AgentTranscript";
 import type { AgentPanelModel } from "./view-model";
+import { TransitionContent } from "../../shared/ui";
 
 type Props = {
   agent: AgentPanelModel;
@@ -13,6 +14,7 @@ type Props = {
   motionClass?: string;
   eventMotion?: string;
   onMeasured: (height: number) => void;
+  reducedMotion: boolean;
 };
 
 export function AgentPanel({
@@ -24,6 +26,7 @@ export function AgentPanel({
   motionClass = "",
   eventMotion,
   onMeasured,
+  reducedMotion,
 }: Props) {
   const {
     snapshot,
@@ -88,59 +91,67 @@ export function AgentPanel({
         onNewSession={() => void newSession()}
         onHome={onBack}
       />
-      {settings ? (
-        <AgentSettings
-          readiness={readiness}
-          snapshot={snapshot}
-          provider={provider}
-          setProvider={setProvider}
-          model={agent.model}
-          setModel={agent.setModel}
-          thinkingEffort={agent.thinkingEffort}
-          setThinkingEffort={agent.setThinkingEffort}
-          capture={agent.capture}
-          focusCaptureShortcut={captureSettingsEntry}
-          runStatus={snapshot.status}
-          approvalPending={approvalPending}
-          onRetry={() => void agent.refreshProvider()}
-          mode={mode}
-          setMode={setMode}
-          locked={locked}
-          cwd={cwd}
-          setCwd={setCwd}
-          busy={busy || captureBusy}
-          error={agent.error}
-          onDone={onSettingsBack}
-          onMeasured={onMeasured}
-        />
-      ) : (
-        <AgentTranscript
-          agent={agent}
-          denied={denied}
-          approvalPending={approvalPending}
-          onDenied={() => setDenied(true)}
-          captureActionError={captureActionError}
-          onMeasured={onMeasured}
-          onCapture={() => {
-            setCaptureActionError(null);
-            void agent
-              .captureNow()
-              .catch((error: unknown) =>
-                setCaptureActionError(
-                  typeof error === "string"
-                    ? error
-                    : error instanceof Error
-                      ? error.message
-                      : "Screen capture is unavailable.",
-                ),
-              );
-          }}
-          onConfigureCapture={() => {
-            setCaptureSettingsEntry(true);
-            onSettings();
-          }}
-        />
-      )}
+      <TransitionContent
+        transitionKey={settings ? "agent-settings" : "agent-transcript"}
+        direction={settings ? "forward" : "back"}
+        reducedMotion={reducedMotion}
+        className="min-h-0 flex-1"
+      >
+        {settings ? (
+          <AgentSettings
+            readiness={readiness}
+            snapshot={snapshot}
+            provider={provider}
+            setProvider={setProvider}
+            model={agent.model}
+            setModel={agent.setModel}
+            thinkingEffort={agent.thinkingEffort}
+            setThinkingEffort={agent.setThinkingEffort}
+            capture={agent.capture}
+            focusCaptureShortcut={captureSettingsEntry}
+            runStatus={snapshot.status}
+            approvalPending={approvalPending}
+            onRetry={() => void agent.refreshProvider()}
+            mode={mode}
+            setMode={setMode}
+            locked={locked}
+            cwd={cwd}
+            setCwd={setCwd}
+            busy={busy || captureBusy}
+            error={agent.error}
+            onDone={onSettingsBack}
+            onMeasured={onMeasured}
+            reducedMotion={reducedMotion}
+          />
+        ) : (
+          <AgentTranscript
+            agent={agent}
+            denied={denied}
+            approvalPending={approvalPending}
+            onDenied={() => setDenied(true)}
+            captureActionError={captureActionError}
+            onMeasured={onMeasured}
+            onCapture={() => {
+              setCaptureActionError(null);
+              void agent
+                .captureNow()
+                .catch((error: unknown) =>
+                  setCaptureActionError(
+                    typeof error === "string"
+                      ? error
+                      : error instanceof Error
+                        ? error.message
+                        : "Screen capture is unavailable.",
+                  ),
+                );
+            }}
+            onConfigureCapture={() => {
+              setCaptureSettingsEntry(true);
+              onSettings();
+            }}
+          />
+        )}
+      </TransitionContent>
     </section>
   );
 }

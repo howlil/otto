@@ -3,7 +3,7 @@ import type { useAgent } from "./features/agent";
 import { HomeSurface } from "./features/home";
 import { GlobalSettings, SurfaceError } from "./features/shell";
 import type { AppUpdateState, useAppUpdate, useNotchShell } from "./features/shell";
-import { Eyes, VisuallyHidden } from "./shared/ui";
+import { Eyes, TransitionContent, VisuallyHidden } from "./shared/ui";
 
 type AgentModel = ReturnType<typeof useAgent>;
 type ShellModel = ReturnType<typeof useNotchShell>;
@@ -75,11 +75,6 @@ function ShellContent({
   };
 }) {
   const { expanded, isAgent, page } = shell;
-  const surfaceMotion = shell.reducedMotion
-    ? ""
-    : expanded
-      ? "animate-otto-enter motion-reduce:animate-none"
-      : "";
   const nudgeMotion = shell.reducedMotion
     ? ""
     : shell.eventMotion === "otto-nudge"
@@ -103,50 +98,62 @@ function ShellContent({
           <VisuallyHidden>{expanded ? "Collapse Otto" : "Open Otto"}</VisuallyHidden>
         </button>
       )}
-      {!expanded ? (
-        isAgent ? (
-          <AgentCapsule
-            snapshot={agent.snapshot}
-            installed={agent.installed}
-            readiness={agent.readiness}
-            error={agent.error}
-            buttonRef={shell.compactButton}
-            onOpen={() => shell.open("agent")}
+      <TransitionContent
+        transitionKey={
+          !expanded ? (isAgent ? "compact-agent" : "compact-home") : isAgent ? "agent" : page
+        }
+        kind={expanded ? "page" : "compact"}
+        direction={!expanded || page === "home" ? "back" : "forward"}
+        reducedMotion={shell.reducedMotion}
+        className="h-full w-full"
+      >
+        {!expanded ? (
+          isAgent ? (
+            <AgentCapsule
+              snapshot={agent.snapshot}
+              installed={agent.installed}
+              readiness={agent.readiness}
+              error={agent.error}
+              buttonRef={shell.compactButton}
+              onOpen={() => shell.open("agent")}
+              motionClass={nudgeMotion}
+            />
+          ) : null
+        ) : page === "home" ? (
+          <HomeSurface
+            notice={shell.notice}
+            homeGear={shell.homeGear}
+            agentSubtitle={agentHomeCopy}
+            artProps={artProps}
+            onOpenSettings={() => shell.open("global-settings")}
+            onOpenAgent={() => shell.open("agent")}
+            onNotice={shell.setNotice}
             motionClass={nudgeMotion}
           />
-        ) : null
-      ) : page === "home" ? (
-        <HomeSurface
-          notice={shell.notice}
-          homeGear={shell.homeGear}
-          agentSubtitle={agentHomeCopy}
-          artProps={artProps}
-          onOpenSettings={() => shell.open("global-settings")}
-          onOpenAgent={() => shell.open("agent")}
-          onNotice={shell.setNotice}
-          motionClass={`${surfaceMotion} ${nudgeMotion} ${expanded && !shell.reducedMotion ? "animate-otto-home-reveal motion-reduce:animate-none" : ""}`.trim()}
-        />
-      ) : page === "global-settings" ? (
-        <GlobalSettings
-          prefs={shell.prefs}
-          change={shell.change}
-          onBack={shell.back}
-          onMeasured={onContentMeasured}
-          update={appUpdate}
-          motionClass={`${surfaceMotion} ${nudgeMotion}`.trim()}
-        />
-      ) : (
-        <AgentPanel
-          agent={agent}
-          settings={page === "agent-settings"}
-          onSettings={() => shell.open("agent-settings")}
-          onSettingsBack={() => shell.setPage("agent")}
-          onBack={() => shell.open("home")}
-          motionClass={`${surfaceMotion} ${nudgeMotion}`.trim()}
-          eventMotion={shell.eventMotion}
-          onMeasured={onContentMeasured}
-        />
-      )}
+        ) : page === "global-settings" ? (
+          <GlobalSettings
+            prefs={shell.prefs}
+            change={shell.change}
+            onBack={shell.back}
+            onMeasured={onContentMeasured}
+            update={appUpdate}
+            reducedMotion={shell.reducedMotion}
+            motionClass={nudgeMotion}
+          />
+        ) : (
+          <AgentPanel
+            agent={agent}
+            settings={page === "agent-settings"}
+            onSettings={() => shell.open("agent-settings")}
+            onSettingsBack={() => shell.setPage("agent")}
+            onBack={() => shell.open("home")}
+            motionClass={nudgeMotion}
+            eventMotion={shell.eventMotion}
+            onMeasured={onContentMeasured}
+            reducedMotion={shell.reducedMotion}
+          />
+        )}
+      </TransitionContent>
     </>
   );
 }

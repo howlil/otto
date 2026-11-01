@@ -14,3 +14,4 @@ export {
 } from "./Field";
 export { StatusMessage, type StatusTone } from "./Status";
 export { Text, type TextVariant } from "./Text";
+export { TransitionContent } from "./TransitionContent";

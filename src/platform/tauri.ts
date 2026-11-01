@@ -201,7 +201,8 @@ export async function setNotchSurface(
   topOffset = 20,
   animate = true,
   contentHeight?: number,
+  contentOnly = false,
 ): Promise<void> {
   if (nativeAvailable)
-    await invoke("notch_set_surface", { surface, topOffset, animate, contentHeight });
+    await invoke("notch_set_surface", { surface, topOffset, animate, contentHeight, contentOnly });
 }
