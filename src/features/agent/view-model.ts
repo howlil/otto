@@ -46,6 +46,9 @@ export type AgentPanelModel = AgentTranscriptModel & {
   captureNow: () => Promise<void>;
   cwd: string;
   setCwd: (cwd: string) => void;
+  beginWorkspaceEdit: () => void;
+  commitWorkspace: (cwd: string) => void;
+  cancelWorkspaceEdit: () => void;
   mode: AgentMode;
   setMode: (mode: AgentMode) => void;
   provider: AgentProvider;

@@ -27,6 +27,9 @@ export type AgentSettingsProps = {
   locked: boolean;
   cwd: string;
   setCwd: (cwd: string) => void;
+  beginWorkspaceEdit: () => void;
+  commitWorkspace: (cwd: string) => void;
+  cancelWorkspaceEdit: () => void;
   busy: boolean;
   error: string | null;
   onDone: () => void;

@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Icon, RadioGroup, StatusMessage, Text, TextField } from "../../shared/ui";
 import type { AgentMode, AgentProvider, ProviderReadiness } from "../../platform/tauri";
 import { ProviderChoice, type ProviderName } from "./ProviderChoice";
@@ -137,11 +138,18 @@ export function ProjectSettings({
   cwd,
   locked,
   setCwd,
+  onBeginEdit,
+  onCommit,
+  onCancel,
 }: {
   cwd: string;
   locked: boolean;
   setCwd: (cwd: string) => void;
+  onBeginEdit: () => void;
+  onCommit: (cwd: string) => void;
+  onCancel: () => void;
 }) {
+  const skipCommit = useRef(false);
   return (
     <section className="min-w-0">
       <div className="flex items-center justify-between gap-[10px]">
@@ -166,7 +174,23 @@ export function ProjectSettings({
         <TextField
           id="otto-project"
           value={cwd}
+          onFocus={onBeginEdit}
           onChange={(e) => setCwd(e.target.value)}
+          onBlur={(event) => {
+            if (skipCommit.current) {
+              skipCommit.current = false;
+              return;
+            }
+            onCommit(event.currentTarget.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") {
+              skipCommit.current = true;
+              onCancel();
+              event.currentTarget.blur();
+            }
+          }}
           placeholder="Folder path"
           disabled={locked}
           title={locked ? "Start a new session to change the working project" : undefined}

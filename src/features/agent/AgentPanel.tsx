@@ -33,6 +33,9 @@ export function AgentPanel({
     readiness,
     cwd,
     setCwd,
+    beginWorkspaceEdit,
+    commitWorkspace,
+    cancelWorkspaceEdit,
     mode,
     setMode,
     provider,
@@ -117,6 +120,9 @@ export function AgentPanel({
             locked={locked}
             cwd={cwd}
             setCwd={setCwd}
+            beginWorkspaceEdit={beginWorkspaceEdit}
+            commitWorkspace={commitWorkspace}
+            cancelWorkspaceEdit={cancelWorkspaceEdit}
             busy={busy || captureBusy}
             error={agent.error}
             onDone={onSettingsBack}

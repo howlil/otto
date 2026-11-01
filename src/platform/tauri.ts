@@ -142,6 +142,18 @@ export async function selectAgentProvider(provider: AgentProvider): Promise<void
   await invoke("agent_select_provider", { provider });
 }
 
+export async function beginAgentWorkspaceEdit(): Promise<void> {
+  await invoke("agent_begin_workspace_edit");
+}
+
+export async function commitAgentWorkspace(directory: string): Promise<string> {
+  return invoke<string>("agent_commit_workspace", { directory });
+}
+
+export async function cancelAgentWorkspaceEdit(): Promise<void> {
+  await invoke("agent_cancel_workspace_edit");
+}
+
 export async function selectAgentRuntimeOptions(
   model: string | null,
   thinkingEffort: string | null,
