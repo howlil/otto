@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { StatusMessage, Text, TransitionContent } from "../../shared/ui";
 import type { AgentStatus } from "../../platform/tauri";
 import { AgentCaptureSettings } from "./AgentCaptureSettings";
@@ -86,8 +87,9 @@ function SettingsFooter({ error }: Pick<AgentSettingsProps, "error">) {
 
 export function AgentSettingsDetails({
   tab,
+  scrollRef,
   ...props
-}: AgentSettingsProps & { tab: AgentSettingsTab }) {
+}: AgentSettingsProps & { tab: AgentSettingsTab; scrollRef: Ref<HTMLDivElement> }) {
   const providerStatus =
     props.readiness.status === "ready"
       ? "Ready"
@@ -95,7 +97,8 @@ export function AgentSettingsDetails({
         ? "Checking"
         : "Setup required";
   return (
-    <div className="min-w-0 overflow-y-auto px-[17px] pb-5 pt-[15px] [overscroll-behavior:contain] [scrollbar-width:none]">
+    <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-[17px] pb-5 pt-[15px] [overscroll-behavior:contain] [scrollbar-width:none]">
+      <div className="min-w-0">
       <SettingsHeader tab={tab} />
       <ActiveRunNotice {...props} />
       <TransitionContent transitionKey={tab} kind="tab" reducedMotion={props.reducedMotion}>
@@ -132,6 +135,7 @@ export function AgentSettingsDetails({
         {tab === "capture" && <CaptureSettings {...props} />}
       </TransitionContent>
       <SettingsFooter error={props.error} />
+      </div>
     </div>
   );
 }

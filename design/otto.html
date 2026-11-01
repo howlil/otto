@@ -771,7 +771,7 @@ function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack}){
    const label=name==="Agy"?"Antigravity":name;
    const cmd=name==="Codex"?"codex":name==="Agy"?"agy":"pi";
    const desc=name==="Codex"?"OpenAI coding agent":name==="Agy"?"Google Antigravity CLI":"Minimal coding harness";
-   return el("button",{type:"button",key:name,disabled:locked,className:"as-provider "+(selected?"hero":"option"),"aria-pressed":selected,onClick:()=>setAgent(a=>({...a,provider:name,mode:"Quick Ask",readiness:"ready",phase:"ready",warning:""}))},
+   return el("button",{type:"button",key:name,disabled:locked,className:"as-provider "+(selected?"hero":"option"),"aria-pressed":selected,onClick:()=>setAgent(a=>({...a,provider:name,mode:"Quick Ask",phase:"ready",warning:""}))},
     selected?el("span",{className:"as-provider-stage"},
       el("span",{className:"as-provider-orbit"}),
       el("span",{className:"as-provider-index"},"PROVIDER / 0"+(index+1)),
