@@ -310,12 +310,11 @@ function useCaptureShortcut() {
 
   useEffect(() => {
     if (!nativeAvailable) return;
-    void configureCaptureShortcut(initialShortcut.current).catch((cause: unknown) => {
-      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
-    });
-    void configureCaptureSource(initialSource.current).catch((cause: unknown) => {
-      setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
-    });
+    void configureCaptureSource(initialSource.current)
+      .then(() => configureCaptureShortcut(initialShortcut.current))
+      .catch((cause: unknown) => {
+        setCaptureMessage(cause instanceof Error ? cause.message : String(cause));
+      });
   }, []);
 
   const selectSource = useCallback(async (next: CaptureSource) => {
