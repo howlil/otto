@@ -5,3 +5,4 @@ pub mod codex;
 mod job;
 #[cfg(windows)]
 pub mod pi;
+pub mod registry;
