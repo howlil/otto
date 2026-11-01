@@ -38,8 +38,7 @@ pub fn configure(window: &WebviewWindow) -> std::io::Result<()> {
                 0,
                 0,
                 SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
-            ) == 0
-            {
+            ) == 0 {
                 return Err(std::io::Error::last_os_error());
             }
         }
