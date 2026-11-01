@@ -124,23 +124,27 @@ unsafe extern "system" fn on_foreground(
     if object != 0 || child != 0 {
         return;
     }
-    if external_window(hwnd)
+    if let Some(target) = WindowTarget::pin(hwnd)
         && let Ok(mut last) = LAST_EXTERNAL_WINDOW.lock()
     {
-        *last = WindowTarget::pin(hwnd);
+        *last = Some(target);
     }
 }
 
+fn preferred_capture_target(
+    current: Option<WindowTarget>,
+    previous: Option<WindowTarget>,
+) -> Option<WindowTarget> {
+    current.or(previous)
+}
+
 fn select_capture_target() -> Result<WindowTarget, String> {
-    let current = unsafe { GetForegroundWindow() };
-    let target = if external_window(current) {
-        WindowTarget::pin(current)
-    } else {
-        *LAST_EXTERNAL_WINDOW
-            .lock()
-            .map_err(|_| "Window tracking is unavailable.")?
-    };
-    let target = target.ok_or("Previous application window is unavailable. Focus it and retry.")?;
+    let current = WindowTarget::pin(unsafe { GetForegroundWindow() });
+    let previous = *LAST_EXTERNAL_WINDOW
+        .lock()
+        .map_err(|_| "Window tracking is unavailable.")?;
+    let target = preferred_capture_target(current, previous)
+        .ok_or("Previous application window is unavailable. Focus it and retry.")?;
     if !valid_capture_window(target.handle as HWND)
         || !target.matches(target.handle, window_pid(target.handle as HWND))
     {
@@ -556,6 +560,15 @@ mod tests {
         );
         assert!(CaptureSource::parse("screen").is_err());
         assert!(CaptureSource::parse("").is_err());
+    }
+
+    #[test]
+    fn transient_external_focus_does_not_discard_last_capture_target() {
+        let previous = WindowTarget { handle: 12, pid: 42 };
+        let current = WindowTarget { handle: 20, pid: 43 };
+        assert_eq!(preferred_capture_target(None, Some(previous)), Some(previous));
+        assert_eq!(preferred_capture_target(Some(current), Some(previous)), Some(current));
+        assert_eq!(preferred_capture_target(None, None), None);
     }
 
     #[test]
