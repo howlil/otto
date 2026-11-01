@@ -13,8 +13,9 @@ use tauri::Manager;
 use windows_sys::Win32::{
     Foundation::{HWND, RECT},
     Graphics::Gdi::{
-        BI_RGB, BITMAPINFO, CreateCompatibleBitmap, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
-        DeleteObject, GetDIBits, GetWindowDC, ReleaseDC, SelectObject,
+        BI_RGB, BITMAPINFO, BitBlt, CAPTUREBLT, CreateCompatibleBitmap, CreateCompatibleDC,
+        DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetDIBits, GetWindowDC, ReleaseDC, SRCCOPY,
+        SelectObject,
     },
     Storage::Xps::PrintWindow,
     System::Threading::GetCurrentThreadId,
@@ -24,16 +25,18 @@ use windows_sys::Win32::{
             MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, RegisterHotKey, UnregisterHotKey,
         },
         WindowsAndMessaging::{
-            EVENT_SYSTEM_FOREGROUND, GetForegroundWindow, GetMessageW, GetWindowRect,
-            GetWindowTextLengthW, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible,
-            MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW, WINEVENT_OUTOFCONTEXT,
-            WINEVENT_SKIPOWNPROCESS, WM_APP, WM_HOTKEY,
+            EVENT_SYSTEM_FOREGROUND, GetForegroundWindow, GetMessageW, GetSystemMetrics,
+            GetWindowRect, GetWindowTextLengthW, GetWindowThreadProcessId, IsIconic, IsWindow,
+            IsWindowVisible, MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW,
+            SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+            WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_APP, WM_HOTKEY,
         },
     },
 };
 
 const HOTKEY_ID: i32 = 0x4f54;
-const MAX_EDGE: i32 = 4096;
+const MAX_EDGE: i32 = 8192;
+const MAX_PIXELS: u64 = 24_000_000;
 const WM_HOTKEY_CONFIG: u32 = WM_APP + 19;
 static LAST_EXTERNAL_WINDOW: Mutex<Option<WindowTarget>> = Mutex::new(None);
 
@@ -154,12 +157,36 @@ fn capture_foreground(target: WindowTarget) -> Result<CapturedImage, String> {
     if unsafe { GetWindowRect(hwnd, &mut rect) } == 0 {
         return Err("Cannot read the target window bounds.".into());
     }
-    let width = rect.right - rect.left;
-    let height = rect.bottom - rect.top;
-    if !(1..=MAX_EDGE).contains(&width) || !(1..=MAX_EDGE).contains(&height) {
-        return Err("The target window size is unsupported.".into());
+    capture_image(hwnd, rect.right - rect.left, rect.bottom - rect.top, None)
+}
+
+fn capture_full_screen() -> Result<CapturedImage, String> {
+    let x = unsafe { GetSystemMetrics(SM_XVIRTUALSCREEN) };
+    let y = unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) };
+    let width = unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) };
+    let height = unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) };
+    capture_image(std::ptr::null_mut(), width, height, Some((x, y)))
+}
+
+fn capture_image(
+    hwnd: HWND,
+    width: i32,
+    height: i32,
+    screen_origin: Option<(i32, i32)>,
+) -> Result<CapturedImage, String> {
+    if !(1..=MAX_EDGE).contains(&width)
+        || !(1..=MAX_EDGE).contains(&height)
+        || (width as u64) * (height as u64) > MAX_PIXELS
+    {
+        return Err("Capture size exceeds the supported image limit.".into());
     }
-    let source = unsafe { GetWindowDC(hwnd) };
+    let source = unsafe {
+        if screen_origin.is_some() {
+            GetDC(std::ptr::null_mut())
+        } else {
+            GetWindowDC(hwnd)
+        }
+    };
     if source.is_null() {
         return Err("Window capture is unavailable.".into());
     }
@@ -183,8 +210,13 @@ fn capture_foreground(target: WindowTarget) -> Result<CapturedImage, String> {
         return Err("Cannot select the capture bitmap.".into());
     }
 
-    if unsafe { PrintWindow(hwnd, capture.memory, 0) } == 0 {
-        return Err("This application does not support silent window capture.".into());
+    let copied = if let Some((x, y)) = screen_origin {
+        unsafe { BitBlt(capture.memory, 0, 0, width, height, source, x, y, SRCCOPY | CAPTUREBLT) }
+    } else {
+        unsafe { PrintWindow(hwnd, capture.memory, 0) }
+    };
+    if copied == 0 {
+        return Err("The requested screen image could not be captured.".into());
     }
     unsafe {
         SelectObject(capture.memory, capture.old);
@@ -281,8 +313,33 @@ fn parse_shortcut(value: &str) -> Result<Shortcut, String> {
     })
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CaptureSource {
+    Window,
+    FullScreen,
+}
+
+impl CaptureSource {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "window" => Ok(Self::Window),
+            "fullScreen" => Ok(Self::FullScreen),
+            _ => Err("Unknown capture source.".into()),
+        }
+    }
+}
+
 type HotkeyReply = SyncSender<Result<(), String>>;
-type HotkeyChange = (Shortcut, HotkeyReply);
+
+enum HotkeyChange {
+    Shortcut(Shortcut, HotkeyReply),
+    Source(CaptureSource, HotkeyReply),
+}
+
+enum CaptureIntent {
+    Window(WindowTarget),
+    FullScreen,
+}
 
 pub struct CaptureHotkeys {
     changes: Sender<HotkeyChange>,
@@ -292,12 +349,21 @@ pub struct CaptureHotkeys {
 impl CaptureHotkeys {
     pub fn configure(&self, value: &str) -> Result<(), String> {
         let requested = parse_shortcut(value)?;
+        self.request(|reply| HotkeyChange::Shortcut(requested, reply))
+    }
+
+    pub fn configure_source(&self, value: &str) -> Result<(), String> {
+        let requested = CaptureSource::parse(value)?;
+        self.request(|reply| HotkeyChange::Source(requested, reply))
+    }
+
+    fn request(&self, build: impl FnOnce(HotkeyReply) -> HotkeyChange) -> Result<(), String> {
         let (reply, result) = mpsc::sync_channel(1);
         if self.thread_id == 0 {
             return Err("The capture shortcut service did not start.".into());
         }
         self.changes
-            .send((requested, reply))
+            .send(build(reply))
             .map_err(|_| "The capture shortcut service is unavailable.".to_string())?;
         if unsafe { PostThreadMessageW(self.thread_id, WM_HOTKEY_CONFIG, 0, 0) } == 0 {
             return Err("The capture shortcut service cannot receive updates.".into());
@@ -326,6 +392,7 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
     // Do not register a default that may differ from the user's saved shortcut.
     // The React agent owner restores the chosen shortcut on startup.
     let mut registered: Option<Shortcut> = None;
+    let mut source = CaptureSource::Window;
     let hook = unsafe {
         SetWinEventHook(
             EVENT_SYSTEM_FOREGROUND,
@@ -353,44 +420,57 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
             break;
         }
         if message.message == WM_HOTKEY_CONFIG {
-            while let Ok((requested, reply)) = changes.try_recv() {
-                if registered == Some(requested) {
-                    let _ = reply.send(Ok(()));
-                    continue;
-                }
-                if registered.is_some() {
-                    unsafe { UnregisterHotKey(std::ptr::null_mut(), HOTKEY_ID) };
-                }
-                if register(requested) {
-                    registered = Some(requested);
-                    let _ = reply.send(Ok(()));
-                } else {
-                    let restored = registered.filter(|old| register(*old));
-                    registered = restored;
-                    let _ = reply.send(Err(
-                        "Shortcut is already in use or unavailable. The previous shortcut was kept when possible.".into(),
-                    ));
-                    if restored.is_none() {
-                        app.state::<AgentRuntime>().capture_error(
-                            "No capture shortcut could be registered. Choose another shortcut in Agent settings.",
-                        );
+            while let Ok(change) = changes.try_recv() {
+                match change {
+                    HotkeyChange::Source(requested, reply) => {
+                        source = requested;
+                        let _ = reply.send(Ok(()));
+                    }
+                    HotkeyChange::Shortcut(requested, reply) => {
+                        if registered == Some(requested) {
+                            let _ = reply.send(Ok(()));
+                            continue;
+                        }
+                        if registered.is_some() {
+                            unsafe { UnregisterHotKey(std::ptr::null_mut(), HOTKEY_ID) };
+                        }
+                        if register(requested) {
+                            registered = Some(requested);
+                            let _ = reply.send(Ok(()));
+                        } else {
+                            let restored = registered.filter(|old| register(*old));
+                            registered = restored;
+                            let _ = reply.send(Err(
+                                "Shortcut unavailable. The previous shortcut was kept when possible.".into(),
+                            ));
+                            if restored.is_none() {
+                                app.state::<AgentRuntime>().capture_error(
+                                    "Capture shortcut is unavailable. Choose another in Agent settings.",
+                                );
+                            }
+                        }
                     }
                 }
             }
         }
         if message.message == WM_HOTKEY && message.wParam == HOTKEY_ID as usize {
-            let target = if hook.is_null() {
-                Err("Window focus tracking is not available.".to_string())
-            } else {
-                select_capture_target()
+            let target = match source {
+                CaptureSource::Window if hook.is_null() => {
+                    Err("Window focus tracking is unavailable.".to_string())
+                }
+                CaptureSource::Window => select_capture_target().map(CaptureIntent::Window),
+                CaptureSource::FullScreen => Ok(CaptureIntent::FullScreen),
             };
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 let runtime = handle.state::<AgentRuntime>();
                 match target {
-                    Ok(window) => {
+                    Ok(intent) => {
                         if let Err(reason) = runtime
-                            .capture_hotkey(move || capture_foreground(window))
+                            .capture_hotkey(move || match intent {
+                                CaptureIntent::Window(window) => capture_foreground(window),
+                                CaptureIntent::FullScreen => capture_full_screen(),
+                            })
                             .await
                         {
                             runtime.capture_error(&reason);
@@ -422,6 +502,14 @@ pub fn start_hotkey(app: tauri::AppHandle) -> CaptureHotkeys {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unsupported_capture_source_never_selects_a_default() {
+        assert_eq!(CaptureSource::parse("window").unwrap(), CaptureSource::Window);
+        assert_eq!(CaptureSource::parse("fullScreen").unwrap(), CaptureSource::FullScreen);
+        assert!(CaptureSource::parse("screen").is_err());
+        assert!(CaptureSource::parse("").is_err());
+    }
 
     #[test]
     fn captured_window_identity_must_not_change_process() {

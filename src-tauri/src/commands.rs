@@ -78,6 +78,25 @@ pub fn agent_configure_capture_shortcut(
     }
 }
 
+#[tauri::command]
+pub fn agent_configure_capture_source(
+    app: tauri::AppHandle,
+    source: String,
+) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        app.state::<crate::windows::capture::CaptureHotkeys>()
+            .configure_source(&source)?;
+        app.state::<AgentRuntime>().clear_capture_error();
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app, source);
+        Err("Screen capture requires Windows.".into())
+    }
+}
+
 fn surface_size(surface: &str) -> Option<(u32, u32)> {
     match surface {
         "idle" => Some((92, 42)),
