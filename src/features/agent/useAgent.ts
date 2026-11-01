@@ -299,13 +299,19 @@ function useCaptureShortcut() {
     }
   });
   const [savingCapture, setSavingCapture] = useState(false);
-  const initialShortcut = useRef(shortcut);
+  const registeredShortcut = useRef(shortcut);
+  const registered = useRef(false);
 
   useEffect(() => {
-    if (!nativeAvailable || !sourceReady) return;
-    void configureCaptureShortcut(initialShortcut.current).catch((cause: unknown) => {
-      setCaptureMessage(String(cause));
-    });
+    if (!nativeAvailable || !sourceReady || registered.current) return;
+    registered.current = true;
+    setSavingCapture(true);
+    void configureCaptureShortcut(registeredShortcut.current)
+      .catch((cause: unknown) => {
+        registered.current = false;
+        setCaptureMessage(String(cause));
+      })
+      .finally(() => setSavingCapture(false));
   }, [sourceReady]);
 
   const saveShortcut = useCallback(async () => {
@@ -313,6 +319,8 @@ function useCaptureShortcut() {
     setSavingCapture(true);
     try {
       await configureCaptureShortcut(shortcut);
+      registeredShortcut.current = shortcut;
+      registered.current = true;
       try {
         localStorage.setItem("otto.capture.shortcut", shortcut);
         setCaptureMessage("Shortcut active. Focus another app and press it to capture.");
