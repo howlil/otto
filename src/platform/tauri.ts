@@ -11,7 +11,7 @@ export type AgentStatus =
   | "failed";
 
 export type AgentMode = "quickAsk" | "agentSession";
-export type AgentProvider = "codex" | "pi";
+export type AgentProvider = "codex" | "pi" | "agy";
 export type CaptureSource = "window" | "fullScreen";
 
 export type ProviderReadiness = {
