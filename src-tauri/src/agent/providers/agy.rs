@@ -13,7 +13,7 @@ use std::{
 #[cfg(test)]
 use tokio::sync::watch;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Lines},
     process::{Child, ChildStdin, ChildStdout, Command},
     sync::mpsc,
     time::timeout,
@@ -89,6 +89,7 @@ fn launch_args() -> &'static [&'static str] {
         "stream-json",
         "--output-format",
         "stream-json",
+        "--disable-slash-commands",
         "--agent",
         AGENT_NAME,
     ]
@@ -99,6 +100,7 @@ struct Rpc {
     child: Child,
     stdin: ChildStdin,
     stdout: Lines<BufReader<ChildStdout>>,
+    stderr_task: tokio::task::JoinHandle<String>,
 }
 
 impl Rpc {
@@ -110,7 +112,7 @@ impl Rpc {
             .current_dir(cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .kill_on_drop(true);
         let mut child = command
             .spawn()
@@ -124,21 +126,42 @@ impl Rpc {
         };
         let stdin = child.stdin.take().ok_or("Agy stdin unavailable.")?;
         let stdout = child.stdout.take().ok_or("Agy stdout unavailable.")?;
+        let mut stderr = child.stderr.take().ok_or("Agy stderr unavailable.")?;
+        let stderr_task = tokio::spawn(async move {
+            let mut captured = Vec::new();
+            let mut chunk = [0_u8; 1024];
+            loop {
+                match stderr.read(&mut chunk).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(count) => {
+                        let remaining = 4096_usize.saturating_sub(captured.len());
+                        captured.extend_from_slice(&chunk[..count.min(remaining)]);
+                    }
+                }
+            }
+            String::from_utf8_lossy(&captured).into_owned()
+        });
         Ok(Self {
             job,
             child,
             stdin,
             stdout: BufReader::new(stdout).lines(),
+            stderr_task,
         })
     }
 
     async fn read(&mut self) -> Result<Value, String> {
-        let line = self
-            .stdout
-            .next_line()
-            .await
-            .map_err(|_| "Agy stream failed.")?
-            .ok_or("Agy disconnected.")?;
+        let line = match self.stdout.next_line().await {
+            Ok(Some(line)) => line,
+            Ok(None) => {
+                let diagnostics = timeout(Duration::from_millis(250), &mut self.stderr_task)
+                    .await
+                    .ok()
+                    .and_then(Result::ok);
+                return Err(disconnect_message(diagnostics.as_deref()).into());
+            }
+            Err(_) => return Err("Agy stream failed.".into()),
+        };
         if line.len() > 1_000_000 {
             return Err("Agy message exceeded the supported limit.".into());
         }
@@ -170,7 +193,11 @@ impl Rpc {
 }
 
 fn safe_init(frame: &Value) -> Result<String, String> {
-    if frame["event"] != "init" || frame["init"]["agent"] != AGENT_NAME {
+    if frame["event"] != "init"
+        || frame["init"]
+            .get("agent")
+            .is_some_and(|agent| agent.as_str() != Some(AGENT_NAME))
+    {
         return Err("Agy did not confirm Otto's tool-free agent profile.".into());
     }
     let Some(tools) = frame["init"]["tools"].as_array() else {
@@ -271,10 +298,14 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         .kill_on_drop(true);
     match timeout(Duration::from_secs(12), command.output()).await {
         Ok(Ok(output)) if output.status.success() => {
-            if !serde_json::from_slice::<Value>(&output.stdout)
-                .ok()
-                .is_some_and(|value| available_models(&value))
+            let parsed = serde_json::from_slice::<Value>(&output.stdout).ok();
+            if parsed
+                .as_ref()
+                .is_some_and(|value| value["status"] == "ERROR")
             {
+                return model_discovery_failure(&output.stdout, &output.stderr);
+            }
+            if !parsed.as_ref().is_some_and(available_models) {
                 return ProviderReadiness::new(
                     "unsupported",
                     "Agy models could not be confirmed.",
@@ -297,16 +328,42 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         return ProviderReadiness::new("unavailable", "Agy cannot start.", "Update Agy and Retry.");
     };
     let response = timeout(Duration::from_secs(20), rpc.read()).await;
-    let confirmed = matches!(response, Ok(Ok(ref frame)) if safe_init(frame).is_ok());
+    let verified = match response {
+        Ok(Ok(frame)) => safe_init(&frame),
+        Ok(Err(reason)) => Err(reason),
+        Err(_) => Err("Agy initialization timed out.".into()),
+    };
     rpc.terminate().await;
-    if confirmed {
-        ProviderReadiness::new("ready", "Agy is ready for tool-free text.", "")
-    } else {
-        ProviderReadiness::new(
+    match verified {
+        Ok(_) => ProviderReadiness::new(
+            "ready",
+            "Agy CLI is initialized; model access is verified on the first answer.",
+            "",
+        ),
+        Err(reason) if reason.starts_with("Agy authentication expired.") => {
+            ProviderReadiness::new(
+                "authRequired",
+                "Agy needs authentication.",
+                "Sign in to Agy, then Retry.",
+            )
+        }
+        Err(reason) if reason.starts_with("Agy disconnected.") || reason.contains("timed out") => {
+            ProviderReadiness::new("unavailable", &reason, "Check Agy and Retry.")
+        }
+        Err(reason) => ProviderReadiness::new(
             "unsupported",
-            "Agy did not confirm its tool-free agent profile.",
+            &reason,
             "Update Agy or check Otto's agent profile, then Retry.",
-        )
+        ),
+    }
+}
+
+fn disconnect_message(error: Option<&str>) -> &'static str {
+    match result_failure_message(error) {
+        "Agy could not finish this request." => {
+            "Agy disconnected. Check the CLI installation, then Retry."
+        }
+        known => known,
     }
 }
 
@@ -583,11 +640,41 @@ mod tests {
     fn tool_permissions_are_checked_before_any_prompt() {
         let safe = json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-quick-ask","tools":["send_message"]}});
         assert_eq!(safe_init(&safe).unwrap(), "conversation-1");
+        let documented = json!({"event":"init","conversation_id":"conversation-1","init":{"cwd":"C:\\work","tools":["send_message"],"permission_mode":"request-review"}});
+        assert_eq!(safe_init(&documented).unwrap(), "conversation-1");
+        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"tools":["send_message", "run_command"]}})).is_err());
         assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-quick-ask","tools":["write_to_file"]}})).is_err());
         assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"default","tools":[]}})).is_err());
         assert!(
             safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{}}))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn stream_launch_disables_cli_slash_command_expansion() {
+        assert!(launch_args().contains(&"--disable-slash-commands"));
+        assert!(launch_args().windows(2).any(|args| args == ["--input-format", "stream-json"]));
+        assert!(launch_args().windows(2).any(|args| args == ["--output-format", "stream-json"]));
+    }
+
+    #[test]
+    fn stream_disconnect_classifies_errors_without_exposing_stderr() {
+        assert_eq!(
+            disconnect_message(Some("authentication required for private-account")),
+            "Agy authentication expired. Sign in to Agy, then Retry."
+        );
+        assert_eq!(
+            disconnect_message(Some("rate limit exceeded for private-account")),
+            "Agy rate limit or quota reached. Retry later."
+        );
+        assert_eq!(
+            disconnect_message(Some("private-account panic and secret details")),
+            "Agy disconnected. Check the CLI installation, then Retry."
+        );
+        assert_eq!(
+            disconnect_message(None),
+            "Agy disconnected. Check the CLI installation, then Retry."
         );
     }
 
