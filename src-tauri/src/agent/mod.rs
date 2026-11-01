@@ -38,6 +38,7 @@ pub struct ProviderReadiness {
 
     pub image_input: bool,
     pub agent_session: bool,
+    pub image_transport: bool,
 }
 
 impl ProviderReadiness {
@@ -48,6 +49,7 @@ impl ProviderReadiness {
             recovery: recovery.into(),
             image_input: false,
             agent_session: false,
+            image_transport: false,
         }
     }
 }
