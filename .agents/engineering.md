@@ -81,7 +81,7 @@ Square-bracket paths are **proposed extractions, not current files or a mandate 
 - Provider-side conversations/logs and model transmission follow each CLI/provider policy; Otto cannot promise their deletion.
 
 ## Flows
-- Existing bootstrap (B1): launch -> K2/K5 top-center frameless WebView -> K1 static idle (not a verified Windows run).
+- Existing bootstrap (B1): process launch -> K5 Windows per-session named mutex (duplicate exits before Tauri initialization; error fails closed) -> K2/K5 frameless WebView -> K1 idle. The handle remains open for the process lifetime and Windows reclaims it on exit/crash; normal WebView2 subprocesses are unaffected.
 - First complete slice (B2,B3,B8,B9,B10,B11,X1,X4,X7,X9,X10): enter Otto -> R1 selects visible context -> R7 validates Codex readiness and enforceable Quick Ask policy -> R2 accepts run_id -> K4 starts owned CLI -> ordered channel updates K1 -> user may collapse/reopen without stopping -> completed answer/quiet indicator -> follow-up, or explicit Stop -> terminal/cleanup -> original app regains attention.
 - Permission break (B9,X7): provider requests tool action -> R7 records pending approval -> K1 shows actionable state / provider's supported approval path -> only valid user decision resumes; unavailable mechanism means block/stop.
 - New Session (B9,X7): after a terminal run, user explicitly resets the conversation from the Agent chat header beside Settings -> R2 closes and waits for the owned provider process -> clears Rust transcript/thread/approval and returns to default Quick Ask; local unsent prompt and selected project remain editable. An active run or pending approval cannot be reset implicitly.
@@ -150,7 +150,7 @@ Square-bracket paths are **proposed extractions, not current files or a mandate 
 - PF1 (P3/P9,G6/G8) [critical]: enforceable read-only mode and approval deny/stale authorization | Rust policy/protocol unit | `iter/pr`.
 - PF2 (P3/P8,G2/G7) [critical]: Rust streaming/Stop/order unit + Codex subprocess contract in PR; native P8 stream → Home → reopen → background completion through manual `full` GitHub Windows E2E; process-tree acceptance at `release`.
 - PF3 (P4/P11,G1) [critical]: explicit capture action, target identity, no implicit send on invalid/ambiguous state | Rust capture unit; Windows capture-to-Codex/Pi acceptance | `iter/pr`, native at `release`.
-- PF5 (P1,X5,G4) [important]: manifest preserves blank title + contentProtected; tool-window flag preservation/idempotence/rollback and Windows HWND title/affinity read-back | Rust unit at `pr`; real Brave/recorder picker, hide/show and Agent full-screen capture at `release`.
+- PF5 (P1,X5,G4) [important]: manifest blank title + contentProtected; native overlay style unit at `pr`, picker/affinity at `release`. Windows named mutex duplicate/concurrent/independent-process regression in Rust unit at `pr`; installed Otto double-launch and retained Agent session at `release`.
 - PF4 (P12,X10,G7) [critical]: active marker → crash/restart → interrupted, no false completion; stale run cannot clear new marker | Rust unit + filesystem/runtime integration | `iter/pr`; representative restart at `release`.
 - `merge`: review actual changed invariants and exact-SHA proof; never call unverified boundaries green.
 - `release`: once per release candidate, NSIS startup, genuine Windows CLI/capture/session recovery and process cleanup; one exploratory acceptance pass. Live provider authentication and OS semantics are not proven by mocked unit tests.

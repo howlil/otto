@@ -6,6 +6,16 @@ mod windows;
 use tauri::{Manager, PhysicalPosition};
 
 pub fn run() {
+    #[cfg(windows)]
+    let _instance_guard = match windows::single_instance::acquire() {
+        Ok(Some(guard)) => guard,
+        Ok(None) => return,
+        Err(error) => {
+            eprintln!("Unable to initialize Otto single-instance guard: {error}");
+            std::process::exit(1);
+        }
+    };
+
     tauri::Builder::default()
         .manage(commands::NotchMotion::default())
         .invoke_handler(tauri::generate_handler![
