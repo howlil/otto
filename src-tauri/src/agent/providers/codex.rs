@@ -158,22 +158,22 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
     ready
 }
 
-fn configured_model(value: &Value) -> Result<Option<&str>, ProviderReadiness> {
+fn configured_model(value: &Value) -> Result<Option<&str>, Box<ProviderReadiness>> {
     let Some(config) = value.get("config").and_then(Value::as_object) else {
-        return Err(ProviderReadiness::new(
+        return Err(Box::new(ProviderReadiness::new(
             "unsupported",
             "Codex did not return effective model configuration.",
             "Update Codex and Retry.",
-        ));
+        )));
     };
     match config.get("model") {
         Some(Value::Null) => Ok(None),
         Some(Value::String(name)) if !name.trim().is_empty() => Ok(Some(name.as_str())),
-        _ => Err(ProviderReadiness::new(
+        _ => Err(Box::new(ProviderReadiness::new(
             "unsupported",
             "Codex returned an invalid model configuration.",
             "Inspect your Codex model setting, then Retry.",
-        )),
+        ))),
     }
 }
 
@@ -244,7 +244,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             .await?;
         let selected = match configured_model(&config) {
             Ok(model) => model,
-            Err(status) => return Ok(status),
+            Err(status) => return Ok(*status),
         };
         let (models, _) = rpc
             .request(

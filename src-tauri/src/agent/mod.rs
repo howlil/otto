@@ -91,6 +91,11 @@ pub struct ProviderReadiness {
     pub thinking_efforts: Vec<String>,
 }
 
+struct ModelSelection {
+    model: Option<String>,
+    thinking_effort: Option<String>,
+}
+
 impl ProviderReadiness {
     pub fn new(status: &str, message: &str, recovery: &str) -> Self {
         Self {
@@ -468,8 +473,10 @@ impl AgentRuntime {
             state.cwd,
             "quickAsk".into(),
             state.provider,
-            state.model,
-            state.thinking_effort,
+            ModelSelection {
+                model: state.model,
+                thinking_effort: state.thinking_effort,
+            },
             Some(image),
         ).await
     }
@@ -531,8 +538,18 @@ impl AgentRuntime {
         model: Option<String>,
         thinking_effort: Option<String>,
     ) -> Result<(), String> {
-        self.ask_with_capture(text, cwd, mode, provider, model, thinking_effort, None)
-            .await
+        self.ask_with_capture(
+            text,
+            cwd,
+            mode,
+            provider,
+            ModelSelection {
+                model,
+                thinking_effort,
+            },
+            None,
+        )
+        .await
     }
 
     async fn ask_with_capture(
@@ -541,10 +558,13 @@ impl AgentRuntime {
         cwd: String,
         mode: String,
         provider: String,
-        model: Option<String>,
-        thinking_effort: Option<String>,
+        selection: ModelSelection,
         capture: Option<CapturedImage>,
     ) -> Result<(), String> {
+        let ModelSelection {
+            model,
+            thinking_effort,
+        } = selection;
         let text = text.trim().to_owned();
         if text.is_empty() || text.len() > 12_000 {
             return Err("Enter a question (up to 12,000 bytes).".into());
