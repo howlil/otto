@@ -84,7 +84,7 @@ export function GlobalSettings({
                   ]}
                 />
                 <Text as="p" variant="caption" className="mt-2 leading-[1.5] text-otto-label-muted">
-                  Alive adds occasional blinking and pointer gaze. Quiet stays still.
+                  Alive adds occasional blinking. Quiet stays still.
                 </Text>
               </div>
               <Button
