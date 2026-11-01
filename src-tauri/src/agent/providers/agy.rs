@@ -14,7 +14,7 @@ use std::{
 use tokio::sync::watch;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
-    process::{Child, ChildStdin, ChildStdout, Command},
+    process::{Child, ChildStdin, ChildStdout},
     sync::mpsc,
     time::timeout,
 };
@@ -104,7 +104,7 @@ struct Rpc {
 impl Rpc {
     fn launch(cwd: &Path) -> Result<Self, String> {
         let binary = executable().ok_or("Agy CLI was not found in PATH.")?;
-        let mut command = Command::new(binary);
+        let mut command = super::background_command(binary);
         command
             .args(launch_args())
             .current_dir(cwd)
@@ -258,7 +258,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
     if let Err(reason) = ensure_profile() {
         return ProviderReadiness::new("unsupported", &reason, "Review Agy setup, then Retry.");
     }
-    let mut command = Command::new(binary);
+    let mut command = super::background_command(binary);
     command
         .args(model_discovery_args())
         .current_dir(cwd)

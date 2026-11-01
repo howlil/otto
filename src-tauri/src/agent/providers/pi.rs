@@ -15,7 +15,7 @@ use std::{
 use tokio::sync::watch;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
-    process::{Child, ChildStdin, ChildStdout, Command},
+    process::{Child, ChildStdin, ChildStdout},
     sync::mpsc,
     time::timeout,
 };
@@ -59,7 +59,7 @@ struct Rpc {
 impl Rpc {
     fn launch(cwd: &Path) -> Result<Self, String> {
         let binary = executable().ok_or("Pi CLI was not found in PATH.")?;
-        let mut command = Command::new(binary);
+        let mut command = super::background_command(binary);
         command
             .args(launch_args())
             .current_dir(cwd)
@@ -376,7 +376,7 @@ pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderR
             );
         }
     };
-    let mut command = Command::new(binary);
+    let mut command = super::background_command(binary);
     command
         .args(["auth", "check", "--model", &model, "--json"])
         .current_dir(cwd)

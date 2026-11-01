@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
 use tokio::{
     io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
-    process::{Child, ChildStdin, ChildStdout, Command},
+    process::{Child, ChildStdin, ChildStdout},
     sync::{mpsc, watch},
     time::timeout,
 };
@@ -565,7 +565,7 @@ fn classify_startup_control(
 impl Rpc {
     fn launch(cwd: &PathBuf) -> Result<Self, String> {
         let binary = executable().ok_or("Codex CLI is not installed.")?;
-        let mut cmd = Command::new(binary);
+        let mut cmd = super::background_command(binary);
         cmd.args(["app-server", "--stdio"])
             .current_dir(cwd)
             .stdin(Stdio::piped())
