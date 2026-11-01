@@ -1,79 +1,44 @@
-import { Text } from "../../shared/ui";
-
-export type ProviderTone = "codex" | "agy" | "pi";
-
-const markVariants: Record<ProviderTone, string> = {
-  codex: "text-otto-completion-soft",
-  agy: "text-otto-text-bright",
-  pi: "font-serif text-otto-xl",
-};
+import { Icon, Text } from "../../shared/ui";
 
 export function ProviderChoice({
   name,
-  mark,
-  tone,
+  detail,
   status,
   selected,
   onSelect,
 }: {
   name: string;
-  mark: string;
-  tone: ProviderTone;
+  detail: string;
   status: string;
   selected: boolean;
   onSelect?: () => void;
 }) {
-  const className = `relative flex min-h-[59px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-otto-control border px-1.5 py-2 text-center text-otto-text-bright leading-[1.2] transition-[background,border-color,transform] duration-150 ${selected ? "border-otto-line-focused bg-otto-selected" : "border-otto-line-mid bg-otto-control opacity-[0.56]"}`;
+  const className = `flex min-h-[43px] w-full items-center gap-[10px] rounded-[10px] border px-[10px] py-2 text-left text-otto-text transition-[background,border-color] duration-150 ${selected ? "border-otto-line-muted bg-otto-selected" : "border-otto-line-mid bg-otto-control"}`;
   const content = (
     <>
-      <span
-        className={`grid h-5 w-5 place-items-center rounded-[6px] bg-otto-control-deep text-otto-sm font-semibold leading-none ${markVariants[tone]}`}
-        aria-hidden="true"
-      >
-        {mark}
+      <span className="shrink-0 text-otto-text-secondary" aria-hidden="true">
+        <Icon name="terminal" size={15} />
       </span>
-      <span className="flex min-w-0 flex-col items-center gap-0.5">
-        <Text
-          as="strong"
-          variant="label"
-          className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
-        >
+      <span className="min-w-0 flex-1">
+        <Text as="strong" variant="label" className="block font-[550]">
           {name}
         </Text>
-        <Text
-          as="small"
-          variant="caption"
-          className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-otto-label-muted"
-        >
-          {status}
+        <Text as="small" variant="caption" className="mt-1 block leading-[1.4] text-otto-text-tertiary">
+          {detail}
         </Text>
       </span>
-      {selected && (
-        <i
-          className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-otto-ok"
-          aria-hidden="true"
-        />
-      )}
+      {selected && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-otto-ok" aria-hidden="true" />}
     </>
   );
   if (!onSelect) {
     return (
-      <div
-        className={className}
-        title={selected ? `${name} provider selected` : `${name} provider coming soon`}
-        aria-current={selected ? "true" : undefined}
-      >
+      <div className={className} title={status} aria-current={selected ? "true" : undefined}>
         {content}
       </div>
     );
   }
   return (
-    <button
-      type="button"
-      className={`${className} hover:border-otto-line-hover hover:bg-otto-control-hover active:scale-[0.985]`}
-      onClick={onSelect}
-      aria-pressed={selected}
-    >
+    <button type="button" className={`${className} hover:border-otto-line-hover hover:bg-otto-control-hover`} onClick={onSelect} aria-pressed={selected} title={status}>
       {content}
     </button>
   );
