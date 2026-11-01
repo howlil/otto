@@ -22,7 +22,6 @@ Alternate context path: B2 → B4 user-triggered screen capture → B3 answer. S
 - B9: Before starting agent work, user can see the selected provider and working project/context. Quick Ask is the default, with no file-changing actions; entering an Agent Session or approving a tool action requires an explicit user choice. An approval request visibly waits for a valid decision.
 - B10: Background AI, music, or timer updates never switch the active feature or seize keyboard focus; completed AI work appears as a quiet 'Answer ready' status that can be opened on demand.
 - B11: Provider setup exposes whether the CLI is ready, needs authentication/setup, or lacks a required capability; user can recover or select another provider without losing a draft.
-- B12: In the active Agent conversation, users can read basic formatted Markdown/code, copy a code block, insert a preset or quote an answer into an editable follow-up, search visible messages, and export/copy the transcript as Markdown; these actions never initiate a provider request.
 
 Material breaks:
 - X1 (B3,B11): CLI absent, incompatible, or fails → explain, preserve draft/session context, offer setup, retry, or provider switch.
@@ -36,7 +35,6 @@ Material breaks:
 - X9 (B11): CLI exists but authentication/session expired → show setup/sign-in required; do not falsely mark it ready.
 - X10 (B8): After app restart, an interrupted CLI session cannot be recovered → distinguish finished history from interrupted/unknown state, never fabricate a completed answer.
 
-- X11 (B12): If transcript download is unavailable, show a failure and keep Copy Markdown available. Untrusted CLI Markdown must never be executable HTML.
 
 ## Constraints
 - C1: Windows 11 first; Tauri 2 + React + Vite + Rust + Tailwind CSS, Bun for JS package management/scripts.
@@ -56,7 +54,7 @@ Material breaks:
 ## Scope
 - Agent outcome in scope: compact Otto entry → select Codex, Pi or Agy and working context → provider-verified Quick Ask → streamed response → collapse/reopen → follow-up or Stop → recoverable failure. Codex Agent Session with explicit approvals and hotkey-triggered image analysis are additional required Agent behaviors. Codex and Pi accept screenshots only when selected provider/model confirms image input; Pi remains tool-free Quick Ask. Agy stream-json headless input accepts text blocks only, so screenshots are unsupported in this transport.
 - Supporting product direction retained but not Agent completion prerequisites: configurable placement, media, Pomodoro, and optional idle information.
-- Out: OpenCode provider, cloud backend, standalone model API credentials, universal capture invisibility, automatic screen surveillance, auto-approval of agent actions, database, telemetry server, auto-updater, multi-OS parity, speculative plugin system.
+- Out: conversation extras (presets, quote, search, transcript export, rich Markdown/code controls), OpenCode provider, cloud backend, standalone model API credentials, universal capture invisibility, automatic screen surveillance, auto-approval of agent actions, database, telemetry server, auto-updater, multi-OS parity, speculative plugin system.
 
 ## Proof
 - P1 (B1,B7,X5): Given a supported Windows session, Otto remains accessible at the selected top location with the native tool-window style set; supported picker filtering and pixel exclusion require representative Windows acceptance, and limitations are accurately communicated.
