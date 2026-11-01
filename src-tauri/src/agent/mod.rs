@@ -375,10 +375,9 @@ impl AgentRuntime {
     #[cfg(windows)]
     pub fn clear_capture_error(&self) {
         mutate(&self.updates, |s| {
-            if s.status == "failed"
-                && s.error
-                    .as_deref()
-                    .is_some_and(|error| error.starts_with("Capture: "))
+            if s.error
+                .as_deref()
+                .is_some_and(|error| error.starts_with("Capture: "))
             {
                 s.error = None;
             }
