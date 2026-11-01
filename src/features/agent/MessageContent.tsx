@@ -81,9 +81,11 @@ export function MessageContent({ text }: { text: string }) {
           const items = block.items.map((item) => {
             const itemKey = itemOffset;
             itemOffset += item.length + 1;
-            return <li key={itemKey}>
-              <InlineMarkdown text={item} />
-            </li>;
+            return (
+              <li key={itemKey}>
+                <InlineMarkdown text={item} />
+              </li>
+            );
           });
           return block.ordered ? (
             <ol key={key} className="list-decimal space-y-1 pl-5">
