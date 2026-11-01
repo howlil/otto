@@ -3,7 +3,7 @@ use std::{
     fs::OpenOptions,
     io::BufWriter,
     path::PathBuf,
-    sync::mpsc::{self, Receiver, Sender, SyncSender},
+    sync::{atomic::{AtomicIsize, Ordering}, mpsc::{self, Receiver, Sender, SyncSender}},
     time::{Duration, SystemTime},
 };
 use tauri::Manager;
@@ -16,6 +16,7 @@ use windows_sys::Win32::{
     Storage::Xps::PrintWindow,
     System::Threading::GetCurrentThreadId,
     UI::{
+        Accessibility::{EVENT_SYSTEM_FOREGROUND, SetWinEventHook, UnhookWinEvent, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS},
         Input::KeyboardAndMouse::{
             MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, RegisterHotKey, UnregisterHotKey,
         },
@@ -30,6 +31,7 @@ use windows_sys::Win32::{
 const HOTKEY_ID: i32 = 0x4f54;
 const MAX_EDGE: i32 = 4096;
 const WM_HOTKEY_CONFIG: u32 = WM_APP + 19;
+static LAST_EXTERNAL_WINDOW: AtomicIsize = AtomicIsize::new(0);
 
 struct GdiCapture {
     window: HWND,
@@ -58,27 +60,61 @@ impl Drop for GdiCapture {
     }
 }
 
-fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
-    let hwnd = target as HWND;
+fn external_window(hwnd: HWND) -> bool {
+    if hwnd.is_null() {
+        return false;
+    }
+    let mut pid = 0;
+    unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+    pid != 0 && pid != std::process::id()
+}
 
-    let valid = unsafe {
-        !hwnd.is_null()
-            && IsWindow(hwnd) != 0
+fn valid_capture_window(hwnd: HWND) -> bool {
+    external_window(hwnd) && unsafe {
+        IsWindow(hwnd) != 0
             && IsWindowVisible(hwnd) != 0
             && IsIconic(hwnd) == 0
-            && GetForegroundWindow() == hwnd
             && GetWindowTextLengthW(hwnd) > 0
-    };
-    if !valid {
-        return Err(
-            "The target window changed or cannot be captured. Focus it and retry the shortcut."
-                .into(),
+    }
+}
+
+unsafe extern "system" fn on_foreground(
+    _: windows_sys::Win32::UI::Accessibility::HWINEVENTHOOK,
+    _: u32,
+    hwnd: HWND,
+    object: i32,
+    child: i32,
+    _: u32,
+    _: u32,
+) {
+    if object != 0 || child != 0 {
+        return;
+    }
+    if external_window(hwnd) {
+        LAST_EXTERNAL_WINDOW.store(
+            if valid_capture_window(hwnd) { hwnd as isize } else { 0 },
+            Ordering::SeqCst,
         );
     }
-    let mut pid: u32 = 0;
-    unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
-    if pid == 0 || pid == std::process::id() {
-        return Err("Focus a non-Otto application before capturing.".into());
+}
+
+fn select_capture_target() -> Result<isize, String> {
+    let current = unsafe { GetForegroundWindow() };
+    let target = if external_window(current) {
+        current as isize
+    } else {
+        LAST_EXTERNAL_WINDOW.load(Ordering::SeqCst)
+    };
+    if !valid_capture_window(target as HWND) {
+        return Err("Previous application window is no longer available. Focus it and retry.".into());
+    }
+    Ok(target)
+}
+
+fn capture_foreground(target: isize) -> Result<CapturedImage, String> {
+    let hwnd = target as HWND;
+    if !valid_capture_window(hwnd) {
+        return Err("Previous application window changed or disappeared. Focus it and retry.".into());
     }
     let mut rect: RECT = unsafe { std::mem::zeroed() };
     if unsafe { GetWindowRect(hwnd, &mut rect) } == 0 {
@@ -256,6 +292,26 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
     // Do not register a default that may differ from the user's saved shortcut.
     // The React agent owner restores the chosen shortcut on startup.
     let mut registered: Option<Shortcut> = None;
+    let hook = unsafe {
+        SetWinEventHook(
+            EVENT_SYSTEM_FOREGROUND,
+            EVENT_SYSTEM_FOREGROUND,
+            std::ptr::null_mut(),
+            Some(on_foreground),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+        )
+    };
+    if hook.is_null() {
+        app.state::<AgentRuntime>().capture_error(
+            "Windows focus tracking is unavailable. Window capture cannot be started.",
+        );
+    }
+    let initial = unsafe { GetForegroundWindow() };
+    if valid_capture_window(initial) {
+        LAST_EXTERNAL_WINDOW.store(initial as isize, Ordering::SeqCst);
+    }
     loop {
         if unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } <= 0 {
             break;
@@ -287,18 +343,30 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
             }
         }
         if message.message == WM_HOTKEY && message.wParam == HOTKEY_ID as usize {
-            let window = unsafe { GetForegroundWindow() } as isize;
+            let target = if hook.is_null() {
+                Err("Window focus tracking is not available.".to_string())
+            } else {
+                select_capture_target()
+            };
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 let runtime = handle.state::<AgentRuntime>();
-                if let Err(reason) = runtime.capture_hotkey(window, capture_foreground).await {
-                    runtime.capture_error(&reason);
+                match target {
+                    Ok(window) => {
+                        if let Err(reason) = runtime.capture_hotkey(window, capture_foreground).await {
+                            runtime.capture_error(&reason);
+                        }
+                    }
+                    Err(reason) => runtime.capture_error(&reason),
                 }
             });
         }
     }
     if registered.is_some() {
         unsafe { UnregisterHotKey(std::ptr::null_mut(), HOTKEY_ID) };
+    }
+    if !hook.is_null() {
+        unsafe { UnhookWinEvent(hook) };
     }
 }
 

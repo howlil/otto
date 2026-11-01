@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: privacy guard, no default hotkey before saved choice is restored.
+# Verification dispatch: B4 last external focus window selection and stale target validation.
 
 'on':
   push:
