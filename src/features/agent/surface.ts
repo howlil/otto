@@ -24,7 +24,7 @@ export function compactLabel(
   if (installed === false) return "Unavailable";
   if (snapshot.status === "completed") return "Answer ready";
   if (snapshot.status === "approvalRequired") return "Approval needed";
-  return "Codex";
+  return snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex";
 }
 
 export function compactDetail(
@@ -36,7 +36,7 @@ export function compactDetail(
   const project = snapshot.cwd.split(/[\\/]/).filter(Boolean).pop() || "Local CLI";
   if (error) return `${project} · Connection issue`;
   if (installed === false) return `${project} · ${readiness.message}`;
-  if (readiness.status === "checking") return `${project} · Checking Codex`;
+  if (readiness.status === "checking") return `${project} · Checking ${snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex"}`;
   if (snapshot.status === "idle") return `${project} · Ready`;
   return `${project} · ${agentStatusLabel(snapshot.status)}`;
 }
