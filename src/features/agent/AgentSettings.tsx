@@ -50,7 +50,9 @@ export function AgentSettings({
   capture: CaptureShortcutModel;
   focusCaptureShortcut: boolean;
 }) {
-  const [tab, setTab] = useState<"provider" | "mode" | "workspace" | "capture" | "usage">("provider");
+  const [tab, setTab] = useState<"provider" | "mode" | "workspace" | "capture" | "usage">(
+    "provider",
+  );
   useEffect(() => {
     if (focusCaptureShortcut) setTab("capture");
   }, [focusCaptureShortcut]);
