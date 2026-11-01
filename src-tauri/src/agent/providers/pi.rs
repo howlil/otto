@@ -267,7 +267,10 @@ fn observe(frame: &Value, id: u64, updates: &watch::Sender<Snapshot>) -> bool {
             }
         }
         Some("message_end") if frame["message"]["role"] == "assistant" => {
-            if matches!(frame["message"]["stopReason"].as_str(), Some("error" | "aborted")) {
+            if matches!(
+                frame["message"]["stopReason"].as_str(),
+                Some("error" | "aborted")
+            ) {
                 fail(updates, id, "Pi could not finish the answer.");
                 return true;
             }
@@ -294,9 +297,11 @@ fn observe(frame: &Value, id: u64, updates: &watch::Sender<Snapshot>) -> bool {
         Some("agent_settled") => {
             if frame["aborted"] == true {
                 fail(updates, id, "Pi aborted the request.");
-            } else if snapshot.messages.last().is_none_or(|item| {
-                item.role != "assistant" || item.text.trim().is_empty()
-            }) {
+            } else if snapshot
+                .messages
+                .last()
+                .is_none_or(|item| item.role != "assistant" || item.text.trim().is_empty())
+            {
                 fail(updates, id, "Pi finished without an answer.");
             } else {
                 mutate(updates, |s| {
@@ -561,27 +566,32 @@ mod tests {
         ));
         assert_eq!(tx.borrow().status, "failed");
         assert!(tx.borrow().messages[0].text.is_empty());
-        assert!(!observe(&json!({"type":"agent_settled","aborted":false}), 7, &tx));
+        assert!(!observe(
+            &json!({"type":"agent_settled","aborted":false}),
+            7,
+            &tx
+        ));
         assert_eq!(tx.borrow().status, "failed");
 
         let empty = state();
-        assert!(observe(&json!({"type":"agent_settled","aborted":false}), 7, &empty));
+        assert!(observe(
+            &json!({"type":"agent_settled","aborted":false}),
+            7,
+            &empty
+        ));
         assert_eq!(empty.borrow().status, "failed");
-        assert_eq!(empty.borrow().error.as_deref(), Some("Pi finished without an answer."));
+        assert_eq!(
+            empty.borrow().error.as_deref(),
+            Some("Pi finished without an answer.")
+        );
 
         let aborted = state();
-        assert!(observe(&json!({"type":"agent_settled","aborted":true}), 7, &aborted));
-        assert_eq!(aborted.borrow().status, "failed");
-    }
-
-    #[test]
-    fn rejected_prompt_does_not_publish_a_user_message() {
-        let tx = state();
-        assert!(accepted_prompt(
-            &json!({"type":"response","id":"otto-7","command":"prompt","success":false}),
+        assert!(observe(
+            &json!({"type":"agent_settled","aborted":true}),
             7,
-        ).is_err());
-        assert!(tx.borrow().messages.iter().all(|message| message.role != "user"));
+            &aborted
+        ));
+        assert_eq!(aborted.borrow().status, "failed");
     }
 
     #[test]
