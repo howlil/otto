@@ -88,7 +88,7 @@ export function AgentSettings({
           <AgentCaptureSettings capture={capture} focusCaptureShortcut={focusCaptureShortcut} />
         ) : (
           <StatusMessage tone="info" className="mt-2">
-            Screen capture requires Codex. Pi currently supports text-only Quick Ask.
+            Screen capture requires Codex. Pi supports text-only Quick Ask; Agy is not yet enabled.
           </StatusMessage>
         )}
         {hasThread && (
