@@ -1638,7 +1638,7 @@ mod tests {
             &ProviderEvents::new(updates.clone()),
         )
         .expect("decision must remain available before the ack");
-        let StartupControl::Reply(reply, approval_id) = action else {
+        let StartupControl::Reply(reply, _) = action else {
             panic!("follow-up approval must not terminate the session");
         };
         assert_eq!(
@@ -1687,7 +1687,7 @@ mod tests {
             &ProviderEvents::new(tx.clone()),
         )
         .unwrap();
-        let StartupControl::Reply(reply) = action else {
+        let StartupControl::Reply(reply, approval_id) = action else {
             panic!("an approval must reply to Codex without stopping startup");
         };
         assert_eq!(
