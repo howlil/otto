@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ShellView } from "./AppView";
 import { agentStatusLabel, resolveAgentSurface, useAgent } from "./features/agent";
 import { resolveSurface, useNotchShell } from "./features/shell";
@@ -34,6 +34,11 @@ function motionCue(status: string): string | null {
 export default function App() {
   const agent = useAgent();
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
+  const [agentContentHeight, setAgentContentHeight] = useState(170);
+  const onAgentMeasured = useCallback((height: number) => {
+    const bounded = Math.max(170, Math.min(610, Math.ceil(height)));
+    setAgentContentHeight((current) => Math.abs(current - bounded) > 2 ? bounded : current);
+  }, []);
   const shell = useNotchShell();
   const { page, expanded, prefs, reducedMotion, isAgent, setEventMotion } = shell;
 
@@ -52,9 +57,13 @@ export default function App() {
     gradient: prefs.gradient,
   };
 
+  const previousSurface = useRef<string | null>(null);
+  const measuredHeight = expanded && page === "agent" ? agentContentHeight : undefined;
   useEffect(() => {
     let active = true;
-    void setNotchSurface(surface, prefs.topOffset, !reducedMotion)
+    const animate = !reducedMotion && previousSurface.current !== surface;
+    previousSurface.current = surface;
+    void setNotchSurface(surface, prefs.topOffset, animate, measuredHeight)
       .then(() => {
         if (active) setSurfaceError(null);
       })
@@ -64,7 +73,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [surface, prefs.topOffset, reducedMotion]);
+  }, [surface, prefs.topOffset, reducedMotion, measuredHeight]);
 
   const lastStatus = useRef(agent.snapshot.status);
   useEffect(() => {
@@ -87,6 +96,7 @@ export default function App() {
       surfaceError={surfaceError}
       agentHomeCopy={agentHomeCopy}
       artProps={artProps}
+      onAgentMeasured={onAgentMeasured}
     />
   );
 }
