@@ -23,11 +23,17 @@ export function ProviderChoice({
         <Text as="strong" variant="label" className="block font-[550]">
           {name}
         </Text>
-        <Text as="small" variant="caption" className="mt-1 block leading-[1.4] text-otto-text-tertiary">
+        <Text
+          as="small"
+          variant="caption"
+          className="mt-1 block leading-[1.4] text-otto-text-tertiary"
+        >
           {detail}
         </Text>
       </span>
-      {selected && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-otto-ok" aria-hidden="true" />}
+      {selected && (
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-otto-ok" aria-hidden="true" />
+      )}
     </>
   );
   if (!onSelect) {
@@ -38,7 +44,13 @@ export function ProviderChoice({
     );
   }
   return (
-    <button type="button" className={`${className} hover:border-otto-line-hover hover:bg-otto-control-hover`} onClick={onSelect} aria-pressed={selected} title={status}>
+    <button
+      type="button"
+      className={`${className} hover:border-otto-line-hover hover:bg-otto-control-hover`}
+      onClick={onSelect}
+      aria-pressed={selected}
+      title={status}
+    >
       {content}
     </button>
   );
