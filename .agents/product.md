@@ -51,8 +51,8 @@ Material breaks:
 - Q6: User can obtain an answer and return to the original task without opening a separate AI interface.
 
 ## Scope
-- First complete functional outcome: compact Otto entry → select a ready Codex provider and visible context → Quick Ask → streamed answer → optional collapse/reopen → follow-up or Stop → recoverable failures. This follows the existing static idle scaffold; no new feature is called shipped by this document.
-- Product direction retained, not prerequisites for the first AI outcome: the remaining Agy CLI adapter, screenshot/hotkey, configurable placement, gesture navigation, music, Pomodoro, enhanced idle details. Implement each only when its own user outcome is in scope.
+- Agent outcome in scope: compact Otto entry → select Codex, Pi or Agy and working context → provider-verified Quick Ask → streamed response → collapse/reopen → follow-up or Stop → recoverable failure. Codex Agent Session with explicit approvals and hotkey-triggered image analysis are additional required Agent behaviors. Pi and Agy remain tool-free text-only by capability, not fake Agent Session or screenshot.
+- Supporting product direction retained but not Agent completion prerequisites: configurable placement, media, Pomodoro, and optional idle information.
 - Out: OpenCode provider, cloud backend, standalone model API credentials, universal capture invisibility, automatic screen surveillance, auto-approval of agent actions, database, telemetry server, auto-updater, multi-OS parity, speculative plugin system.
 
 ## Proof
