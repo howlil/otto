@@ -596,7 +596,10 @@ mod tests {
             handle: 30,
             pid: 40,
         };
-        assert_eq!(choose_capture_target(0, 99, Some(current), Some(last)), None);
+        assert_eq!(
+            choose_capture_target(0, 99, Some(current), Some(last)),
+            None
+        );
         assert_eq!(choose_capture_target(99, 99, None, Some(last)), Some(last));
         assert_eq!(
             choose_capture_target(40, 99, Some(current), Some(last)),
