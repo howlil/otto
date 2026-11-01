@@ -12,6 +12,7 @@ type Props = {
   onBack: () => void;
   motionClass?: string;
   eventMotion?: string;
+  onMeasured: (height: number) => void;
 };
 
 export function AgentPanel({
@@ -22,6 +23,7 @@ export function AgentPanel({
   onBack,
   motionClass = "",
   eventMotion,
+  onMeasured,
 }: Props) {
   const {
     snapshot,
@@ -114,6 +116,7 @@ export function AgentPanel({
           captureActionError={captureActionError}
           actionsOpen={actionsOpen}
           setActionsOpen={setActionsOpen}
+          onMeasured={onMeasured}
           onCapture={() => {
             setCaptureActionError(null);
             void agent
