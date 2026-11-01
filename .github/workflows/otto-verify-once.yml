@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: final B2/B4 Agent UI parity and Windows capture checks.
+# Verification dispatch: structural Agent capture settings formatting and Rust verification.
 
 'on':
   push:
