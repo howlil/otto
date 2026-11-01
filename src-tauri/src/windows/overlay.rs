@@ -152,11 +152,13 @@ pub fn configure(window: &WebviewWindow) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{WS_EX_LAYERED, WS_EX_TOPMOST};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        WS_EX_LAYERED, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+    };
 
     #[test]
     fn preserves_overlay_layering_topmost_and_unrelated_extended_styles() {
-        let unrelated = 0x00040000isize;
+        let unrelated = WS_EX_TRANSPARENT as isize;
         let current = (WS_EX_APPWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED) as isize | unrelated;
         let adjusted = overlay_window_style(current);
 
