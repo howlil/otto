@@ -442,7 +442,7 @@ impl Approvals {
         self.pending = Some(PendingRequest {
             provider_id: value["id"].clone(),
             approval: PendingApproval {
-                approval_id: format!("appr-{}", self.counter),
+                approval_id: format!("appr-{}-{}", self.run_id, self.counter),
                 run_id: self.run_id,
                 kind: kind.into(),
                 title: title.into(),
@@ -1456,6 +1456,31 @@ mod tests {
         assert_eq!(
             Approvals::decline(&request),
             json!({ "id": 7, "result": { "decision": "decline" } })
+        );
+    }
+
+    #[test]
+    fn approval_identifiers_never_alias_between_runs_or_new_processes() {
+        let mut first = Approvals::for_mode(InteractionMode::AgentSession, 9);
+        first.context("thread-one", "turn", 9);
+        assert!(matches!(
+            first.parse(&command_request(1, "thread-one", "turn")),
+            ServerRequest::Recorded
+        ));
+        let old_id = first.pending.as_ref().unwrap().approval.approval_id.clone();
+
+        let mut second = Approvals::for_mode(InteractionMode::AgentSession, 10);
+        second.context("thread-two", "turn", 10);
+        assert!(matches!(
+            second.parse(&command_request(2, "thread-two", "turn")),
+            ServerRequest::Recorded
+        ));
+        let new_id = second.pending.as_ref().unwrap().approval.approval_id.clone();
+        assert_ne!(old_id, new_id);
+        assert!(second.decide(&old_id, ApprovalDecision::AllowOnce).is_none());
+        assert_eq!(
+            second.pending.as_ref().unwrap().approval.approval_id,
+            new_id
         );
     }
 
