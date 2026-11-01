@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "check": "biome check --max-diagnostics=none src vite.config.ts && node scripts/frontend-rules.mjs",
+    "test:frontend:critical": "bun test tests/draft-state.test.mjs",
     "format": "biome check --write src vite.config.ts",
     "lint:frontend": "node scripts/frontend-rules.mjs"
   },
