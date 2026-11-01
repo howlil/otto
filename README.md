@@ -17,4 +17,6 @@ Current development is coordinated through ChatGPT Web + GitHub; no CI workflow 
 ## Current implementation
 The current feature branch contains a **candidate, not Windows-verified** Codex Quick Ask vertical slice: Compact/Expanded shell, typed IPC, Codex app-server via stdio, read-only/fail-closed policy, in-memory streaming/follow-up, Stop, and bounded native window resizing. Requires a locally installed, authenticated Codex CLI on PATH and an explicit working directory. Native focus behavior, sandbox effectiveness, CLI process-tree cleanup, and compilation still require Windows proof. Other providers, screenshot, music, Pomodoro, attached-notch shoulder geometry, and gesture navigation are **not implemented**.
 
+UI design baseline (all modules and settings): [`design/otto.html`](design/otto.html). This is the **only** design HTML; use it alongside `.agents/DESIGN.md` for UI implementation and reviews. Do not create per-module HTML prototypes.
+
 Project contracts: `.agents/product.md`, `.agents/engineering.md`, `.agents/DESIGN.md`.
