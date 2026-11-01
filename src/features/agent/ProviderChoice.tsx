@@ -90,7 +90,7 @@ export function ProviderChoice({
           {planned ? (
             <span className="shrink-0 text-otto-2xs text-otto-muted">Planned</span>
           ) : (
-            <Icon name="chevron-right" size={14} className="shrink-0 text-otto-text-tertiary" />
+            <span aria-hidden="true" className="shrink-0 text-otto-text-tertiary">›</span>
           )}
         </>
       )}
