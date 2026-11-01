@@ -669,7 +669,10 @@ mod tests {
         assert!(recent_file.exists());
         assert!(unrelated_file.exists());
         assert!(invalid_file.exists());
-        assert_eq!(cleanup_orphan_captures(&directory, now, |_| false), 0);
+        assert_eq!(
+            cleanup_orphan_captures(&directory, now, |pid| pid == active_pid),
+            0
+        );
         fs::remove_dir_all(directory).unwrap();
     }
 
