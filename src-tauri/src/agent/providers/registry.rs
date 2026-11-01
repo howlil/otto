@@ -80,7 +80,7 @@ impl ProviderId {
             #[cfg(windows)]
             Self::Pi => super::pi::run(controls, ProviderEvents::new(updates), initial).await,
             #[cfg(windows)]
-            Self::Agy => super::agy::run(controls, updates, initial).await,
+            Self::Agy => super::agy::run(controls, ProviderEvents::new(updates), initial).await,
             #[cfg(not(windows))]
             Self::Pi | Self::Agy => {
                 let run_id = updates.borrow().run_id;
