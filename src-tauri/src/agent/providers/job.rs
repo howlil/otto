@@ -190,7 +190,7 @@ mod tests {
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            "$child = Start-Process -FilePath powershell.exe -ArgumentList '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 20' -WindowStyle Hidden -PassThru; Write-Output $child.Id; Start-Sleep -Seconds 20",
+            "$psi = [Diagnostics.ProcessStartInfo]::new('powershell.exe'); $psi.Arguments = '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 20'; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true; $child = [Diagnostics.Process]::Start($psi); Write-Output $child.Id; Start-Sleep -Seconds 20",
         ]);
         command.stdout(Stdio::piped()).kill_on_drop(true);
         let (job, mut child) = Job::spawn(&mut command).expect("PowerShell must be owned");
