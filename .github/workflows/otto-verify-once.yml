@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: X10 recovery and B4 capture settings formatting.
+# Verification dispatch: B4 single-flight capture and target identity final review at e948faea.
 
 'on':
   push:
