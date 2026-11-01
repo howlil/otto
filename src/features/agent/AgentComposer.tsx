@@ -34,6 +34,11 @@ export function AgentComposer({
   useLayoutEffect(() => {
     const area = prompt.current;
     if (!area) return;
+    if (!draft) {
+      area.style.height = "19px";
+      area.style.overflowY = "hidden";
+      return;
+    }
     area.style.height = "0px";
     area.style.height = `${Math.min(105, Math.max(19, area.scrollHeight))}px`;
     area.style.overflowY = area.scrollHeight > 105 ? "auto" : "hidden";
@@ -56,24 +61,32 @@ export function AgentComposer({
             <button
               type="button"
               className="rounded-otto-control px-2 py-1 text-otto-xs text-otto-text-secondary hover:bg-otto-control-hover"
-              onClick={() => { setRuntimeOpen(false); runtimeButton.current?.focus(); }}
+              onClick={() => {
+                setRuntimeOpen(false);
+                runtimeButton.current?.focus();
+              }}
             >
               Close
             </button>
           </div>
           <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-2 text-otto-xs">
-            <dt className="text-otto-text-tertiary">Active model</dt><dd>Not detected</dd>
-            <dt className="text-otto-text-tertiary">Thinking effort</dt><dd>Unavailable</dd>
-            <dt className="text-otto-text-tertiary">Context used</dt><dd>Unavailable</dd>
-            <dt className="text-otto-text-tertiary">Context remaining</dt><dd>Unavailable</dd>
+            <dt className="text-otto-text-tertiary">Active model</dt>
+            <dd>Not detected</dd>
+            <dt className="text-otto-text-tertiary">Thinking effort</dt>
+            <dd>Unavailable</dd>
+            <dt className="text-otto-text-tertiary">Context used</dt>
+            <dd>Unavailable</dd>
+            <dt className="text-otto-text-tertiary">Context remaining</dt>
+            <dd>Unavailable</dd>
           </dl>
           <p className="mt-3 text-otto-xs leading-[1.5] text-otto-text-tertiary">
-            Otto cannot read model, thinking effort or context usage from the current native snapshot. Context remaining is not an account token quota.
+            Otto cannot read model, thinking effort or context usage from the current native
+            snapshot. Context remaining is not an account token quota.
           </p>
         </section>
       )}
       <form
-        className="flex min-h-[68px] flex-col rounded-[22px] border border-transparent bg-otto-control-deep px-[10px] pb-[7px] pt-[10px] transition-[border-color,background] duration-150 hover:bg-otto-control-hover focus-within:border-otto-line-hover focus-within:outline focus-within:outline-2 focus-within:outline-otto-focus focus-within:outline-offset-2"
+        className="flex min-h-[68px] flex-col rounded-[22px] border border-transparent bg-otto-control-deep px-[10px] pb-[7px] pt-[10px] transition-[border-color,background] duration-150 hover:bg-otto-control-hover focus-within:border-otto-line-hover"
         onSubmit={submit}
         onKeyDown={(event) => {
           if (event.key === "Escape" && runtimeOpen) {

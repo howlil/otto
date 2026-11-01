@@ -113,11 +113,15 @@ pub fn agent_configure_capture_source(app: tauri::AppHandle, source: String) -> 
 }
 
 #[tauri::command]
-pub fn agent_capture_now(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn agent_capture_now(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(windows)]
     {
-        app.state::<crate::windows::capture::CaptureHotkeys>()
-            .trigger()
+        tauri::async_runtime::spawn_blocking(move || {
+            app.state::<crate::windows::capture::CaptureHotkeys>()
+                .trigger()
+        })
+        .await
+        .map_err(|_| "Capture request could not be dispatched.".to_string())?
     }
     #[cfg(not(windows))]
     {

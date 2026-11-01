@@ -69,7 +69,10 @@ export function AgentSettings({
   return (
     <section className="flex min-h-0 flex-1 flex-col">
       <div className="grid min-h-0 flex-1 grid-cols-[118px_minmax(0,1fr)]">
-        <nav aria-label="Agent settings sections" className="flex flex-col gap-1 border-r border-otto-line-soft bg-otto-nav-bg px-2 py-[13px]">
+        <nav
+          aria-label="Agent settings sections"
+          className="flex flex-col gap-1 border-r border-otto-line-soft bg-otto-nav-bg px-2 py-[13px]"
+        >
           {tabs.map((item) => (
             <button
               key={item.id}
@@ -108,28 +111,33 @@ export function AgentSettings({
             />
           )}
           {tab === "mode" && (
-            <ModeSettings mode={mode} locked={locked || !readiness.agentSession} setMode={setMode} />
+            <ModeSettings
+              mode={mode}
+              locked={locked || !readiness.agentSession}
+              setMode={setMode}
+            />
           )}
-          {tab === "workspace" && (
-            <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />
-          )}
+          {tab === "workspace" && <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />}
           {tab === "capture" && (
-            <>
-              {readiness.imageTransport ? (
+            readiness.imageTransport ? (
                 <>
-                  <AgentCaptureSettings capture={capture} focusCaptureShortcut={focusCaptureShortcut} />
+                  <AgentCaptureSettings
+                    capture={capture}
+                    focusCaptureShortcut={focusCaptureShortcut}
+                  />
                   {readiness.status === "ready" && !readiness.imageInput && (
                     <StatusMessage tone="info" className="mt-2">
-                      The selected model does not confirm image input. Choose a vision-capable model in your CLI and Retry before capturing.
+                      The selected model does not confirm image input. Choose a vision-capable model
+                      in your CLI and Retry before capturing.
                     </StatusMessage>
                   )}
                 </>
               ) : (
                 <StatusMessage tone="info">
-                  This provider cannot transport screenshots. Choose Codex or a vision-capable Pi model.
+                  This provider cannot transport screenshots. Choose Codex or a vision-capable Pi
+                  model.
                 </StatusMessage>
-              )}
-            </>
+              )
           )}
           {hasThread && (
             <div className="mt-3 flex items-center justify-between gap-2">

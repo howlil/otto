@@ -30,7 +30,7 @@ export function ConversationToolbar({
   setSearchTerm: Dispatch<SetStateAction<string>>;
   setMatchCursor: Dispatch<SetStateAction<number>>;
 }) {
-  const menu = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLFieldSetElement>(null);
   useEffect(() => {
     if (actionsOpen) menu.current?.querySelector("button")?.focus({ preventScroll: true });
   }, [actionsOpen]);
@@ -44,10 +44,9 @@ export function ConversationToolbar({
   return (
     <>
       {actionsOpen && (
-        <div
+        <fieldset
           id="otto-conversation-menu"
           ref={menu}
-          role="group"
           aria-label="Conversation actions"
           className="absolute right-[42px] top-[49px] z-20 flex w-[184px] flex-col gap-1 rounded-otto-card border border-otto-line-hover bg-otto-control-deep p-2"
           onKeyDown={(event) => {
@@ -70,16 +69,21 @@ export function ConversationToolbar({
           >
             Find in conversation
           </button>
-          <div className="px-2"><CopyAnswerButton value={markdown} label="Copy Markdown" /></div>
+          <div className="px-2">
+            <CopyAnswerButton value={markdown} label="Copy Markdown" />
+          </div>
           <button
             type="button"
             disabled={!messageCount}
             className="rounded-otto-control px-2 py-2 text-left text-otto-sm text-otto-text hover:bg-otto-selected-hover disabled:opacity-40"
-            onClick={() => { setActionsOpen(false); exportMarkdown(); }}
+            onClick={() => {
+              setActionsOpen(false);
+              exportMarkdown();
+            }}
           >
             Export .md
           </button>
-        </div>
+        </fieldset>
       )}
       {(searchOpen || exportError) && (
         <div className="shrink-0 px-[18px] pt-1">

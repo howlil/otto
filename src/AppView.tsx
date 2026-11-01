@@ -38,12 +38,7 @@ export function ShellView({
         if (shell.expanded && !shell.pinned) shell.pin();
       }}
     >
-      <ShellContent
-        agent={agent}
-        shell={shell}
-        agentHomeCopy={agentHomeCopy}
-        artProps={artProps}
-      />
+      <ShellContent agent={agent} shell={shell} agentHomeCopy={agentHomeCopy} artProps={artProps} />
       <SurfaceError message={surfaceError} expanded={shell.expanded} />
     </main>
   );
