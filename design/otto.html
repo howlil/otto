@@ -289,29 +289,21 @@ button{touch-action:manipulation}
 
 
 .af-feed{-ms-overflow-style:none}
-.af-feed::-webkit-scrollbar,.af-composer textarea::-webkit-scrollbar,.af-runtime-panel::-webkit-scrollbar{display:none}
+.af-feed::-webkit-scrollbar,.af-composer textarea::-webkit-scrollbar{display:none}
 .af-composer{min-height:68px;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:10px 10px 7px;border-radius:22px}
 .af-composer textarea{display:block;flex:none;width:100%;box-sizing:border-box;height:19px;min-height:19px;max-height:105px;line-height:1.5;font-size:12px;padding:0 4px;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none}
 .af-compose-actions{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;margin-top:8px}
 .af-compose-tools{display:flex;gap:4px;align-items:center;min-width:0;flex:1}
 .af-compose-tools .icon-button{flex:none}
-.af-runtime-trigger{height:27px;border:0;background:transparent;color:#acadb6;border-radius:8px;white-space:nowrap;display:flex;align-items:center;gap:4px;padding:0 6px;font-size:10px;min-width:0}
-.af-runtime-trigger:hover,.af-runtime-trigger:focus-visible{background:#3d3e43;color:#fff}
-.af-runtime-trigger span{max-width:94px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.af-runtime-trigger.usage{margin-left:auto;color:#9296a1}
-.af-composewrap{position:relative}
-.af-runtime-panel{position:absolute;z-index:20;bottom:calc(100% + 2px);left:12px;right:12px;max-height:240px;overflow:auto;scrollbar-width:none;-ms-overflow-style:none;padding:12px;border:1px solid #494a51;border-radius:15px;background:#26272b;color:#ededf0;box-shadow:0 10px 22px #0007}
-.af-runtime-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.af-runtime-panel-head strong{font-size:12px;font-weight:600}
-.af-runtime-panel-head button{background:none;color:#aaaeb5;border:0;display:grid;place-items:center;border-radius:6px;width:25px;height:25px}
-.af-runtime-row{display:flex;align-items:center;justify-content:space-between;gap:7px;margin:10px 0 0;font-size:10px;color:#a8a9b0}
-.af-runtime-row strong{color:#f0f0f2;font-weight:550;text-align:right}
-.af-runtime-note{font-size:9px;color:#a4a5ad;line-height:1.5;margin:10px 0}
-.af-runtime-track{height:4px;background:#45464c;border-radius:9px;margin:8px 0;overflow:hidden}
-.af-runtime-track span{display:block;height:100%;background:#aeb3bd;border-radius:9px}
-.af-runtime-example{width:100%;border:1px solid #4a4c54;background:#37383e;color:#ebebed;border-radius:8px;font-size:10px;padding:8px 10px;text-align:center}
-.af-runtime-example:hover{background:#44464c}
-@media(max-width:575px){.af-runtime-trigger{padding:0 3px;font-size:9px}.af-runtime-trigger span{max-width:70px}.af-compose-tools{gap:1px}}
+
+.as-runtime-row{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#a3a4ab;font-size:10px;margin:10px 0}
+.as-runtime-row strong{color:#eeeef0;font-weight:550;text-align:right;overflow-wrap:anywhere}
+.as-runtime-note{font-size:9px;line-height:1.55;color:#a2a3aa;margin:10px 0}
+.as-runtime-track{height:4px;background:#404148;border-radius:6px;margin:10px 0;overflow:hidden}
+.as-runtime-track span{display:block;height:100%;background:#b2b4bd;border-radius:6px}
+.as-runtime-example{width:100%;background:#303137;color:#e6e6e8;border:1px solid #48494f;border-radius:8px;padding:9px 11px;font-size:10px}
+.as-runtime-example:hover{background:#3b3d44}
+@media(max-width:575px){.af-compose-tools{gap:1px}}
 
 /* Canonical Global Settings: design/home.html panel layout and controls */
 .gs-root{width:100%;height:100%;background:#151515;border-radius:inherit;display:flex;flex-direction:column;overflow:hidden;color:#fafafa}
@@ -726,19 +718,17 @@ function AgentRichText({text,onCopy}){
 
 function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSettings,onHome,onCapture,onApprove,onDeny,onRetry,onMeasured}){
  const feedRef=useRef(null),composerRef=useRef(null),textareaRef=useRef(null),menuButton=useRef(null),menuRef=useRef(null),searchInput=useRef(null);
- const [toolsOpen,setToolsOpen]=useState(false),[searchOpen,setSearchOpen]=useState(false),[runtimeOpen,setRuntimeOpen]=useState(false),[runtimeDemo,setRuntimeDemo]=useState(false);
+ const [toolsOpen,setToolsOpen]=useState(false),[searchOpen,setSearchOpen]=useState(false);
  const [query,setQuery]=useState(""),[matchIndex,setMatchIndex]=useState(0),[feedback,setFeedback]=useState("");
  const phase=agent.phase||"ready",ready=agent.readiness==="ready",unread=agent.unread&&!agent.busy;
  const capability=AGENT_CAPABILITIES[agent.provider]||AGENT_CAPABILITIES.Codex;
- const runtimeInfo=agent.runtimeInfo|| (runtimeDemo?AGENT_RUNTIME_EXAMPLE[agent.provider]:null);
- const remaining=agentContextRemaining(runtimeInfo);
  const measuredHeight=()=>{
   const feed=feedRef.current,composer=composerRef.current;
   if(!feed||!composer||!onMeasured)return;
   const stack=feed.firstElementChild;
   const search=feed.parentElement?.querySelector(".af-search");
   const contentHeight=53+(search?.offsetHeight||0)+(stack?.scrollHeight||0)+16+composer.offsetHeight;
-  onMeasured(Math.ceil(Math.max(contentHeight,runtimeOpen?330:0)));
+  onMeasured(Math.ceil(contentHeight));
  };
  useLayoutEffect(()=>{
   const area=textareaRef.current;
@@ -749,8 +739,8 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
   area.style.height=height+"px";
   area.style.overflowY=area.scrollHeight>cap?"auto":"hidden";
   measuredHeight();
- },[draft,agent.provider,runtimeOpen,feedback]);
- useLayoutEffect(()=>{measuredHeight()},[agent.messages,agent.busy,agent.phase,agent.warning,searchOpen,runtimeOpen,runtimeDemo]);
+ },[draft,agent.provider,feedback]);
+ useLayoutEffect(()=>{measuredHeight()},[agent.messages,agent.busy,agent.phase,agent.warning,searchOpen]);
  useEffect(()=>{
   if(typeof ResizeObserver==="undefined")return;
   const feed=feedRef.current,composer=composerRef.current;
@@ -779,7 +769,7 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
  };
  const openSearch=()=>{setSearchOpen(true);setToolsOpen(false);setMatchIndex(0)};
  const onKeyDown=e=>{
-  if(e.key==="Escape"&&(toolsOpen||searchOpen||runtimeOpen)){e.stopPropagation();e.preventDefault();if(runtimeOpen)setRuntimeOpen(false);else if(toolsOpen)setToolsOpen(false);else{setSearchOpen(false);setQuery("")}menuButton.current?.focus()}
+  if(e.key==="Escape"&&(toolsOpen||searchOpen)){e.stopPropagation();e.preventDefault();if(toolsOpen)setToolsOpen(false);else{setSearchOpen(false);setQuery("")}menuButton.current?.focus()}
  };
  const status=agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="approval"?"Approval needed":phase==="interrupted"?"Interrupted":phase==="error"?"Disconnected":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Preview ready";
  const head=el("div",{className:"af-head"},
@@ -831,27 +821,13 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
   unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
   agent.warning?el("div",{className:"af-warning"},agent.warning,el("button",{type:"button",className:"as-textbutton",onClick:/capture|screenshot|hotkey|window|image/i.test(agent.warning)?onCaptureSettings:onSettings},/capture|screenshot|hotkey|window|image/i.test(agent.warning)?"Screen Capture settings":"Provider settings")):null));
  const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(ready&&draft.trim()&&phase!=="approval"){onSend(draft.trim());onDraft("")}};
- const usageLabel=remaining===null?"Context —":formatAgentTokens(runtimeInfo.contextUsed)+"/"+formatAgentTokens(runtimeInfo.contextWindow);
- const runtimePanel=runtimeOpen?el("div",{className:"af-runtime-panel",role:"region","aria-label":"Model and token usage"},
-  el("div",{className:"af-runtime-panel-head"},el("strong",null,"Model & context"),el("button",{type:"button","aria-label":"Close model information",onClick:()=>setRuntimeOpen(false)},h(Icon,{name:"X",size:14}))),
-  el("div",{className:"af-runtime-row"},el("span",null,"Active model"),el("strong",null,runtimeInfo?.model||"Not detected")),
-  el("div",{className:"af-runtime-row"},el("span",null,"Thinking effort"),el("strong",null,runtimeInfo?.effort||"Unavailable")),
-  el("div",{className:"af-runtime-row"},el("span",null,"Context used"),el("strong",null,runtimeInfo?.contextUsed!=null?formatAgentTokens(runtimeInfo.contextUsed)+" tokens":"Unavailable")),
-  el("div",{className:"af-runtime-row"},el("span",null,"Context remaining"),el("strong",null,remaining===null?"Unavailable":formatAgentTokens(remaining)+" tokens")),
-  remaining!==null?el("div",{className:"af-runtime-track",role:"progressbar","aria-label":"Context window consumed","aria-valuenow":runtimeInfo.contextUsed,"aria-valuemax":runtimeInfo.contextWindow,"aria-valuemin":0},el("span",{style:{width:Math.min(100,100*runtimeInfo.contextUsed/runtimeInfo.contextWindow)+"%"}})):null,
-  el("p",{className:"af-runtime-note"},agent.runtimeInfo?"Values reported by the connected provider.":runtimeDemo?"Sample values only — no CLI connection.":"Standalone HTML cannot inspect a local CLI. Model, thinking effort and context usage require provider metadata. Remaining context is not account quota."),
-  !agent.runtimeInfo?el("button",{type:"button",className:"af-runtime-example",onClick:()=>setRuntimeDemo(x=>!x)},runtimeDemo?"Hide sample values":"Show sample values"):null):null;
+
  const composer=el("div",{className:"af-composewrap",ref:composerRef,onClick:()=>{if(toolsOpen)setToolsOpen(false)}},
   feedback?el("div",{className:"af-feedback",role:"status"},feedback):null,
-  runtimePanel,
   el("form",{className:"af-composer",onSubmit:send},
    el("textarea",{ref:textareaRef,rows:1,value:draft,placeholder:ready?"Ask "+agent.provider+"…":"Configure "+agent.provider+" to send","aria-label":"Agent prompt",onKeyDown:e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(ready&&!agent.busy&&draft.trim()&&phase!=="approval")send(e)}},onChange:e=>{onDraft(e.target.value);if(feedback)setFeedback("")}}),
    el("div",{className:"af-compose-actions"},
-    el("div",{className:"af-compose-tools"},
-     h(IconButton,{name:"Camera",label:capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy}),
-     el("button",{type:"button",className:"af-runtime-trigger",title:"Model and thinking status",onClick:()=>setRuntimeOpen(x=>!x)},h(Icon,{name:"Terminal",size:12}),el("span",null,runtimeInfo?.model||"Model —")),
-     el("button",{type:"button",className:"af-runtime-trigger",title:"Thinking effort",onClick:()=>setRuntimeOpen(x=>!x)},el("span",null,runtimeInfo?.effort||"Think —")),
-     el("button",{type:"button",className:"af-runtime-trigger usage",title:"Context usage; not remaining account quota",onClick:()=>setRuntimeOpen(x=>!x)},el("span",null,usageLabel))),
+    el("div",{className:"af-compose-tools"},h(IconButton,{name:"Camera",label:capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy})),
     el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:!agent.busy&&(!draft.trim()||!ready||phase==="approval"),"aria-label":agent.busy?"Stop request":"Send"},h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16})))));
  return el("div",{className:"af",onKeyDown},head,menu,search,feed,composer);
 }
@@ -859,7 +835,10 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
 
 
 function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack,onNewSession}){
- const names=["Provider","Mode","Workspace","Screen Capture"];
+ const names=["Provider","Mode","Model & usage","Workspace","Screen Capture"];
+ const [showSample,setShowSample]=useState(false);
+ const runtimeInfo=agent.runtimeInfo||(showSample?AGENT_RUNTIME_EXAMPLE[agent.provider]:null);
+ const remaining=agentContextRemaining(runtimeInfo);
  const caps=AGENT_CAPABILITIES[agent.provider]||AGENT_CAPABILITIES.Codex;
  const locked=agent.busy||agent.messages.length>0;
  const statusText={ready:"Preview ready",auth:"Sign-in required",missing:"Not installed",unsupported:"Not verified"};
@@ -891,6 +870,19 @@ function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack,onNe
    modeButton("Agent Session",caps.session?"Codex only · tool actions require Allow once / Deny.":"Unavailable for "+agent.provider+" · text-only Quick Ask",agent.mode==="Agent Session",()=>setAgent(a=>({...a,mode:"Agent Session"})),locked||!caps.session))));
   parts.push(status(locked?"Mode locked for this session":agent.mode==="Quick Ask"?"Tool-free Quick Ask":"Approval is mandatory",locked?"Create a new session before changing modes.":agent.mode==="Quick Ask"?"No provider may silently execute file-changing tools.":"Each sensitive action needs an explicit decision."));
   if(reset)parts.push(reset);
+
+ }else if(tab==="Model & usage"){
+  parts.push(intro("Model & usage","Local CLI runtime details are kept in settings, away from your conversation."));
+  parts.push(field("Model",el("div",null,
+   el("div",{className:"as-runtime-row"},el("span",null,"Active model"),el("strong",null,runtimeInfo?.model||"Not detected")),
+   el("div",{className:"as-runtime-row"},el("span",null,"Thinking effort"),el("strong",null,runtimeInfo?.effort||"Unavailable")))));
+  parts.push(field("Context window",el("div",null,
+   el("div",{className:"as-runtime-row"},el("span",null,"Used tokens"),el("strong",null,runtimeInfo?.contextUsed!=null?formatAgentTokens(runtimeInfo.contextUsed):"Unavailable")),
+   el("div",{className:"as-runtime-row"},el("span",null,"Window size"),el("strong",null,runtimeInfo?.contextWindow!=null?formatAgentTokens(runtimeInfo.contextWindow):"Unavailable")),
+   el("div",{className:"as-runtime-row"},el("span",null,"Remaining context"),el("strong",null,remaining===null?"Unavailable":formatAgentTokens(remaining))),
+   remaining!==null?el("div",{className:"as-runtime-track",role:"progressbar","aria-label":"Context used","aria-valuenow":runtimeInfo.contextUsed,"aria-valuemin":0,"aria-valuemax":runtimeInfo.contextWindow},el("span",{style:{width:Math.min(100,100*runtimeInfo.contextUsed/runtimeInfo.contextWindow)+"%"}})):null)));
+  parts.push(el("p",{className:"as-runtime-note"},agent.runtimeInfo?"Reported by the provider.":showSample?"Example values only. No real CLI metadata was fetched.":"The HTML preview cannot inspect local CLI metadata. Remaining context is not account token quota."));
+  if(!agent.runtimeInfo)parts.push(el("button",{type:"button",className:"as-runtime-example",onClick:()=>setShowSample(x=>!x)},showSample?"Hide example":"Show example values"));
  }else if(tab==="Workspace"){
   parts.push(intro("Working project","The working directory belongs to a single provider session."));
   const input=el("input",{value:agent.cwd,disabled:locked,"aria-label":"Working project directory",onChange:e=>setAgent(a=>({...a,cwd:e.target.value}))});
