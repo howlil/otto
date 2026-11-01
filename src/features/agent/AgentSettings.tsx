@@ -61,13 +61,10 @@ export function AgentSettings(props: AgentSettingsProps) {
     observer.observe(viewport);
     if (viewport.firstElementChild) observer.observe(viewport.firstElementChild);
     return () => observer.disconnect();
-  }, [props.onMeasured, tab]);
+  }, [props.onMeasured]);
 
   return (
-    <section
-      ref={root}
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-    >
+    <section ref={root} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <AgentSettingsNavigation tab={tab} onSelect={setTab} />
       <AgentSettingsDetails {...props} tab={tab} scrollRef={scrollViewport} />
     </section>

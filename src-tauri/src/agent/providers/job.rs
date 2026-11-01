@@ -14,8 +14,9 @@ use windows_sys::Win32::{
         },
         JobObjects::{
             AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-            SetInformationJobObject, TerminateJobObject,
+            JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation,
+            QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
         },
         Threading::{
             CREATE_NO_WINDOW, CREATE_SUSPENDED, OpenProcess, OpenThread, PROCESS_SET_QUOTA,
@@ -130,6 +131,25 @@ impl Job {
         result.map_err(|_| ())?.map_err(|_| ())
     }
 
+    #[cfg(test)]
+    fn active_processes(&self) -> Result<u32, ()> {
+        let mut info: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = unsafe { std::mem::zeroed() };
+        let success = unsafe {
+            QueryInformationJobObject(
+                self.0,
+                JobObjectBasicAccountingInformation,
+                &mut info as *mut _ as *mut _,
+                std::mem::size_of_val(&info) as u32,
+                std::ptr::null_mut(),
+            )
+        };
+        if success == 0 {
+            Err(())
+        } else {
+            Ok(info.ActiveProcesses)
+        }
+    }
+
     pub fn terminate(&self) {
         unsafe { TerminateJobObject(self.0, 1) };
     }
@@ -158,6 +178,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn terminating_job_reaps_descendant_processes() {
+        use tokio::io::AsyncBufReadExt;
+
+        let mut command = Command::new("powershell.exe");
+        command.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "$psi = [Diagnostics.ProcessStartInfo]::new('powershell.exe'); $psi.Arguments = '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 20'; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true; $child = [Diagnostics.Process]::Start($psi); Write-Output $child.Id; Start-Sleep -Seconds 20",
+        ]);
+        command.stdout(Stdio::piped());
+        let (mut child, job) = Job::spawn(command).expect("owned parent process must start");
+        let stdout = child.stdout.take().expect("parent stdout pipe");
+        let mut reader = tokio::io::BufReader::new(stdout);
+        let mut descendant = String::new();
+        timeout(Duration::from_secs(10), reader.read_line(&mut descendant))
+            .await
+            .expect("descendant startup must finish")
+            .expect("parent should report child PID");
+        assert!(descendant.trim().parse::<u32>().is_ok());
+        assert!(job.active_processes().expect("job accounting") >= 2);
+        job.terminate();
+        timeout(Duration::from_secs(5), async {
+            while job.active_processes().expect("job accounting") != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("owned descendants must exit after Job termination");
+        let _ = child.wait().await;
+    }
+
+    #[tokio::test]
     async fn deadline_terminates_owned_probe() {
         let mut command = Command::new("powershell.exe");
         command.args([
@@ -167,7 +220,11 @@ mod tests {
             "Start-Sleep -Seconds 5",
         ]);
         let started = Instant::now();
-        assert!(Job::probe(command, Duration::from_millis(100)).await.is_err());
+        assert!(
+            Job::probe(command, Duration::from_millis(100))
+                .await
+                .is_err()
+        );
         assert!(started.elapsed() < Duration::from_secs(4));
     }
 }

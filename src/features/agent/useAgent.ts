@@ -471,7 +471,12 @@ export function useAgent(readinessActive: boolean) {
     runtimeSelectionPending;
   const captureBusy = captureIsWorking(snapshot.capture.phase);
   const locked = busy || captureBusy || snapshot.threadId !== null;
-  const { readiness, refreshProvider } = useProviderReadiness(cwd, provider, model, readinessActive);
+  const { readiness, refreshProvider } = useProviderReadiness(
+    cwd,
+    provider,
+    model,
+    readinessActive,
+  );
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
   useEffect(() => {
     if (readiness.status !== "ready" || (model && readiness.model !== model)) return;

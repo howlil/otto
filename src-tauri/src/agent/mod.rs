@@ -175,6 +175,31 @@ impl Drop for CaptureReservation {
     }
 }
 
+#[cfg(windows)]
+async fn capture_with_deadline<F>(
+    reservation: &Arc<CaptureReservation>,
+    deadline: Duration,
+    capture: F,
+) -> Result<CapturedImage, String>
+where
+    F: FnOnce() -> Result<CapturedImage, String> + Send + 'static,
+{
+    let worker_reservation = Arc::clone(reservation);
+    let worker = tauri::async_runtime::spawn_blocking(move || {
+        let result = capture();
+        drop(worker_reservation);
+        result
+    });
+    match timeout(deadline, worker).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err("Windows capture failed.".into()),
+        Err(_) => Err(
+            "Window capture timed out. Focus a responsive window and retry. If capture stays busy, restart Otto."
+                .into(),
+        ),
+    }
+}
+
 pub struct CapturedImage(PathBuf);
 
 impl CapturedImage {
@@ -377,7 +402,8 @@ impl AgentRuntime {
         if matches!(
             state.status.as_str(),
             "starting" | "streaming" | "stopping" | "approvalRequired"
-        ) || state.thread_id.is_some() || state.capture.phase != "idle"
+        ) || state.thread_id.is_some()
+            || state.capture.phase != "idle"
         {
             return Err("Finish the current session before editing the project.".into());
         }
@@ -430,7 +456,9 @@ impl AgentRuntime {
             "starting" | "streaming" | "stopping" | "approvalRequired"
         ) || current.capture.phase != "idle"
         {
-            return Err("Finish the current request or capture before changing the Pi model.".into());
+            return Err(
+                "Finish the current request or capture before changing the Pi model.".into(),
+            );
         }
         let readiness = self
             .provider_readiness_for(&current.provider, Some(&current.cwd), model.as_deref())
@@ -600,9 +628,8 @@ impl AgentRuntime {
                 state.capture.phase = "capturing".into();
             }
         });
-        let image = tokio::task::spawn_blocking(capture)
-            .await
-            .map_err(|_| "Windows capture failed.".to_string())??;
+        let reservation = Arc::new(_reservation);
+        let image = capture_with_deadline(&reservation, Duration::from_secs(8), capture).await?;
         mutate(&self.updates, |state| {
             if state.capture.request_id == request_id {
                 state.capture.phase = "submitting".into();
@@ -1042,14 +1069,7 @@ mod tests {
         snapshot.cwd = cwd.to_string_lossy().into_owned();
 
         let eligible = |snapshot: &Snapshot, cwd: &std::path::Path, model: Option<&str>| {
-            can_reuse_agy_session(
-                snapshot,
-                cwd,
-                InteractionMode::QuickAsk,
-                model,
-                None,
-                false,
-            )
+            can_reuse_agy_session(snapshot, cwd, InteractionMode::QuickAsk, model, None, false)
         };
         assert!(eligible(&snapshot, &cwd, None));
         assert!(!eligible(&snapshot, &cwd, Some("different-model")));
@@ -1202,7 +1222,12 @@ mod tests {
             state.provider = "pi".into();
             state.status = "streaming".into();
         });
-        assert!(runtime.select_runtime_options(Some("pi/model".into()), None).await.is_err());
+        assert!(
+            runtime
+                .select_runtime_options(Some("pi/model".into()), None)
+                .await
+                .is_err()
+        );
         assert!(runtime.selected_runtime.lock().unwrap().model.is_none());
     }
 
@@ -1628,6 +1653,43 @@ mod tests {
             )
             .await;
         assert!(escalated.is_err());
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn timed_out_capture_keeps_native_work_reserved_until_it_finishes() {
+        let in_flight = Arc::new(AtomicBool::new(false));
+        let reservation = Arc::new(CaptureReservation::acquire(Arc::clone(&in_flight)).unwrap());
+        let (started_tx, started_rx) = oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+        let attempt = tokio::spawn({
+            let reservation = Arc::clone(&reservation);
+            async move {
+                capture_with_deadline(&reservation, Duration::from_millis(40), move || {
+                    let _ = started_tx.send(());
+                    let _ = release_rx.recv();
+                    Err("simulated blocked capture".into())
+                })
+                .await
+            }
+        });
+        started_rx.await.expect("worker entered blocking operation");
+        drop(reservation);
+        let outcome = attempt.await.expect("timeout task completed");
+        match outcome {
+            Err(message) => assert!(message.contains("timed out")),
+            Ok(_) => panic!("blocked capture must time out"),
+        }
+        assert!(CaptureReservation::acquire(Arc::clone(&in_flight)).is_err());
+        release_tx.send(()).unwrap();
+        timeout(Duration::from_secs(2), async {
+            while in_flight.load(Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("native worker eventually released capture reservation");
+        assert!(CaptureReservation::acquire(in_flight).is_ok());
     }
 
     #[test]

@@ -4,6 +4,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{LogicalSize, PhysicalPosition};
 use tauri::{Manager, State, WebviewWindow, ipc::Channel};
 
+pub struct OverlayProtection {
+    pub available: bool,
+}
+
+#[tauri::command]
+pub fn overlay_protection_status(state: State<'_, OverlayProtection>) -> bool {
+    state.available
+}
+
 #[derive(Default)]
 pub struct NotchMotion {
     epoch: AtomicU64,

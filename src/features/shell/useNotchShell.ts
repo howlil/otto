@@ -6,7 +6,11 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
-import { nativeAvailable, onNotchFocusChanged } from "../../platform/tauri";
+import {
+  getOverlayProtectionStatus,
+  nativeAvailable,
+  onNotchFocusChanged,
+} from "../../platform/tauri";
 import { readPreferences, type Page, type Preferences } from "./preferences";
 
 type ShellMode = "compact" | "preview" | "pinned";
@@ -18,6 +22,7 @@ export function useNotchShell() {
   const pinned = mode === "pinned";
   const [prefs, setPrefs] = useState<Preferences>(readPreferences);
   const [notice, setNotice] = useState("");
+  const [captureProtected, setCaptureProtected] = useState<boolean | null>(null);
   const [eventMotion, setEventMotion] = useState("");
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,6 +98,20 @@ export function useNotchShell() {
       unlisten?.();
     };
   }, [prefs.clickOutside, pinned, collapse]);
+  useEffect(() => {
+    if (!nativeAvailable || page !== "global-settings") return;
+    let active = true;
+    void getOverlayProtectionStatus()
+      .then((available) => {
+        if (active) setCaptureProtected(available);
+      })
+      .catch(() => {
+        if (active) setCaptureProtected(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [page]);
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   const handleEnter = (event: PointerEvent<HTMLElement>) => {
@@ -151,6 +170,7 @@ export function useNotchShell() {
     change,
     notice,
     setNotice,
+    captureProtected,
     eventMotion,
     setEventMotion,
     reducedMotion,

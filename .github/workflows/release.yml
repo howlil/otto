@@ -111,3 +111,34 @@ jobs:
           if ($env:PREVIOUS_TAG) { $args += @('--notes-start-tag', $env:PREVIOUS_TAG) }
           gh @args
           if ($LASTEXITCODE -ne 0) { throw 'GitHub Release publication failed' }
+      - name: Publish prerelease updater feed
+        if: steps.version.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          $branch = 'updates'
+          $null = gh api "repos/$repo/git/ref/heads/$branch" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            $null = gh api -X POST "repos/$repo/git/refs" -f ref="refs/heads/$branch" -f sha="$env:GITHUB_SHA"
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot initialize updater manifest branch' }
+          }
+          $current = gh api "repos/$repo/contents/latest.json?ref=$branch" 2>$null
+          $exists = $LASTEXITCODE -eq 0
+          $payload = @{
+            message = "chore(updater): publish v$env:VERSION manifest"
+            branch = $branch
+            content = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path 'latest.json')))
+          }
+          if ($exists) {
+            $payload.sha = ($current -join "`n" | ConvertFrom-Json).sha
+          }
+          $payload | ConvertTo-Json -Compress | gh api -X PUT "repos/$repo/contents/latest.json" --input -
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot publish prerelease updater manifest' }
+          $published = gh api "repos/$repo/contents/latest.json?ref=$branch"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify updater manifest publication' }
+          $publishedBytes = [Convert]::FromBase64String(((($published -join "`n") | ConvertFrom-Json).content -replace '\s', ''))
+          $publishedManifest = [Text.Encoding]::UTF8.GetString($publishedBytes) | ConvertFrom-Json
+          if ($publishedManifest.version -ne $env:VERSION) { throw 'Updater manifest version mismatch' }

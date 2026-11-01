@@ -473,10 +473,10 @@ impl CaptureHotkeys {
 
     pub fn configure_source(&self, value: &str) -> Result<(), String> {
         let requested = CaptureSource::parse(value)?;
-        self.armed.store(false, Ordering::SeqCst);
-        self.request(|reply| HotkeyChange::Source(requested, reply))?;
-        self.armed.store(true, Ordering::SeqCst);
-        Ok(())
+        let previously_armed = self.armed.swap(false, Ordering::SeqCst);
+        let result = self.request(|reply| HotkeyChange::Source(requested, reply));
+        self.armed.store(previously_armed, Ordering::SeqCst);
+        result
     }
 
     fn request(&self, build: impl FnOnce(HotkeyReply) -> HotkeyChange) -> Result<(), String> {
@@ -759,7 +759,7 @@ mod tests {
     }
 
     #[test]
-    fn source_configuration_failure_disarms_capture_hotkey() {
+    fn source_configuration_failure_preserves_capture_hotkey_state() {
         let (changes, _messages) = mpsc::channel();
         let gate = Arc::new(AtomicBool::new(true));
         let hotkeys = CaptureHotkeys {
@@ -768,7 +768,7 @@ mod tests {
             armed: Arc::clone(&gate),
         };
         assert!(hotkeys.configure_source("fullScreen").is_err());
-        assert!(!gate.load(Ordering::SeqCst));
+        assert!(gate.load(Ordering::SeqCst));
     }
 
     #[test]

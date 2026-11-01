@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { compareVersions, nextVersion, parseTag, releaseLevel } from '../scripts/release-version.mjs';
 
 describe('release version policy', () => {
@@ -26,6 +27,17 @@ describe('release version policy', () => {
   test('a feature dominates a fix within a batch', () => {
     expect(releaseLevel(['fix: crash', 'feat(agent): support new provider'])).toBe(2);
     expect(nextVersion([0, 9, 8], 2)).toBe('0.10.0');
+  });
+
+  test('Windows updates remain quiet for current-user installations', () => {
+    const config = JSON.parse(
+      readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'),
+    );
+    expect(config.plugins.updater.windows.installMode).toBe('quiet');
+    expect(config.bundle.windows.nsis.installMode).toBe('currentUser');
+    expect(config.plugins.updater.endpoints).toEqual([
+      'https://raw.githubusercontent.com/howlil/otto/updates/latest.json',
+    ]);
   });
 
   test('recognizes squash and merge-commit titles and pre-1.0 breaking changes', () => {

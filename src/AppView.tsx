@@ -138,6 +138,7 @@ function ShellContent({
             onMeasured={onContentMeasured}
             update={appUpdate}
             reducedMotion={shell.reducedMotion}
+            captureProtected={shell.captureProtected}
             motionClass={nudgeMotion}
           />
         ) : (
