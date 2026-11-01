@@ -60,16 +60,17 @@ pub fn configure(window: &WebviewWindow) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{WS_EX_LAYERED, WS_EX_TOPMOST};
 
     #[test]
     fn overlay_style_excludes_appwindow_without_dropping_other_flags() {
-        let current = (WS_EX_APPWINDOW | windows_sys::Win32::UI::WindowsAndMessaging::WS_EX_TOPMOST | windows_sys::Win32::UI::WindowsAndMessaging::WS_EX_LAYERED) as isize;
+        let current = (WS_EX_APPWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED) as isize;
         let adjusted = overlay_window_style(current);
 
         assert_ne!(adjusted & WS_EX_TOOLWINDOW as isize, 0);
         assert_eq!(adjusted & WS_EX_APPWINDOW as isize, 0);
-        assert_ne!(adjusted & windows_sys::Win32::UI::WindowsAndMessaging::WS_EX_TOPMOST as isize, 0);
-        assert_ne!(adjusted & windows_sys::Win32::UI::WindowsAndMessaging::WS_EX_LAYERED as isize, 0);
+        assert_ne!(adjusted & WS_EX_TOPMOST as isize, 0);
+        assert_ne!(adjusted & WS_EX_LAYERED as isize, 0);
         assert_eq!(overlay_window_style(adjusted), adjusted);
     }
 }
