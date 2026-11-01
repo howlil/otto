@@ -1,6 +1,7 @@
 use super::job::Job;
+use crate::agent::events::{AgentEvent, ProviderEvents};
 use crate::agent::{
-    CapturedImage, ChatMessage, Control, ProviderReadiness, Snapshot, fail, mutate,
+    CapturedImage, ChatMessage, Control, ProviderReadiness, Snapshot,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
@@ -266,56 +267,30 @@ fn accepted_prompt(frame: &Value, run_id: u64) -> Result<bool, String> {
     Ok(true)
 }
 
-fn begin(text: &str, run_id: u64, updates: &watch::Sender<Snapshot>) {
-    mutate(updates, |s| {
-        if s.run_id != run_id {
-            return;
-        }
-        s.status = "streaming".into();
-        s.error = None;
-        s.activity = None;
-        s.approval = None;
-        s.messages.push(ChatMessage {
-            id: format!("{run_id}:user"),
-            role: "user".into(),
-            text: text.into(),
-        });
-        s.messages.push(ChatMessage {
-            id: format!("{run_id}:assistant"),
-            role: "assistant".into(),
-            text: String::new(),
-        });
-        if s.messages.len() > 24 {
-            s.messages.drain(0..2);
-        }
+fn begin(text: &str, run_id: u64, events: &ProviderEvents) {
+    events.emit(AgentEvent::TurnStarted {
+        run_id,
+        text: text.to_owned(),
     });
 }
 
-fn observe(frame: &Value, id: u64, updates: &watch::Sender<Snapshot>) -> bool {
-    let snapshot = updates.borrow().clone();
+fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
+    let snapshot = events.snapshot();
     if snapshot.run_id != id || snapshot.status != "streaming" {
         return false;
     }
     match frame["type"].as_str() {
         Some("message_update") if frame["assistantMessageEvent"]["type"] == "text_delta" => {
             if let Some(delta) = frame["assistantMessageEvent"]["delta"].as_str() {
-                mutate(updates, |s| {
-                    if let Some(last) = s
-                        .messages
-                        .last_mut()
-                        .filter(|item| item.role == "assistant")
-                    {
-                        last.text.push_str(delta);
-                    }
+                events.emit(AgentEvent::TextDelta {
+                    run_id: id,
+                    delta: delta.to_owned(),
                 });
             }
         }
         Some("message_end") if frame["message"]["role"] == "assistant" => {
-            if matches!(
-                frame["message"]["stopReason"].as_str(),
-                Some("error" | "aborted")
-            ) {
-                fail(updates, id, "Pi could not finish the answer.");
+            if matches!(frame["message"]["stopReason"].as_str(), Some("error" | "aborted")) {
+                events.fail(id, "Pi could not finish the answer.");
                 return true;
             }
             if let Some(parts) = frame["message"]["content"].as_array() {
@@ -327,33 +302,20 @@ fn observe(frame: &Value, id: u64, updates: &watch::Sender<Snapshot>) -> bool {
                             .flatten()
                     })
                     .collect();
-                mutate(updates, |s| {
-                    if let Some(last) = s
-                        .messages
-                        .last_mut()
-                        .filter(|item| item.role == "assistant")
-                    {
-                        last.text = answer;
-                    }
-                });
+                events.emit(AgentEvent::TextFinal { run_id: id, text: answer });
             }
         }
         Some("agent_settled") => {
             if frame["aborted"] == true {
-                fail(updates, id, "Pi aborted the request.");
+                events.fail(id, "Pi aborted the request.");
             } else if snapshot
                 .messages
                 .last()
                 .is_none_or(|item| item.role != "assistant" || item.text.trim().is_empty())
             {
-                fail(updates, id, "Pi finished without an answer.");
+                events.fail(id, "Pi finished without an answer.");
             } else {
-                mutate(updates, |s| {
-                    if s.run_id == id && s.status == "streaming" {
-                        s.status = "completed".into();
-                        s.activity = None;
-                    }
-                });
+                events.emit(AgentEvent::Completed { run_id: id });
             }
             return true;
         }
@@ -364,7 +326,7 @@ fn observe(frame: &Value, id: u64, updates: &watch::Sender<Snapshot>) -> bool {
 
 pub async fn run(
     mut controls: mpsc::Receiver<Control>,
-    updates: watch::Sender<Snapshot>,
+    events: ProviderEvents,
     initial: Control,
 ) {
     let Control::Ask {
@@ -374,9 +336,8 @@ pub async fn run(
         capture,
     } = initial
     else {
-        fail(
-            &updates,
-            updates.borrow().run_id,
+        events.fail(
+            events.snapshot().run_id,
             "Pi only supports text Quick Ask.",
         );
         return;
@@ -384,7 +345,7 @@ pub async fn run(
     let mut rpc = match Rpc::launch(&cwd) {
         Ok(rpc) => rpc,
         Err(reason) => {
-            fail(&updates, run_id, &reason);
+            events.fail(run_id, &reason);
             return;
         }
     };
@@ -392,9 +353,9 @@ pub async fn run(
         response = rpc.state() => response,
         control = controls.recv() => {
             if matches!(control, Some(Control::Stop)) {
-                mutate(&updates, |s| if s.run_id == run_id { s.status = "stopped".into(); });
+                events.stopped(run_id);
             } else {
-                fail(&updates, run_id, "Pi startup interrupted.");
+                events.fail(run_id, "Pi startup interrupted.");
             }
             rpc.terminate().await;
             return;
@@ -406,35 +367,30 @@ pub async fn run(
             .as_str()
             .map(|id| (id.to_owned(), model_accepts_images(&s)))
     }) else {
-        fail(&updates, run_id, "Pi session or text model is unavailable.");
+        events.fail(run_id, "Pi session or text model is unavailable.");
         rpc.terminate().await;
         return;
     };
     if capture.is_some() && !image_input {
-        fail(
-            &updates,
+        events.fail(
             run_id,
             "The selected Pi model cannot accept screenshots.",
         );
         rpc.terminate().await;
         return;
     }
-    mutate(&updates, |s| {
-        if s.run_id == run_id {
-            s.thread_id = Some(session);
-        }
-    });
+    events.emit(AgentEvent::SessionReady { run_id, session_id: session });
     let mut active_capture = capture;
     let request = match prompt_command(run_id, &text, active_capture.as_ref()).await {
         Ok(request) => request,
         Err(reason) => {
-            fail(&updates, run_id, &reason);
+            events.fail(run_id, &reason);
             rpc.terminate().await;
             return;
         }
     };
     if rpc.send(request).await.is_err() {
-        fail(&updates, run_id, "Cannot submit the Pi request.");
+        events.fail(run_id, "Cannot submit the Pi request.");
         rpc.terminate().await;
         return;
     }
@@ -449,7 +405,7 @@ pub async fn run(
                 Some(Control::Stop) if active.is_some() => {
                     let _ = rpc.send(json!({"type":"abort"})).await;
                     if let Some(id) = active {
-                        mutate(&updates, |s| if s.run_id == id { s.status = "stopped".into(); });
+                        events.stopped(id);
                     }
                     rpc.terminate().await;
                     break;
@@ -461,23 +417,23 @@ pub async fn run(
                     break;
                 }
                 Some(Control::Ask {text, cwd, run_id, capture}) if active.is_none() => {
-                    if cwd.as_path() != Path::new(&updates.borrow().cwd) {
-                        fail(&updates, run_id, "Pi context changed. Start a new session.");
+                    if cwd.as_path() != Path::new(&events.snapshot().cwd) {
+                        events.fail(run_id, "Pi context changed. Start a new session.");
                         continue;
                     }
                     if capture.is_some() && !image_input {
-                        fail(&updates, run_id, "The selected Pi model cannot accept screenshots.");
+                        events.fail(run_id, "The selected Pi model cannot accept screenshots.");
                         continue;
                     }
                     let request = match prompt_command(run_id, &text, capture.as_ref()).await {
                         Ok(request) => request,
                         Err(reason) => {
-                            fail(&updates, run_id, &reason);
+                            events.fail(run_id, &reason);
                             continue;
                         }
                     };
                     if rpc.send(request).await.is_err() {
-                        fail(&updates, run_id, "Pi follow-up could not start.");
+                        events.fail(run_id, "Pi follow-up could not start.");
                         rpc.terminate().await;
                         break;
                     }
@@ -497,38 +453,38 @@ pub async fn run(
                     match accepted_prompt(&value, id) {
                         Ok(true) => {
                             if acknowledged {
-                                fail(&updates, id, "Pi duplicated the prompt acknowledgement.");
+                                events.fail(id, "Pi duplicated the prompt acknowledgement.");
                                 rpc.terminate().await;
                                 break;
                             }
                             acknowledged = true;
-                            begin(&pending_text, id, &updates);
+                            begin(&pending_text, id, &events);
                             for event in buffered.drain(..) {
-                                observe(&event, id, &updates);
+                                observe(&event, id, &events);
                             }
                         },
                         Ok(false) => {},
-                        Err(reason) => { fail(&updates, id, &reason); rpc.terminate().await; break; }
+                        Err(reason) => { events.fail(id, &reason); rpc.terminate().await; break; }
                     }
                     if value["type"] == "agent_settled" {
                         settled = true;
                         if !acknowledged {
                             buffered.push(value);
                         } else {
-                            observe(&value, id, &updates);
+                            observe(&value, id, &events);
                         }
                     } else if value["type"] == "message_update" || value["type"] == "message_end" {
                         if acknowledged {
-                            observe(&value, id, &updates);
+                            observe(&value, id, &events);
                         } else if buffered.len() < 256 {
                             buffered.push(value);
                         } else {
-                            fail(&updates, id, "Pi sent excessive output before acknowledgement.");
+                            events.fail(id, "Pi sent excessive output before acknowledgement.");
                             rpc.terminate().await;
                             break;
                         }
                     } else if value["type"] == "tool_execution_start" || value["type"] == "extension_ui_request" {
-                        fail(&updates, id, "Pi exposed an unsupported action.");
+                        events.fail(id, "Pi exposed an unsupported action.");
                         rpc.terminate().await;
                         break;
                     }
@@ -539,25 +495,24 @@ pub async fn run(
 
                 }
                 Err(reason) => {
-                    if let Some(id) = active { fail(&updates, id, &reason); }
+                    if let Some(id) = active { events.fail(id, &reason); }
                     rpc.terminate().await;
                     break;
                 }
             }
         }
     }
-    let snapshot = updates.borrow().clone();
+    let snapshot = events.snapshot();
     if matches!(
         snapshot.status.as_str(),
         "starting" | "streaming" | "approvalRequired"
     ) {
-        fail(
-            &updates,
+        events.fail(
             snapshot.run_id,
             "Pi exited before completing the answer.",
         );
     } else if snapshot.status == "stopping" {
-        mutate(&updates, |s| s.status = "stopped".into());
+        events.stopped(snapshot.run_id);
     }
 }
 
@@ -669,26 +624,28 @@ mod tests {
     #[test]
     fn pi_only_finishes_on_settled_and_rejects_stale_events() {
         let tx = state();
-        assert!(!observe(&json!({"type":"agent_end"}), 7, &tx));
+        let events = ProviderEvents::new(tx.clone());
+        let events = ProviderEvents::new(tx.clone());
+        assert!(!observe(&json!({"type":"agent_end"}), 7, &events));
         observe(
             &json!({"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"partial"}}),
             7,
-            &tx,
+            &events,
         );
         assert_eq!(tx.borrow().messages[0].text, "partial");
         observe(
             &json!({"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"final"}]}}),
             7,
-            &tx,
+            &events,
         );
         assert_eq!(tx.borrow().messages[0].text, "final");
-        assert!(!observe(&json!({"type":"agent_settled"}), 6, &tx));
-        assert!(observe(&json!({"type":"agent_settled"}), 7, &tx));
+        assert!(!observe(&json!({"type":"agent_settled"}), 6, &events));
+        assert!(observe(&json!({"type":"agent_settled"}), 7, &events));
         assert_eq!(tx.borrow().status, "completed");
         observe(
             &json!({"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"late"}}),
             7,
-            &tx,
+            &events,
         );
         assert_eq!(tx.borrow().messages[0].text, "final");
     }
@@ -696,25 +653,27 @@ mod tests {
     #[test]
     fn pi_failed_or_empty_answer_never_looks_completed() {
         let tx = state();
+        let events = ProviderEvents::new(tx.clone());
         assert!(observe(
             &json!({"type":"message_end","message":{"role":"assistant","stopReason":"error","content":[{"type":"text","text":"partial"}]}}),
             7,
-            &tx,
+            &events,
         ));
         assert_eq!(tx.borrow().status, "failed");
         assert!(tx.borrow().messages[0].text.is_empty());
         assert!(!observe(
             &json!({"type":"agent_settled","aborted":false}),
             7,
-            &tx
+            &events
         ));
         assert_eq!(tx.borrow().status, "failed");
 
         let empty = state();
+        let empty_events = ProviderEvents::new(empty.clone());
         assert!(observe(
             &json!({"type":"agent_settled","aborted":false}),
             7,
-            &empty
+            &empty_events
         ));
         assert_eq!(empty.borrow().status, "failed");
         assert_eq!(
@@ -723,10 +682,11 @@ mod tests {
         );
 
         let aborted = state();
+        let aborted_events = ProviderEvents::new(aborted.clone());
         assert!(observe(
             &json!({"type":"agent_settled","aborted":true}),
             7,
-            &aborted
+            &aborted_events
         ));
         assert_eq!(aborted.borrow().status, "failed");
     }
