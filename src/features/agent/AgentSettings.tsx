@@ -175,7 +175,7 @@ export function AgentSettings({
                   ? "Checking last window…"
                   : targetTitle
                     ? `Last observed: ${targetTitle}`
-                    : targetWarning ?? "Focus another app to select a capture target."}
+                    : (targetWarning ?? "Focus another app to select a capture target.")}
               </Text>
               <Button
                 variant="quiet"
