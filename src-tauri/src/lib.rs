@@ -38,7 +38,7 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 #[cfg(windows)]
                 if let Err(error) = windows::overlay::configure(&window) {
-                    eprintln!("Unable to configure the Otto tool window: {error}");
+                    eprintln!("Unable to configure Otto capture-picker protection: {error}");
                 }
                 if let Some(monitor) = window.current_monitor()? {
                     let size = window.outer_size()?;
