@@ -379,12 +379,9 @@ pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderR
     let mut command = super::background_command(binary);
     command
         .args(["auth", "check", "--model", &model, "--json"])
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
-    let mut readiness = match timeout(Duration::from_secs(10), command.output()).await {
-        Ok(Ok(output)) => match serde_json::from_slice::<Value>(&output.stdout) {
+        .current_dir(cwd);
+    let mut readiness = match Job::probe(command, Duration::from_secs(10)).await {
+        Ok(output) => match serde_json::from_slice::<Value>(&output.stdout) {
             Ok(value) => authentication(&value),
             Err(_) => ProviderReadiness::new(
                 "unsupported",

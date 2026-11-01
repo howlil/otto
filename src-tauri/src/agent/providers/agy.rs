@@ -261,12 +261,9 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
     let mut command = super::background_command(binary);
     command
         .args(model_discovery_args())
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-    match timeout(Duration::from_secs(12), command.output()).await {
-        Ok(Ok(output)) if output.status.success() => {
+        .current_dir(cwd);
+    match Job::probe(command, Duration::from_secs(12)).await {
+        Ok(output) if output.status.success() => {
             if !serde_json::from_slice::<Value>(&output.stdout)
                 .ok()
                 .is_some_and(|value| available_models(&value))
@@ -278,7 +275,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
                 );
             }
         }
-        Ok(Ok(output)) => {
+        Ok(output) => {
             return model_discovery_failure(&output.stdout, &output.stderr);
         }
         _ => {
