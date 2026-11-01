@@ -11,7 +11,7 @@
 Primary journey: working in another app → B1 idle availability → B2 invoke → B11 provider ready → B9 context and interaction mode → B3 ask/receive answer → B8 collapse/reopen if needed → B10 discreet completion → resume original task.
 Alternate context path: B2 → B4 user-triggered screen capture → B3 answer. Supporting modes: B5 music and B6 timer; B7 placement applies to all surfaces.
 
-- B1: Otto defaults to an eyes-only Compact idle capsule while the user works elsewhere; other ambient information may be explicitly selected as a later idle presentation.
+- B1: Otto runs at most one host instance per Windows login session and defaults to an eyes-only Compact idle capsule while the user works elsewhere; repeated launches exit without changing the active window or Agent session. Other ambient information may be explicitly selected as a later idle presentation.
 - B2: Every module has Compact and Expanded presentations. Hover morphs Compact into a non-focusing Expanded preview; explicit click/keyboard activation pins it for interaction. Expanded Home provides the module entry points, with an operable keyboard alternative to any gesture; dismiss/Escape returns to Compact.
 - B3: User chooses an installed Codex, Pi, or Agy CLI, asks a question, sees partial/final responses, can follow up in the same provider session, and can explicitly stop the current request.
 - B4: An explicit camera action or configured hotkey intentionally captures the last focused non-Otto window without flash/selection UI, sends that image to a selected CLI with image support, and shows the analysis; full-screen capture is an explicit alternative.
@@ -57,7 +57,7 @@ Material breaks:
 - Out: conversation extras (presets, quote, search, transcript export, rich Markdown/code controls), OpenCode provider, cloud backend, standalone model API credentials, universal capture invisibility, automatic screen surveillance, auto-approval of agent actions, database, telemetry server, auto-updater, multi-OS parity, speculative plugin system.
 
 ## Proof
-- P1 (B1,B7,X5): Given a supported Windows session, Otto remains accessible at the selected top location with the native tool-window style set; supported picker filtering and pixel exclusion require representative Windows acceptance, and limitations are accurately communicated.
+- P1 (B1,B7,X5): Given a supported Windows session, one Otto host remains accessible at the selected top location; repeated or concurrent launches do not create another host or reset its Agent session. Native tool-window styling is set; picker filtering and pixel exclusion require representative Windows acceptance, and limitations are accurately communicated.
 - P2 (B2): Given any Compact module, hover reveals its Expanded preview without focus theft; click/keyboard activation pins the card; exiting/Escape restores Compact, and Expanded Home exposes all module entries without mandatory gesture navigation.
 - P3 (B3,X1,X4): Given a ready CLI, asking produces a real partial/final answer and follow-up; a missing/failed CLI keeps the draft recoverable; explicit Stop/exit ends owned work without a stale answer.
 - P4 (B4,X2,X6,Q5): Given a valid last-focused window and capable provider, only an intentional hotkey sends its image and returns analysis; denied, unsupported, missing or ambiguous targets send nothing and offer recovery.
