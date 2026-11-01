@@ -593,13 +593,6 @@ impl AgentRuntime {
             .try_reserve()
             .map_err(|_| "Agent provider is busy. Try again.".to_string())?;
 
-        mutate(&self.updates, |s| {
-            if s.status == "approvalRequired" {
-                s.status = "streaming".into();
-                s.approval = None;
-                s.activity = None;
-            }
-        });
         permit.send(Control::Decide {
             approval_id,
             decision,
@@ -749,6 +742,7 @@ mod tests {
         );
         mutate(&runtime.updates, |s| {
             s.status = "approvalRequired".into();
+            s.mode = "agentSession".into();
             s.run_id = 4;
             s.approval = Some(session::PendingApproval {
                 approval_id: "appr-1".into(),
@@ -778,9 +772,23 @@ mod tests {
             .decide_approval("appr-1".into(), "deny".into())
             .await
             .expect("valid decision");
-        assert_eq!(runtime.snapshot().status, "streaming");
-        assert!(runtime.snapshot().approval.is_none());
+        assert_eq!(runtime.snapshot().status, "approvalRequired");
+        assert_eq!(
+            runtime.snapshot().approval.as_ref().unwrap().approval_id,
+            "appr-1"
+        );
         assert!(matches!(rx.try_recv(), Ok(Control::Decide { .. })));
+        events::ProviderEvents::new(runtime.updates.clone()).emit(events::AgentEvent::ApprovalResolved {
+            run_id: 4,
+            approval_id: "appr-1".into(),
+        });
+        assert_eq!(runtime.snapshot().status, "starting");
+        events::ProviderEvents::new(runtime.updates.clone()).emit(events::AgentEvent::TurnStarted {
+            run_id: 4,
+            text: "respond".into(),
+        });
+        assert_eq!(runtime.snapshot().status, "streaming");
+        assert_eq!(runtime.snapshot().messages.last().unwrap().role, "assistant");
 
         assert!(
             runtime
