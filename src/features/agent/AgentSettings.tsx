@@ -82,13 +82,13 @@ export function AgentSettings({
           locked={locked}
           onRetry={onRetry}
         />
-        <ModeSettings mode={mode} locked={locked || provider === "pi"} setMode={setMode} />
+        <ModeSettings mode={mode} locked={locked || provider !== "codex"} setMode={setMode} />
         <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />
         {provider === "codex" ? (
           <AgentCaptureSettings capture={capture} focusCaptureShortcut={focusCaptureShortcut} />
         ) : (
           <StatusMessage tone="info" className="mt-2">
-            Screen capture requires Codex. Pi supports text-only Quick Ask; Agy is not yet enabled.
+            Screen capture requires Codex. Pi and Agy use tool-free text Quick Ask.
           </StatusMessage>
         )}
         {hasThread && (
