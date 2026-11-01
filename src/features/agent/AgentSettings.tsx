@@ -82,9 +82,9 @@ export function AgentSettings({
           locked={locked}
           onRetry={onRetry}
         />
-        <ModeSettings mode={mode} locked={locked || provider !== "codex"} setMode={setMode} />
+        <ModeSettings mode={mode} locked={locked || !readiness.agentSession} setMode={setMode} />
         <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />
-        {provider !== "agy" ? (
+        {readiness.imageTransport ? (
           <>
             <AgentCaptureSettings capture={capture} focusCaptureShortcut={focusCaptureShortcut} />
             {readiness.status === "ready" && !readiness.imageInput && (
@@ -96,7 +96,7 @@ export function AgentSettings({
           </>
         ) : (
           <StatusMessage tone="info" className="mt-2">
-            Agy headless streaming accepts text only. Use Codex or Pi with a vision-capable model
+            This provider cannot transport screenshots. Select an image-capable provider
             for screenshots.
           </StatusMessage>
         )}
