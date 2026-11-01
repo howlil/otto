@@ -363,8 +363,10 @@ impl AgentRuntime {
             if !matches!(
                 s.status.as_str(),
                 "starting" | "streaming" | "stopping" | "approvalRequired"
-            ) {
-                s.status = "failed".into();
+            ) && (s.status != "failed"
+                || s.error.as_deref().is_some_and(|error| error.starts_with("Capture: "))
+                || s.error.is_none())
+            {
                 s.error = Some(format!("Capture: {reason}"));
             }
         });
@@ -378,11 +380,6 @@ impl AgentRuntime {
                     .as_deref()
                     .is_some_and(|error| error.starts_with("Capture: "))
             {
-                s.status = if s.thread_id.is_some() {
-                    "completed".into()
-                } else {
-                    "idle".into()
-                };
                 s.error = None;
             }
         });
@@ -644,6 +641,53 @@ mod tests {
     fn duplicate_hotkey_never_overwrites_an_active_capture_status() {
         let runtime = AgentRuntime::new();
         runtime.capture_error("Screen capture is already in progress.");
+        assert_eq!(runtime.snapshot().status, "idle");
+        assert!(runtime.snapshot().error.is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn capture_configuration_errors_never_change_terminal_agent_outcome() {
+        let runtime = AgentRuntime::new();
+        mutate(&runtime.updates, |s| {
+            s.run_id = 5;
+            s.thread_id = Some("thread".into());
+            s.status = "completed".into();
+        });
+        runtime.capture_error("Shortcut unavailable.");
+        assert_eq!(runtime.snapshot().status, "completed");
+        assert!(runtime.snapshot().error.as_deref().unwrap().starts_with("Capture: "));
+        runtime.clear_capture_error();
+        assert_eq!(runtime.snapshot().status, "completed");
+        assert!(runtime.snapshot().error.is_none());
+
+        mutate(&runtime.updates, |s| {
+            s.run_id = 6;
+            s.status = "failed".into();
+            s.error = Some("Provider failed without an answer.".into());
+        });
+        runtime.capture_error("No available target.");
+        assert_eq!(runtime.snapshot().status, "failed");
+        assert_eq!(
+            runtime.snapshot().error.as_deref(),
+            Some("Provider failed without an answer.")
+        );
+        runtime.clear_capture_error();
+        assert_eq!(runtime.snapshot().status, "failed");
+        assert_eq!(
+            runtime.snapshot().error.as_deref(),
+            Some("Provider failed without an answer.")
+        );
+
+        mutate(&runtime.updates, |s| {
+            s.status = "idle".into();
+            s.thread_id = None;
+            s.error = None;
+        });
+        runtime.capture_error("No available target.");
+        assert_eq!(runtime.snapshot().status, "idle");
+        assert!(runtime.snapshot().error.as_deref().unwrap().starts_with("Capture: "));
+        runtime.clear_capture_error();
         assert_eq!(runtime.snapshot().status, "idle");
         assert!(runtime.snapshot().error.is_none());
     }
