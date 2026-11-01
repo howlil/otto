@@ -364,7 +364,9 @@ impl AgentRuntime {
                 s.status.as_str(),
                 "starting" | "streaming" | "stopping" | "approvalRequired"
             ) && (s.status != "failed"
-                || s.error.as_deref().is_some_and(|error| error.starts_with("Capture: "))
+                || s.error
+                    .as_deref()
+                    .is_some_and(|error| error.starts_with("Capture: "))
                 || s.error.is_none())
             {
                 s.error = Some(format!("Capture: {reason}"));
@@ -657,7 +659,14 @@ mod tests {
         });
         runtime.capture_error("Shortcut unavailable.");
         assert_eq!(runtime.snapshot().status, "completed");
-        assert!(runtime.snapshot().error.as_deref().unwrap().starts_with("Capture: "));
+        assert!(
+            runtime
+                .snapshot()
+                .error
+                .as_deref()
+                .unwrap()
+                .starts_with("Capture: ")
+        );
         runtime.clear_capture_error();
         assert_eq!(runtime.snapshot().status, "completed");
         assert!(runtime.snapshot().error.is_none());
@@ -687,7 +696,14 @@ mod tests {
         });
         runtime.capture_error("No available target.");
         assert_eq!(runtime.snapshot().status, "idle");
-        assert!(runtime.snapshot().error.as_deref().unwrap().starts_with("Capture: "));
+        assert!(
+            runtime
+                .snapshot()
+                .error
+                .as_deref()
+                .unwrap()
+                .starts_with("Capture: ")
+        );
         runtime.clear_capture_error();
         assert_eq!(runtime.snapshot().status, "idle");
         assert!(runtime.snapshot().error.is_none());
@@ -823,17 +839,24 @@ mod tests {
             "appr-1"
         );
         assert!(matches!(rx.try_recv(), Ok(Control::Decide { .. })));
-        events::ProviderEvents::new(runtime.updates.clone()).emit(events::AgentEvent::ApprovalResolved {
-            run_id: 4,
-            approval_id: "appr-1".into(),
-        });
+        events::ProviderEvents::new(runtime.updates.clone()).emit(
+            events::AgentEvent::ApprovalResolved {
+                run_id: 4,
+                approval_id: "appr-1".into(),
+            },
+        );
         assert_eq!(runtime.snapshot().status, "starting");
-        events::ProviderEvents::new(runtime.updates.clone()).emit(events::AgentEvent::TurnStarted {
-            run_id: 4,
-            text: "respond".into(),
-        });
+        events::ProviderEvents::new(runtime.updates.clone()).emit(
+            events::AgentEvent::TurnStarted {
+                run_id: 4,
+                text: "respond".into(),
+            },
+        );
         assert_eq!(runtime.snapshot().status, "streaming");
-        assert_eq!(runtime.snapshot().messages.last().unwrap().role, "assistant");
+        assert_eq!(
+            runtime.snapshot().messages.last().unwrap().role,
+            "assistant"
+        );
 
         assert!(
             runtime
@@ -929,7 +952,10 @@ mod tests {
         assert_eq!(runtime.snapshot().thread_id.as_deref(), Some("thread-8"));
         release.send(()).unwrap();
         worker.await.unwrap();
-        runtime.new_session_with_timeout(Duration::from_secs(1)).await.expect("retry after closure");
+        runtime
+            .new_session_with_timeout(Duration::from_secs(1))
+            .await
+            .expect("retry after closure");
         assert_eq!(runtime.snapshot().status, "idle");
     }
 
