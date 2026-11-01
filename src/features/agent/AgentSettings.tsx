@@ -50,6 +50,10 @@ export function AgentSettings({
   const {
     source,
     selectSource,
+    targetTitle,
+    targetWarning,
+    targetPending,
+    refreshTarget,
     sourceReady,
     sourcePending,
     shortcut,
@@ -66,6 +70,10 @@ export function AgentSettings({
     });
     return () => cancelAnimationFrame(frame);
   }, [focusCaptureShortcut, available]);
+
+  useEffect(() => {
+    if (source === "window" && sourceReady) void refreshTarget();
+  }, [source, sourceReady, refreshTarget]);
 
   const providerStatus =
     readiness.status === "ready"
@@ -155,6 +163,30 @@ export function AgentSettings({
               ? "Full desktop may include Otto and other visible applications. Press the hotkey to capture."
               : "Last window captures the recent external application. Press the hotkey to capture."}
           </Text>
+          {source === "window" && sourceReady && (
+            <div className="mt-2 flex items-center gap-2">
+              <Text
+                as="span"
+                variant="caption"
+                className="min-w-0 flex-1 truncate text-otto-text-tertiary"
+                title={targetTitle ?? targetWarning ?? undefined}
+              >
+                {targetPending
+                  ? "Checking last window…"
+                  : targetTitle
+                    ? `Last observed: ${targetTitle}`
+                    : targetWarning ?? "Focus another app to select a capture target."}
+              </Text>
+              <Button
+                variant="quiet"
+                size="xs"
+                disabled={targetPending}
+                onClick={() => void refreshTarget()}
+              >
+                Refresh
+              </Button>
+            </div>
+          )}
           {!available && (
             <StatusMessage tone="info" className="mt-2">
               Screen capture shortcuts can only be configured in Otto for Windows.

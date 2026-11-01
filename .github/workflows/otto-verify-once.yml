@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: X10 recovery marker and B4 single-flight changes.
+# Verification dispatch: B4 single-flight and target identity in Agent Settings.
 
 'on':
   push:

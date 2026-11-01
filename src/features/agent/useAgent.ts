@@ -3,6 +3,7 @@ import { useCaptureSource } from "./useCaptureSource";
 import {
   askCodex,
   getCodexReadiness,
+  getCaptureTargetTitle,
   configureCaptureShortcut,
   nativeAvailable,
   decideAgentApproval,
@@ -289,6 +290,9 @@ function useNewAgentSession({
 
 function useCaptureShortcut() {
   const [captureMessage, setCaptureMessage] = useState("");
+  const [targetTitle, setTargetTitle] = useState<string | null>(null);
+  const [targetWarning, setTargetWarning] = useState<string | null>(null);
+  const [targetPending, setTargetPending] = useState(false);
   const { source, selectSource, sourceReady, sourcePending } = useCaptureSource(setCaptureMessage);
   const [shortcut, setShortcut] = useState(() => {
     try {
@@ -298,6 +302,20 @@ function useCaptureShortcut() {
     }
   });
   const [savingCapture, setSavingCapture] = useState(false);
+  const refreshTarget = useCallback(async () => {
+    if (!nativeAvailable) return;
+    setTargetPending(true);
+    try {
+      const title = await getCaptureTargetTitle();
+      setTargetTitle(title);
+      setTargetWarning(null);
+    } catch (cause) {
+      setTargetTitle(null);
+      setTargetWarning(String(cause));
+    } finally {
+      setTargetPending(false);
+    }
+  }, []);
   const registeredShortcut = useRef(shortcut);
   const registered = useRef(false);
 
@@ -336,6 +354,10 @@ function useCaptureShortcut() {
   return {
     source,
     selectSource,
+    targetTitle,
+    targetWarning,
+    targetPending,
+    refreshTarget,
     sourceReady,
     sourcePending,
     shortcut,

@@ -20,6 +20,7 @@ pub fn run() {
             commands::agent_new_session,
             commands::agent_configure_capture_shortcut,
             commands::agent_configure_capture_source,
+            commands::agent_capture_target_title,
             commands::notch_set_surface,
         ])
         .setup(|app| {

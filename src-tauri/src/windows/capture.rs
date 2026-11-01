@@ -27,7 +27,7 @@ use windows_sys::Win32::{
         },
         WindowsAndMessaging::{
             EVENT_SYSTEM_FOREGROUND, GetForegroundWindow, GetMessageW, GetSystemMetrics,
-            GetWindowRect, GetWindowTextLengthW, GetWindowThreadProcessId, IsIconic, IsWindow,
+            GetWindowRect, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow,
             IsWindowVisible, MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW,
             SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
             WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_APP, WM_HOTKEY,
@@ -147,6 +147,21 @@ fn select_capture_target() -> Result<WindowTarget, String> {
         return Err("Previous window changed or disappeared. Focus it and retry.".into());
     }
     Ok(target)
+}
+
+pub fn capture_target_title() -> Result<String, String> {
+    let target = select_capture_target()?;
+    let hwnd = target.handle as HWND;
+    let len = unsafe { GetWindowTextLengthW(hwnd) };
+    if len <= 0 {
+        return Err("No named external window is available. Focus an app and retry.".into());
+    }
+    let mut buffer = vec![0u16; len.min(128) as usize + 1];
+    let copied = unsafe { GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32) };
+    if copied <= 0 || !target.matches(hwnd as isize, window_pid(hwnd)) {
+        return Err("Window target changed. Refocus the app and retry.".into());
+    }
+    Ok(String::from_utf16_lossy(&buffer[..copied as usize]))
 }
 
 fn capture_foreground(target: WindowTarget) -> Result<CapturedImage, String> {

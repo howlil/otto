@@ -304,6 +304,9 @@ impl AgentRuntime {
 
     #[cfg(windows)]
     pub fn capture_error(&self, reason: &str) {
+        if reason == "Screen capture is already in progress." {
+            return;
+        }
         mutate(&self.updates, |s| {
             if !matches!(
                 s.status.as_str(),
@@ -586,6 +589,15 @@ pub(crate) fn fail(updates: &watch::Sender<Snapshot>, run_id: u64, message: &str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn duplicate_hotkey_never_overwrites_an_active_capture_status() {
+        let runtime = AgentRuntime::new();
+        runtime.capture_error("Screen capture is already in progress.");
+        assert_eq!(runtime.snapshot().status, "idle");
+        assert!(runtime.snapshot().error.is_none());
+    }
 
     #[cfg(windows)]
     #[test]

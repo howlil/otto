@@ -100,6 +100,10 @@ export async function configureCaptureSource(source: CaptureSource): Promise<voi
   await invoke("agent_configure_capture_source", { source });
 }
 
+export async function getCaptureTargetTitle(): Promise<string> {
+  return invoke<string>("agent_capture_target_title");
+}
+
 export async function stopCodex(): Promise<void> {
   await invoke("agent_stop");
 }

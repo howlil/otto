@@ -94,6 +94,18 @@ pub fn agent_configure_capture_source(app: tauri::AppHandle, source: String) -> 
     }
 }
 
+#[tauri::command]
+pub fn agent_capture_target_title() -> Result<String, String> {
+    #[cfg(windows)]
+    {
+        crate::windows::capture::capture_target_title()
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Window target lookup requires Windows.".into())
+    }
+}
+
 fn surface_size(surface: &str) -> Option<(u32, u32)> {
     match surface {
         "idle" => Some((92, 42)),
