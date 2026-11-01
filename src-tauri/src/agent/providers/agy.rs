@@ -1,8 +1,8 @@
 use super::job::Job;
 use crate::agent::events::{AgentEvent, ProviderEvents};
-use crate::agent::{Control, ProviderReadiness};
 #[cfg(test)]
 use crate::agent::{ChatMessage, Snapshot};
+use crate::agent::{Control, ProviderReadiness};
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -285,7 +285,10 @@ fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
             && let Some(delta) = step["text_delta"].as_str()
         {
             if snapshot.status == "starting" {
-                events.fail(id, "Agy returned output before the request was acknowledged.");
+                events.fail(
+                    id,
+                    "Agy returned output before the request was acknowledged.",
+                );
                 return true;
             }
             events.emit(AgentEvent::TextDelta {
@@ -461,10 +464,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         snapshot.status.as_str(),
         "starting" | "streaming" | "approvalRequired"
     ) {
-        events.fail(
-            snapshot.run_id,
-            "Agy terminated before completion.",
-        );
+        events.fail(snapshot.run_id, "Agy terminated before completion.");
     } else if snapshot.status == "stopping" {
         events.stopped(snapshot.run_id);
     }
