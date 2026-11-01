@@ -1,10 +1,11 @@
-import { useLayoutEffect, useRef, type FormEvent } from "react";
+import { useLayoutEffect, useRef, type FormEvent, type Ref } from "react";
 import type { AgentProvider } from "../../platform/tauri";
 import { IconButton, TextArea, VisuallyHidden } from "../../shared/ui";
 
 export function AgentComposer({
   provider,
   imageTransport,
+  composerRef,
   draft,
   setDraft,
   busy,
@@ -17,6 +18,7 @@ export function AgentComposer({
 }: {
   provider: AgentProvider;
   imageTransport: boolean;
+  composerRef: Ref<HTMLDivElement>;
   draft: string;
   setDraft: (draft: string) => void;
   busy: boolean;
@@ -48,7 +50,7 @@ export function AgentComposer({
   };
 
   return (
-    <div className="relative shrink-0 px-3 pb-3 pt-[7px]">
+    <div ref={composerRef} className="relative shrink-0 px-3 pb-3 pt-[7px]">
       <form
         className="flex min-h-[68px] flex-col rounded-[22px] border border-transparent bg-otto-control-deep px-[10px] pb-[7px] pt-[10px] transition-[border-color,background] duration-150 hover:bg-otto-control-hover focus-within:border-otto-line-hover"
         onSubmit={submit}
