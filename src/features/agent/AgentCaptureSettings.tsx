@@ -68,10 +68,6 @@ export function AgentCaptureSettings({
           Apply
         </Button>
       </div>
-      <Text as="p" variant="caption" className="mt-1.5 text-otto-text-tertiary">
-        Use Ctrl with Shift or Alt and one letter. Capture is triggered only by the shortcut; image
-        analysis requires a compatible provider.
-      </Text>
       <div className="mt-3">
         <ChoiceGroup<CaptureSource>
           value={source}
@@ -97,11 +93,6 @@ export function AgentCaptureSettings({
           Capture source is not confirmed. Retry before using the shortcut.
         </StatusMessage>
       )}
-      <Text as="p" variant="caption" className="mt-2 text-otto-text-tertiary">
-        {source === "fullScreen"
-          ? "Full desktop may include Otto and other visible applications. Press the hotkey to capture."
-          : "Last window captures the recent external application. Press the hotkey to capture."}
-      </Text>
       {source === "window" && sourceReady && (
         <div className="mt-2 flex items-center gap-2">
           <Text

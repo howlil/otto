@@ -2,20 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, type UIEvent } from "r
 
 type TranscriptViewportOptions = {
   onMeasured: (height: number) => void;
-  searchOpen: boolean;
-  exportError: boolean;
   captureActionError: string | null;
   seq: number;
-  activeMatch: number | null;
 };
 
 export function useTranscriptViewport({
   onMeasured,
-  searchOpen,
-  exportError,
   captureActionError,
   seq,
-  activeMatch,
 }: TranscriptViewportOptions) {
   const feed = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLDivElement>(null);
@@ -24,9 +18,9 @@ export function useTranscriptViewport({
     const stack = feed.current?.firstElementChild;
     const composerHeight = composer.current?.offsetHeight;
     if (!stack || composerHeight === undefined) return;
-    const accessoryHeight = (searchOpen || exportError ? 40 : 0) + (captureActionError ? 24 : 0);
+    const accessoryHeight = captureActionError ? 24 : 0;
     onMeasured(53 + stack.scrollHeight + 16 + composerHeight + accessoryHeight);
-  }, [onMeasured, searchOpen, exportError, captureActionError]);
+  }, [onMeasured, captureActionError]);
 
   useLayoutEffect(() => {
     measure();
@@ -39,16 +33,10 @@ export function useTranscriptViewport({
   }, [measure]);
 
   useEffect(() => {
-    if (seq > 0 && nearBottom.current && !searchOpen) {
+    if (seq > 0 && nearBottom.current) {
       feed.current?.scrollTo({ top: feed.current.scrollHeight });
     }
-  }, [seq, searchOpen]);
-
-  useEffect(() => {
-    if (activeMatch === null) return;
-    const rows = feed.current?.querySelectorAll("[data-conversation-message]");
-    rows?.[activeMatch]?.scrollIntoView({ block: "nearest", behavior: "auto" });
-  }, [activeMatch]);
+  }, [seq]);
 
   const onFeedScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;

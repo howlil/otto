@@ -1,36 +1,41 @@
-import { Button, StatusMessage, Text } from "../../shared/ui";
+import { IconButton, StatusMessage, Text } from "../../shared/ui";
 import type { AgentStatus } from "../../platform/tauri";
 import { AgentCaptureSettings } from "./AgentCaptureSettings";
 import type { AgentSettingsProps } from "./AgentSettings";
 import type { AgentSettingsTab } from "./AgentSettingsNavigation";
+import { ModelUsageSettings } from "./ModelUsageSettings";
 import { ModeSettings, ProjectSettings, ProviderSettings } from "./AgentSettingsSections";
 import { agentStatusLabel } from "./status";
 
-const introductions: Record<AgentSettingsTab, string> = {
-  provider: "Select your local CLI. Its capabilities determine the available actions.",
-  mode: "The selected mode controls permissions for the entire conversation.",
-  usage: "Local CLI runtime details are kept in settings, away from your conversation.",
-  workspace: "The working directory belongs to a single provider session.",
-  capture: "Screenshot analysis is native; target and image support must be verified.",
-};
 const headings: Record<AgentSettingsTab, string> = {
-  provider: "Provider",
-  mode: "Interaction mode",
-  usage: "Model & usage",
-  workspace: "Working project",
-  capture: "Screen Capture",
+  setup: "Agent setup",
+  capture: "Screen capture",
 };
 
-function SettingsHeader({ tab }: { tab: AgentSettingsTab }) {
+function SettingsHeader({
+  tab,
+  hasThread,
+  busy,
+  onNewSession,
+}: Pick<AgentSettingsProps, "hasThread" | "busy" | "onNewSession"> & {
+  tab: AgentSettingsTab;
+}) {
   return (
-    <>
-      <Text as="h2" variant="heading" className="mb-1">
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <Text as="h2" variant="heading">
         {headings[tab]}
       </Text>
-      <Text as="p" variant="meta" className="mb-[15px] block leading-[1.5] text-otto-text-tertiary">
-        {introductions[tab]}
-      </Text>
-    </>
+      {hasThread && (
+        <IconButton
+          icon="plus"
+          label="New session"
+          title="New session"
+          variant="primary"
+          disabled={busy}
+          onClick={onNewSession}
+        />
+      )}
+    </div>
   );
 }
 
@@ -84,49 +89,9 @@ function CaptureSettings({
   );
 }
 
-function ModelUsageSettings() {
-  return (
-    <section aria-labelledby="otto-model-usage-title">
-      <h2 id="otto-model-usage-title" className="sr-only">
-        Model and context usage
-      </h2>
-      <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 text-otto-sm">
-        <dt className="text-otto-text-tertiary">Active model</dt>
-        <dd>Not detected</dd>
-        <dt className="text-otto-text-tertiary">Thinking effort</dt>
-        <dd>Unavailable</dd>
-        <dt className="text-otto-text-tertiary">Context used</dt>
-        <dd>Unavailable</dd>
-        <dt className="text-otto-text-tertiary">Context remaining</dt>
-        <dd>Unavailable</dd>
-      </dl>
-      <Text as="p" variant="caption" className="mt-4 leading-[1.5] text-otto-text-tertiary">
-        Native provider snapshots do not expose model, thinking effort, or token usage.
-        Values remain unavailable until a provider confirms them. Context remaining is not
-        an account token quota.
-      </Text>
-    </section>
-  );
-}
-
-function SettingsFooter({
-  hasThread,
-  busy,
-  onNewSession,
-  error,
-}: Pick<AgentSettingsProps, "hasThread" | "busy" | "onNewSession" | "error">) {
+function SettingsFooter({ error }: Pick<AgentSettingsProps, "error">) {
   return (
     <>
-      {hasThread && (
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <Text as="span" variant="status" className="text-otto-text-tertiary">
-            New session unlocks the context.
-          </Text>
-          <Button variant="primary" size="sm" disabled={busy} onClick={onNewSession}>
-            New Session
-          </Button>
-        </div>
-      )}
       {error && (
         <StatusMessage tone="error" className="mt-3 text-otto-text-tertiary">
           {error}
@@ -147,33 +112,46 @@ export function AgentSettingsDetails({
         ? "Checking"
         : "Setup required";
   return (
-    <div className="min-h-0 min-w-0 overflow-y-auto px-[17px] pb-5 pt-[15px] [overscroll-behavior:contain] [scrollbar-width:none]">
-      <SettingsHeader tab={tab} />
+    <div className="min-w-0 overflow-y-auto px-[17px] pb-5 pt-[15px] [overscroll-behavior:contain] [scrollbar-width:none]">
+      <SettingsHeader
+        tab={tab}
+        hasThread={props.hasThread}
+        busy={props.busy}
+        onNewSession={props.onNewSession}
+      />
       <ActiveRunNotice {...props} />
-      {tab === "provider" && (
-        <ProviderSettings
-          readiness={props.readiness}
-          providerStatus={providerStatus}
-          provider={props.provider}
-          onSelect={props.setProvider}
-          locked={props.locked}
-          onRetry={props.onRetry}
-        />
-      )}
-      {tab === "mode" && (
-        <ModeSettings
-          mode={props.mode}
-          locked={props.locked}
-          agentSessionAvailable={props.readiness.agentSession}
-          setMode={props.setMode}
-        />
-      )}
-      {tab === "workspace" && (
-        <ProjectSettings cwd={props.cwd} locked={props.locked} setCwd={props.setCwd} />
+      {tab === "setup" && (
+        <div className="space-y-3">
+          <ProviderSettings
+            readiness={props.readiness}
+            providerStatus={providerStatus}
+            provider={props.provider}
+            onSelect={props.setProvider}
+            locked={props.locked}
+            onRetry={props.onRetry}
+          />
+          <div className="grid grid-cols-1 items-start gap-3 min-[360px]:grid-cols-2">
+            <ModeSettings
+              mode={props.mode}
+              locked={props.locked}
+              agentSessionAvailable={props.readiness.agentSession}
+              setMode={props.setMode}
+            />
+            <ProjectSettings cwd={props.cwd} locked={props.locked} setCwd={props.setCwd} />
+          </div>
+          <ModelUsageSettings
+            readiness={props.readiness}
+            snapshot={props.snapshot}
+            model={props.model}
+            setModel={props.setModel}
+            thinkingEffort={props.thinkingEffort}
+            setThinkingEffort={props.setThinkingEffort}
+            busy={props.busy}
+          />
+        </div>
       )}
       {tab === "capture" && <CaptureSettings {...props} />}
-      {tab === "usage" && <ModelUsageSettings />}
-      <SettingsFooter {...props} />
+      <SettingsFooter error={props.error} />
     </div>
   );
 }

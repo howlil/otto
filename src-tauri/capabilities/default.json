@@ -1,1 +1,1 @@
-{"$schema":"../gen/schemas/desktop-schema.json","identifier":"default","description":"Minimum capability for idle surface","windows":["main"],"permissions":["core:default"]}
+{"$schema":"../gen/schemas/desktop-schema.json","identifier":"default","description":"Minimum capability for idle surface","windows":["main"],"permissions":["core:default","updater:default"]}

@@ -527,17 +527,19 @@ fn dispatch_capture(
     hook_available: bool,
 ) -> Result<(), String> {
     let intent = capture_intent(source, hook_available, select_capture_target)?;
+    let runtime = app.state::<AgentRuntime>();
+    let (request_id, reservation) = runtime.begin_capture()?;
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         let runtime = handle.state::<AgentRuntime>();
         if let Err(reason) = runtime
-            .capture_hotkey(move || match intent {
+            .capture_hotkey(request_id, reservation, move || match intent {
                 CaptureIntent::Window(window) => capture_foreground(window),
                 CaptureIntent::FullScreen => capture_full_screen(),
             })
             .await
         {
-            runtime.capture_error(&reason);
+            runtime.capture_error_for(request_id, &reason);
         }
     });
     Ok(())

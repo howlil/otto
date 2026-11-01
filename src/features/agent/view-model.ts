@@ -14,6 +14,7 @@ export type AgentTranscriptModel = {
   setDraft: (draft: string) => void;
   error: string | null;
   busy: boolean;
+  captureBusy: boolean;
   send: () => Promise<void>;
   stop: () => Promise<void>;
   decide: (approvalId: string, decision: "allowOnce" | "deny") => Promise<boolean>;
@@ -48,6 +49,10 @@ export type AgentPanelModel = AgentTranscriptModel & {
   mode: AgentMode;
   setMode: (mode: AgentMode) => void;
   provider: AgentProvider;
+  model: string | null;
+  setModel: (model: string | null) => void;
+  thinkingEffort: string | null;
+  setThinkingEffort: (effort: string | null) => void;
   setProvider: (provider: AgentProvider) => void;
   locked: boolean;
   newSession: () => Promise<boolean>;

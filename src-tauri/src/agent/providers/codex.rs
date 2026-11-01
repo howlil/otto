@@ -1,9 +1,11 @@
 use crate::agent::events::{AgentEvent, ProviderEvents};
 use crate::agent::policy::{self, InteractionMode};
 use crate::agent::session::{self, ApprovalDecision, PendingApproval, ToolActivity};
+use crate::agent::{
+    CaptureSnapshot, Control, ModelOption, ProviderReadiness, Snapshot, UsageSnapshot,
+};
 #[cfg(test)]
 use crate::agent::{ChatMessage, mutate};
-use crate::agent::{Control, ProviderReadiness, Snapshot};
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
 use tokio::{
@@ -57,6 +59,46 @@ fn account_readiness(value: &Value) -> ProviderReadiness {
     }
 }
 
+fn model_id(value: &Value) -> Option<&str> {
+    value["model"]
+        .as_str()
+        .or_else(|| value["id"].as_str())
+        .filter(|value| !value.trim().is_empty())
+}
+
+fn reasoning_efforts(value: &Value) -> Vec<String> {
+    value["supportedReasoningEfforts"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|effort| {
+            effort["reasoningEffort"]
+                .as_str()
+                .or_else(|| effort.as_str())
+        })
+        .map(str::to_owned)
+        .collect()
+}
+
+fn model_option(value: &Value) -> Option<ModelOption> {
+    let id = model_id(value)?.to_owned();
+    let thinking_efforts = reasoning_efforts(value);
+    Some(ModelOption {
+        id,
+        display_name: value["displayName"]
+            .as_str()
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or_else(|| model_id(value).unwrap_or("Unknown model"))
+            .to_owned(),
+        context_window: value["contextWindow"].as_i64(),
+        image_input: value["inputModalities"]
+            .as_array()
+            .is_some_and(|items| items.iter().any(|item| item == "image")),
+        default_thinking_effort: value["defaultReasoningEffort"].as_str().map(str::to_owned),
+        thinking_efforts,
+    })
+}
+
 fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness {
     let Some(models) = value["data"].as_array() else {
         return ProviderReadiness::new(
@@ -65,13 +107,13 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
             "Update Codex, then Retry.",
         );
     };
+    let catalog = models;
+    let models = catalog.iter().filter_map(model_option).collect::<Vec<_>>();
     let selected = configured.filter(|name| !name.is_empty());
     let model = if let Some(name) = selected {
-        models
-            .iter()
-            .find(|m| m["model"].as_str() == Some(name) || m["id"].as_str() == Some(name))
+        catalog.iter().find(|m| model_id(m) == Some(name))
     } else {
-        models
+        catalog
             .iter()
             .find(|m| m["isDefault"] == true && m["hidden"] != true)
     };
@@ -102,8 +144,17 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
             "Select a text-capable Codex model, then Retry.",
         );
     }
+    let selected_option = model_option(model);
     let mut ready = ProviderReadiness::new("ready", "Codex is ready for text requests.", "");
     ready.image_input = modalities.is_some_and(|items| items.iter().any(|v| v == "image"));
+    ready.model = model_id(model).map(str::to_owned);
+    ready.models = models;
+    ready.thinking_effort = selected_option
+        .as_ref()
+        .and_then(|option| option.default_thinking_effort.clone());
+    ready.thinking_efforts = selected_option
+        .map(|option| option.thinking_efforts)
+        .unwrap_or_default();
     ready
 }
 
@@ -150,9 +201,13 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             provider: "codex".into(),
             cwd: String::new(),
             thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
             messages: Vec::new(),
             activity: None,
             approval: None,
+            capture: CaptureSnapshot::default(),
             error: None,
         });
         let updates = ProviderEvents::new(updates);
@@ -713,6 +768,21 @@ fn handle_item_completed(value: &Value, run_id: u64, updates: &ProviderEvents) {
     }
 }
 
+fn usage_snapshot(value: &Value) -> Option<UsageSnapshot> {
+    let token_usage = &value["params"]["tokenUsage"];
+    let last = &token_usage["last"];
+    let total = &token_usage["total"];
+    token_usage.is_object().then(|| UsageSnapshot {
+        context_tokens: last["totalTokens"].as_i64().unwrap_or(0),
+        session_tokens: total["totalTokens"].as_i64().unwrap_or(0),
+        input_tokens: last["inputTokens"].as_i64().unwrap_or(0),
+        cached_input_tokens: last["cachedInputTokens"].as_i64().unwrap_or(0),
+        output_tokens: last["outputTokens"].as_i64().unwrap_or(0),
+        reasoning_output_tokens: last["reasoningOutputTokens"].as_i64().unwrap_or(0),
+        model_context_window: token_usage["modelContextWindow"].as_i64(),
+    })
+}
+
 fn handle_turn_completed(value: &Value, run_id: u64, updates: &ProviderEvents) {
     match value["params"]["turn"]["status"].as_str() {
         Some("completed") => updates.emit(AgentEvent::Completed { run_id }),
@@ -735,6 +805,20 @@ fn handle_event(
         Some("item/agentMessage/delta") => handle_delta(value, run_id, updates),
         Some("item/started") => handle_item_started(value, run_id, updates),
         Some("item/completed") => handle_item_completed(value, run_id, updates),
+        Some("thread/tokenUsage/updated") => {
+            if let Some(usage) = usage_snapshot(value) {
+                updates.emit(AgentEvent::UsageUpdated { run_id, usage });
+            }
+        }
+        Some("model/rerouted") => {
+            if let Some(model) = value["params"]["toModel"].as_str() {
+                updates.emit(AgentEvent::RuntimeChanged {
+                    run_id,
+                    model: Some(model.to_owned()),
+                    thinking_effort: updates.snapshot().thinking_effort,
+                });
+            }
+        }
         Some("turn/completed") => {
             handle_turn_completed(value, run_id, updates);
             return true;
@@ -747,6 +831,8 @@ fn handle_event(
 struct TurnInput<'a> {
     thread: &'a str,
     text: &'a str,
+    model: Option<&'a str>,
+    thinking_effort: Option<&'a str>,
     image: Option<&'a std::path::Path>,
 }
 
@@ -763,7 +849,14 @@ async fn begin_turn(
     let response = rpc
         .request_controlled(
             "turn/start",
-            policy::turn_start_with_image(input.thread, input.text, mode, input.image),
+            policy::turn_start_with_image(
+                input.thread,
+                input.text,
+                mode,
+                input.model,
+                input.thinking_effort,
+                input.image,
+            ),
             approvals,
             updates,
             controls,
@@ -778,6 +871,17 @@ async fn begin_turn(
         .ok_or("Codex returned no turn ID.")?
         .to_owned();
     approvals.context(input.thread, &turn, run_id);
+    updates.emit(AgentEvent::RuntimeChanged {
+        run_id,
+        model: result["turn"]["model"]
+            .as_str()
+            .map(str::to_owned)
+            .or_else(|| input.model.map(str::to_owned)),
+        thinking_effort: result["turn"]["reasoningEffort"]
+            .as_str()
+            .map(str::to_owned)
+            .or_else(|| input.thinking_effort.map(str::to_owned)),
+    });
     updates.emit(AgentEvent::TurnStarted {
         run_id,
         text: input.text.to_owned(),
@@ -814,6 +918,8 @@ pub async fn run(
         text,
         cwd,
         run_id,
+        model,
+        thinking_effort,
         capture,
     } = initial
     else {
@@ -840,7 +946,12 @@ pub async fn run(
             rpc.send(json!({ "method": "initialized", "params": {} })).await?;
             let (thread_response, _) = rpc.request(
                 "thread/start",
-                policy::thread_start(&cwd.to_string_lossy(), mode),
+                policy::thread_start(
+                    &cwd.to_string_lossy(),
+                    mode,
+                    model.as_deref(),
+                    thinking_effort.as_deref(),
+                ),
                 &mut approvals,
                 &updates,
             ).await?;
@@ -880,6 +991,8 @@ pub async fn run(
         TurnInput {
             thread: &thread,
             text: &text,
+            model: model.as_deref(),
+            thinking_effort: thinking_effort.as_deref(),
             image: active_capture.as_ref().map(|image| image.path()),
         },
         run_id,
@@ -941,7 +1054,7 @@ pub async fn run(
                         break;
                     }
                 }
-                Some(Control::Ask { text, cwd, run_id, capture }) if active.is_none() => {
+                Some(Control::Ask { text, cwd, run_id, model, thinking_effort, capture }) if active.is_none() => {
                     if cwd.as_path() != std::path::Path::new(&updates.snapshot().cwd) {
                         updates.fail(run_id, "Working context changed. Restart Otto.");
                         continue;
@@ -950,7 +1063,7 @@ pub async fn run(
                     active_capture = capture;
                     match begin_turn(
                         &mut rpc,
-                        TurnInput { thread: &thread, text: &text, image: active_capture.as_ref().map(|image| image.path()) },
+                        TurnInput { thread: &thread, text: &text, model: model.as_deref(), thinking_effort: thinking_effort.as_deref(), image: active_capture.as_ref().map(|image| image.path()) },
                         run_id,
                         mode,
                         &mut approvals,
@@ -1168,6 +1281,64 @@ mod tests {
         assert!(!unknown.image_input);
     }
 
+    #[test]
+    fn model_catalog_exposes_selection_and_thinking_capabilities() {
+        let ready = model_readiness(
+            &json!({ "data": [
+                {
+                    "id": "gpt-5-codex",
+                    "model": "gpt-5-codex",
+                    "displayName": "GPT-5 Codex",
+                    "isDefault": true,
+                    "inputModalities": ["text", "image"],
+                    "supportedReasoningEfforts": [
+                        { "reasoningEffort": "medium" },
+                        { "reasoningEffort": "high" }
+                    ],
+                    "defaultReasoningEffort": "medium"
+                }
+            ] }),
+            None,
+        );
+        assert_eq!(ready.model.as_deref(), Some("gpt-5-codex"));
+        assert_eq!(ready.thinking_effort.as_deref(), Some("medium"));
+        assert_eq!(ready.thinking_efforts, ["medium", "high"]);
+        assert_eq!(ready.models.len(), 1);
+        assert_eq!(ready.models[0].display_name, "GPT-5 Codex");
+        assert!(ready.models[0].image_input);
+    }
+
+    #[test]
+    fn provider_usage_notification_maps_context_and_session_totals() {
+        let usage = usage_snapshot(&json!({
+            "params": {
+                "tokenUsage": {
+                    "last": {
+                        "inputTokens": 120,
+                        "cachedInputTokens": 40,
+                        "outputTokens": 80,
+                        "reasoningOutputTokens": 20,
+                        "totalTokens": 200
+                    },
+                    "total": {
+                        "inputTokens": 120,
+                        "cachedInputTokens": 40,
+                        "outputTokens": 80,
+                        "reasoningOutputTokens": 20,
+                        "totalTokens": 200
+                    },
+                    "modelContextWindow": 4000
+                }
+            }
+        }))
+        .expect("valid usage notification");
+        assert_eq!(usage.context_tokens, 200);
+        assert_eq!(usage.session_tokens, 200);
+        assert_eq!(usage.cached_input_tokens, 40);
+        assert_eq!(usage.reasoning_output_tokens, 20);
+        assert_eq!(usage.model_context_window, Some(4000));
+    }
+
     fn snapshot(status: &str, run_id: u64) -> watch::Sender<Snapshot> {
         let (tx, _) = watch::channel(Snapshot {
             run_id,
@@ -1177,6 +1348,9 @@ mod tests {
             provider: "codex".into(),
             cwd: String::new(),
             thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
             messages: vec![ChatMessage {
                 id: "test:assistant".into(),
                 role: "assistant".into(),
@@ -1184,6 +1358,7 @@ mod tests {
             }],
             activity: None,
             approval: None,
+            capture: CaptureSnapshot::default(),
             error: None,
         });
         tx

@@ -2,7 +2,7 @@ import { AgentCapsule, AgentPanel } from "./features/agent";
 import type { useAgent } from "./features/agent";
 import { HomeSurface } from "./features/home";
 import { GlobalSettings, SurfaceError } from "./features/shell";
-import type { useNotchShell } from "./features/shell";
+import type { AppUpdateState, useAppUpdate, useNotchShell } from "./features/shell";
 import { Eyes, VisuallyHidden } from "./shared/ui";
 
 type AgentModel = ReturnType<typeof useAgent>;
@@ -14,17 +14,16 @@ export function ShellView({
   surfaceError,
   agentHomeCopy,
   artProps,
-  onAgentMeasured,
+  onContentMeasured,
+  appUpdate,
 }: {
   agent: AgentModel;
   shell: ShellModel;
   surfaceError: string | null;
   agentHomeCopy: string;
-  onAgentMeasured: (height: number) => void;
+  onContentMeasured: (height: number) => void;
+  appUpdate: ReturnType<typeof useAppUpdate>;
   artProps: {
-    parallax: boolean;
-    reduced: boolean;
-    amount: number;
     tilt: number;
     gradient: number;
   };
@@ -45,7 +44,8 @@ export function ShellView({
         shell={shell}
         agentHomeCopy={agentHomeCopy}
         artProps={artProps}
-        onAgentMeasured={onAgentMeasured}
+        onContentMeasured={onContentMeasured}
+        appUpdate={appUpdate}
       />
       <SurfaceError message={surfaceError} expanded={shell.expanded} />
     </main>
@@ -57,16 +57,19 @@ function ShellContent({
   shell,
   agentHomeCopy,
   artProps,
-  onAgentMeasured,
+  onContentMeasured,
+  appUpdate,
 }: {
   agent: AgentModel;
   shell: ShellModel;
   agentHomeCopy: string;
-  onAgentMeasured: (height: number) => void;
+  onContentMeasured: (height: number) => void;
+  appUpdate: {
+    state: AppUpdateState;
+    checkForUpdate: () => Promise<void>;
+    installUpdate: () => Promise<void>;
+  };
   artProps: {
-    parallax: boolean;
-    reduced: boolean;
-    amount: number;
     tilt: number;
     gradient: number;
   };
@@ -87,7 +90,7 @@ function ShellContent({
       {!isAgent && page === "home" && (
         <button
           ref={shell.compactButton}
-          className={`group absolute left-0 top-0 z-[4] grid h-[42px] w-[92px] place-items-center border-0 bg-transparent p-0 text-inherit transition-[left,top,width,height] duration-[420ms] ease-otto ${expanded ? "left-4 top-[15px] h-7 w-[34px]" : ""} ${shell.reducedMotion ? "transition-none" : ""}`}
+          className={`group absolute left-0 top-0 z-[4] grid h-[42px] w-[92px] place-items-center border-0 bg-transparent p-0 text-inherit transition-[left,top,width,height,background,transform] duration-[420ms] ease-otto ${expanded ? "left-4 top-3 h-[34px] w-[34px] rounded-otto-panel bg-otto-raised-soft text-otto-control-text hover:bg-otto-line-mid active:scale-[0.96]" : ""} ${shell.reducedMotion ? "transition-none" : ""}`}
           type="button"
           aria-expanded={expanded}
           onClick={() => (expanded ? shell.collapse() : shell.open("home"))}
@@ -128,6 +131,8 @@ function ShellContent({
           prefs={shell.prefs}
           change={shell.change}
           onBack={shell.back}
+          onMeasured={onContentMeasured}
+          update={appUpdate}
           motionClass={`${surfaceMotion} ${nudgeMotion}`.trim()}
         />
       ) : (
@@ -139,7 +144,7 @@ function ShellContent({
           onBack={() => shell.open("home")}
           motionClass={`${surfaceMotion} ${nudgeMotion}`.trim()}
           eventMotion={shell.eventMotion}
-          onMeasured={onAgentMeasured}
+          onMeasured={onContentMeasured}
         />
       )}
     </>

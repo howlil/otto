@@ -27,6 +27,9 @@ pub fn run() {
             commands::notch_set_surface,
         ])
         .setup(|app| {
+            #[cfg(windows)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             let agent = match app.path().app_local_data_dir() {
                 Ok(path) => agent::AgentRuntime::persistent(path.join("agent-active.marker")),
                 Err(_) => agent::AgentRuntime::new(),

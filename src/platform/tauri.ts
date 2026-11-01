@@ -13,6 +13,38 @@ export type AgentStatus =
 export type AgentMode = "quickAsk" | "agentSession";
 export type AgentProvider = "codex" | "pi" | "agy";
 export type CaptureSource = "window" | "fullScreen";
+export type CapturePhase =
+  | "idle"
+  | "preparing"
+  | "capturing"
+  | "submitting"
+  | "analyzing"
+  | "failed";
+
+export type AgentCapture = {
+  requestId: number;
+  phase: CapturePhase;
+  error: string | null;
+};
+
+export type AgentModelOption = {
+  id: string;
+  displayName: string;
+  contextWindow: number | null;
+  imageInput: boolean;
+  thinkingEfforts: string[];
+  defaultThinkingEffort: string | null;
+};
+
+export type AgentUsage = {
+  contextTokens: number;
+  sessionTokens: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  reasoningOutputTokens: number;
+  modelContextWindow: number | null;
+};
 
 export type ProviderReadiness = {
   status: "checking" | "ready" | "authRequired" | "missing" | "unsupported" | "unavailable";
@@ -21,6 +53,10 @@ export type ProviderReadiness = {
   imageInput: boolean;
   imageTransport: boolean;
   agentSession: boolean;
+  model: string | null;
+  models: AgentModelOption[];
+  thinkingEffort: string | null;
+  thinkingEfforts: string[];
 };
 
 export type AgentApproval = {
@@ -42,9 +78,13 @@ export type AgentSnapshot = {
   provider: AgentProvider;
   cwd: string;
   threadId: string | null;
+  model: string | null;
+  thinkingEffort: string | null;
+  usage: AgentUsage | null;
   messages: Array<{ id: string; role: "user" | "assistant"; text: string }>;
   activity?: AgentActivity;
   approval?: AgentApproval;
+  capture: AgentCapture;
   error: string | null;
 };
 
@@ -102,8 +142,9 @@ export async function askAgent(
   cwd: string,
   mode: AgentMode,
   provider: AgentProvider,
+  options: { model: string | null; thinkingEffort: string | null },
 ): Promise<void> {
-  await invoke("agent_ask", { text, cwd, mode, provider });
+  await invoke("agent_ask", { text, cwd, mode, provider, ...options });
 }
 export async function decideAgentApproval(
   approvalId: string,

@@ -2,7 +2,7 @@ import type { AgentSnapshot, ProviderReadiness } from "../../platform/tauri";
 import { Icon, Text, VisuallyHidden } from "../../shared/ui";
 import { Bars } from "./AgentControls";
 import { compactDetail, compactLabel } from "./surface";
-import { agentIsWorking } from "./status";
+import { agentIsWorking, captureIsWorking } from "./status";
 
 export function AgentCapsule({
   snapshot,
@@ -21,7 +21,7 @@ export function AgentCapsule({
   onOpen: () => void;
   motionClass?: string;
 }) {
-  const thinking = agentIsWorking(snapshot.status);
+  const thinking = agentIsWorking(snapshot.status) || captureIsWorking(snapshot.capture.phase);
   return (
     <button
       ref={buttonRef}
@@ -30,7 +30,16 @@ export function AgentCapsule({
       onClick={onOpen}
     >
       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-otto-compact-icon text-otto-text-bright">
-        <Icon name="terminal" size={16} />
+        <Icon
+          name={
+            captureIsWorking(snapshot.capture.phase)
+              ? "camera"
+              : snapshot.status === "completed"
+                ? "completed"
+                : "terminal"
+          }
+          size={16}
+        />
       </span>
       <span className="min-w-0 flex-1">
         <Text
@@ -61,8 +70,6 @@ export function AgentCapsule({
         </span>
       ) : thinking ? (
         <Bars />
-      ) : snapshot.status === "completed" ? (
-        <span className="px-[5px] text-otto-2xl text-otto-completion-soft">✓</span>
       ) : null}
     </button>
   );

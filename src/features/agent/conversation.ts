@@ -1,6 +1,7 @@
 import type { AgentSnapshot } from "../../platform/tauri";
 
 type Message = AgentSnapshot["messages"][number];
+
 export type MarkdownBlock =
   | { kind: "code"; language: string; text: string }
   | { kind: "heading"; level: 1 | 2 | 3; text: string }
@@ -17,12 +18,13 @@ export function withPromptPreset(draft: string, preset: string): string {
   if (!preset.trim()) return draft;
   return draft.trim() ? `${draft.trimEnd()}\n\n${preset}` : preset;
 }
+
 export function quoteForFollowUp(answer: string, draft: string): string {
   const excerpt = answer.trim().slice(0, 1200);
   if (!excerpt) return draft;
   const quoted = excerpt
     .split("\n")
-    .map((line) => "> " + line)
+    .map((line) => `> ${line}`)
     .join("\n");
   const suffix = answer.trim().length > 1200 ? "\n> … (excerpt)" : "";
   return [draft.trim(), quoted + suffix].filter(Boolean).join("\n\n");
@@ -45,12 +47,12 @@ export function conversationAsMarkdown(
   const lines = [
     "# Otto conversation",
     "",
-    "Provider: " + provider,
-    "Project: " + (project || "Default"),
+    `Provider: ${provider}`,
+    `Project: ${project || "Default"}`,
     "",
   ];
   for (const message of messages) {
-    lines.push("## " + (message.role === "user" ? "User" : "Assistant"), "", message.text, "");
+    lines.push(`## ${message.role === "user" ? "User" : "Assistant"}`, "", message.text, "");
   }
   return lines.join("\n");
 }

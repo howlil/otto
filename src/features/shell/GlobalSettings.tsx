@@ -1,33 +1,54 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, IconButton, Range, SegmentedControl, Text, Toggle } from "../../shared/ui";
 import { defaults, type Preferences, type SettingsTab } from "./preferences";
 import { PlacementSettings } from "./PlacementSettings";
+import { UpdateSettings } from "./UpdateSettings";
+import type { AppUpdateState } from "./useAppUpdate";
 
 export function GlobalSettings({
   prefs,
   change,
   onBack,
+  onMeasured,
+  update,
   motionClass = "",
 }: {
   prefs: Preferences;
   change: (patch: Partial<Preferences>) => void;
   onBack: () => void;
+  onMeasured: (height: number) => void;
+  update: {
+    state: AppUpdateState;
+    checkForUpdate: () => Promise<void>;
+    installUpdate: () => Promise<void>;
+  };
   motionClass?: string;
 }) {
   const [tab, setTab] = useState<SettingsTab>("general");
   const back = useRef<HTMLButtonElement>(null);
+  const root = useRef<HTMLElement>(null);
   useEffect(() => {
     back.current?.focus({ preventScroll: true });
   }, []);
+  useLayoutEffect(() => {
+    const element = root.current;
+    if (!element) return;
+    const measure = () => onMeasured(element.scrollHeight);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [onMeasured]);
   return (
-    <section className={`flex h-full min-h-0 flex-col ${motionClass}`}>
+    <section ref={root} className={`flex min-w-0 flex-col ${motionClass}`}>
       <header className="flex h-[51px] shrink-0 items-center gap-[10px] border-b border-otto-line-soft px-[15px]">
         <IconButton icon="back" label="Back to Home" ref={back} onClick={onBack} />
         <Text as="strong" variant="display">
           Settings
         </Text>
       </header>
-      <main className="grid min-h-0 flex-1 grid-cols-[118px_minmax(0,1fr)]">
+      <main className="grid min-w-0 grid-cols-[118px_minmax(0,1fr)]">
         <nav
           aria-labelledby="otto-settings-sections"
           className="flex flex-col items-stretch gap-1 border-r border-otto-control-deep bg-otto-nav-bg px-2 py-[13px]"
@@ -35,7 +56,7 @@ export function GlobalSettings({
           <span id="otto-settings-sections" className="sr-only">
             Settings sections
           </span>
-          {(["general", "interaction", "motion", "placement"] as SettingsTab[]).map((name) => (
+          {(["general", "interaction", "placement"] as SettingsTab[]).map((name) => (
             <button
               type="button"
               key={name}
@@ -47,14 +68,11 @@ export function GlobalSettings({
             </button>
           ))}
         </nav>
-        <div className="min-h-0 overflow-y-auto px-[18px] pb-5 pt-4 text-otto-text [scrollbar-color:var(--color-otto-scrollbar-track)_transparent] [scrollbar-width:thin] [&>h2]:m-0 [&>h2]:mb-[3px] [&>p]:m-0 [&>p]:mb-4">
+        <div className="min-w-0 overflow-y-auto px-[18px] pb-5 pt-4 text-otto-text [scrollbar-color:var(--color-otto-scrollbar-track)_transparent] [scrollbar-width:thin] [&>h2]:m-0 [&>h2]:mb-[3px] [&>p]:m-0 [&>p]:mb-4">
           {tab === "general" && (
             <>
               <Text as="h2" variant="heading" className="m-0 mb-[3px]">
                 General
-              </Text>
-              <Text as="p" variant="meta" className="m-0 mb-4 leading-[1.5] text-otto-label-muted">
-                The smallest possible idle, with personality on demand.
               </Text>
               <div className="mb-[14px]">
                 <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
@@ -83,9 +101,6 @@ export function GlobalSettings({
                     { value: "alive", label: "Alive" },
                   ]}
                 />
-                <Text as="p" variant="caption" className="mt-2 leading-[1.5] text-otto-label-muted">
-                  Alive adds occasional blinking. Quiet stays still.
-                </Text>
               </div>
               <Button
                 variant="quiet"
@@ -95,19 +110,16 @@ export function GlobalSettings({
               >
                 Restore defaults
               </Button>
+              <UpdateSettings update={update} />
             </>
           )}
           {tab === "interaction" && (
             <>
               <Text as="h2" variant="heading" className="m-0 mb-[3px]">
-                Interaction
-              </Text>
-              <Text as="p" variant="meta" className="m-0 mb-4 leading-[1.5] text-otto-label-muted">
-                Control how the notch responds while you work.
+                Interaction & motion
               </Text>
               <Toggle
                 title="Expand on hover"
-                help="Preview without stealing focus"
                 checked={prefs.hoverExpand}
                 onChange={(hoverExpand) => change({ hoverExpand })}
               />
@@ -129,20 +141,9 @@ export function GlobalSettings({
               />
               <Toggle
                 title="Close when returning to desktop"
-                help="Escape always closes the panel"
                 checked={prefs.clickOutside}
                 onChange={(clickOutside) => change({ clickOutside })}
               />
-            </>
-          )}
-          {tab === "motion" && (
-            <>
-              <Text as="h2" variant="heading" className="m-0 mb-[3px]">
-                Motion
-              </Text>
-              <Text as="p" variant="meta" className="m-0 mb-4 leading-[1.5] text-otto-label-muted">
-                Reduced motion from Windows always takes priority.
-              </Text>
               <div className="mb-[14px]">
                 <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
                   Motion profile
@@ -157,12 +158,6 @@ export function GlobalSettings({
                   ]}
                 />
               </div>
-              <Toggle
-                title="Pointer depth"
-                help="Subtle depth on Home illustrations"
-                checked={prefs.parallax}
-                onChange={(parallax) => change({ parallax })}
-              />
               <Range
                 label="Artwork tilt"
                 value={prefs.tilt}

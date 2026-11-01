@@ -36,12 +36,12 @@ export function AgentPanel({
     setProvider,
     locked,
     busy,
+    captureBusy,
     newSession,
   } = agent;
   const [denied, setDenied] = useState(false);
   const [captureSettingsEntry, setCaptureSettingsEntry] = useState(false);
   const [captureActionError, setCaptureActionError] = useState<string | null>(null);
-  const [actionsOpen, setActionsOpen] = useState(false);
   const approval = snapshot.approval;
   const approvalPending = snapshot.status === "approvalRequired" && Boolean(approval);
   const project =
@@ -66,6 +66,7 @@ export function AgentPanel({
       className={`flex h-full min-h-0 flex-col ${motionClass} ${eventMotion === "otto-failed" ? "motion-safe:animate-otto-shake" : ""}`}
       data-surface="agent"
       data-status={snapshot.status}
+      data-capture-phase={snapshot.capture.phase}
     >
       <AgentHeader
         settings={settings}
@@ -73,13 +74,11 @@ export function AgentPanel({
         mode={snapshot.threadId ? snapshot.mode : mode}
         provider={snapshot.threadId ? snapshot.provider : provider}
         status={snapshot.status}
+        capturePhase={snapshot.capture.phase}
         readiness={readiness.status}
         activity={Boolean(snapshot.activity)}
         eventMotion={eventMotion}
-        actionsOpen={actionsOpen}
-        onActions={() => setActionsOpen((open) => !open)}
         onSettings={() => {
-          setActionsOpen(false);
           setCaptureSettingsEntry(false);
           onSettings();
         }}
@@ -89,8 +88,13 @@ export function AgentPanel({
       {settings ? (
         <AgentSettings
           readiness={readiness}
+          snapshot={snapshot}
           provider={provider}
           setProvider={setProvider}
+          model={agent.model}
+          setModel={agent.setModel}
+          thinkingEffort={agent.thinkingEffort}
+          setThinkingEffort={agent.setThinkingEffort}
           capture={agent.capture}
           focusCaptureShortcut={captureSettingsEntry}
           runStatus={snapshot.status}
@@ -102,10 +106,11 @@ export function AgentPanel({
           cwd={cwd}
           setCwd={setCwd}
           hasThread={snapshot.threadId !== null}
-          busy={busy}
+          busy={busy || captureBusy}
           error={agent.error}
           onNewSession={() => void newSession()}
           onDone={onSettingsBack}
+          onMeasured={onMeasured}
         />
       ) : (
         <AgentTranscript
@@ -114,8 +119,6 @@ export function AgentPanel({
           approvalPending={approvalPending}
           onDenied={() => setDenied(true)}
           captureActionError={captureActionError}
-          actionsOpen={actionsOpen}
-          setActionsOpen={setActionsOpen}
           onMeasured={onMeasured}
           onCapture={() => {
             setCaptureActionError(null);

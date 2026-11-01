@@ -1,11 +1,20 @@
 use super::session::{PendingApproval, ToolActivity};
-use super::{ChatMessage, Snapshot};
+use super::{CaptureSnapshot, ChatMessage, Snapshot, UsageSnapshot};
 use tokio::sync::watch;
 
 pub enum AgentEvent {
     SessionReady {
         run_id: u64,
         session_id: String,
+    },
+    RuntimeChanged {
+        run_id: u64,
+        model: Option<String>,
+        thinking_effort: Option<String>,
+    },
+    UsageUpdated {
+        run_id: u64,
+        usage: UsageSnapshot,
     },
     TurnStarted {
         run_id: u64,
@@ -83,6 +92,22 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
                 && matches!(state.status.as_str(), "starting" | "approvalRequired") =>
         {
             state.thread_id = Some(session_id);
+        }
+        AgentEvent::RuntimeChanged {
+            run_id,
+            model,
+            thinking_effort,
+        } if state.run_id == run_id
+            && !matches!(state.status.as_str(), "completed" | "stopped" | "failed") =>
+        {
+            state.model = model;
+            state.thinking_effort = thinking_effort;
+        }
+        AgentEvent::UsageUpdated { run_id, usage }
+            if state.run_id == run_id
+                && !matches!(state.status.as_str(), "completed" | "stopped" | "failed") =>
+        {
+            state.usage = Some(usage);
         }
         AgentEvent::TurnStarted { run_id, text }
             if state.run_id == run_id
@@ -179,12 +204,14 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
                 state.error = Some("Provider completed with unresolved approval.".into());
                 state.approval = None;
                 state.activity = None;
+                state.capture = CaptureSnapshot::default();
                 return true;
             }
             if state.status == "stopping" {
                 state.status = "stopped".into();
                 state.activity = None;
                 state.approval = None;
+                state.capture = CaptureSnapshot::default();
                 return true;
             }
             if state
@@ -199,6 +226,7 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
                 state.error = Some("Provider finished without an answer.".into());
             }
             state.approval = None;
+            state.capture = CaptureSnapshot::default();
         }
         AgentEvent::Failed { run_id, message }
             if state.run_id == run_id
@@ -212,6 +240,7 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
             }
             state.activity = None;
             state.approval = None;
+            state.capture = CaptureSnapshot::default();
         }
         AgentEvent::Stopped { run_id }
             if state.run_id == run_id
@@ -220,6 +249,7 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
             state.status = "stopped".into();
             state.activity = None;
             state.approval = None;
+            state.capture = CaptureSnapshot::default();
         }
         _ => return false,
     }
@@ -239,9 +269,13 @@ mod tests {
             provider: "pi".into(),
             cwd: String::new(),
             thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
             messages: Vec::new(),
             activity: None,
             approval: None,
+            capture: CaptureSnapshot::default(),
             error: None,
         });
         (updates.clone(), ProviderEvents::new(updates))
@@ -266,6 +300,7 @@ mod tests {
             run_id: 7,
             text: "final".into(),
         });
+        updates.send_modify(|state| state.capture.phase = "analyzing".into());
         events.emit(AgentEvent::Completed { run_id: 7 });
         let final_seq = updates.borrow().seq;
         events.emit(AgentEvent::TextDelta {
@@ -281,6 +316,7 @@ mod tests {
         assert_eq!(result.status, "completed");
         assert_eq!(result.thread_id.as_deref(), Some("s1"));
         assert_eq!(result.messages[1].text, "final");
+        assert_eq!(result.capture.phase, "idle");
         assert_eq!(result.seq, final_seq);
     }
 

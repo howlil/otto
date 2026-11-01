@@ -1,4 +1,4 @@
-import type { AgentStatus, ProviderReadiness } from "../../platform/tauri";
+import type { AgentStatus, CapturePhase, ProviderReadiness } from "../../platform/tauri";
 
 export const agentStatusLabels: Record<AgentStatus, string> = {
   idle: "Ready",
@@ -32,6 +32,24 @@ export function providerIssueTitle(readiness: ProviderReadiness): string {
 
 export function agentIsWorking(status: AgentStatus): boolean {
   return status === "starting" || status === "streaming";
+}
+
+export function captureIsWorking(phase: CapturePhase): boolean {
+  return (
+    phase === "preparing" ||
+    phase === "capturing" ||
+    phase === "submitting" ||
+    phase === "analyzing"
+  );
+}
+
+export function capturePhaseLabel(phase: CapturePhase): string {
+  if (phase === "preparing") return "Preparing capture";
+  if (phase === "capturing") return "Capturing screen";
+  if (phase === "submitting") return "Sending image";
+  if (phase === "analyzing") return "Analyzing screenshot";
+  if (phase === "failed") return "Capture failed";
+  return "Ready";
 }
 
 export function agentStatusColor(

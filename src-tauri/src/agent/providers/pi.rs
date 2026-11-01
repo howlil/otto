@@ -1,8 +1,8 @@
 use super::job::Job;
 use crate::agent::events::{AgentEvent, ProviderEvents};
-use crate::agent::{CapturedImage, Control, ProviderReadiness};
 #[cfg(test)]
-use crate::agent::{ChatMessage, Snapshot};
+use crate::agent::{CaptureSnapshot, ChatMessage, Snapshot};
+use crate::agent::{CapturedImage, Control, ProviderReadiness};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
@@ -338,6 +338,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         cwd,
         run_id,
         capture,
+        ..
     } = initial
     else {
         events.fail(events.snapshot().run_id, "Pi only supports text Quick Ask.");
@@ -417,7 +418,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     let _ = finished.send(());
                     break;
                 }
-                Some(Control::Ask {text, cwd, run_id, capture}) if active.is_none() => {
+                Some(Control::Ask {text, cwd, run_id, capture, ..}) if active.is_none() => {
                     if cwd.as_path() != Path::new(&events.snapshot().cwd) {
                         events.fail(run_id, "Pi context changed. Start a new session.");
                         continue;
@@ -527,6 +528,9 @@ mod tests {
             mode: "quickAsk".into(),
             cwd: String::new(),
             thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
             messages: vec![ChatMessage {
                 id: "7:assistant".into(),
                 role: "assistant".into(),
@@ -534,6 +538,7 @@ mod tests {
             }],
             activity: None,
             approval: None,
+            capture: CaptureSnapshot::default(),
             error: None,
         });
         tx

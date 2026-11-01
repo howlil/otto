@@ -56,8 +56,12 @@ pub async fn agent_ask(
     cwd: String,
     mode: String,
     provider: String,
+    model: Option<String>,
+    thinking_effort: Option<String>,
 ) -> Result<(), String> {
-    runtime.ask(text, cwd, mode, provider).await
+    runtime
+        .ask(text, cwd, mode, provider, model, thinking_effort)
+        .await
 }
 #[tauri::command]
 pub async fn agent_decide_approval(
@@ -150,12 +154,27 @@ fn agent_content_size(
     let (width, base_height) = surface_size(surface)?;
     if !matches!(
         surface,
-        "agentReady" | "agentThinking" | "agentFull" | "agentApproval" | "agentError"
+        "agentReady"
+            | "agentThinking"
+            | "agentFull"
+            | "agentApproval"
+            | "agentError"
+            | "homeSettings"
+            | "agentSettings"
     ) {
         return Some((width, base_height));
     }
+    let min_height = if matches!(
+        surface,
+        "agentReady" | "agentThinking" | "agentFull" | "agentApproval" | "agentError"
+    ) {
+        170
+    } else {
+        1
+    };
+    let max_height = 610.min(available_height.max(min_height));
     let height = content_height
-        .map(|value| value.clamp(170, 610.min(available_height.max(170))))
+        .map(|value| value.clamp(min_height, max_height))
         .unwrap_or(base_height);
     Some((width, height))
 }
@@ -350,12 +369,31 @@ mod tests {
         assert!(samples.windows(2).all(|p| p[0] <= p[1]));
     }
     #[test]
-    fn dynamic_agent_height_is_bounded_and_does_not_resize_settings() {
-        assert_eq!(agent_content_size("agentFull", Some(98), 900), Some((526, 170)));
-        assert_eq!(agent_content_size("agentFull", Some(410), 900), Some((526, 410)));
-        assert_eq!(agent_content_size("agentFull", Some(850), 900), Some((526, 610)));
-        assert_eq!(agent_content_size("agentFull", Some(580), 420), Some((526, 420)));
-        assert_eq!(agent_content_size("agentSettings", Some(580), 900), Some((526, 466)));
+    fn dynamic_surface_height_is_bounded() {
+        assert_eq!(
+            agent_content_size("agentFull", Some(98), 900),
+            Some((526, 170))
+        );
+        assert_eq!(
+            agent_content_size("agentFull", Some(410), 900),
+            Some((526, 410))
+        );
+        assert_eq!(
+            agent_content_size("agentFull", Some(850), 900),
+            Some((526, 610))
+        );
+        assert_eq!(
+            agent_content_size("agentFull", Some(580), 420),
+            Some((526, 420))
+        );
+        assert_eq!(
+            agent_content_size("agentSettings", Some(580), 900),
+            Some((526, 580))
+        );
+        assert_eq!(
+            agent_content_size("homeSettings", Some(190), 900),
+            Some((452, 190))
+        );
         assert_eq!(agent_content_size("home", Some(580), 900), Some((452, 148)));
     }
 

@@ -32,6 +32,51 @@ pub struct ChatMessage {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModelOption {
+    pub id: String,
+    pub display_name: String,
+    pub context_window: Option<i64>,
+    pub image_input: bool,
+    pub thinking_efforts: Vec<String>,
+    pub default_thinking_effort: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageSnapshot {
+    pub context_tokens: i64,
+    pub session_tokens: i64,
+    pub input_tokens: i64,
+    pub cached_input_tokens: i64,
+    pub output_tokens: i64,
+    pub reasoning_output_tokens: i64,
+    pub model_context_window: Option<i64>,
+}
+
+fn default_workspace_path() -> PathBuf {
+    std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+        .or_else(|| std::env::current_dir().ok())
+        .unwrap_or_default()
+}
+
+fn resolve_workspace_path(value: &str) -> PathBuf {
+    let value = value.trim();
+    if value.is_empty() || value == "~" {
+        return default_workspace_path();
+    }
+    if let Some(relative) = value
+        .strip_prefix("~/")
+        .or_else(|| value.strip_prefix("~\\"))
+    {
+        return default_workspace_path().join(relative);
+    }
+    PathBuf::from(value)
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderReadiness {
     pub status: String,
     pub message: String,
@@ -40,6 +85,10 @@ pub struct ProviderReadiness {
     pub image_input: bool,
     pub agent_session: bool,
     pub image_transport: bool,
+    pub model: Option<String>,
+    pub models: Vec<ModelOption>,
+    pub thinking_effort: Option<String>,
+    pub thinking_efforts: Vec<String>,
 }
 
 impl ProviderReadiness {
@@ -51,6 +100,10 @@ impl ProviderReadiness {
             image_input: false,
             agent_session: false,
             image_transport: false,
+            model: None,
+            models: Vec::new(),
+            thinking_effort: None,
+            thinking_efforts: Vec::new(),
         }
     }
 }
@@ -65,20 +118,42 @@ pub struct Snapshot {
     pub provider: String,
     pub cwd: String,
     pub thread_id: Option<String>,
+    pub model: Option<String>,
+    pub thinking_effort: Option<String>,
+    pub usage: Option<UsageSnapshot>,
     pub messages: Vec<ChatMessage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activity: Option<session::ToolActivity>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub approval: Option<PendingApproval>,
+    pub capture: CaptureSnapshot,
     pub error: Option<String>,
 }
 
-#[cfg(windows)]
-struct CaptureReservation<'a>(&'a AtomicBool);
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureSnapshot {
+    pub request_id: u64,
+    pub phase: String,
+    pub error: Option<String>,
+}
+
+impl Default for CaptureSnapshot {
+    fn default() -> Self {
+        Self {
+            request_id: 0,
+            phase: "idle".into(),
+            error: None,
+        }
+    }
+}
 
 #[cfg(windows)]
-impl<'a> CaptureReservation<'a> {
-    fn acquire(in_flight: &'a AtomicBool) -> Result<Self, String> {
+pub(crate) struct CaptureReservation(Arc<AtomicBool>);
+
+#[cfg(windows)]
+impl CaptureReservation {
+    fn acquire(in_flight: Arc<AtomicBool>) -> Result<Self, String> {
         in_flight
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| "Screen capture is already in progress.".to_string())?;
@@ -87,7 +162,7 @@ impl<'a> CaptureReservation<'a> {
 }
 
 #[cfg(windows)]
-impl Drop for CaptureReservation<'_> {
+impl Drop for CaptureReservation {
     fn drop(&mut self) {
         self.0.store(false, Ordering::Release);
     }
@@ -115,6 +190,8 @@ pub enum Control {
         text: String,
         cwd: PathBuf,
         run_id: u64,
+        model: Option<String>,
+        thinking_effort: Option<String>,
         capture: Option<CapturedImage>,
     },
     Stop,
@@ -134,9 +211,10 @@ pub struct AgentRuntime {
     next_run_id: AtomicU64,
     subscriptions: StdMutex<Option<(u64, oneshot::Sender<()>)>>,
     next_subscription_id: AtomicU64,
+    next_capture_id: AtomicU64,
     recovery: Option<recovery::RecoveryMarker>,
     #[cfg(windows)]
-    capture_in_flight: AtomicBool,
+    capture_in_flight: Arc<AtomicBool>,
 }
 
 impl AgentRuntime {
@@ -152,9 +230,7 @@ impl AgentRuntime {
         let interrupted = recovery
             .as_ref()
             .is_some_and(recovery::RecoveryMarker::take_interrupted);
-        let cwd = std::env::current_dir()
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_default();
+        let cwd = default_workspace_path().to_string_lossy().into_owned();
         let (updates, _) = watch::channel(Snapshot {
             run_id: 0,
             seq: u64::from(interrupted),
@@ -163,9 +239,13 @@ impl AgentRuntime {
             provider: "codex".into(),
             cwd,
             thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
             messages: Vec::new(),
             activity: None,
             approval: None,
+            capture: CaptureSnapshot::default(),
             error: interrupted.then(|| {
                 "Previous agent request may have been interrupted. No answer was restored. Ask again to start a new session.".into()
             }),
@@ -176,9 +256,10 @@ impl AgentRuntime {
             next_run_id: AtomicU64::new(0),
             subscriptions: StdMutex::new(None),
             next_subscription_id: AtomicU64::new(0),
+            next_capture_id: AtomicU64::new(0),
             recovery,
             #[cfg(windows)]
-            capture_in_flight: AtomicBool::new(false),
+            capture_in_flight: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -292,7 +373,7 @@ impl AgentRuntime {
         let directory = requested_cwd
             .filter(|value| !value.trim().is_empty())
             .unwrap_or(&snapshot.cwd);
-        let Ok(cwd) = std::fs::canonicalize(directory) else {
+        let Ok(cwd) = std::fs::canonicalize(resolve_workspace_path(directory)) else {
             return ProviderReadiness::new(
                 "unavailable",
                 "Working project folder does not exist.",
@@ -315,12 +396,39 @@ impl AgentRuntime {
     }
 
     #[cfg(windows)]
-    pub async fn capture_hotkey<F>(&self, capture: F) -> Result<(), String>
+    pub(crate) fn begin_capture(&self) -> Result<(u64, CaptureReservation), String> {
+        if matches!(
+            self.snapshot().status.as_str(),
+            "starting" | "streaming" | "stopping" | "approvalRequired"
+        ) {
+            return Err("Finish or Stop the current answer before capturing.".into());
+        }
+        let reservation = CaptureReservation::acquire(Arc::clone(&self.capture_in_flight))?;
+        let request_id = self.next_capture_id.fetch_add(1, Ordering::Relaxed) + 1;
+        mutate(&self.updates, |state| {
+            state.capture = CaptureSnapshot {
+                request_id,
+                phase: "preparing".into(),
+                error: None,
+            };
+        });
+        Ok((request_id, reservation))
+    }
+
+    #[cfg(windows)]
+    pub(crate) async fn capture_hotkey<F>(
+        &self,
+        request_id: u64,
+        _reservation: CaptureReservation,
+        capture: F,
+    ) -> Result<(), String>
     where
         F: FnOnce() -> Result<CapturedImage, String> + Send + 'static,
     {
-        let _reservation = CaptureReservation::acquire(&self.capture_in_flight)?;
         let state = self.snapshot();
+        if state.capture.request_id != request_id || state.capture.phase != "preparing" {
+            return Err("Capture request is no longer current.".into());
+        }
         if matches!(
             state.status.as_str(),
             "starting" | "streaming" | "stopping" | "approvalRequired"
@@ -342,24 +450,49 @@ impl AgentRuntime {
                     .into(),
             );
         }
+        mutate(&self.updates, |state| {
+            if state.capture.request_id == request_id {
+                state.capture.phase = "capturing".into();
+            }
+        });
         let image = tokio::task::spawn_blocking(capture)
             .await
             .map_err(|_| "Windows capture failed.".to_string())??;
+        mutate(&self.updates, |state| {
+            if state.capture.request_id == request_id {
+                state.capture.phase = "submitting".into();
+            }
+        });
         self.ask_with_capture(
             "Analyze the captured application window. Describe what is visible and answer any apparent question without modifying files.".into(),
             state.cwd,
             "quickAsk".into(),
             state.provider,
+            state.model,
+            state.thinking_effort,
             Some(image),
         ).await
     }
 
     #[cfg(windows)]
     pub fn capture_error(&self, reason: &str) {
+        self.set_capture_error(None, reason);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn capture_error_for(&self, request_id: u64, reason: &str) {
+        self.set_capture_error(Some(request_id), reason);
+    }
+
+    #[cfg(windows)]
+    fn set_capture_error(&self, request_id: Option<u64>, reason: &str) {
         if reason == "Screen capture is already in progress." {
             return;
         }
         mutate(&self.updates, |s| {
+            if request_id.is_some_and(|id| s.capture.request_id != id) {
+                return;
+            }
             if !matches!(
                 s.status.as_str(),
                 "starting" | "streaming" | "stopping" | "approvalRequired"
@@ -369,6 +502,8 @@ impl AgentRuntime {
                     .is_some_and(|error| error.starts_with("Capture: "))
                 || s.error.is_none())
             {
+                s.capture.phase = "failed".into();
+                s.capture.error = Some(reason.to_owned());
                 s.error = Some(format!("Capture: {reason}"));
             }
         });
@@ -381,6 +516,7 @@ impl AgentRuntime {
                 .as_deref()
                 .is_some_and(|error| error.starts_with("Capture: "))
             {
+                s.capture = CaptureSnapshot::default();
                 s.error = None;
             }
         });
@@ -392,8 +528,11 @@ impl AgentRuntime {
         cwd: String,
         mode: String,
         provider: String,
+        model: Option<String>,
+        thinking_effort: Option<String>,
     ) -> Result<(), String> {
-        self.ask_with_capture(text, cwd, mode, provider, None).await
+        self.ask_with_capture(text, cwd, mode, provider, model, thinking_effort, None)
+            .await
     }
 
     async fn ask_with_capture(
@@ -402,6 +541,8 @@ impl AgentRuntime {
         cwd: String,
         mode: String,
         provider: String,
+        model: Option<String>,
+        thinking_effort: Option<String>,
         capture: Option<CapturedImage>,
     ) -> Result<(), String> {
         let text = text.trim().to_owned();
@@ -411,8 +552,9 @@ impl AgentRuntime {
         let mode = InteractionMode::parse(&mode)?;
         let selected = ProviderId::parse(&provider).ok_or("Selected provider is unavailable.")?;
         selected.validate(mode, capture.is_some())?;
-        let cwd =
-            std::fs::canonicalize(cwd).map_err(|_| "Working folder does not exist.".to_string())?;
+        let capture_origin = capture.is_some();
+        let cwd = std::fs::canonicalize(resolve_workspace_path(&cwd))
+            .map_err(|_| "Working folder does not exist.".to_string())?;
         if !cwd.is_dir() {
             return Err("Working context must be a folder.".into());
         }
@@ -439,6 +581,7 @@ impl AgentRuntime {
         if capture.is_some() && !readiness.image_input {
             return Err("The selected provider model cannot accept an image.".into());
         }
+        validate_runtime_options(&readiness, model.as_deref(), thinking_effort.as_deref())?;
         if let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
             if std::path::Path::new(&current.cwd) != cwd.as_path() {
                 return Err(
@@ -469,12 +612,18 @@ impl AgentRuntime {
                 s.status = "starting".into();
                 s.activity = None;
                 s.approval = None;
+                s.capture.phase = if capture_origin { "analyzing" } else { "idle" }.into();
+                s.capture.error = None;
                 s.error = None;
+                s.model = model.clone();
+                s.thinking_effort = thinking_effort.clone();
             });
             permit.send(Control::Ask {
                 text,
                 cwd,
                 run_id,
+                model,
+                thinking_effort,
                 capture,
             });
             return Ok(());
@@ -490,9 +639,14 @@ impl AgentRuntime {
             s.provider = provider.clone();
             s.activity = None;
             s.approval = None;
+            s.capture.phase = if capture_origin { "analyzing" } else { "idle" }.into();
+            s.capture.error = None;
             s.error = None;
             s.cwd = cwd.to_string_lossy().into_owned();
             s.thread_id = None;
+            s.model = model.clone();
+            s.thinking_effort = thinking_effort.clone();
+            s.usage = None;
             s.messages.clear();
         });
         let (tx, rx) = mpsc::channel(4);
@@ -502,6 +656,8 @@ impl AgentRuntime {
                 text,
                 cwd,
                 run_id,
+                model,
+                thinking_effort,
                 capture,
             };
             selected.run(rx, updates, initial, mode).await;
@@ -565,6 +721,7 @@ impl AgentRuntime {
             s.messages.clear();
             s.activity = None;
             s.approval = None;
+            s.capture = CaptureSnapshot::default();
             s.error = None;
         });
         Ok(())
@@ -628,6 +785,36 @@ impl AgentRuntime {
     }
 }
 
+fn validate_runtime_options(
+    readiness: &ProviderReadiness,
+    model: Option<&str>,
+    thinking_effort: Option<&str>,
+) -> Result<(), String> {
+    if let Some(model) = model {
+        let selected = readiness
+            .models
+            .iter()
+            .find(|option| option.id == model)
+            .ok_or("Selected model is not available from the provider catalog.")?;
+        if let Some(effort) = thinking_effort
+            && !selected
+                .thinking_efforts
+                .iter()
+                .any(|value| value == effort)
+        {
+            return Err("Selected thinking effort is not supported by the model.".into());
+        }
+    } else if let Some(effort) = thinking_effort
+        && !readiness
+            .thinking_efforts
+            .iter()
+            .any(|value| value == effort)
+    {
+        return Err("Selected thinking effort is not supported by the provider.".into());
+    }
+    Ok(())
+}
+
 pub(crate) fn mutate(updates: &watch::Sender<Snapshot>, action: impl FnOnce(&mut Snapshot)) {
     updates.send_modify(|snapshot| {
         action(snapshot);
@@ -646,6 +833,51 @@ mod tests {
         runtime.capture_error("Screen capture is already in progress.");
         assert_eq!(runtime.snapshot().status, "idle");
         assert!(runtime.snapshot().error.is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn capture_begin_exposes_preparing_and_rejects_overlap() {
+        let runtime = AgentRuntime::new();
+        let (request_id, reservation) = runtime.begin_capture().expect("capture starts");
+        let snapshot = runtime.snapshot();
+        assert_eq!(snapshot.capture.request_id, request_id);
+        assert_eq!(snapshot.capture.phase, "preparing");
+        assert!(runtime.begin_capture().is_err());
+        drop(reservation);
+        assert!(runtime.begin_capture().is_ok());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn capture_failure_is_visible_and_clearable() {
+        let runtime = AgentRuntime::new();
+        let (_, reservation) = runtime.begin_capture().expect("capture starts");
+        drop(reservation);
+        runtime.capture_error("Target unavailable.");
+        let snapshot = runtime.snapshot();
+        assert_eq!(snapshot.capture.phase, "failed");
+        assert_eq!(
+            snapshot.capture.error.as_deref(),
+            Some("Target unavailable.")
+        );
+        runtime.clear_capture_error();
+        assert_eq!(runtime.snapshot().capture.phase, "idle");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn stale_capture_failure_does_not_replace_new_request() {
+        let runtime = AgentRuntime::new();
+        let (old_request_id, old_reservation) = runtime.begin_capture().expect("capture starts");
+        drop(old_reservation);
+        let (new_request_id, new_reservation) = runtime.begin_capture().expect("capture retries");
+        runtime.capture_error_for(old_request_id, "Old capture failed.");
+        let snapshot = runtime.snapshot();
+        assert_eq!(snapshot.capture.request_id, new_request_id);
+        assert_eq!(snapshot.capture.phase, "preparing");
+        assert_ne!(snapshot.capture.request_id, old_request_id);
+        drop(new_reservation);
     }
 
     #[cfg(windows)]
@@ -712,11 +944,12 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn capture_reservation_rejects_overlap_and_releases_on_drop() {
-        let in_flight = AtomicBool::new(false);
-        let first = CaptureReservation::acquire(&in_flight).expect("first trigger accepted");
-        assert!(CaptureReservation::acquire(&in_flight).is_err());
+        let in_flight = Arc::new(AtomicBool::new(false));
+        let first =
+            CaptureReservation::acquire(Arc::clone(&in_flight)).expect("first trigger accepted");
+        assert!(CaptureReservation::acquire(Arc::clone(&in_flight)).is_err());
         drop(first);
-        let again = CaptureReservation::acquire(&in_flight).expect("retry accepted");
+        let again = CaptureReservation::acquire(Arc::clone(&in_flight)).expect("retry accepted");
         drop(again);
         assert!(!in_flight.load(Ordering::Acquire));
     }
@@ -731,9 +964,13 @@ mod tests {
             provider: "codex".into(),
             cwd: String::new(),
             thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
             messages: vec![],
             activity: None,
             approval: None,
+            capture: CaptureSnapshot::default(),
             error: None,
         });
         events::ProviderEvents::new(tx.clone()).fail(1, "late failure");
@@ -750,10 +987,15 @@ mod tests {
             .await
             .expect("Agy selection");
         assert_eq!(runtime.snapshot().provider, "agy");
+        let (request_id, reservation) = runtime.begin_capture().expect("capture starts");
         let capture = runtime
-            .capture_hotkey(|| -> Result<CapturedImage, String> {
-                panic!("The capture closure must never execute for unsupported Agy images");
-            })
+            .capture_hotkey(
+                request_id,
+                reservation,
+                || -> Result<CapturedImage, String> {
+                    panic!("The capture closure must never execute for unsupported Agy images");
+                },
+            )
             .await;
         assert_eq!(
             capture.unwrap_err(),
@@ -1002,8 +1244,18 @@ mod tests {
                 cwd,
                 "agentSession".into(),
                 "codex".into(),
+                None,
+                None,
             )
             .await;
         assert!(escalated.is_err());
+    }
+
+    #[test]
+    fn default_workspace_uses_home_root_and_expands_tilde_children() {
+        let home = default_workspace_path();
+        assert_eq!(resolve_workspace_path("~"), home);
+        assert_eq!(resolve_workspace_path(""), home);
+        assert_eq!(resolve_workspace_path("~/otto"), home.join("otto"));
     }
 }

@@ -1,5 +1,5 @@
 export type Page = "home" | "agent" | "global-settings" | "agent-settings";
-export type SettingsTab = "general" | "interaction" | "motion" | "placement";
+export type SettingsTab = "general" | "interaction" | "placement";
 export type Expression = "calm" | "curious" | "sleepy" | "happy";
 export type Motion = "fluid" | "gentle" | "reduced";
 export type Placement = "floating" | "attached";
@@ -13,7 +13,6 @@ export type Preferences = {
   leaveDelay: number;
   clickOutside: boolean;
   motion: Motion;
-  parallax: boolean;
   tilt: number;
   gradient: number;
   topOffset: number;
@@ -28,7 +27,6 @@ export const defaults: Preferences = {
   leaveDelay: 340,
   clickOutside: true,
   motion: "fluid",
-  parallax: true,
   tilt: 43,
   gradient: 80,
   topOffset: 20,

@@ -19,7 +19,6 @@
 *{box-sizing:border-box}
 body{margin:0;background:#0d0e11;color:var(--text);font-size:12px;-webkit-font-smoothing:antialiased}
 button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
-button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #98accb;outline-offset:3px}
 button{touch-action:manipulation}
 #root{min-height:100vh}
 
@@ -81,7 +80,7 @@ button{touch-action:manipulation}
 .module:hover{border-color:#676974}
 .module-art{position:absolute;right:-4px;top:-25px;opacity:.38;transform:rotate(-43deg);transition:transform 350ms var(--ease),opacity 250ms ease;pointer-events:none}
 .module-art svg{width:91px;height:91px;stroke-width:1.15}
-.module:hover .module-art{transform:rotate(-39deg) translate(-3px,2px);opacity:.47}
+.module:hover .module-art{opacity:.47}
 .module strong{position:relative;font-size:12px;font-weight:600}
 .module small{position:relative;font-size:10px;color:#bdc0c8;margin-top:1px}
 .agent-feed{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#505158 transparent;padding:8px 2px 2px}
@@ -154,8 +153,10 @@ button{touch-action:manipulation}
 .notch.attached:before{background:radial-gradient(circle at 0 100%,transparent 13.5px,#151515 14px)}
 .notch.attached:after{background:radial-gradient(circle at 100% 100%,transparent 13.5px,#151515 14px)}
 .hf{padding:12px 17px 17px}
-.hf-head{height:26px;display:flex;gap:9px;align-items:center;flex:none}
+.hf-head{height:34px;display:flex;gap:9px;align-items:center;flex:none}
 .hf-head strong{font-size:13px;font-weight:520;letter-spacing:-.01em}
+.hf-logo{height:34px;width:34px;display:grid;place-items:center;border:0;background:#29292c;color:#f0f0f0;border-radius:11px;flex:none}
+.hf-logo:hover{background:#37373a}
 .hf-eyes{width:28px;height:23px;display:flex;align-items:center;justify-content:center;gap:8px}
 .hf-eyes i{height:13px;width:6px;border-radius:6px;background:#fafafa}
 .hf-head .icon-button{width:28px;height:28px;border-radius:9px}
@@ -172,7 +173,7 @@ button{touch-action:manipulation}
 .hf-copy small{font-size:10px;color:#aaaeb4;margin:0}
 .module-art{position:absolute;right:-7px;top:-23px;height:132px;width:148px;z-index:0;opacity:.9;transform:perspective(380px) rotateY(-43deg) rotateZ(-6deg);transform-origin:60% 50%;transition:transform 370ms var(--ease),opacity 240ms ease}
 .module-art svg{width:100%;height:100%;stroke-width:initial}
-.module:hover .module-art{transform:perspective(380px) rotateY(-39deg) rotateZ(-5deg) translate3d(-3px,2px,0);opacity:1}
+.module:hover .module-art{opacity:1}
 .af{height:100%;width:100%;display:flex;flex-direction:column;min-height:0}
 .af-head{height:53px;padding:9px 15px 5px;display:flex;align-items:center;gap:9px;flex:none}
 .af-eyebutton{width:34px;height:34px;background:#29292c;border:0;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:6px;flex:none}
@@ -187,7 +188,6 @@ button{touch-action:manipulation}
 .af-state i.warn{background:#deb17b}.af-state i.bad{background:#d89197}
 .af-feed{flex:1;min-height:0;overflow:auto;padding:7px 18px 9px;scrollbar-width:none}
 .af-feedstack{display:flex;flex-direction:column;gap:11px}
-.af-empty{display:flex;align-items:center;height:30px;font-size:11px;color:#83838a}
 .af-question{align-self:flex-end;max-width:87%;border-radius:12px 12px 4px 12px;background:#29292c;color:#efeff0;padding:9px 11px;font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .af-response{font-size:12px;color:#ececee;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
 .af-composewrap{flex:none;padding:7px 12px 12px}
@@ -275,16 +275,8 @@ button{touch-action:manipulation}
 .af-code-head button{display:flex;gap:5px;align-items:center;color:#dedfe2;border:0;background:transparent;font-size:10px;border-radius:5px;padding:3px 6px}
 .af-code-head button:hover{background:#3e3f46}
 .af-code pre{font:10px/1.55 "Cascadia Code",Consolas,monospace;padding:10px;margin:0;white-space:pre;overflow-x:auto}
-.af-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
-.af-presets button{border:1px solid #3e4047;border-radius:999px;background:#282a2f;color:#cfd0d5;padding:6px 10px;font-size:10px}
-.af-presets button:hover{background:#3a3b40;color:#fff}
 .af-feedback{font-size:10px;color:#b6bdc7;padding:0 12px 4px}
 .as-mode:disabled,.as-provider:disabled{opacity:.5;cursor:not-allowed}
-.as-available{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0 8px}
-.as-available span{font-size:9px;padding:5px 7px;background:#2c2d31;color:#cfd0d3;border-radius:999px}
-.as-available .unavailable{color:#a0a0a5;background:#242428}
-.as-newsession{display:flex;gap:8px;align-items:center;margin:8px 0 12px;border:1px solid #45454b;border-radius:9px;background:#2a2a2e;color:#eee;padding:9px 10px;font-size:10px}
-.as-newsession:hover{background:#35363b}
 @media(prefers-reduced-motion:reduce){.af-menu,.af-search,.af-rich{scroll-behavior:auto}}
 
 
@@ -298,6 +290,8 @@ button{touch-action:manipulation}
 
 .as-runtime-row{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#a3a4ab;font-size:10px;margin:10px 0}
 .as-runtime-row strong{color:#eeeef0;font-weight:550;text-align:right;overflow-wrap:anywhere}
+.as-grid,.as-runtime-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:10px}
+@media(max-width:360px){.as-grid,.as-runtime-grid{grid-template-columns:1fr}}
 .as-runtime-note{font-size:9px;line-height:1.55;color:#a2a3aa;margin:10px 0}
 .as-runtime-track{height:4px;background:#404148;border-radius:6px;margin:10px 0;overflow:hidden}
 .as-runtime-track span{display:block;height:100%;background:#b2b4bd;border-radius:6px}
@@ -320,24 +314,21 @@ button{touch-action:manipulation}
 .gs-views{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#444 transparent;scrollbar-gutter:stable;min-width:0;min-height:0}
 .gs-view{padding:16px 18px 20px;color:#fafafa}
 .gs-view h2{font-weight:550;font-size:14px;margin:0 0 3px}
-.gs-help{font-size:10px;color:#929396;line-height:1.45;margin:0 0 18px}
 .gs-unit{padding:0 0 15px;margin:0 0 13px;border-bottom:1px solid #2b2b2c}
 .gs-label{display:block;font-size:11px;color:#e3e3e3;margin-bottom:10px}
 .gs-pills{display:flex;flex-wrap:wrap;gap:5px}
 .gs-pills button{color:#b3b3b3;border:1px solid #39393b;background:#262627;font-size:10px;padding:7px 10px;border-radius:8px;min-height:28px;cursor:pointer}
 .gs-pills button.selected{color:#fff;background:#3c3e40;border-color:#66686e}
 .gs-pills button:hover{background:#343537}
-.gs-note{font-size:9px;line-height:1.5;color:#858585;margin:8px 0 0}
 .gs-reset{font-size:10px;color:#c4c4c4;background:none;border:0;padding:4px 0;text-decoration:underline;text-decoration-color:#626262;text-underline-offset:3px;cursor:pointer}
+.gs-update{margin-top:18px;padding-top:12px;border-top:1px solid #2b2b2c;display:flex;flex-direction:column;gap:4px}.gs-update strong{font-size:11px;font-weight:500;color:#e3e3e3}.gs-update span{font-size:10px;line-height:1.45;color:#999aa1}
 .gs-switchrow{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:53px;border-bottom:1px solid #2b2b2c;padding:9px 0;cursor:pointer}
 .gs-switchrow strong{display:block;font-size:11px;font-weight:500}
-.gs-switchrow small{font-size:9px;color:#909090;display:block;margin-top:4px}
 .gs-switchrow input{position:absolute;width:1px;height:1px;opacity:0}
 .gs-switchrow i{position:relative;display:block;width:30px;height:18px;border-radius:999px;background:#49494d;border:1px solid #555;flex-shrink:0;transition:background .2s}
 .gs-switchrow i:after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#c4c4c7;transition:transform .2s}
 .gs-switchrow input:checked+i{background:#c4cbd6;border-color:#c4cbd6}
 .gs-switchrow input:checked+i:after{transform:translateX(12px);background:#222}
-.gs-switchrow input:focus-visible+i{outline:2px solid #a2c5fc;outline-offset:3px}
 .gs-range{padding-top:14px}
 .gs-rangehead{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;margin-bottom:10px}
 .gs-rangehead output{font-size:10px;color:#bfc1c8;font-variant-numeric:tabular-nums}
@@ -352,8 +343,7 @@ button{touch-action:manipulation}
 .gs-place-attached{position:absolute;width:41px;height:13px;background:#d7d9de;border-radius:0 0 12px 12px;left:17px;top:0}
 
 /* Connected behavior of Global preferences, matching Home study */
-.module .module-art{opacity:var(--art-opacity,.9);transform:perspective(380px) rotateY(calc(-1 * var(--art-tilt,43deg))) rotateZ(-6deg) translate(var(--art-x,0px),var(--art-y,0px))}
-.module:hover .module-art{transform:perspective(380px) rotateY(calc(-1 * var(--art-tilt,43deg) + 4deg)) rotateZ(-5deg) translate(calc(var(--art-x,0px) - 3px),calc(var(--art-y,0px) + 2px))}
+.module .module-art{opacity:var(--art-opacity,.9);transform:perspective(380px) rotateY(calc(-1 * var(--art-tilt,43deg))) rotateZ(-6deg)}
 .hf-eyes.expression-sleepy i,.eye-pair.expression-sleepy .eye{height:4px;border-radius:5px}
 .hf-eyes.expression-curious i:first-child,.eye-pair.expression-curious .eye:first-child{height:16px}
 .hf-eyes.expression-curious i:last-child,.eye-pair.expression-curious .eye:last-child{height:9px}
@@ -368,20 +358,18 @@ button{touch-action:manipulation}
 .as-header strong{font-size:13px;font-weight:550}
 .as-header .icon-button{height:28px;width:28px;background:#242426;border:1px solid #36373b;border-radius:9px}
 .as-meta{margin-left:auto;font-size:10px;color:#888}
-.as-body{min-height:0;flex:1;display:grid;grid-template-columns:118px minmax(0,1fr)}
-.as-nav{padding:13px 8px;display:flex;flex-direction:column;gap:4px;border-right:1px solid #292b2f;background:#181818}
-.as-navitem{height:35px;background:none;color:#929292;border:0;border-radius:9px;padding:0 9px;text-align:left;font-size:11px;cursor:pointer}
+.as-body{min-height:0;flex:1;display:flex;flex-direction:column}
+.as-nav{padding:8px 12px;display:flex;gap:4px;border-bottom:1px solid #292b2f;background:#181818}
+.as-navitem{height:35px;flex:1;background:none;color:#929292;border:0;border-radius:9px;padding:0 9px;text-align:center;font-size:11px;cursor:pointer}
 .as-navitem.active{background:#2e3033;color:#fff}
 .as-navitem:hover{background:#272729;color:#eee}
 .as-scroll{min-width:0;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#444 transparent}
 .as-view{padding:15px 17px 20px}
-.as-intro h2{font-size:14px;font-weight:550;margin:0 0 4px}
-.as-intro p{font-size:10px;color:#929396;line-height:1.5;margin:0 0 15px}
 .as-field{border-bottom:1px solid #2b2b2c;padding-bottom:13px;margin-bottom:13px}
 .as-fieldlabel{font-size:11px;color:#e3e3e3;margin-bottom:9px}
-.as-help,.as-privacy{font-size:9px;line-height:1.55;color:#898989;margin:8px 0 0}
-.as-providerlist,.as-modes{display:flex;flex-direction:column;gap:6px}
-.as-provider{border:1px solid #3b3b3f;background:#252527;color:#f3f3f3;border-radius:10px;min-height:43px;padding:8px 10px;display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer}
+.as-providerlist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.as-modes{display:flex;flex-direction:column;gap:6px}
+.as-provider{min-width:0;border:1px solid #3b3b3f;background:#252527;color:#f3f3f3;border-radius:10px;min-height:43px;padding:8px 10px;display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer}
 .as-provider.active,.as-mode.active{background:#303034;border-color:#82848b}
 .as-provider strong,.as-mode strong{font-size:11px;display:block;font-weight:550}
 .as-provider small,.as-mode small{font-size:9px;display:block;color:#9d9da1;margin-top:4px}
@@ -396,6 +384,8 @@ button{touch-action:manipulation}
 .as-input{display:flex;gap:8px;align-items:center;border:1px solid #414146;background:#252528;border-radius:9px;padding:0 10px}
 .as-input input{flex:1;min-width:0;width:100%;background:transparent;border:0;padding:10px 0;color:#eee;font-size:11px;outline:0}
 .as-input:focus-within{border-color:#878994}
+.as-select{width:100%;border:1px solid #414146;background:#252528;border-radius:9px;padding:9px 10px;color:#eee;font-size:11px;outline:0}
+.as-select:focus{border-color:#878994}
 .as-textbutton{color:#c9cbd0;font-size:10px;border:0;background:transparent;text-decoration:underline;padding:6px 0;cursor:pointer}
 .af-warning .as-textbutton{display:block;text-align:left}
 
@@ -450,7 +440,6 @@ button{touch-action:manipulation}
 .ref-music .seek-fill{height:100%;border-radius:10px;background:#f2f2f2;position:absolute;inset:0 auto 0 0;width:0;transition:width .16s linear}
 .ref-music .seek-thumb{position:absolute;top:50%;left:0;width:9px;height:9px;background:#f2f2f2;border-radius:50%;transform:translate(-50%,-50%);opacity:0;transition:opacity .13s}
 .ref-music .seek:hover .seek-thumb,.ref-music .seek:focus-visible .seek-thumb,.ref-music .seek.dragging .seek-thumb{opacity:1}
-.ref-music .seek:focus-visible{outline:2px solid #91b7ff;border-radius:4px}
 .ref-music .seek-tip{position:absolute;left:50%;bottom:19px;transform:translate(-50%,3px);font:10px Consolas,monospace;white-space:nowrap;background:#454545;color:white;border-radius:5px;padding:4px 6px;pointer-events:none;opacity:0;transition:opacity .14s,transform .14s;z-index:3}
 .ref-music .seek:hover .seek-tip,.ref-music .seek.dragging .seek-tip{opacity:1;transform:translate(-50%,0)}
 .ref-music .lyric-body{min-height:0;flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,3fr);gap:12px;padding:8px 16px 2px}
@@ -467,7 +456,6 @@ button{touch-action:manipulation}
 .ref-music .lyric-line.current{font-size:17px;color:#d4d4d4;position:relative;letter-spacing:-.015em}
 .ref-music .lyric-line.current .unfilled{color:#ababab}
 .ref-music .lyric-line.current .filled{position:absolute;inset:5px auto 5px 2px;white-space:nowrap;max-width:calc(100% - 4px);overflow:hidden;color:#fafafa;width:0;pointer-events:none}
-.ref-music .lyric-line:focus-visible{outline-offset:-2px}
 .ref-music .resume-follow{position:absolute;right:5px;bottom:4px;border:1px solid #494949;background:#343434;color:#f0f0f0;border-radius:999px;padding:5px 9px;font-size:10px;display:flex;align-items:center;gap:5px;box-shadow:0 3px 8px #0007;transition:opacity .15s,transform .15s;z-index:2}
 .ref-music .resume-follow[hidden]{display:none}
 .ref-music .resume-follow:hover{background:#444}
@@ -646,8 +634,8 @@ function Compact({page,agent,music,timer,open,onToggle,prefs}){
 const HOME_ART={"agent":"<svg class=\"art-svg agent-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"ag-window\" x1=\"26\" y1=\"8\" x2=\"111\" y2=\"93\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#44474C\" stop-opacity=\".70\"/><stop offset=\"1\" stop-color=\"#2B2C30\" stop-opacity=\".17\"/></linearGradient><linearGradient id=\"ag-stroke\" x1=\"34\" y1=\"19\" x2=\"109\" y2=\"82\"><stop stop-color=\"#D3D5DA\" stop-opacity=\".56\"/><stop offset=\"1\" stop-color=\"#7D8087\" stop-opacity=\".15\"/></linearGradient></defs>\n<g class=\"agent-stack\"><rect x=\"43\" y=\"2\" width=\"84\" height=\"65\" rx=\"13\" stroke=\"#777A81\" stroke-opacity=\".16\" transform=\"rotate(11 43 2)\"/><rect x=\"27\" y=\"12\" width=\"92\" height=\"68\" rx=\"13\" fill=\"url(#ag-window)\" stroke=\"#8D9198\" stroke-opacity=\".21\"/></g>\n<g class=\"agent-window\"><rect x=\"17\" y=\"24\" width=\"94\" height=\"68\" rx=\"13\" fill=\"#26282C\" fill-opacity=\".8\" stroke=\"url(#ag-stroke)\" stroke-width=\"1.1\"/><path d=\"M18 44H110\" stroke=\"#CACCD0\" stroke-opacity=\".15\"/><circle cx=\"30\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".48\"/><circle cx=\"38\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".22\"/><circle cx=\"46\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".16\"/>\n<path class=\"agent-prompt\" d=\"m32 58 8 7-8 7\" stroke=\"#E0E2E6\" stroke-opacity=\".89\" stroke-width=\"3.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path class=\"agent-caret\" d=\"M47 72H63\" stroke=\"#E0E2E6\" stroke-opacity=\".89\" stroke-width=\"3.2\" stroke-linecap=\"round\"/>\n<path d=\"M73 58h18M73 65h13M73 72h18\" stroke=\"#A2A5AD\" stroke-opacity=\".27\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></g></svg>","music":"<svg class=\"art-svg music-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"mu-ink\" x1=\"60\" y1=\"10\" x2=\"103\" y2=\"91\"><stop stop-color=\"#DBDDE1\" stop-opacity=\".9\"/><stop offset=\"1\" stop-color=\"#A3A7B0\" stop-opacity=\".52\"/></linearGradient><linearGradient id=\"mu-wave\" x1=\"0\" y1=\"0\" x2=\"128\" y2=\"0\"><stop stop-color=\"#666970\" stop-opacity=\"0\"/><stop offset=\".55\" stop-color=\"#D2D6DB\" stop-opacity=\".42\"/><stop offset=\"1\" stop-color=\"#9299A3\" stop-opacity=\".05\"/></linearGradient></defs>\n<g class=\"wave-group\"><path class=\"music-wave one\" d=\"M-6 75C19 55 34 86 60 66s41-40 75-25\" stroke=\"url(#mu-wave)\" stroke-width=\"1.5\"/><path class=\"music-wave two\" d=\"M-5 83C22 63 38 94 65 73s42-35 71-19\" stroke=\"url(#mu-wave)\" stroke-opacity=\".6\" stroke-width=\"1.1\"/><path class=\"music-wave three\" d=\"M-4 67C18 49 36 76 62 56s43-37 71-28\" stroke=\"url(#mu-wave)\" stroke-opacity=\".4\" stroke-width=\"1\"/></g>\n<g class=\"music-note\" stroke=\"url(#mu-ink)\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M73 72V22L109 14V62\"/><path d=\"M73 23L109 15\"/><ellipse cx=\"61\" cy=\"77\" rx=\"13\" ry=\"8\" transform=\"rotate(-24 61 77)\" fill=\"#92969F\" fill-opacity=\".32\"/><ellipse cx=\"97\" cy=\"67\" rx=\"13\" ry=\"8\" transform=\"rotate(-24 97 67)\" fill=\"#92969F\" fill-opacity=\".32\"/></g></svg>","focus":"<svg class=\"art-svg focus-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"fo-ring\" x1=\"30\" y1=\"0\" x2=\"113\" y2=\"96\"><stop stop-color=\"#D7DADF\" stop-opacity=\".65\"/><stop offset=\".56\" stop-color=\"#93979F\" stop-opacity=\".25\"/><stop offset=\"1\" stop-color=\"#777B84\" stop-opacity=\".10\"/></linearGradient><radialGradient id=\"fo-face\" cx=\"0\" cy=\"0\" r=\"1\" gradientTransform=\"translate(76 43) rotate(90) scale(53)\"><stop stop-color=\"#3C3E43\" stop-opacity=\".55\"/><stop offset=\"1\" stop-color=\"#242629\" stop-opacity=\"0\"/></radialGradient></defs>\n<circle cx=\"78\" cy=\"49\" r=\"47\" stroke=\"#9EA1A7\" stroke-opacity=\".08\" stroke-width=\"1\"/><circle cx=\"78\" cy=\"49\" r=\"37\" fill=\"url(#fo-face)\" stroke=\"url(#fo-ring)\" stroke-width=\"1.5\"/><circle class=\"focus-progress\" cx=\"78\" cy=\"49\" r=\"37\" stroke=\"#B6BAC2\" stroke-opacity=\".62\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"42 191\" transform=\"rotate(-90 78 49)\"/>\n<g stroke=\"#B8BBC2\" stroke-opacity=\".40\" stroke-linecap=\"round\" stroke-width=\"1.5\"><path d=\"M78 18v4M78 76v4M47 49h4M105 49h4\"/></g>\n<g class=\"clock-hand\" stroke=\"#D9DCE1\" stroke-linecap=\"round\" stroke-width=\"3.5\"><path d=\"M78 49V27\"/><path d=\"M78 49 94 60\" stroke-opacity=\".74\"/></g><circle cx=\"78\" cy=\"49\" r=\"4\" fill=\"#C7CBD2\"/><circle cx=\"78\" cy=\"49\" r=\"1.5\" fill=\"#34363B\"/></svg>"};
 function Home({onHomeSettings,onNavigate,agent,prefs,reduce}){
  const cards=[["agent","Agent",agent.unread?"Answer ready":"Ask your CLI"],["music","Music","Playback"],["focus","Focus","Pomodoro"]];
- const head=el("div",{className:"hf-head"},el("span",{className:"hf-eyes expression-"+prefs.expression.toLowerCase()+(prefs.reactive==="Alive"&&!reduce?" expressive":"")},el("i"),el("i")),el("strong",null,"Otto"),el("span",{style:{flex:1}}),h(IconButton,{name:"Settings2",label:"Global settings",onClick:onHomeSettings}));
- const items=cards.map(([page,title,sub])=>el("button",{key:page,type:"button",className:"module "+page+"-card",style:{"--art-tilt":prefs.tilt+"deg","--art-opacity":prefs.gradient/100},onMouseMove:e=>{if(!prefs.parallax||reduce)return;const rect=e.currentTarget.getBoundingClientRect();e.currentTarget.style.setProperty("--art-x",(((e.clientX-rect.left)/rect.width)-.5)*5+"px");e.currentTarget.style.setProperty("--art-y",(((e.clientY-rect.top)/rect.height)-.5)*3+"px")},onMouseLeave:e=>{e.currentTarget.style.setProperty("--art-x","0px");e.currentTarget.style.setProperty("--art-y","0px")},onClick:()=>onNavigate(page)},
+ const head=el("div",{className:"hf-head"},el("span",{className:"hf-logo"},el("span",{className:"hf-eyes expression-"+prefs.expression.toLowerCase()+(prefs.reactive==="Alive"&&!reduce?" expressive":"")},el("i"),el("i"))),el("span",{style:{flex:1}}),h(IconButton,{name:"Settings2",label:"Global settings",onClick:onHomeSettings}));
+ const items=cards.map(([page,title,sub])=>el("button",{key:page,type:"button",className:"module "+page+"-card",style:{"--art-tilt":prefs.tilt+"deg","--art-opacity":prefs.gradient/100},onClick:()=>onNavigate(page)},
     el("span",{className:"hf-copy"},el("strong",null,title),el("small",null,sub)),
     el("span",{className:"module-art",dangerouslySetInnerHTML:{__html:HOME_ART[page]}})));
  return el("div",{className:"panel hf"},head,el("div",{className:"home-panels"},items));
@@ -667,11 +655,6 @@ const AGENT_RUNTIME_EXAMPLE={
 };
 const formatAgentTokens=value=>Number.isFinite(value)?new Intl.NumberFormat("en-US",{maximumFractionDigits:1,notation:"compact"}).format(value):"—";
 const agentContextRemaining=info=>info&&Number.isFinite(info.contextUsed)&&Number.isFinite(info.contextWindow)&&info.contextWindow>0?Math.max(0,info.contextWindow-info.contextUsed):null;
-const AGENT_PRESETS=[
- {label:"Explain",prompt:"Explain this concept with one concrete example: "},
- {label:"Debug",prompt:"Help me debug this. Expected behavior: "},
- {label:"Summarize",prompt:"Summarize the key points of: "}
-];
 const markdownTranscript=(agent)=>{
  const lines=["# Otto conversation","","Provider: "+agent.provider,"Project: "+agent.cwd,"Mode: "+agent.mode,"","Prototype transcript — no native CLI execution.",""];
  agent.messages.forEach(message=>lines.push("## "+(message.role==="user"?"User":"Assistant"),"",message.text,""));
@@ -720,7 +703,7 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
  const feedRef=useRef(null),composerRef=useRef(null),textareaRef=useRef(null),menuButton=useRef(null),menuRef=useRef(null),searchInput=useRef(null);
  const [toolsOpen,setToolsOpen]=useState(false),[searchOpen,setSearchOpen]=useState(false);
  const [query,setQuery]=useState(""),[matchIndex,setMatchIndex]=useState(0),[feedback,setFeedback]=useState("");
- const phase=agent.phase||"ready",ready=agent.readiness==="ready",unread=agent.unread&&!agent.busy;
+ const phase=agent.phase||"ready",capturePhase=agent.capturePhase||"idle",ready=agent.readiness==="ready",unread=agent.unread&&!agent.busy;
  const capability=AGENT_CAPABILITIES[agent.provider]||AGENT_CAPABILITIES.Codex;
  const measuredHeight=()=>{
   const feed=feedRef.current,composer=composerRef.current;
@@ -771,7 +754,8 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
  const onKeyDown=e=>{
   if(e.key==="Escape"&&(toolsOpen||searchOpen)){e.stopPropagation();e.preventDefault();if(toolsOpen)setToolsOpen(false);else{setSearchOpen(false);setQuery("")}menuButton.current?.focus()}
  };
- const status=agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="approval"?"Approval needed":phase==="interrupted"?"Interrupted":phase==="error"?"Disconnected":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Preview ready";
+ const captureLabel=capturePhase==="failed"?"Capture failed":capturePhase==="preparing"?"Preparing capture":capturePhase==="capturing"?"Capturing screen":capturePhase==="submitting"?"Sending image":capturePhase==="analyzing"?"Analyzing screenshot":"";
+ const status=captureLabel|| (agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="approval"?"Approval needed":phase==="interrupted"?"Interrupted":phase==="error"?"Disconnected":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Preview ready");
  const head=el("div",{className:"af-head"},
   el("button",{type:"button",className:"af-eyebutton",onClick:onHome,"aria-label":"Return to Home"},el("i"),el("i")),
   el("div",{className:"af-identity"},el("strong",null,agent.provider,el("em",null," / "+agent.cwd.split("/").pop())),el("small",null,agent.mode+" · Prototype, no CLI connected")),
@@ -811,13 +795,13 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
   el("strong",null,phase==="interrupted"?"Previous run interrupted":"Cannot reach "+agent.provider),
   el("p",null,phase==="interrupted"?"The previous run outcome is unknown. No reply was restored. Start a new request.":"Provider request failed. Keep your draft; retry after recovery."),
   el("button",{type:"button",onClick:onRetry},phase==="interrupted"?"Start fresh":"Retry")):null;
+ const captureError=capturePhase==="failed"?el("div",{className:"af-error"},
+  el("strong",null,"Capture failed"),el("p",null,agent.captureError||"No image was captured or transmitted in this HTML preview."),
+  el("button",{type:"button",onClick:onCapture},"Retry capture"),el("button",{type:"button",onClick:onCaptureSettings},"Screen Capture settings")):null;
  const feed=el("div",{className:"af-feed",ref:feedRef,"aria-live":"polite",onClick:()=>{if(toolsOpen)setToolsOpen(false)}},el("div",{className:"af-feedstack"},
-  agent.messages.length===0&&ready&&phase==="ready"?el("div",null,
-   el("div",{className:"af-empty"},"Ask "+agent.provider+" about your current task"),
-   el("div",{className:"af-presets"},...AGENT_PRESETS.map(p=>el("button",{type:"button",key:p.label,onClick:()=>onDraft(draft?draft.trimEnd()+"\n\n"+p.prompt:p.prompt)},p.label)))):null,
   ...messages,
   agent.busy?el("div",{className:"af-working"},el("span",{className:"activity playing"},el("i"),el("i"),el("i")),phase==="thinking"?"Reading context":"Streaming output · simulated"):null,
-  approval,hint,error,
+  approval,hint,error,captureError,
   unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
   agent.warning?el("div",{className:"af-warning"},agent.warning,el("button",{type:"button",className:"as-textbutton",onClick:/capture|screenshot|hotkey|window|image/i.test(agent.warning)?onCaptureSettings:onSettings},/capture|screenshot|hotkey|window|image/i.test(agent.warning)?"Screen Capture settings":"Provider settings")):null));
  const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(ready&&draft.trim()&&phase!=="approval"){onSend(draft.trim());onDraft("")}};
@@ -827,7 +811,7 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
   el("form",{className:"af-composer",onSubmit:send},
    el("textarea",{ref:textareaRef,rows:1,value:draft,placeholder:ready?"Ask "+agent.provider+"…":"Configure "+agent.provider+" to send","aria-label":"Agent prompt",onKeyDown:e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(ready&&!agent.busy&&draft.trim()&&phase!=="approval")send(e)}},onChange:e=>{onDraft(e.target.value);if(feedback)setFeedback("")}}),
    el("div",{className:"af-compose-actions"},
-    el("div",{className:"af-compose-tools"},h(IconButton,{name:"Camera",label:capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy})),
+    el("div",{className:"af-compose-tools"},h(IconButton,{name:"Camera",label:capturePhase==="failed"?"Retry screen capture":capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy||["preparing","capturing","submitting","analyzing"].includes(capturePhase)})),
     el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:!agent.busy&&(!draft.trim()||!ready||phase==="approval"),"aria-label":agent.busy?"Stop request":"Send"},h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16})))));
  return el("div",{className:"af",onKeyDown},head,menu,search,feed,composer);
 }
@@ -835,74 +819,57 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
 
 
 function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack,onNewSession}){
- const names=["Provider","Mode","Model & usage","Workspace","Screen Capture"];
+ const names=["Setup","Capture"];
  const [showSample,setShowSample]=useState(false);
  const runtimeInfo=agent.runtimeInfo||(showSample?AGENT_RUNTIME_EXAMPLE[agent.provider]:null);
  const remaining=agentContextRemaining(runtimeInfo);
  const caps=AGENT_CAPABILITIES[agent.provider]||AGENT_CAPABILITIES.Codex;
  const locked=agent.busy||agent.messages.length>0;
  const statusText={ready:"Preview ready",auth:"Sign-in required",missing:"Not installed",unsupported:"Not verified"};
- const intro=(heading,help)=>el("div",{className:"as-intro"},el("h2",null,heading),el("p",null,help));
- const field=(label,control,note)=>el("div",{className:"as-field"},el("div",{className:"as-fieldlabel"},label),control,note?el("p",{className:"as-help"},note):null);
+ const field=(label,control)=>el("div",{className:"as-field"},el("div",{className:"as-fieldlabel"},label),control);
  const status=(heading,note)=>el("div",{className:"as-status",role:"status"},h(Icon,{name:"AlertCircle",size:15}),el("div",null,el("strong",null,heading),el("small",null,note)));
  const modeButton=(name,desc,active,callback,disabled=false)=>el("button",{type:"button",className:"as-mode"+(active?" active":""),onClick:callback,disabled},el("i",{className:"as-radio"}),el("span",null,el("strong",null,name),el("small",null,desc)));
- const reset=locked?el("button",{type:"button",className:"as-newsession",disabled:agent.busy,onClick:onNewSession},h(Icon,{name:"Plus",size:14}),"New session · change provider, mode or project"):null;
- const capabilityPills=el("div",{className:"as-available"},
-  el("span",null,"Text + follow-up"),el("span",{className:caps.image?"":"unavailable"},caps.image?"Image transport":"No image input"),
-  el("span",{className:caps.session?"":"unavailable"},caps.session?"Agent tools + approval":"Quick Ask only"));
+ const reset=locked?h(IconButton,{name:"Plus",label:"New session",disabled:agent.busy,onClick:onNewSession}):null;
  const parts=[];
- if(tab==="Provider"){
-  parts.push(intro("Provider","Select your local CLI. Its capabilities determine the available actions."));
-  const providers=["Codex","Pi","Agy"].map(name=>{
+ if(tab==="Setup"){
+  const providers=["Codex","Agy","Pi"].map(name=>{
    const item=AGENT_CAPABILITIES[name];
    return el("button",{type:"button",key:name,disabled:locked,className:"as-provider"+(agent.provider===name?" active":""),onClick:()=>setAgent(a=>({...a,provider:name,mode:"Quick Ask",readiness:"ready",phase:"ready",warning:""}))},
     h(Icon,{name:"Terminal",size:15}),el("span",null,el("strong",null,name),el("small",null,item.detail)));
   });
   parts.push(field("Local CLI",el("div",{className:"as-providerlist"},...providers)));
-  parts.push(capabilityPills);
   parts.push(status(agent.provider+" · "+(statusText[agent.readiness]||"Unknown"),"Prototype status only. Installed CLI, model, and authentication require native readiness checks."));
   if(agent.readiness!=="ready")parts.push(el("button",{type:"button",className:"as-textbutton",onClick:()=>setAgent(a=>({...a,warning:"Native readiness checks are not available in this standalone HTML."}))},"Retry readiness"));
-  if(reset)parts.push(reset);
- }else if(tab==="Mode"){
-  parts.push(intro("Interaction mode","The selected mode controls permissions for the entire conversation."));
-  parts.push(field("Execution mode",el("div",{className:"as-modes"},
-   modeButton("Quick Ask","Follow-up supported · no tools or file changes.",agent.mode==="Quick Ask",()=>setAgent(a=>({...a,mode:"Quick Ask"})),locked),
-   modeButton("Agent Session",caps.session?"Codex only · tool actions require Allow once / Deny.":"Unavailable for "+agent.provider+" · text-only Quick Ask",agent.mode==="Agent Session",()=>setAgent(a=>({...a,mode:"Agent Session"})),locked||!caps.session))));
-  parts.push(status(locked?"Mode locked for this session":agent.mode==="Quick Ask"?"Tool-free Quick Ask":"Approval is mandatory",locked?"Create a new session before changing modes.":agent.mode==="Quick Ask"?"No provider may silently execute file-changing tools.":"Each sensitive action needs an explicit decision."));
-  if(reset)parts.push(reset);
-
- }else if(tab==="Model & usage"){
-  parts.push(intro("Model & usage","Local CLI runtime details are kept in settings, away from your conversation."));
-  parts.push(field("Model",el("div",null,
+  const modelChoices=agent.provider==="Codex"?["Provider default","Demo model"]:["Provider-managed"];
+  const projectInput=el("input",{value:agent.cwd,disabled:locked,"aria-label":"Working project directory",onChange:e=>setAgent(a=>({...a,cwd:e.target.value}))});
+  parts.push(el("div",{className:"as-grid"},
+   field("Execution mode",el("div",{className:"as-modes"},
+    modeButton("Quick Ask","Follow-up supported · no tools or file changes.",agent.mode==="Quick Ask",()=>setAgent(a=>({...a,mode:"Quick Ask"})),locked),
+    modeButton("Agent Session",caps.session?"Codex only · tool actions require Allow once / Deny.":"Unavailable for "+agent.provider+" · text-only Quick Ask",agent.mode==="Agent Session",()=>setAgent(a=>({...a,mode:"Agent Session"})),locked||!caps.session))),
+   field("Project directory",el("label",{className:"as-input"},h(Icon,{name:"Terminal",size:15}),projectInput))));
+  if(locked)parts.push(status("Session locked","Create a new session before changing setup."));
+  parts.push(el("div",{className:"as-grid"},
+   field("Requested model",el("select",{className:"as-select",value:agent.model||modelChoices[0],disabled:locked||modelChoices.length===1,onChange:e=>setAgent(a=>({...a,model:e.target.value===modelChoices[0]?"":e.target.value}))},...modelChoices.map(name=>el("option",{key:name,value:name},name)))),
+   field("Thinking effort",el("select",{className:"as-select",value:agent.effort||"High",disabled:locked,onChange:e=>setAgent(a=>({...a,effort:e.target.value}))},...["Low","Medium","High"].map(name=>el("option",{key:name,value:name},name))))));
+  parts.push(field("Runtime",el("div",{className:"as-runtime-grid"},
    el("div",{className:"as-runtime-row"},el("span",null,"Active model"),el("strong",null,runtimeInfo?.model||"Not detected")),
-   el("div",{className:"as-runtime-row"},el("span",null,"Thinking effort"),el("strong",null,runtimeInfo?.effort||"Unavailable")))));
-  parts.push(field("Context window",el("div",null,
+   el("div",{className:"as-runtime-row"},el("span",null,"Thinking effort"),el("strong",null,runtimeInfo?.effort||"Unavailable")),
    el("div",{className:"as-runtime-row"},el("span",null,"Used tokens"),el("strong",null,runtimeInfo?.contextUsed!=null?formatAgentTokens(runtimeInfo.contextUsed):"Unavailable")),
-   el("div",{className:"as-runtime-row"},el("span",null,"Window size"),el("strong",null,runtimeInfo?.contextWindow!=null?formatAgentTokens(runtimeInfo.contextWindow):"Unavailable")),
    el("div",{className:"as-runtime-row"},el("span",null,"Remaining context"),el("strong",null,remaining===null?"Unavailable":formatAgentTokens(remaining))),
    remaining!==null?el("div",{className:"as-runtime-track",role:"progressbar","aria-label":"Context used","aria-valuenow":runtimeInfo.contextUsed,"aria-valuemin":0,"aria-valuemax":runtimeInfo.contextWindow},el("span",{style:{width:Math.min(100,100*runtimeInfo.contextUsed/runtimeInfo.contextWindow)+"%"}})):null)));
-  parts.push(el("p",{className:"as-runtime-note"},agent.runtimeInfo?"Reported by the provider.":showSample?"Example values only. No real CLI metadata was fetched.":"The HTML preview cannot inspect local CLI metadata. Remaining context is not account token quota."));
   if(!agent.runtimeInfo)parts.push(el("button",{type:"button",className:"as-runtime-example",onClick:()=>setShowSample(x=>!x)},showSample?"Hide example":"Show example values"));
- }else if(tab==="Workspace"){
-  parts.push(intro("Working project","The working directory belongs to a single provider session."));
-  const input=el("input",{value:agent.cwd,disabled:locked,"aria-label":"Working project directory",onChange:e=>setAgent(a=>({...a,cwd:e.target.value}))});
-  parts.push(field("Project directory",el("label",{className:"as-input"},h(Icon,{name:"Terminal",size:15}),input),"Native validates the directory before a request; the HTML preview does not access files."));
-  parts.push(status(locked?"Project locked":"Project selected",locked?"New session is required before changing the current project.":"The path is contextual. No files are read by the prototype."));
-  if(reset)parts.push(reset);
  }else{
-  parts.push(intro("Screen Capture","Hotkey-triggered screenshot analysis is native. No images are captured in this HTML."));
   const windowChoice=modeButton("Last focused window","Capture the most recent non-Otto window.",capture.source==="Last focused window",()=>setCapture(c=>({...c,source:"Last focused window"})));
   const fullChoice=modeButton("Full screen","Explicit alternative · may include other windows.",capture.source==="Full screen",()=>setCapture(c=>({...c,source:"Full screen"})));
   parts.push(field("Capture source",el("div",{className:"as-modes"},windowChoice,fullChoice)));
   const shortcut=el("input",{value:capture.hotkey,"aria-label":"Capture hotkey",placeholder:"Ctrl + Shift + O",onChange:e=>setCapture(c=>({...c,hotkey:e.target.value,hotkeyStatus:"unverified"}))});
-  parts.push(field("Shortcut",el("label",{className:"as-input"},h(Icon,{name:"Command",size:15}),shortcut),"Windows must register the shortcut; conflicts must be resolved before capture."));
+  parts.push(field("Shortcut",el("label",{className:"as-input"},h(Icon,{name:"Command",size:15}),shortcut)));
   const condition=capture.permission==="denied"?"Permission denied":capture.permission==="missing target"?"Target unavailable":capture.hotkeyStatus==="conflict"?"Hotkey conflict":"Capture not verified";
   const help=condition==="Permission denied"?"No image will be sent.":condition==="Target unavailable"?"Focus a valid window and retry.":condition==="Hotkey conflict"?"Choose a different combination.":"Native verifies target identity, selected model vision, and consent.";
   parts.push(status(condition,help));
   parts.push(status(agent.provider+(caps.image?" · Image transport supported":" · Screenshots unsupported"),caps.image?"The selected model must separately confirm image input before capture.":"This CLI transport accepts text only. Choose Codex or a vision-capable Pi model."));
-  parts.push(el("p",{className:"as-privacy"},"Hotkey is the implemented native trigger. The camera control is a prototype affordance, not proof of a native click-to-capture command. Capture protection is best effort; never automatic."));
  }
- const header=el("header",{className:"as-header"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("strong",null,"Agent settings"),el("span",{className:"as-meta"},agent.provider));
+  const header=el("header",{className:"as-header"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("strong",null,"Agent settings"),el("span",{className:"as-meta"},agent.provider),reset);
  const sidebar=el("nav",{className:"as-nav","aria-label":"Agent settings sections"},...names.map(name=>el("button",{type:"button",key:name,className:"as-navitem"+(tab===name?" active":""),onClick:()=>setTab(name)},name)));
  return el("div",{className:"as-root"},header,el("div",{className:"as-body"},sidebar,el("div",{className:"as-scroll"},el("section",{className:"as-view"},...parts))));
 }
@@ -1130,45 +1097,42 @@ function FocusSettings({timer,setTimer,onBack}){
  el("div",{style:{marginTop:12}},h(Primary,{name:"Check",onClick:onBack},"Done"))));
 }
 
-function GlobalSettings({prefs,setPrefs,tab,setTab,onBack,onPlacementChange,sysReduced}){
+function GlobalSettings({prefs,setPrefs,tab,setTab,onBack,onPlacementChange}){
  const put=(key,value)=>setPrefs(p=>({...p,[key]:value}));
  const choice=(key,items)=>el("div",{className:"gs-pills"},items.map(([value,title])=>el("button",{type:"button",key:value,className:prefs[key]===value?"selected":"",onClick:()=>put(key,value),"aria-pressed":prefs[key]===value},title)));
- const unit=(label,control,note)=>el("div",{className:"gs-unit"},el("span",{className:"gs-label"},label),control,note?el("p",{className:"gs-note"},note):null);
- const toggle=(key,title,desc)=>el("label",{className:"gs-switchrow"},el("span",null,el("strong",null,title),el("small",null,desc)),el("input",{type:"checkbox",checked:!!prefs[key],onChange:e=>put(key,e.target.checked)}),el("i",{"aria-hidden":"true"}));
+ const unit=(label,control)=>el("div",{className:"gs-unit"},el("span",{className:"gs-label"},label),control);
+ const toggle=(key,title)=>el("label",{className:"gs-switchrow"},el("strong",null,title),el("input",{type:"checkbox",checked:!!prefs[key],onChange:e=>put(key,e.target.checked)}),el("i",{"aria-hidden":"true"}));
  const slider=(key,title,min,max,step,suffix,disabled)=>el("div",{className:"gs-unit gs-range"},el("div",{className:"gs-rangehead"},el("label",{htmlFor:"gs-"+key},title),el("output",{htmlFor:"gs-"+key},prefs[key]+suffix)),el("input",{id:"gs-"+key,type:"range",min,max,step,value:prefs[key],disabled:!!disabled,onChange:e=>put(key,Number(e.target.value))}));
  const views={
   General:el(React.Fragment,null,
-   el("h2",null,"General"),el("p",{className:"gs-help"},"The smallest possible idle, with personality on demand."),
+   el("h2",null,"General"),
    unit("Idle expression",choice("expression",[["Calm","Calm"],["Curious","Curious"],["Happy","Happy"],["Sleepy","Sleepy"]])),
-   unit("Idle response",choice("reactive",[["Quiet","Quiet"],["Alive","Alive"]]),"Alive adds occasional blinking and pointer gaze. Quiet stays still."),
-   el("button",{type:"button",className:"gs-reset",onClick:()=>{setPrefs({...defaultGlobalPrefs});onPlacementChange("floating")}},"Restore defaults")),
+   unit("Idle response",choice("reactive",[["Quiet","Quiet"],["Alive","Alive"]])),
+   el("button",{type:"button",className:"gs-reset",onClick:()=>{setPrefs({...defaultGlobalPrefs});onPlacementChange("floating")}},"Restore defaults"),
+   el("div",{className:"gs-update"},el("strong",null,"Software update"),el("span",null,"Checks automatically after launch."))),
   Interaction:el(React.Fragment,null,
-   el("h2",null,"Interaction"),el("p",{className:"gs-help"},"Control how the notch responds while you work."),
-   toggle("hoverExpand","Expand on hover","Preview without taking focus"),
+   el("h2",null,"Interaction & motion"),
+   toggle("hoverExpand","Expand on hover"),
    slider("hoverDelay","Hover intent",0,450,50," ms",!prefs.hoverExpand),
    slider("leaveDelay","Leave delay",150,850,50," ms",!prefs.hoverExpand),
-   toggle("clickOutside","Click outside to close","Escape always closes the panel")),
-  Motion:el(React.Fragment,null,
-   el("h2",null,"Motion"),el("p",{className:"gs-help"},"One restrained animation language for Otto."),
-   unit("Motion profile",choice("motion",[["Fluid","Smooth"],["Subtle","Subtle"],["Reduced","Reduced"]]),sysReduced?"System Reduce Motion takes priority.":"System Reduce Motion will override these effects."),
-   toggle("parallax","Pointer depth","Parallax on the SVG artwork"),
+   toggle("clickOutside","Click outside to close"),
+   unit("Motion profile",choice("motion",[["Fluid","Smooth"],["Subtle","Subtle"],["Reduced","Reduced"]])),
    slider("tilt","Artwork tilt",0,55,1,"°",false),
    slider("gradient","Gradient strength",0,100,5,"%",false)),
   Placement:el(React.Fragment,null,
-   el("h2",null,"Placement"),el("p",{className:"gs-help"},"Same interaction model in both top-edge layouts."),
+   el("h2",null,"Placement"),
    el("div",{className:"gs-placement"},
     ["floating","attached"].map(value=>el("button",{type:"button",key:value,className:"gs-placepick"+(prefs.placement===value?" selected":""),onClick:()=>onPlacementChange(value),"aria-pressed":prefs.placement===value},
       el("span",{className:"gs-placegraphic"},el("i",{className:"gs-place-"+value})),el("strong",null,value==="floating"?"Floating":"Attached")))),
    prefs.placement==="floating"?slider("topOffset","Top offset",8,48,2," px",false):null,
-   prefs.placement==="floating"?el("p",{className:"gs-note"},"Applies only to Floating. Attached connects to the top edge."):null,
-   el("p",{className:"gs-note"},"Exact positioning and click regions require Windows verification."))};
+   )};
  return el("div",{className:"gs-root"},
    el("header",{className:"gs-head"},el("button",{type:"button",className:"gs-back",onClick:onBack,"aria-label":"Back to Home"},h(Icon,{name:"ArrowLeft",size:18})),el("strong",null,"Settings"),el("span",{className:"gs-meta"},"Otto")),
    el("div",{className:"gs-body"},el("nav",{className:"gs-nav","aria-label":"Settings sections"},
-      ["General","Interaction","Motion","Placement"].map(x=>el("button",{type:"button",key:x,className:"gs-navitem"+(tab===x?" active":""),onClick:()=>setTab(x),"aria-current":tab===x?"page":undefined},x))),
+      ["General","Interaction","Placement"].map(x=>el("button",{type:"button",key:x,className:"gs-navitem"+(tab===x?" active":""),onClick:()=>setTab(x),"aria-current":tab===x?"page":undefined},x))),
      el("div",{className:"gs-views"},el("section",{className:"gs-view",key:tab},views[tab]))));
 }
-const defaultGlobalPrefs={expression:"Calm",reactive:"Quiet",hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,motion:"Fluid",parallax:true,tilt:43,gradient:80,topOffset:20};
+const defaultGlobalPrefs={expression:"Calm",reactive:"Quiet",hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,motion:"Fluid",tilt:43,gradient:80,topOffset:20};
 
 function App(){
  const [page,setPage]=useState("home");
@@ -1177,14 +1141,14 @@ function App(){
  const [drawer,setDrawer]=useState(null);
  const [tab,setTab]=useState("General");
  const [prefs,setPrefs]=useState({...defaultGlobalPrefs});
- const [agent,setAgent]=useState({provider:"Codex",cwd:"~/projects/otto",mode:"Quick Ask",messages:[],busy:false,warning:"",unread:false,phase:"ready",readiness:"ready"});
+ const [agent,setAgent]=useState({provider:"Codex",cwd:"~",mode:"Quick Ask",messages:[],busy:false,warning:"",unread:false,phase:"ready",readiness:"ready",capturePhase:"idle",captureError:""});
  const [agentDraft,setAgentDraft]=useState("");
  const [agentNaturalHeight,setAgentNaturalHeight]=useState(170);
  const [music,setMusic]=useState({track:0,position:74,playing:true,lyrics:false,line:2,follow:true,lyricsAvailable:true,mediaAvailable:true});
  const [timer,setTimer]=useState({phase:"focus",remaining:1500,running:false,deadline:null,duration:{...durations},status:"ready",settings:false,confirmPhase:null,finished:0});
  const [event,setEvent]=useState(null);
  const [capture,setCapture]=useState({source:"Last focused window",permission:"unknown",hotkey:"Ctrl + Shift + O",hotkeyStatus:"unverified"});
- const [agentSettingsTab,setAgentSettingsTab]=useState("Provider");
+ const [agentSettingsTab,setAgentSettingsTab]=useState("Setup");
  const pointerEnter=useRef(null),pointerLeave=useRef(null),completion=useRef(null),agentRun=useRef(null),pinnedUntil=useRef(0);
  const currentPage=useRef(page);currentPage.current=page;
  const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches||prefs.motion==="Reduced";
@@ -1205,7 +1169,7 @@ function App(){
  agentRun.current=setInterval(()=>{if(index===chunks.length){clearInterval(agentRun.current);setAgent(a=>({...a,busy:false,phase:"complete",unread:currentPage.current!=="agent"}));return}
  const chunk=chunks[index++];setAgent(a=>({...a,phase:"streaming",messages:a.messages.map((m,i)=>i===a.messages.length-1?{...m,text:m.text+chunk}:m)}))},560);
  };
- const requestCapture=()=>{const reason=agent.readiness!=="ready"?"Selected CLI is unavailable.":!AGENT_CAPABILITIES[agent.provider]?.image?"This provider accepts text only.":capture.hotkeyStatus==="conflict"?"Hotkey conflict; choose another shortcut.":capture.permission==="denied"?"Windows capture permission denied.":capture.permission==="missing target"?"Last focused window is missing or ambiguous.":capture.source==="Full screen"?"Full-screen capture requires the native Windows host.":"Last-focused-window capture requires the native Windows host.";setAgent(a=>({...a,warning:reason+" No image was captured or transmitted in this HTML preview."}));};
+ const requestCapture=()=>{const reason=agent.readiness!=="ready"?"Selected CLI is unavailable.":!AGENT_CAPABILITIES[agent.provider]?.image?"This provider accepts text only.":capture.hotkeyStatus==="conflict"?"Hotkey conflict; choose another shortcut.":capture.permission==="denied"?"Windows capture permission denied.":capture.permission==="missing target"?"Last focused window is missing or ambiguous.":capture.source==="Full screen"?"Full-screen capture requires the native Windows host.":"Last-focused-window capture requires the native Windows host.";setAgent(a=>({...a,capturePhase:"failed",captureError:reason,warning:""}));};
  const onEvent=name=>{clearTimeout(completion.current);setEvent(name);completion.current=setTimeout(()=>setEvent(null),2200)};
  const onAgentMeasured=useCallback(height=>setAgentNaturalHeight(current=>Math.abs(current-height)>2?height:current),[]);
  const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,Math.min(610,Math.max(170,agentNaturalHeight))]:page==="music"?[444,music.lyrics&&music.lyricsAvailable?212:178]:[408,timer.settings?328:174];
@@ -1215,7 +1179,7 @@ function App(){
  const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(prefs.leaveDelay,pinnedUntil.current-Date.now()+140))}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else if(page==="focus"&&timer.confirmPhase){setTimer(t=>({...t,confirmPhase:null}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null),onNewSession:()=>{clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",mode:"Quick Ask",unread:false,warning:""}));setAgentDraft("")}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onMeasured:onAgentMeasured,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Provider");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Screen Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null),onNewSession:()=>{clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",mode:"Quick Ask",unread:false,warning:""}));setAgentDraft("")}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onMeasured:onAgentMeasured,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Setup");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
 
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
  const eventKeys=["volume","wifi","bluetooth","brightness","battery","headphones"];

@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type FormEvent, type Ref } from "react";
-import type { AgentProvider } from "../../platform/tauri";
+import type { AgentProvider, CapturePhase } from "../../platform/tauri";
 import { IconButton, TextArea, VisuallyHidden } from "../../shared/ui";
 
 export function AgentComposer({
@@ -9,6 +9,8 @@ export function AgentComposer({
   draft,
   setDraft,
   busy,
+  captureBusy,
+  capturePhase,
   approvalPending,
   canSend,
   stopping,
@@ -22,6 +24,8 @@ export function AgentComposer({
   draft: string;
   setDraft: (draft: string) => void;
   busy: boolean;
+  captureBusy: boolean;
+  capturePhase: CapturePhase;
   approvalPending: boolean;
   canSend: boolean;
   stopping: boolean;
@@ -76,12 +80,20 @@ export function AgentComposer({
             <IconButton
               id="otto-capture-setup"
               icon="camera"
-              label="Capture selected screen source"
+              label={
+                capturePhase === "failed"
+                  ? "Retry screen capture"
+                  : "Capture selected screen source"
+              }
               variant="round"
               className="grid shrink-0 place-items-center rounded-full"
               onClick={onCapture}
-              title="Capture using the configured source"
-              disabled={busy || approvalPending}
+              title={
+                capturePhase === "failed"
+                  ? "Retry screen capture"
+                  : "Capture using the configured source"
+              }
+              disabled={busy || captureBusy || approvalPending}
             />
           )}
           <span className="min-w-0 flex-1" />

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Eyes, IconButton, Text, VisuallyHidden } from "../../shared/ui";
 import type { AgentStatus, ProviderReadiness } from "../../platform/tauri";
-import { agentStatusColor, agentStatusLabel } from "./status";
+import { agentStatusColor, agentStatusLabel, capturePhaseLabel } from "./status";
 import type { AgentPanelModel } from "./view-model";
 
 export function AgentHeader({
@@ -10,28 +10,26 @@ export function AgentHeader({
   mode,
   provider,
   status,
+  capturePhase,
   readiness,
   activity,
   eventMotion,
   onSettings,
   onSettingsBack,
   onHome,
-  actionsOpen,
-  onActions,
 }: {
   settings: boolean;
   project: string;
   mode: AgentPanelModel["snapshot"]["mode"];
   provider: AgentPanelModel["provider"];
   status: AgentStatus;
+  capturePhase: AgentPanelModel["snapshot"]["capture"]["phase"];
   readiness: ProviderReadiness["status"];
   activity: boolean;
   eventMotion?: string;
   onSettings: () => void;
   onSettingsBack: () => void;
   onHome: () => void;
-  actionsOpen: boolean;
-  onActions: () => void;
 }) {
   const back = useRef<HTMLButtonElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
@@ -116,20 +114,13 @@ export function AgentHeader({
               className={`h-[5px] w-[5px] flex-none rounded-full ${statusColor} ${statusMotion}`}
             />
             <Text as="span" variant="status">
-              {status === "streaming" && activity
-                ? "Using tool"
-                : agentStatusLabel(status, readiness)}
+              {capturePhase !== "idle"
+                ? capturePhaseLabel(capturePhase)
+                : status === "streaming" && activity
+                  ? "Using tool"
+                  : agentStatusLabel(status, readiness)}
             </Text>
           </span>
-          <IconButton
-            id="otto-conversation-actions"
-            icon="actions"
-            label="Conversation actions"
-            variant="quiet"
-            aria-expanded={actionsOpen}
-            aria-controls="otto-conversation-menu"
-            onClick={onActions}
-          />
           <IconButton
             icon="settings"
             label="Agent settings"

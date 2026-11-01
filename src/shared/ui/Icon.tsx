@@ -1,32 +1,36 @@
 import {
   Camera,
   Check,
+  CircleCheck,
   ChevronLeft,
   CircleAlert,
   Copy,
   Folder,
-  MoreHorizontal,
+  Plus,
   Send,
   Settings,
   Square,
   Terminal,
   TriangleAlert,
+  X,
   type LucideProps,
 } from "lucide-react";
 
 const icons = {
   settings: Settings,
   back: ChevronLeft,
+  close: X,
   camera: Camera,
   send: Send,
   stop: Square,
   copy: Copy,
   check: Check,
+  completed: CircleCheck,
   folder: Folder,
   alert: TriangleAlert,
   unavailable: CircleAlert,
   terminal: Terminal,
-  actions: MoreHorizontal,
+  plus: Plus,
 } as const;
 
 export type IconName = keyof typeof icons;

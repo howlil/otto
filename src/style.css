@@ -27,7 +27,6 @@
   --color-otto-invert-text: #171717;
   --color-otto-invert-line: #fff;
   --color-otto-knob: #f5f5f5;
-  --color-otto-focus: #96b4e1;
   --color-otto-warn: #e0b978;
   --color-otto-danger: #d89197;
   --color-otto-ok: #9cb8a8;
@@ -251,10 +250,4 @@ button {
 }
 button:disabled {
   cursor: not-allowed;
-}
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--color-otto-focus);
-  outline-offset: 2px;
 }

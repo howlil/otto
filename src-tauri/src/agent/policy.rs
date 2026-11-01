@@ -23,39 +23,66 @@ impl InteractionMode {
     }
 }
 
-pub fn thread_start(cwd: &str, mode: InteractionMode) -> Value {
+pub fn thread_start(
+    cwd: &str,
+    mode: InteractionMode,
+    model: Option<&str>,
+    thinking_effort: Option<&str>,
+) -> Value {
     let (sandbox, approval) = match mode {
         InteractionMode::QuickAsk => ("read-only", "never"),
         InteractionMode::AgentSession => ("workspace-write", "on-request"),
     };
-    json!({
+    let mut request = json!({
         "cwd": cwd,
         "sandbox": sandbox,
         "approvalPolicy": approval,
         "ephemeral": true
-    })
+    });
+    if let Some(model) = model {
+        request["model"] = json!(model);
+    }
+    if let Some(effort) = thinking_effort {
+        request["reasoningEffort"] = json!(effort);
+    }
+    request
 }
 
-pub fn turn_start(thread_id: &str, text: &str, mode: InteractionMode) -> Value {
+pub fn turn_start(
+    thread_id: &str,
+    text: &str,
+    mode: InteractionMode,
+    model: Option<&str>,
+    thinking_effort: Option<&str>,
+) -> Value {
     let (sandbox_policy, approval) = match mode {
         InteractionMode::QuickAsk => (json!({ "type": "readOnly" }), "never"),
         InteractionMode::AgentSession => (json!({ "type": "workspaceWrite" }), "on-request"),
     };
-    json!({
+    let mut request = json!({
         "threadId": thread_id,
         "input": [{ "type": "text", "text": text }],
         "sandboxPolicy": sandbox_policy,
         "approvalPolicy": approval
-    })
+    });
+    if let Some(model) = model {
+        request["model"] = json!(model);
+    }
+    if let Some(effort) = thinking_effort {
+        request["effort"] = json!(effort);
+    }
+    request
 }
 
 pub fn turn_start_with_image(
     thread_id: &str,
     text: &str,
     mode: InteractionMode,
+    model: Option<&str>,
+    thinking_effort: Option<&str>,
     image: Option<&std::path::Path>,
 ) -> Value {
-    let mut request = turn_start(thread_id, text, mode);
+    let mut request = turn_start(thread_id, text, mode, model, thinking_effort);
     if let Some(path) = image
         && let Some(inputs) = request["input"].as_array_mut()
     {
@@ -86,6 +113,8 @@ mod tests {
             "thread",
             "Analyze this",
             InteractionMode::QuickAsk,
+            None,
+            None,
             Some(image),
         );
         assert_eq!(request["input"][0]["type"], "text");
@@ -96,8 +125,8 @@ mod tests {
         );
         assert_eq!(request["sandboxPolicy"]["type"], "readOnly");
         assert_eq!(
-            turn_start_with_image("thread", "Hi", InteractionMode::QuickAsk, None),
-            turn_start("thread", "Hi", InteractionMode::QuickAsk)
+            turn_start_with_image("thread", "Hi", InteractionMode::QuickAsk, None, None, None),
+            turn_start("thread", "Hi", InteractionMode::QuickAsk, None, None)
         );
     }
 
@@ -153,22 +182,44 @@ mod tests {
 
     #[test]
     fn quick_ask_launch_never_enables_writes() {
-        let p = thread_start("C:/project", InteractionMode::QuickAsk);
+        let p = thread_start("C:/project", InteractionMode::QuickAsk, None, None);
         assert_eq!(p["sandbox"], "read-only");
         assert_eq!(p["approvalPolicy"], "never");
-        let t = turn_start("t", "explain", InteractionMode::QuickAsk);
+        let t = turn_start("t", "explain", InteractionMode::QuickAsk, None, None);
         assert_eq!(t["sandboxPolicy"]["type"], "readOnly");
         assert_eq!(t["approvalPolicy"], "never");
     }
 
     #[test]
     fn agent_session_launch_uses_workspace_write_and_on_request() {
-        let p = thread_start("C:/project", InteractionMode::AgentSession);
+        let p = thread_start("C:/project", InteractionMode::AgentSession, None, None);
         assert_eq!(p["sandbox"], "workspace-write");
         assert_eq!(p["approvalPolicy"], "on-request");
-        let t = turn_start("t", "edit", InteractionMode::AgentSession);
+        let t = turn_start("t", "edit", InteractionMode::AgentSession, None, None);
         assert_eq!(t["sandboxPolicy"]["type"], "workspaceWrite");
         assert_eq!(t["approvalPolicy"], "on-request");
+    }
+
+    #[test]
+    fn model_and_thinking_effort_are_forwarded_to_codex_requests() {
+        let thread = thread_start(
+            "C:/project",
+            InteractionMode::QuickAsk,
+            Some("gpt-5-codex"),
+            Some("high"),
+        );
+        assert_eq!(thread["model"], "gpt-5-codex");
+        assert_eq!(thread["reasoningEffort"], "high");
+
+        let turn = turn_start(
+            "thread",
+            "Explain this",
+            InteractionMode::QuickAsk,
+            Some("gpt-5-codex"),
+            Some("high"),
+        );
+        assert_eq!(turn["model"], "gpt-5-codex");
+        assert_eq!(turn["effort"], "high");
     }
 
     #[test]

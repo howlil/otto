@@ -1,7 +1,7 @@
 use super::job::Job;
 use crate::agent::events::{AgentEvent, ProviderEvents};
 #[cfg(test)]
-use crate::agent::{ChatMessage, Snapshot};
+use crate::agent::{CaptureSnapshot, ChatMessage, Snapshot};
 use crate::agent::{Control, ProviderReadiness};
 use serde_json::{Value, json};
 use std::{
@@ -323,6 +323,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         cwd,
         run_id,
         capture: None,
+        ..
     } = initial
     else {
         events.fail(
@@ -400,7 +401,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     let _ = finished.send(());
                     break;
                 }
-                Some(Control::Ask {text, cwd, run_id, capture: None}) if active.is_none() => {
+                Some(Control::Ask {text, cwd, run_id, capture: None, ..}) if active.is_none() => {
                     if cwd.as_path() != Path::new(&events.snapshot().cwd) {
                         events.fail(run_id, "Agy context changed. Start a new session.");
                         continue;
@@ -530,9 +531,13 @@ mod tests {
             provider: "agy".into(),
             cwd: String::new(),
             thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
             messages: vec![],
             activity: None,
             approval: None,
+            capture: CaptureSnapshot::default(),
             error: None,
         });
         let tx_events = ProviderEvents::new(tx.clone());
@@ -555,6 +560,9 @@ mod tests {
             provider: "agy".into(),
             cwd: String::new(),
             thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
             messages: vec![ChatMessage {
                 id: "7:assistant".into(),
                 role: "assistant".into(),
@@ -562,6 +570,7 @@ mod tests {
             }],
             activity: None,
             approval: None,
+            capture: CaptureSnapshot::default(),
             error: None,
         });
         let tx_events = ProviderEvents::new(tx.clone());
@@ -580,6 +589,9 @@ mod tests {
             provider: "agy".into(),
             cwd: String::new(),
             thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
             messages: vec![ChatMessage {
                 id: "8:assistant".into(),
                 role: "assistant".into(),
@@ -587,6 +599,7 @@ mod tests {
             }],
             activity: None,
             approval: None,
+            capture: CaptureSnapshot::default(),
             error: None,
         });
         let done_events = ProviderEvents::new(done.clone());

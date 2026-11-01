@@ -6,9 +6,6 @@ import { IconButton, Text } from "../../shared/ui";
 import { HomeCard } from "./HomeCard";
 
 type ArtProps = {
-  parallax: boolean;
-  reduced: boolean;
-  amount: number;
   tilt: number;
   gradient: number;
 };
@@ -36,10 +33,7 @@ export function HomeSurface({
     <section
       className={`flex h-full w-full flex-col gap-2 px-[17px] pb-[17px] pt-3 ${motionClass}`}
     >
-      <header className="flex h-[26px] shrink-0 items-center gap-[9px] pl-[37px]">
-        <Text as="strong" variant="display" className="tracking-[-0.01em]">
-          Otto
-        </Text>
+      <header className="flex h-[34px] shrink-0 items-center gap-[9px] pl-[37px]">
         <Text
           as="span"
           variant="status"

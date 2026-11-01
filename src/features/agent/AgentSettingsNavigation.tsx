@@ -1,11 +1,8 @@
-export type AgentSettingsTab = "provider" | "mode" | "workspace" | "capture" | "usage";
+export type AgentSettingsTab = "setup" | "capture";
 
 const tabs: ReadonlyArray<{ id: AgentSettingsTab; label: string }> = [
-  { id: "provider", label: "Provider" },
-  { id: "mode", label: "Mode" },
-  { id: "usage", label: "Model & usage" },
-  { id: "workspace", label: "Workspace" },
-  { id: "capture", label: "Screen Capture" },
+  { id: "setup", label: "Setup" },
+  { id: "capture", label: "Capture" },
 ];
 
 export function AgentSettingsNavigation({
@@ -18,7 +15,7 @@ export function AgentSettingsNavigation({
   return (
     <nav
       aria-labelledby="otto-agent-settings-sections"
-      className="flex flex-col gap-1 border-r border-otto-line-soft bg-otto-nav-bg px-2 py-[13px]"
+      className="flex min-h-0 flex-row gap-1 border-b border-otto-line-soft bg-otto-nav-bg px-3 py-2"
     >
       <span id="otto-agent-settings-sections" className="sr-only">
         Agent settings sections
@@ -29,7 +26,7 @@ export function AgentSettingsNavigation({
           type="button"
           aria-current={tab === item.id ? "page" : undefined}
           onClick={() => onSelect(item.id)}
-          className={`min-h-[35px] rounded-otto-control px-2.5 text-left text-otto-sm transition-colors hover:bg-otto-control-deep hover:text-otto-text ${tab === item.id ? "bg-otto-control-deep text-otto-text" : "text-otto-text-tertiary"}`}
+          className={`min-h-[35px] flex-1 rounded-otto-control px-2.5 text-center text-otto-sm transition-colors hover:bg-otto-control-deep hover:text-otto-text ${tab === item.id ? "bg-otto-control-deep text-otto-text" : "text-otto-text-tertiary"}`}
         >
           {item.label}
         </button>

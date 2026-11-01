@@ -1,15 +1,12 @@
 import { Icon, RadioGroup, StatusMessage, Text, TextField } from "../../shared/ui";
 import type { AgentMode, AgentProvider, ProviderReadiness } from "../../platform/tauri";
 import { ProviderChoice } from "./ProviderChoice";
-
 type ProviderName = "Codex" | "Pi" | "Agy";
-
 const providers: ReadonlyArray<{ name: ProviderName; detail: string }> = [
   { name: "Codex", detail: "Text · image input · tool approvals" },
-  { name: "Pi", detail: "Text · vision model · no tools" },
   { name: "Agy", detail: "Text only · no tools" },
+  { name: "Pi", detail: "Text · vision model · no tools" },
 ];
-
 export function ProviderSettings({
   readiness,
   providerStatus,
@@ -36,7 +33,7 @@ export function ProviderSettings({
         Local CLI
       </Text>
       <fieldset
-        className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0"
+        className="m-0 grid min-w-0 grid-cols-3 gap-1.5 border-0 p-0"
         aria-labelledby="otto-provider-label"
       >
         {providers.map(({ name, detail }) => {
@@ -57,20 +54,27 @@ export function ProviderSettings({
           );
         })}
       </fieldset>
-      {readiness.status !== "ready" && (
-        <StatusMessage
-          tone="warn"
-          className="mt-[10px] text-otto-text-tertiary [&>div]:min-w-0 [&>div]:flex-1 [&>div>p]:mt-0.5 [&>div>p]:m-0"
-          title={providerStatus}
-          action={{ label: "Retry", onClick: onRetry, disabled: readiness.status === "checking" }}
-        >
-          {readiness.message} {readiness.recovery}
-        </StatusMessage>
-      )}
+      <StatusMessage
+        tone={
+          readiness.status === "ready"
+            ? "success"
+            : readiness.status === "checking"
+              ? "info"
+              : "warn"
+        }
+        className="mt-[10px] rounded-otto-control border border-otto-line-mid bg-otto-field-deep p-[10px] text-otto-text-tertiary [&>div]:min-w-0 [&>div]:flex-1 [&>div>p]:mt-0.5 [&>div>p]:m-0"
+        title={providerStatus}
+        action={
+          readiness.status !== "ready"
+            ? { label: "Retry", onClick: onRetry, disabled: readiness.status === "checking" }
+            : undefined
+        }
+      >
+        {readiness.message} {readiness.recovery}
+      </StatusMessage>
     </section>
   );
 }
-
 export function ModeSettings({
   mode,
   locked,
@@ -83,7 +87,7 @@ export function ModeSettings({
   setMode: (mode: AgentMode) => void;
 }) {
   return (
-    <section className="border-b border-otto-raised-deep py-3">
+    <section className="min-w-0">
       <div className="flex items-center justify-between gap-[10px]">
         <Text as="span" variant="meta" className="mb-2 block text-otto-muted-strong">
           Execution mode
@@ -116,18 +120,9 @@ export function ModeSettings({
           },
         ]}
       />
-      <StatusMessage
-        tone="info"
-        className="mt-2.5 block border border-otto-line-mid rounded-otto-chip bg-otto-field-deep p-[9px_10px] text-otto-text-tertiary [&>div>p]:m-0 [&>div>p]:mt-0.5"
-        title="Execution scope"
-      >
-        Quick Ask uses a read-only Codex sandbox or tool-free Pi/Agy sessions. Pi also accepts
-        screenshots with a vision model. Agent Session is currently Codex-only.
-      </StatusMessage>
     </section>
   );
 }
-
 export function ProjectSettings({
   cwd,
   locked,
@@ -138,7 +133,7 @@ export function ProjectSettings({
   setCwd: (cwd: string) => void;
 }) {
   return (
-    <section className="border-b border-otto-raised-deep py-3">
+    <section className="min-w-0">
       <div className="flex items-center justify-between gap-[10px]">
         <label
           className="mb-2 block text-otto-xs leading-[1.4] text-otto-muted-strong"

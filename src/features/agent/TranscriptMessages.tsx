@@ -4,56 +4,20 @@ import { Bars } from "./AgentControls";
 import { agentIsWorking } from "./status";
 import { MessageContent } from "./MessageContent";
 import { CopyAnswerButton } from "./CopyAnswerButton";
-import { promptPresets } from "./conversation";
 
 export function TranscriptMessages({
   snapshot,
   busy,
-  activeMatch,
-  matching,
-  onPreset,
   onQuote,
 }: {
   snapshot: AgentSnapshot;
   busy: boolean;
-  activeMatch: number | null;
-  matching: number[];
-  onPreset: (prompt: string) => void;
   onQuote: (answer: string) => void;
 }) {
   return (
     <>
-      {snapshot.messages.length === 0 && !busy && (
-        <div className="space-y-2">
-          <Text as="p" variant="body-compact" className="m-0 text-otto-line-muted">
-            Ask {snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex"}{" "}
-            about your current task
-          </Text>
-          <div className="flex flex-wrap gap-1.5">
-            {promptPresets.map((preset) => (
-              <button
-                type="button"
-                key={preset.label}
-                onClick={() => onPreset(preset.prompt)}
-                className="rounded-full border border-otto-line-mid bg-otto-control-deep px-3 py-1.5 text-otto-xs text-otto-text-secondary hover:text-otto-text"
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {snapshot.messages.map((message, index) => (
-        <div
-          data-conversation-message
-          key={message.id}
-          className={
-            matching.includes(index)
-              ? "min-w-0 rounded-otto-control outline outline-1 outline-otto-line-hover"
-              : "min-w-0"
-          }
-          data-current-match={activeMatch === index || undefined}
-        >
+        <div key={message.id} className="min-w-0">
           {message.role === "user" ? (
             <div className="ml-auto max-w-[87%] whitespace-pre-wrap rounded-[12px_12px_4px_12px] bg-otto-raised-soft px-[11px] py-[9px] text-otto-text-soft-white [overflow-wrap:anywhere]">
               <Text as="span" variant="body-compact">

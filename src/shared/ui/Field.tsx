@@ -161,7 +161,7 @@ export function Toggle({
   disabled,
 }: {
   title: string;
-  help: string;
+  help?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
@@ -172,9 +172,11 @@ export function Toggle({
         <Text as="strong" variant="label" className="block">
           {title}
         </Text>
-        <Text as="small" variant="meta" className="mt-1 block text-otto-label-muted">
-          {help}
-        </Text>
+        {help && (
+          <Text as="small" variant="meta" className="mt-1 block text-otto-label-muted">
+            {help}
+          </Text>
+        )}
       </span>
       <input
         type="checkbox"
@@ -184,7 +186,7 @@ export function Toggle({
         className="sr-only peer"
       />
       <i
-        className="relative h-[18px] w-[30px] flex-none rounded-full border border-otto-switch-border bg-otto-switch-track transition-colors duration-200 after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-otto-icon-muted after:transition-transform after:duration-200 after:content-[''] peer-checked:bg-otto-switch-enabled peer-checked:after:translate-x-3 peer-checked:after:bg-otto-knob peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-otto-focus peer-focus-visible:outline-offset-2"
+        className="relative h-[18px] w-[30px] flex-none rounded-full border border-otto-switch-border bg-otto-switch-track transition-colors duration-200 after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-otto-icon-muted after:transition-transform after:duration-200 after:content-[''] peer-checked:bg-otto-switch-enabled peer-checked:after:translate-x-3 peer-checked:after:bg-otto-knob"
         aria-hidden="true"
       />
     </label>
