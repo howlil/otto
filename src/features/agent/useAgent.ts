@@ -105,7 +105,11 @@ function useProviderReadiness(cwd: string, provider: AgentProvider, model: strin
       return;
     }
     try {
-      const status = await getAgentReadiness(providerRef.current, projectRef.current || undefined, modelRef.current);
+      const status = await getAgentReadiness(
+        providerRef.current,
+        projectRef.current || undefined,
+        modelRef.current,
+      );
       if (probeRef.current === probe) setReadiness(status);
     } catch {
       if (probeRef.current === probe) {

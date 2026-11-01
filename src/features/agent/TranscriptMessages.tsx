@@ -5,13 +5,7 @@ import { agentIsWorking } from "./status";
 import { MessageContent } from "./MessageContent";
 import { CopyAnswerButton } from "./CopyAnswerButton";
 
-export function TranscriptMessages({
-  snapshot,
-  busy,
-}: {
-  snapshot: AgentSnapshot;
-  busy: boolean;
-}) {
+export function TranscriptMessages({ snapshot, busy }: { snapshot: AgentSnapshot; busy: boolean }) {
   return (
     <>
       {snapshot.messages.map((message, index) => (
