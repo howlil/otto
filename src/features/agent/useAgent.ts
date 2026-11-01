@@ -406,6 +406,7 @@ export function useAgent() {
     (next: AgentSnapshot) => {
       receive(next);
       setCwd((old) => old || next.cwd || "");
+      setProvider(next.provider);
       setMode(next.threadId ? next.mode : "quickAsk");
     },
     [receive],
