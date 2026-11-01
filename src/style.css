@@ -224,6 +224,7 @@
 }
 body {
   font-size: 12px;
+  line-height: normal;
   -webkit-font-smoothing: antialiased;
 }
 html,
