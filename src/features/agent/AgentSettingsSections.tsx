@@ -1,5 +1,5 @@
 import { Icon, RadioGroup, StatusMessage, Text, TextField } from "../../shared/ui";
-import type { AgentMode, ProviderReadiness } from "../../platform/tauri";
+import type { AgentMode, AgentProvider, ProviderReadiness } from "../../platform/tauri";
 import { ProviderChoice, type ProviderTone } from "./ProviderChoice";
 
 type ProviderName = "Codex" | "Agy" | "Pi" | "OpenCode";
@@ -15,10 +15,16 @@ export function ProviderSettings({
   readiness,
   providerStatus,
   onRetry,
+  provider,
+  onSelect,
+  locked,
 }: {
   readiness: ProviderReadiness;
   providerStatus: string;
   onRetry: () => void;
+  provider: AgentProvider;
+  onSelect: (provider: AgentProvider) => void;
+  locked: boolean;
 }) {
   return (
     <section className="border-b border-otto-raised-deep pb-3 pt-[5px]">
@@ -36,7 +42,7 @@ export function ProviderSettings({
           variant="caption"
           className="uppercase tracking-[0.03em] text-otto-text-subtle"
         >
-          Codex
+          {provider === "pi" ? "Pi" : "Codex"}
         </Text>
       </div>
       <fieldset
@@ -44,15 +50,20 @@ export function ProviderSettings({
         aria-labelledby="otto-provider-label"
       >
         {providers.map(({ name, mark, tone }) => {
-          const selected = name === "Codex";
+          const selected = name.toLowerCase() === provider;
           return (
             <ProviderChoice
               key={name}
               name={name}
               mark={mark}
               tone={tone}
-              status={selected ? providerStatus : "Coming soon"}
+              status={selected ? providerStatus : name === "Codex" || name === "Pi" ? "Available" : "Coming soon"}
               selected={selected}
+              onSelect={
+                !locked && (name === "Codex" || name === "Pi")
+                  ? () => onSelect(name === "Pi" ? "pi" : "codex")
+                  : undefined
+              }
             />
           );
         })}
@@ -111,7 +122,7 @@ export function ModeSettings({
         className="mt-2.5 block border border-otto-line-mid rounded-otto-chip bg-otto-field-deep p-[9px_10px] text-otto-text-tertiary [&>div>p]:m-0 [&>div>p]:mt-0.5"
         title="Execution scope"
       >
-        Quick Ask is read-only. Agent Session can change workspace files and asks before tools.
+        Quick Ask uses a read-only Codex sandbox or a tool-free Pi session. Agent Session is currently Codex-only.
       </StatusMessage>
     </section>
   );

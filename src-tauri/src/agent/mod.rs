@@ -309,6 +309,9 @@ impl AgentRuntime {
         ) {
             return Err("Finish or Stop the current answer before capturing.".into());
         }
+        if state.provider != "codex" {
+            return Err("Screen capture requires Codex. Select it in a new session.".into());
+        }
         if state.thread_id.is_some() && state.mode != "quickAsk" {
             return Err("Start a new Quick Ask session before using screen capture.".into());
         }

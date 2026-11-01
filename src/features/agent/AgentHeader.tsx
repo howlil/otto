@@ -8,6 +8,7 @@ export function AgentHeader({
   settings,
   project,
   mode,
+  provider,
   status,
   readiness,
   activity,
@@ -19,6 +20,7 @@ export function AgentHeader({
   settings: boolean;
   project: string;
   mode: AgentPanelModel["snapshot"]["mode"];
+  provider: AgentPanelModel["provider"];
   status: AgentStatus;
   readiness: ProviderReadiness["status"];
   activity: boolean;
@@ -70,7 +72,7 @@ export function AgentHeader({
             "Agent settings"
           ) : (
             <>
-              Codex <em className="font-normal text-otto-line-focused">/ {project}</em>
+              {provider === "pi" ? "Pi" : "Codex"} <em className="font-normal text-otto-line-focused">/ {project}</em>
             </>
           )}
         </Text>

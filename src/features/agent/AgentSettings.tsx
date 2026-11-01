@@ -1,12 +1,14 @@
 import { Button, StatusMessage, Text } from "../../shared/ui";
 import type { CaptureShortcutModel } from "./view-model";
-import type { AgentMode, AgentStatus, ProviderReadiness } from "../../platform/tauri";
+import type { AgentMode, AgentProvider, AgentStatus, ProviderReadiness } from "../../platform/tauri";
 import { ModeSettings, ProjectSettings, ProviderSettings } from "./AgentSettingsSections";
 import { AgentCaptureSettings } from "./AgentCaptureSettings";
 import { agentStatusLabel } from "./status";
 
 export function AgentSettings({
   readiness,
+  provider,
+  setProvider,
   runStatus,
   approvalPending,
   onRetry,
@@ -25,6 +27,8 @@ export function AgentSettings({
   focusCaptureShortcut,
 }: {
   readiness: ProviderReadiness;
+  provider: AgentProvider;
+  setProvider: (provider: AgentProvider) => void;
   runStatus: AgentStatus;
   approvalPending: boolean;
   onRetry: () => void;
@@ -65,8 +69,15 @@ export function AgentSettings({
               : `${agentStatusLabel(runStatus)} request is still active.`}
           </StatusMessage>
         )}
-        <ProviderSettings readiness={readiness} providerStatus={providerStatus} onRetry={onRetry} />
-        <ModeSettings mode={mode} locked={locked} setMode={setMode} />
+        <ProviderSettings
+          readiness={readiness}
+          providerStatus={providerStatus}
+          provider={provider}
+          onSelect={setProvider}
+          locked={locked}
+          onRetry={onRetry}
+        />
+        <ModeSettings mode={mode} locked={locked || provider === "pi"} setMode={setMode} />
         <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />
         <AgentCaptureSettings capture={capture} focusCaptureShortcut={focusCaptureShortcut} />
         {hasThread && (

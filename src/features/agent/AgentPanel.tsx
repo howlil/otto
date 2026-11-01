@@ -25,7 +25,7 @@ export function AgentPanel({
   motionClass = "",
   eventMotion,
 }: Props) {
-  const { snapshot, readiness, cwd, setCwd, mode, setMode, locked, busy, newSession } = agent;
+  const { snapshot, readiness, cwd, setCwd, mode, setMode, provider, setProvider, locked, busy, newSession } = agent;
   const [denied, setDenied] = useState(false);
   const [captureSettingsEntry, setCaptureSettingsEntry] = useState(false);
   const approval = snapshot.approval;
@@ -57,6 +57,7 @@ export function AgentPanel({
         settings={settings}
         project={project}
         mode={snapshot.threadId ? snapshot.mode : mode}
+        provider={snapshot.threadId ? snapshot.provider : provider}
         status={snapshot.status}
         readiness={readiness.status}
         activity={Boolean(snapshot.activity)}
@@ -71,6 +72,8 @@ export function AgentPanel({
       {settings ? (
         <AgentSettings
           readiness={readiness}
+          provider={provider}
+          setProvider={setProvider}
           capture={agent.capture}
           focusCaptureShortcut={captureSettingsEntry}
           runStatus={snapshot.status}
