@@ -35,12 +35,14 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Verify frontend
         if: steps.version.outputs.publish == 'true'
+        shell: bash
         run: |
           bun run check
           bun run build
           bun run test:frontend:critical
       - name: Verify Rust
         if: steps.version.outputs.publish == 'true'
+        shell: bash
         run: |
           cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
           cargo check --manifest-path src-tauri/Cargo.toml --locked
