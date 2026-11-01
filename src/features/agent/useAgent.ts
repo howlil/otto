@@ -84,10 +84,8 @@ function useProviderReadiness(cwd: string, provider: AgentProvider) {
         message: "Provider readiness requires the Otto desktop app.",
         recovery: "Open Otto on Windows.",
         imageInput: false,
-  imageTransport: false,
-  agentSession: false,
-    imageTransport: false,
-    agentSession: false,
+        imageTransport: false,
+        agentSession: false,
       });
       return;
     }
@@ -101,10 +99,8 @@ function useProviderReadiness(cwd: string, provider: AgentProvider) {
           message: "Could not check provider readiness.",
           recovery: "Retry the connection.",
           imageInput: false,
-  imageTransport: false,
-  agentSession: false,
-    imageTransport: false,
-    agentSession: false,
+          imageTransport: false,
+          agentSession: false,
         });
       }
     }
