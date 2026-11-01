@@ -17,7 +17,7 @@ Alternate context path: B2 → B4 user-triggered screen capture → B3 answer. S
 - B4: An explicit camera action or configured hotkey intentionally captures the last focused non-Otto window without flash/selection UI, sends that image to a selected CLI with image support, and shows the analysis; full-screen capture is an explicit alternative.
 - B5: Music Compact shows circular artwork, song/artist, and playback-linked activity spectrum; Expanded adds playback details/actions. The spectrum stops when playback stops; lyrics appear only when a source provides them.
 - B6: Pomodoro Compact shows remaining time, phase and a primary control, with no progress line/timeline/percentage or ring; Expanded enables focus/short/long-break durations and phase selection, start/pause/resume/reset, with restrained state-change and completion motion and no progress bar or ring.
-- B7: User selects floating or top-attached placement; the capsule morphs into a rounded Expanded card. Attached uses curved shoulders connected to the screen edge; both placements preserve interaction without trapping or obscuring unrelated desktop actions.
+- B7: User selects floating or top-attached placement; the capsule morphs into a rounded Expanded card. Attached uses curved shoulders connected to the screen edge; both placements preserve interaction without trapping or obscuring unrelated desktop actions. Otto requests native tool-window semantics to reduce its visibility as a shareable Window source where the capture picker filters tool windows.
 - B8: Collapsing Otto, switching feature, or returning focus to another app does not cancel an active AI request; reopening reveals ongoing output or its completed answer. Explicit Stop cancels; exiting Otto ends owned active work.
 - B9: Before starting agent work, user can see the selected provider and working project/context. Quick Ask is the default, with no file-changing actions; entering an Agent Session or approving a tool action requires an explicit user choice. An approval request visibly waits for a valid decision.
 - B10: Background AI, music, or timer updates never switch the active feature or seize keyboard focus; completed AI work appears as a quiet 'Answer ready' status that can be opened on demand.
@@ -29,7 +29,7 @@ Material breaks:
 - X2 (B4): Capture permission unavailable or provider cannot take images → no upload/submission; show a recoverable reason.
 - X3 (B5): No media session/lyrics source → show an accurate empty or unavailable state, not invented content.
 - X4 (B3,B8): User explicitly stops or exits during a run → terminate owned work; no late response becomes current; collapse alone never triggers cancellation.
-- X5 (B1,B7): OS/recorder ignores window capture exclusion → never promise invisibility from all capture software; communicate limitations.
+- X5 (B1,B7): OS/recorder ignores pixel exclusion or lists tool windows as shareable sources → never promise universal invisibility, process hiding, or picker exclusion; retain usable UI and communicate limitations.
 - X6 (B4): Last focused external window no longer exists or is ambiguous → do not silently capture a different target; offer user-controlled retry/selection.
 - X7 (B9): CLI requires a tool approval → pause in an actionable waiting state; never auto-approve or mislabel an unattended action as safe.
 - X8 (B4): Capture hotkey conflicts with another shortcut or cannot register → show conflict and allow reassignment; never silently capture.
@@ -59,7 +59,7 @@ Material breaks:
 - Out: OpenCode provider, cloud backend, standalone model API credentials, universal capture invisibility, automatic screen surveillance, auto-approval of agent actions, database, telemetry server, auto-updater, multi-OS parity, speculative plugin system.
 
 ## Proof
-- P1 (B1,B7,X5): Given a supported Windows session, when Otto starts/changes placement, it remains accessible at the selected top location; capture-protection limitations are accurately communicated.
+- P1 (B1,B7,X5): Given a supported Windows session, Otto remains accessible at the selected top location with the native tool-window style set; supported picker filtering and pixel exclusion require representative Windows acceptance, and limitations are accurately communicated.
 - P2 (B2): Given any Compact module, hover reveals its Expanded preview without focus theft; click/keyboard activation pins the card; exiting/Escape restores Compact, and Expanded Home exposes all module entries without mandatory gesture navigation.
 - P3 (B3,X1,X4): Given a ready CLI, asking produces a real partial/final answer and follow-up; a missing/failed CLI keeps the draft recoverable; explicit Stop/exit ends owned work without a stale answer.
 - P4 (B4,X2,X6,Q5): Given a valid last-focused window and capable provider, only an intentional hotkey sends its image and returns analysis; denied, unsupported, missing or ambiguous targets send nothing and offer recovery.
