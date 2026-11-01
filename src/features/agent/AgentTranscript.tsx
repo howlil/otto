@@ -87,6 +87,7 @@ export function AgentTranscript({
         </div>
       </div>
       <AgentComposer
+        provider={snapshot.provider}
         draft={draft}
         setDraft={setDraft}
         busy={busy}
