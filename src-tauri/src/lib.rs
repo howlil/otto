@@ -37,7 +37,9 @@ pub fn run() {
             app.manage(windows::capture::start_hotkey(app.handle().clone()));
             if let Some(window) = app.get_webview_window("main") {
                 #[cfg(windows)]
-                windows::overlay::configure(&window)?;
+                if let Err(error) = windows::overlay::configure(&window) {
+                    eprintln!("Unable to configure the Otto tool window: {error}");
+                }
                 if let Some(monitor) = window.current_monitor()? {
                     let size = window.outer_size()?;
                     let bounds = monitor.size();
