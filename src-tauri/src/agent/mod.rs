@@ -451,7 +451,9 @@ impl AgentRuntime {
             return Err("An answer is already running.".into());
         }
         if current.provider != provider {
-            return Err("Select the provider in Agent Settings before requesting an answer.".into());
+            return Err(
+                "Select the provider in Agent Settings before requesting an answer.".into(),
+            );
         }
 
         let readiness = self
@@ -729,17 +731,25 @@ mod tests {
     #[tokio::test]
     async fn pi_provider_selection_blocks_capture_before_first_chat() {
         let runtime = AgentRuntime::new();
-        runtime.select_provider("pi".into()).await.expect("Pi selection");
+        runtime
+            .select_provider("pi".into())
+            .await
+            .expect("Pi selection");
         assert_eq!(runtime.snapshot().provider, "pi");
-        let capture = runtime.capture_hotkey(|| -> Result<CapturedImage, String> {
-            panic!("The capture closure must never execute for Pi");
-        }).await;
+        let capture = runtime
+            .capture_hotkey(|| -> Result<CapturedImage, String> {
+                panic!("The capture closure must never execute for Pi");
+            })
+            .await;
         assert_eq!(
             capture.as_deref(),
             Err("Screen capture requires Codex. Select it in a new session.")
         );
         assert!(runtime.snapshot().messages.is_empty());
-        runtime.select_provider("codex".into()).await.expect("switch back");
+        runtime
+            .select_provider("codex".into())
+            .await
+            .expect("switch back");
     }
 
     #[tokio::test]
