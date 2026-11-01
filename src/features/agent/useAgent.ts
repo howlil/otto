@@ -289,8 +289,7 @@ function useNewAgentSession({
 
 function useCaptureShortcut() {
   const [captureMessage, setCaptureMessage] = useState("");
-  const { source, selectSource, sourceReady, sourcePending } =
-    useCaptureSource(setCaptureMessage);
+  const { source, selectSource, sourceReady, sourcePending } = useCaptureSource(setCaptureMessage);
   const [shortcut, setShortcut] = useState(() => {
     try {
       return localStorage.getItem("otto.capture.shortcut") || "Ctrl+Shift+O";

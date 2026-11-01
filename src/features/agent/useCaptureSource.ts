@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  configureCaptureSource,
-  nativeAvailable,
-  type CaptureSource,
-} from "../../platform/tauri";
+import { configureCaptureSource, nativeAvailable, type CaptureSource } from "../../platform/tauri";
 
 function savedCaptureSource(): CaptureSource {
   try {
@@ -30,7 +26,7 @@ export function useCaptureSource(onMessage: (message: string) => void) {
       .catch((cause: unknown) => {
         if (active) {
           setSourceReady(false);
-          onMessage("Capture source not confirmed: " + String(cause));
+          onMessage(`Capture source not confirmed: ${String(cause)}`);
         }
       })
       .finally(() => {
@@ -61,7 +57,7 @@ export function useCaptureSource(onMessage: (message: string) => void) {
         }
       } catch (cause) {
         setSourceReady(false);
-        onMessage("Capture source not confirmed: " + String(cause));
+        onMessage(`Capture source not confirmed: ${String(cause)}`);
       } finally {
         locked.current = false;
         setSourcePending(false);
