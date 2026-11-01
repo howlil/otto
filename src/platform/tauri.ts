@@ -91,6 +91,10 @@ export async function subscribeAgent(
     unsubscribe: () => invoke("agent_unsubscribe", { subscriptionId }),
   };
 }
+export async function selectAgentProvider(provider: AgentProvider): Promise<void> {
+  await invoke("agent_select_provider", { provider });
+}
+
 export async function askAgent(
   text: string,
   cwd: string,

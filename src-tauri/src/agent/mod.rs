@@ -249,6 +249,29 @@ impl AgentRuntime {
         providers::codex::executable().is_some()
     }
 
+    pub async fn select_provider(&self, provider: String) -> Result<(), String> {
+        if provider != "codex" && provider != "pi" {
+            return Err("Unknown provider.".into());
+        }
+        let guard = self.control.lock().await;
+        let current = self.snapshot();
+        if matches!(
+            current.status.as_str(),
+            "starting" | "streaming" | "stopping" | "approvalRequired"
+        ) || current.thread_id.is_some()
+            || guard.as_ref().is_some_and(|sender| !sender.is_closed())
+        {
+            return Err("Start a new session before changing the provider.".into());
+        }
+        if current.provider != provider {
+            mutate(&self.updates, |state| {
+                state.provider = provider;
+                state.error = None;
+            });
+        }
+        Ok(())
+    }
+
     pub async fn provider_readiness(
         &self,
         provider: &str,
@@ -427,6 +450,9 @@ impl AgentRuntime {
         ) {
             return Err("An answer is already running.".into());
         }
+        if current.provider != provider {
+            return Err("Select the provider in Agent Settings before requesting an answer.".into());
+        }
 
         let readiness = self
             .provider_readiness(&provider, Some(&cwd.to_string_lossy()))
@@ -563,7 +589,7 @@ impl AgentRuntime {
             s.run_id = run_id;
             s.status = "idle".into();
             s.mode = InteractionMode::QuickAsk.as_str().into();
-            s.provider = "codex".into();
+            s.provider = current.provider.clone();
             s.thread_id = None;
             s.messages.clear();
             s.activity = None;
@@ -697,6 +723,33 @@ mod tests {
         fail(&tx, 1, "late failure");
         assert_eq!(tx.borrow().status, "completed");
         assert_eq!(tx.borrow().error, None);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn pi_provider_selection_blocks_capture_before_first_chat() {
+        let runtime = AgentRuntime::new();
+        runtime.select_provider("pi".into()).await.expect("Pi selection");
+        assert_eq!(runtime.snapshot().provider, "pi");
+        let capture = runtime.capture_hotkey(|| -> Result<CapturedImage, String> {
+            panic!("The capture closure must never execute for Pi");
+        }).await;
+        assert_eq!(
+            capture.as_deref(),
+            Err("Screen capture requires Codex. Select it in a new session.")
+        );
+        assert!(runtime.snapshot().messages.is_empty());
+        runtime.select_provider("codex".into()).await.expect("switch back");
+    }
+
+    #[tokio::test]
+    async fn provider_cannot_change_while_session_is_owned() {
+        let runtime = AgentRuntime::new();
+        assert!(runtime.select_provider("agy".into()).await.is_err());
+        let (tx, _rx) = mpsc::channel(1);
+        *runtime.control.lock().await = Some(tx);
+        assert!(runtime.select_provider("pi".into()).await.is_err());
+        assert_eq!(runtime.snapshot().provider, "codex");
     }
 
     #[tokio::test]

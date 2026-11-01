@@ -13,6 +13,7 @@ pub fn run() {
             commands::agent_codex_installed,
             commands::agent_codex_readiness,
             commands::agent_provider_readiness,
+            commands::agent_select_provider,
             commands::agent_subscribe,
             commands::agent_unsubscribe,
             commands::agent_ask,

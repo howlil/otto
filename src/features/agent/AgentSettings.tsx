@@ -84,7 +84,13 @@ export function AgentSettings({
         />
         <ModeSettings mode={mode} locked={locked || provider === "pi"} setMode={setMode} />
         <ProjectSettings cwd={cwd} locked={locked} setCwd={setCwd} />
-        <AgentCaptureSettings capture={capture} focusCaptureShortcut={focusCaptureShortcut} />
+        {provider === "codex" ? (
+          <AgentCaptureSettings capture={capture} focusCaptureShortcut={focusCaptureShortcut} />
+        ) : (
+          <StatusMessage tone="info" className="mt-2">
+            Screen capture requires Codex. Pi currently supports text-only Quick Ask.
+          </StatusMessage>
+        )}
         {hasThread && (
           <div className="mt-px flex items-center justify-between gap-3 pt-[10px]">
             <Text as="span" variant="status" className="m-0 text-otto-text-tertiary">

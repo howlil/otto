@@ -401,7 +401,7 @@ pub async fn run(
                     break;
                 }
                 Some(Control::Ask {text, cwd, run_id, capture: None}) if active.is_none() => {
-                    if cwd != PathBuf::from(&updates.borrow().cwd) {
+                    if cwd.as_path() != Path::new(&updates.borrow().cwd) {
                         fail(&updates, run_id, "Pi context changed. Start a new session.");
                         continue;
                     }

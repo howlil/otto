@@ -34,6 +34,14 @@ pub async fn agent_provider_readiness(
 }
 
 #[tauri::command]
+pub async fn agent_select_provider(
+    runtime: State<'_, AgentRuntime>,
+    provider: String,
+) -> Result<(), String> {
+    runtime.select_provider(provider).await
+}
+
+#[tauri::command]
 pub fn agent_subscribe(runtime: State<'_, AgentRuntime>, on_event: Channel<Snapshot>) -> u64 {
     runtime.subscribe(on_event)
 }

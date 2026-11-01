@@ -4,6 +4,7 @@ import {
   askAgent,
   getAgentReadiness,
   getCaptureTargetTitle,
+  selectAgentProvider,
   configureCaptureShortcut,
   nativeAvailable,
   decideAgentApproval,
@@ -393,6 +394,7 @@ export function useAgent() {
   const [cwd, setCwd] = useState("");
   const [mode, setMode] = useState<AgentMode>("quickAsk");
   const [provider, setProvider] = useState<AgentProvider>("codex");
+  const changingProvider = useRef(false);
   const busy = ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status);
   const locked = busy || snapshot.threadId !== null;
   const { readiness, refreshProvider } = useProviderReadiness(cwd, provider);
@@ -409,6 +411,20 @@ export function useAgent() {
     [receive],
   );
   const connection = useAgentConnection(receive, acceptSnapshot);
+  const selectProvider = useCallback(async (next: AgentProvider) => {
+    if (locked || changingProvider.current || next === provider) return;
+    changingProvider.current = true;
+    try {
+      if (nativeAvailable) await selectAgentProvider(next);
+      setProvider(next);
+      if (next === "pi") setMode("quickAsk");
+      connection.clearError();
+    } catch (error) {
+      connection.setRequestError(error);
+    } finally {
+      changingProvider.current = false;
+    }
+  }, [locked, provider, connection.clearError, connection.setRequestError]);
   const submitted = useAgentSubmission(snapshot, setDraft);
   const actions = useAgentRequestActions({
     busy,
@@ -442,11 +458,7 @@ export function useAgent() {
     mode,
     setMode,
     provider,
-    setProvider: (next: AgentProvider) => {
-      if (locked) return;
-      setProvider(next);
-      if (next === "pi") setMode("quickAsk");
-    },
+    setProvider: selectProvider,
     locked,
     error: connection.error ?? snapshot.error,
     busy,

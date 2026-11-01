@@ -61,7 +61,7 @@ export function ProviderSettings({
                 selected
                   ? providerStatus
                   : name === "Codex" || name === "Pi"
-                    ? "Available"
+                    ? "Select"
                     : "Coming soon"
               }
               selected={selected}
