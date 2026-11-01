@@ -16,7 +16,7 @@ function agentHomeSubtitle(
 ) {
   if (error) return "Connection issue";
   if (snapshot.status !== "idle") return agentStatusLabel(snapshot.status, readiness.status);
-  if (readiness.status === "checking") return "Checking Codex";
+  if (readiness.status === "checking") return `Checking ${snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex"}`;
   if (readiness.status !== "ready") return "Setup required";
   return snapshot.messages.length > 0 ? "Continue session" : "Ask your CLI";
 }
