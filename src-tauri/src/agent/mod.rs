@@ -351,16 +351,19 @@ impl AgentRuntime {
         ) {
             return Err("Finish or Stop the current answer before capturing.".into());
         }
-        if state.provider != "codex" {
-            return Err("Screen capture requires Codex. Select it in a new session.".into());
+        if state.provider == "agy" {
+            return Err("Agy headless image input is not verified. Select Codex or Pi.".into());
         }
         if state.thread_id.is_some() && state.mode != "quickAsk" {
             return Err("Start a new Quick Ask session before using screen capture.".into());
         }
-        let ready = self.codex_readiness(Some(&state.cwd)).await;
+        let ready = self
+            .provider_readiness(&state.provider, Some(&state.cwd))
+            .await;
         if ready.status != "ready" || !ready.image_input {
             return Err(
-                "Codex image input is not confirmed. Open Agent settings and Retry.".into(),
+                "Selected provider or model cannot accept screenshots. Open Agent settings and Retry."
+                    .into(),
             );
         }
         let image = tokio::task::spawn_blocking(capture)
@@ -370,7 +373,7 @@ impl AgentRuntime {
             "Analyze the captured application window. Describe what is visible and answer any apparent question without modifying files.".into(),
             state.cwd,
             "quickAsk".into(),
-            "codex".into(),
+            state.provider,
             Some(image),
         ).await
     }
@@ -435,10 +438,11 @@ impl AgentRuntime {
         if provider != "codex" && provider != "pi" && provider != "agy" {
             return Err("Selected provider is unavailable.".into());
         }
-        if (provider == "pi" || provider == "agy")
-            && (mode != InteractionMode::QuickAsk || capture.is_some())
-        {
-            return Err("This provider supports tool-free text Quick Ask only.".into());
+        if (provider == "pi" || provider == "agy") && mode != InteractionMode::QuickAsk {
+            return Err("This provider supports tool-free Quick Ask only.".into());
+        }
+        if provider == "agy" && capture.is_some() {
+            return Err("Agy headless image input is not verified.".into());
         }
         let cwd =
             std::fs::canonicalize(cwd).map_err(|_| "Working folder does not exist.".to_string())?;
@@ -469,7 +473,7 @@ impl AgentRuntime {
             return Err(format!("{} {}", readiness.message, readiness.recovery));
         }
         if capture.is_some() && !readiness.image_input {
-            return Err("The selected Codex model cannot accept an image.".into());
+            return Err("The selected provider model cannot accept an image.".into());
         }
         if let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
             if std::path::Path::new(&current.cwd) != cwd.as_path() {
@@ -740,27 +744,23 @@ mod tests {
 
     #[cfg(windows)]
     #[tokio::test]
-    async fn pi_provider_selection_blocks_capture_before_first_chat() {
+    async fn unverified_agy_image_input_blocks_capture_before_first_chat() {
         let runtime = AgentRuntime::new();
         runtime
-            .select_provider("pi".into())
+            .select_provider("agy".into())
             .await
-            .expect("Pi selection");
-        assert_eq!(runtime.snapshot().provider, "pi");
+            .expect("Agy selection");
+        assert_eq!(runtime.snapshot().provider, "agy");
         let capture = runtime
             .capture_hotkey(|| -> Result<CapturedImage, String> {
-                panic!("The capture closure must never execute for Pi");
+                panic!("The capture closure must never execute for unsupported Agy images");
             })
             .await;
         assert_eq!(
             capture.unwrap_err(),
-            "Screen capture requires Codex. Select it in a new session."
+            "Agy headless image input is not verified. Select Codex or Pi."
         );
         assert!(runtime.snapshot().messages.is_empty());
-        runtime
-            .select_provider("codex".into())
-            .await
-            .expect("switch back");
     }
 
     #[tokio::test]
