@@ -1,38 +1,117 @@
 name: Otto CI
 
 'on':
+  pull_request:
+    branches: [master]
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Verification depth
+        required: true
+        default: full
+        type: choice
+        options:
+          - fast
+          - full
 
 permissions:
   contents: read
 
 concurrency:
-  group: otto-ci-${{ github.ref }}
+  group: otto-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  verify:
-    runs-on: windows-latest
-    timeout-minutes: 45
+  frontend:
+    name: Frontend and contract
+    if: ${{ github.event.repository.private == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - name: Install frontend dependencies
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
         run: bun install --frozen-lockfile
-      - name: TypeScript and frontend build
-        run: bun run build
-      - name: Biome lint and formatting
+      - name: Lint and frontend rules
         run: bun run check
-      - name: Frontend and release policy tests
+      - name: TypeScript and Vite build
+        run: bun run build
+      - name: Frontend and CLI contract tests
         run: bun run test:frontend:critical
+
+  windows:
+    name: Windows Rust and native E2E
+    if: ${{ github.event.repository.private == false }}
+    needs: frontend
+    runs-on: windows-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
       - name: Rust format
         run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
       - name: Cargo compile check
         run: cargo check --manifest-path src-tauri/Cargo.toml --locked
-      - name: Cargo targeted tests
+      - name: Cargo tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - name: Clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Install dependencies for native build
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
+        run: bun install --frozen-lockfile
+      - name: Build Otto desktop debug executable
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
+        run: bun run tauri build --debug --no-bundle
+      - uses: actions/cache@v4
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
+        id: tauri-driver-cache
+        with:
+          path: ~/.cargo/bin/tauri-driver.exe
+          key: tauri-driver-windows-2.0.6
+      - name: Install Tauri WebDriver
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' && steps.tauri-driver-cache.outputs.cache-hit != 'true' }}
+        run: cargo install tauri-driver --version 2.0.6 --locked
+      - name: Install Edge WebDriver matching WebView2
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
+        shell: pwsh
+        run: |
+          $roots = @(
+            (Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft\EdgeWebView\Application'),
+            (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Microsoft\EdgeWebView\Application')
+          )
+          $runtime = @(
+            foreach ($root in $roots) {
+              if (Test-Path $root) {
+                Get-ChildItem $root -Directory |
+                  Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+                  Sort-Object { [version]$_.Name } -Descending
+              }
+            }
+          ) | Select-Object -First 1
+          if (-not $runtime) { throw 'WebView2 Runtime unavailable on runner' }
+          $driverDir = Join-Path $env:RUNNER_TEMP 'otto-msedgedriver'
+          New-Item -ItemType Directory -Path $driverDir -Force | Out-Null
+          $archive = Join-Path $driverDir 'driver.zip'
+          $url = "https://msedgedriver.microsoft.com/$($runtime.Name)/edgedriver_win64.zip"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $driverDir -Force
+          if (-not (Test-Path (Join-Path $driverDir 'msedgedriver.exe'))) {
+            throw 'Microsoft Edge WebDriver executable is missing'
+          }
+          $driverDir >> $env:GITHUB_PATH
+      - name: Native P8 background continuity
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
+        timeout-minutes: 10
+        run: bun run test:e2e:native

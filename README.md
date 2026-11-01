@@ -20,3 +20,11 @@ The current feature branch contains a **candidate, not Windows-verified** Codex 
 UI design baseline (all modules and settings): [`design/otto.html`](design/otto.html). This is the **only** design HTML; use it alongside `.agents/DESIGN.md` for UI implementation and reviews. Do not create per-module HTML prototypes.
 
 Project contracts: `.agents/product.md`, `.agents/engineering.md`, `.agents/DESIGN.md`.
+
+## CI and native E2E
+
+[Otto CI](https://github.com/howlil/otto/actions/workflows/otto-verify-once.yml) runs on PRs targeting master and by manual dispatch. Two sequential jobs run: Ubuntu frontend/build/contract checks, then Windows Rust checks. Only one CI workflow exists; PR updates cancel superseded runs, and no branch-push trigger duplicates them.
+
+For desktop acceptance, select Actions > Otto CI > Run workflow, select the branch and suite=full. This builds a debug Otto.exe and runs P8 streaming/Home/reopen/background completion through a deterministic Codex CLI fixture, without AI authentication or paid API calls. Select suite=fast to skip native E2E. The separate release workflow keeps its versioned publishing behavior.
+
+Windows E2E is unverified until a matching GitHub Actions run passes. Existing P8 proof does not claim coverage of P3 Stop, P9 approvals, P11 readiness, native capture or P12 restart.
