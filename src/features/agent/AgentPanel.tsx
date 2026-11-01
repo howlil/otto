@@ -74,6 +74,8 @@ export function AgentPanel({
         mode={snapshot.threadId ? snapshot.mode : mode}
         provider={snapshot.threadId ? snapshot.provider : provider}
         status={snapshot.status}
+        hasThread={snapshot.threadId !== null}
+        resetBusy={busy || captureBusy}
         capturePhase={snapshot.capture.phase}
         readiness={readiness.status}
         activity={Boolean(snapshot.activity)}
@@ -83,6 +85,7 @@ export function AgentPanel({
           onSettings();
         }}
         onSettingsBack={onSettingsBack}
+        onNewSession={() => void newSession()}
         onHome={onBack}
       />
       {settings ? (
@@ -105,10 +108,8 @@ export function AgentPanel({
           locked={locked}
           cwd={cwd}
           setCwd={setCwd}
-          hasThread={snapshot.threadId !== null}
           busy={busy || captureBusy}
           error={agent.error}
-          onNewSession={() => void newSession()}
           onDone={onSettingsBack}
           onMeasured={onMeasured}
         />
