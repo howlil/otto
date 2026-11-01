@@ -113,6 +113,20 @@ pub fn agent_configure_capture_source(app: tauri::AppHandle, source: String) -> 
 }
 
 #[tauri::command]
+pub fn agent_capture_now(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        app.state::<crate::windows::capture::CaptureHotkeys>()
+            .trigger()
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        Err("Screen capture requires Windows.".into())
+    }
+}
+
+#[tauri::command]
 pub fn agent_capture_target_title() -> Result<String, String> {
     #[cfg(windows)]
     {

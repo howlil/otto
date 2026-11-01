@@ -447,6 +447,7 @@ type HotkeyReply = SyncSender<Result<(), String>>;
 enum HotkeyChange {
     Shortcut(Shortcut, HotkeyReply),
     Source(CaptureSource, HotkeyReply),
+    Trigger(HotkeyReply),
 }
 
 enum CaptureIntent {
@@ -461,6 +462,10 @@ pub struct CaptureHotkeys {
 }
 
 impl CaptureHotkeys {
+    pub fn trigger(&self) -> Result<(), String> {
+        self.request(HotkeyChange::Trigger)
+    }
+
     pub fn configure(&self, value: &str) -> Result<(), String> {
         let requested = parse_shortcut(value)?;
         self.request(|reply| HotkeyChange::Shortcut(requested, reply))
@@ -500,6 +505,34 @@ fn register(shortcut: Shortcut) -> bool {
             shortcut.key,
         ) != 0
     }
+}
+
+fn dispatch_capture(app: &tauri::AppHandle, source: CaptureSource, hook_available: bool) {
+    let target = match source {
+        CaptureSource::Window if !hook_available => {
+            Err("Window focus tracking is unavailable.".to_string())
+        }
+        CaptureSource::Window => select_capture_target().map(CaptureIntent::Window),
+        CaptureSource::FullScreen => Ok(CaptureIntent::FullScreen),
+    };
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let runtime = handle.state::<AgentRuntime>();
+        match target {
+            Ok(intent) => {
+                if let Err(reason) = runtime
+                    .capture_hotkey(move || match intent {
+                        CaptureIntent::Window(window) => capture_foreground(window),
+                        CaptureIntent::FullScreen => capture_full_screen(),
+                    })
+                    .await
+                {
+                    runtime.capture_error(&reason);
+                }
+            }
+            Err(reason) => runtime.capture_error(&reason),
+        }
+    });
 }
 
 fn run_hotkeys(
@@ -544,6 +577,10 @@ fn run_hotkeys(
         if message.message == WM_HOTKEY_CONFIG {
             while let Ok(change) = changes.try_recv() {
                 match change {
+                    HotkeyChange::Trigger(reply) => {
+                        dispatch_capture(&app, source, !hook.is_null());
+                        let _ = reply.send(Ok(()));
+                    }
                     HotkeyChange::Source(requested, reply) => {
                         source = requested;
                         let _ = reply.send(Ok(()));
@@ -576,34 +613,9 @@ fn run_hotkeys(
             }
         }
         if message.message == WM_HOTKEY && message.wParam == HOTKEY_ID as usize {
-            if !armed.load(Ordering::SeqCst) {
-                continue;
+            if armed.load(Ordering::SeqCst) {
+                dispatch_capture(&app, source, !hook.is_null());
             }
-            let target = match source {
-                CaptureSource::Window if hook.is_null() => {
-                    Err("Window focus tracking is unavailable.".to_string())
-                }
-                CaptureSource::Window => select_capture_target().map(CaptureIntent::Window),
-                CaptureSource::FullScreen => Ok(CaptureIntent::FullScreen),
-            };
-            let handle = app.clone();
-            tauri::async_runtime::spawn(async move {
-                let runtime = handle.state::<AgentRuntime>();
-                match target {
-                    Ok(intent) => {
-                        if let Err(reason) = runtime
-                            .capture_hotkey(move || match intent {
-                                CaptureIntent::Window(window) => capture_foreground(window),
-                                CaptureIntent::FullScreen => capture_full_screen(),
-                            })
-                            .await
-                        {
-                            runtime.capture_error(&reason);
-                        }
-                    }
-                    Err(reason) => runtime.capture_error(&reason),
-                }
-            });
         }
     }
     if registered.is_some() {
