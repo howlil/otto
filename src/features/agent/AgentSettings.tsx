@@ -65,10 +65,17 @@ export function AgentSettings({
   const tabs = [
     { id: "provider", label: "Provider" },
     { id: "mode", label: "Mode" },
+    { id: "usage", label: "Model & usage" },
     { id: "workspace", label: "Workspace" },
     { id: "capture", label: "Screen Capture" },
-    { id: "usage", label: "Model & usage" },
   ] as const;
+  const introductions = {
+    provider: "Select your local CLI. Its capabilities determine the available actions.",
+    mode: "The selected mode controls permissions for the entire conversation.",
+    usage: "Local CLI runtime details are kept in settings, away from your conversation.",
+    workspace: "The working directory belongs to a single provider session.",
+    capture: "Screenshot analysis is native; target and image support must be verified.",
+  };
   return (
     <section className="flex min-h-0 flex-1 flex-col">
       <div className="grid min-h-0 flex-1 grid-cols-[118px_minmax(0,1fr)]">
@@ -91,9 +98,12 @@ export function AgentSettings({
             </button>
           ))}
         </nav>
-        <div className="min-h-0 min-w-0 overflow-y-auto px-[17px] pb-4 pt-[13px] [overscroll-behavior:contain] [scrollbar-width:none]">
+        <div className="min-h-0 min-w-0 overflow-y-auto px-[17px] pb-5 pt-[15px] [overscroll-behavior:contain] [scrollbar-width:none]">
           <Text as="h2" variant="heading" className="mb-1">
-            {tabs.find((item) => item.id === tab)?.label}
+            {tab === "mode" ? "Interaction mode" : tab === "workspace" ? "Working project" : tab === "usage" ? "Model & usage" : tab === "capture" ? "Screen Capture" : "Provider"}
+          </Text>
+          <Text as="p" variant="meta" className="mb-[15px] block leading-[1.5] text-otto-text-tertiary">
+            {introductions[tab]}
           </Text>
           {busy && (
             <StatusMessage
@@ -184,11 +194,6 @@ export function AgentSettings({
             </StatusMessage>
           )}
         </div>
-      </div>
-      <div className="flex shrink-0 justify-end border-t border-otto-line-soft px-4 py-2">
-        <Button variant="primary" size="sm" onClick={onDone}>
-          Done
-        </Button>
       </div>
     </section>
   );
