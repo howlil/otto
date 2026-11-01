@@ -173,6 +173,31 @@ impl Drop for CaptureReservation {
     }
 }
 
+#[cfg(windows)]
+async fn capture_with_deadline<F>(
+    reservation: &Arc<CaptureReservation>,
+    deadline: Duration,
+    capture: F,
+) -> Result<CapturedImage, String>
+where
+    F: FnOnce() -> Result<CapturedImage, String> + Send + 'static,
+{
+    let worker_reservation = Arc::clone(reservation);
+    let worker = tauri::async_runtime::spawn_blocking(move || {
+        let result = capture();
+        drop(worker_reservation);
+        result
+    });
+    match timeout(deadline, worker).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err("Windows capture failed.".into()),
+        Err(_) => Err(
+            "Window capture timed out. Focus a responsive window and retry. If capture stays busy, restart Otto."
+                .into(),
+        ),
+    }
+}
+
 pub struct CapturedImage(PathBuf);
 
 impl CapturedImage {
@@ -470,9 +495,13 @@ impl AgentRuntime {
                 state.capture.phase = "capturing".into();
             }
         });
-        let image = tokio::task::spawn_blocking(capture)
-            .await
-            .map_err(|_| "Windows capture failed.".to_string())??;
+        let reservation = Arc::new(_reservation);
+        let image = capture_with_deadline(
+            &reservation,
+            Duration::from_secs(8),
+            capture,
+        )
+        .await?;
         mutate(&self.updates, |state| {
             if state.capture.request_id == request_id {
                 state.capture.phase = "submitting".into();
@@ -1279,6 +1308,41 @@ mod tests {
             )
             .await;
         assert!(escalated.is_err());
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn timed_out_capture_keeps_native_work_reserved_until_it_finishes() {
+        let in_flight = Arc::new(AtomicBool::new(false));
+        let reservation =
+            Arc::new(CaptureReservation::acquire(Arc::clone(&in_flight)).unwrap());
+        let (started_tx, started_rx) = oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+        let attempt = tokio::spawn({
+            let reservation = Arc::clone(&reservation);
+            async move {
+                capture_with_deadline(&reservation, Duration::from_millis(40), move || {
+                    let _ = started_tx.send(());
+                    let _ = release_rx.recv();
+                    Err("simulated blocked capture".into())
+                })
+                .await
+            }
+        });
+        started_rx.await.expect("worker entered blocking operation");
+        drop(reservation);
+        let outcome = attempt.await.expect("timeout task completed");
+        assert!(outcome.unwrap_err().contains("timed out"));
+        assert!(CaptureReservation::acquire(Arc::clone(&in_flight)).is_err());
+        release_tx.send(()).unwrap();
+        timeout(Duration::from_secs(2), async {
+            while in_flight.load(Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("native worker eventually released capture reservation");
+        assert!(CaptureReservation::acquire(in_flight).is_ok());
     }
 
     #[test]
