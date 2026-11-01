@@ -22,49 +22,19 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #98accb;outline-offset:3px}
 button{touch-action:manipulation}
 #root{min-height:100vh}
-.lab{min-height:100vh;display:grid;grid-template-columns:232px minmax(0,1fr);max-width:1900px;margin:0 auto}
-.rail{min-height:100vh;padding:28px 16px 20px;background:var(--rail);border-right:1px solid #292a2f;display:flex;flex-direction:column;gap:22px}
-.brand{display:flex;gap:10px;align-items:center;padding:0 7px}
-.brand-logo{width:34px;height:34px;background:#e9e9eb;border-radius:13px;display:flex;align-items:center;justify-content:center;color:#1c1d21;font-size:20px;font-weight:650;letter-spacing:-2px}
-.brand strong{display:block;font-size:16px;letter-spacing:-.7px;font-weight:650}
-.brand small{color:var(--subtle);font-size:10px}
-.label{font-size:11px;color:#81838c;margin:0 0 8px 9px}
-.rail-group{display:flex;flex-direction:column;gap:3px}
-.nav{display:flex;align-items:center;gap:11px;color:#a7a8af;background:transparent;border:1px solid transparent;border-radius:9px;width:100%;height:35px;text-align:left;padding:0 10px;transition:background 160ms ease,color 160ms ease,border-color 160ms ease}
-.nav svg{flex:none;opacity:.78}
-.nav:hover{background:#26282d;color:#fff}
-.nav.active{background:#2d2f35;color:#f2f3f5;border-color:#3a3b43}
-.nav.active svg{opacity:1}
-.nav small{margin-left:auto;font-size:10px;color:#898b93}
-.rail-rule{height:1px;background:#2b2d32}
-.segment{display:flex;padding:3px;gap:2px;background:#22242a;border-radius:10px}
-.segment button{flex:1;border:0;border-radius:8px;color:#a0a1a9;padding:8px 5px;background:transparent;transition:background .16s ease,color .16s ease;font-size:11px}
-.segment button.selected{background:#3d3f47;color:#fff}
-.rail-footer{margin-top:auto;color:#95969d;font-size:11px;line-height:1.65}
-.rail-footer strong{display:block;color:#cfd0d4;margin-bottom:6px;font-weight:550}
-.rail-footer span{display:block}
-.main{min-width:0;display:flex;flex-direction:column}
-.top{height:79px;flex:none;border-bottom:1px solid #25262b;padding:17px 30px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.top-title{font-size:17px;letter-spacing:-.4px;font-weight:550}
-.top-desc{color:#878993;font-size:11px;margin-top:4px}
-.top-status{display:flex;align-items:center;gap:7px;color:#a5a6ae;font-size:10px;border:1px solid #363840;border-radius:999px;padding:6px 10px;white-space:nowrap}
-.status-dot{width:6px;height:6px;background:#95b8a1;border-radius:50%}
-.content{padding:25px 30px 28px;min-height:0;display:flex;flex-direction:column;flex:1;gap:14px}
-.canvas{position:relative;min-height:480px;flex:1;overflow:hidden;background:linear-gradient(140deg,#30323a 0%,#1e2028 44%,#16171d 100%);border:1px solid #3c3d45;border-radius:19px}
-.canvas:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.012) 50%,transparent 100%)}
-.desktop-bar{height:29px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#ffffff08;border-bottom:1px solid #ffffff0b;color:#989aa5;font-size:10px;letter-spacing:.1px}
-.desktop-window{position:absolute;border:1px solid #40424a;background:#23252e;border-radius:12px;box-shadow:0 16px 40px #07080a28;overflow:hidden;opacity:.66;pointer-events:none}
-.desktop-window.one{left:9%;top:145px;width:31%;height:245px;transform:rotate(-4deg)}
-.desktop-window.two{right:7%;top:183px;width:29%;height:208px;transform:rotate(4deg)}
-.win-top{height:28px;border-bottom:1px solid #373941;padding:0 13px;display:flex;gap:6px;align-items:center}
-.win-top span{width:6px;height:6px;border-radius:50%;border:1px solid #555760}
-.win-content{padding:17px 13px}
-.win-line{height:6px;border-radius:9px;background:#3f424b;margin:0 0 15px}
-.win-line:nth-child(2n){width:73%}
-.win-line:nth-child(3n){width:52%}
-.canvas-note{position:absolute;bottom:20px;left:20px;color:#92949f;font-size:10px;display:flex;align-items:center;gap:8px;z-index:1}
-.canvas-note kbd,.keycap{border:1px solid #4b4d55;border-radius:4px;font:10px "Cascadia Code",monospace;padding:2px 5px;color:#bdc0c9}
-.corner-note{position:absolute;bottom:20px;right:20px;color:#777b87;font-size:10px;z-index:1}
+
+.lab{min-height:100vh;display:flex;flex-direction:column;background:#101114}
+.preview-bar{min-height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px clamp(12px,3vw,28px);border-bottom:1px solid #2c2d32;background:#141517;flex-wrap:wrap}
+.preview-nav,.preview-controls{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.preview-nav button,.preview-controls button{border:1px solid transparent;border-radius:999px;display:flex;align-items:center;gap:7px;min-height:34px;padding:0 12px;background:transparent;color:#a6a7ad;font-size:11px;white-space:nowrap;transition:background 150ms ease,color 150ms ease,border-color 150ms ease}
+.preview-nav button:hover,.preview-controls button:hover{color:#f4f4f5;background:#28292d}
+.preview-nav button.active,.preview-controls button.active{color:#f5f5f5;background:#303136;border-color:#41434a}
+.preview-nav svg,.preview-controls svg{flex:none}
+.preview-controls{gap:8px}
+.preview-group{border:1px solid #393a40;border-radius:999px;padding:2px;display:flex;align-items:center;gap:1px}
+.preview-group button{min-height:28px;padding:0 10px}
+.preview-group button.active{background:#45464b;border-color:transparent}
+.preview-stage{position:relative;flex:1;min-height:calc(100vh - 56px);background:#151515;overflow:hidden}
 .mount{position:absolute;left:50%;top:0;transform:translateX(-50%);z-index:10;display:flex;justify-content:center;width:100%;pointer-events:none}
 .notch{position:relative;pointer-events:auto;background:#0e0f10;border:1px solid #34363c;border-radius:var(--rad,999px);width:var(--w,92px);height:var(--h,42px);overflow:visible;isolation:isolate;box-shadow:0 14px 39px #0007,inset 0 1px 0 #ffffff1b;transition:width 470ms var(--ease),height 470ms var(--ease),border-radius 470ms var(--ease),box-shadow 200ms ease;will-change:width,height}
 .notch.attached{border-radius:0 0 24px 24px;border-top-color:transparent}
@@ -166,18 +136,10 @@ button{touch-action:manipulation}
 .micro-meter i{width:3px;background:#e1e2e5;border-radius:3px;animation:meter 260ms var(--ease) both}
 .micro-meter i:nth-child(1){height:6px}.micro-meter i:nth-child(2){height:11px;animation-delay:30ms}.micro-meter i:nth-child(3){height:15px;animation-delay:60ms}.micro-meter i:nth-child(4){height:9px;animation-delay:90ms}.micro-meter i:nth-child(5){height:5px;animation-delay:120ms}
 @keyframes meter{from{transform:scaleY(.1)}to{transform:scaleY(1)}}
-.bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;flex:none}
-.study-panel{min-width:0;border:1px solid #34363d;border-radius:14px;background:#181a1f;padding:14px 16px}
-.study-head{font-size:12px;font-weight:600;margin-bottom:10px}
-.event-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.event-actions button{border:1px solid #3b3d44;border-radius:8px;background:#26282d;color:#b6b8c1;display:flex;align-items:center;gap:7px;padding:7px 10px;font-size:10px;transition:background 140ms ease}
-.event-actions button:hover{background:#36383e}
-.graph{color:#9b9da6;font-size:11px;line-height:1.8}
-.graph strong{color:#e1e2e5;font-weight:550}
-.graph svg{vertical-align:middle;color:#777983}
-.footnote{color:#7d7e87;font-size:10px;margin-top:2px}
-@media(max-width:1050px){.lab{grid-template-columns:185px minmax(0,1fr)}.rail{padding:22px 11px}.content{padding:18px}.bottom{grid-template-columns:1fr}.canvas{min-height:460px}}
-@media(max-width:690px){.lab{display:block}.rail{min-height:0;flex-direction:row;flex-wrap:wrap;gap:8px;padding:12px}.rail .brand{width:100%}.rail .rail-group{flex-direction:row;flex-wrap:wrap}.rail .nav{width:auto}.rail .rail-footer,.rail .rail-rule,.rail .segment,.rail .label{display:none}.top{padding:12px 16px;height:70px}.top-status{display:none}.content{padding:10px}.canvas{min-height:460px}.notch{transform:scale(.8);transform-origin:top center}.corner-note{display:none}}
+
+@media(max-width:720px){.preview-bar{justify-content:center;row-gap:8px}.preview-nav,.preview-controls{justify-content:center}.preview-stage{min-height:calc(100vh - 104px)}}
+@media(max-width:600px){.notch{transform:scale(.78);transform-origin:top center;flex-shrink:0}}
+@media(max-width:420px){.notch{transform:scale(.58)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}.notch{will-change:auto}}
 .motion-reduced .notch,.motion-reduced .notch-content,.motion-reduced .module-art,.motion-reduced .eye,.motion-reduced .micro-meter i{transition:none!important;animation:none!important}
 
@@ -1135,10 +1097,9 @@ function GlobalSettings({prefs,setPrefs,tab,setTab,onBack,onPlacementChange,sysR
 }
 const defaultGlobalPrefs={expression:"Calm",reactive:"Quiet",hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,motion:"Fluid",parallax:true,tilt:43,gradient:80,topOffset:20};
 
-function WindowGhost({className}){return el("div",{className:"desktop-window "+className},el("div",{className:"win-top"},el("span"),el("span"),el("span")),el("div",{className:"win-content"},[1,2,3,4,5,6].map(x=>el("div",{key:x,className:"win-line"}))))}
 function App(){
  const [page,setPage]=useState("home");
- const [presentation,setPresentation]=useState("compact");
+ const [presentation,setPresentation]=useState("pinned");
  const [placement,setPlacement]=useState("floating");
  const [drawer,setDrawer]=useState(null);
  const [tab,setTab]=useState("General");
@@ -1180,41 +1141,40 @@ function App(){
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else if(page==="focus"&&timer.confirmPhase){setTimer(t=>({...t,confirmPhase:null}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
  const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement,sysReduced:window.matchMedia("(prefers-reduced-motion: reduce)").matches}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null),onNewSession:()=>{clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",mode:"Quick Ask",unread:false,warning:""}));setAgentDraft("")}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Provider");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Screen Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
- const onModuleDemo=phase=>{if(phase==="media"){navigate("music");setMusic(m=>({...m,mediaAvailable:!m.mediaAvailable,playing:!m.mediaAvailable}));}else if(phase==="lyrics"){navigate("music");setMusic(m=>({...m,lyricsAvailable:!m.lyricsAvailable,lyrics:false}));}else if(phase==="finish"){navigate("focus");setTimer(t=>({...t,remaining:0,running:false,deadline:null,status:"completed",finished:t.finished+(t.phase==="focus"?1:0)}));}else if(phase==="focus-reset"){navigate("focus");setTimer(t=>({...t,phase:"focus",remaining:25*60,running:false,deadline:null,duration:{...durations},status:"ready",settings:false,confirmPhase:null,finished:0}));}};
- const onAgentDemo=phase=>{clearInterval(agentRun.current);navigate("agent");if(phase==="run"){setAgent(a=>({...a,readiness:"ready",provider:"Codex"}));sendAgent("How should Otto preserve a CLI session?",true);return}const read=phase==="auth"?"auth":phase==="missing"?"missing":"ready";const actual=phase==="auth"||phase==="missing"?"ready":phase;const sample=phase==="approval"?"Update the session adapter safely.":phase==="error"?"Check why the CLI cannot connect.":"";setAgent(a=>({...a,busy:false,phase:actual,readiness:read,provider:phase==="auth"?"Agy":phase==="missing"?"Pi":"Codex",warning:"",messages:sample?[{role:"user",text:sample}]:[],mode:phase==="approval"?"Agent Session":"Quick Ask",unread:false}))};
+
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
- const eventNav=[["volume","Volume2","Volume"],["wifi","Wifi","Wi-Fi"],["bluetooth","Bluetooth","Bluetooth"],["brightness","Sun","Brightness"],["battery","BatteryCharging","Battery"],["headphones","Headphones","Headset"]];
+ const eventKeys=["volume","wifi","bluetooth","brightness","battery","headphones"];
+ const eventIndex=useRef(0);
  return el("div",{className:"lab"+(reduce?" motion-reduced":"")},
- el("aside",{className:"rail"},
-  el("div",{className:"brand"},el("div",{className:"brand-logo"},"o"),el("div",null,el("strong",null,"otto"),el("small",null,"Unified motion study"))),
-  el("div",{className:"rail-rule"}),
-  el("div",{className:"rail-group"},el("p",{className:"label"},"Surfaces"),stageNav.map(([key,name,title])=>
-  el("button",{key,className:"nav"+((key==="settings"&&drawer==="global"||key===page&&!drawer)?" active":""),onClick:()=>key==="settings"?(setPage("home"),setPresentation("pinned"),setDrawer("global")):navigate(key)},h(Icon,{name,size:16}),title,key==="home"?el("small",null,"01"):null))),
-  el("div",{className:"rail-rule"}),
-  el("div",null,el("p",{className:"label"},"Presentation"),el("div",{className:"segment"},["compact","preview","pinned"].map(mode=>el("button",{key:mode,className:presentation===mode?"selected":"",onClick:()=>{setEvent(null);setPresentation(mode)}},mode==="pinned"?"Expanded":mode[0].toUpperCase()+mode.slice(1))))),
-  el("div",null,el("p",{className:"label"},"Placement"),el("div",{className:"segment"},["floating","attached"].map(choice=>el("button",{key:choice,className:placement===choice?"selected":"",onClick:()=>setPlacement(choice)},choice[0].toUpperCase()+choice.slice(1))))),
-  el("div",{className:"rail-footer"},el("div",{className:"event-actions",style:{marginBottom:12}},[["media","Media on/off"],["lyrics","Lyrics on/off"],["finish","Finish focus"],["focus-reset","Reset focus"]].map(([k,label])=>el("button",{key:k,onClick:()=>onModuleDemo(k)},label))),el("div",{className:"event-actions",style:{marginBottom:12}},[["run","Run"],["approval","Approval"],["error","Error"],["auth","Auth"],["missing","Missing"],["interrupted","Interrupted"],["ready","Reset"]].map(([phase,label])=>el("button",{key:phase,onClick:()=>onAgentDemo(phase)},label))),el("strong",null,"Prototype controls"),el("span",null,"The side rail belongs to the design lab, never the notch itself."),el("span",null,"All CLI, media and OS data are simulated."))),
- el("div",{className:"main"},
-  el("header",{className:"top"},el("div",null,el("div",{className:"top-title"},"One surface system. Continuous motion."),el("div",{className:"top-desc"},"Idle → Home → Module → Contextual settings · Floating / Attached")),
-  el("div",{className:"top-status"},el("i",{className:"status-dot"}),"Lucide React · Single HTML")),
-  el("main",{className:"content"},
-   el("section",{className:"canvas","aria-label":"Desktop notch simulation",onClick:e=>{if(prefs.clickOutside&&presentation==="pinned"&&!e.target.closest(".notch"))collapse()}},
-    el("div",{className:"desktop-bar"},el("span",null,"WORKSPACE / EXPLORER"),el("span",null,"Windows desktop · visual context")),
-    h(WindowGhost,{className:"one"}),h(WindowGhost,{className:"two"}),
-    el("div",{className:"mount",style:{top:placement==="attached"?28:28+prefs.topOffset}},
-      el("div",{className:"notch"+(placement==="attached"?" attached":""),style:{"--w":dim[0]+"px","--h":dim[1]+"px","--rad":presentation==="compact"||event?"999px":"27px"},onMouseEnter:enter,onMouseLeave:leave,onPointerDownCapture:()=>{if(presentation==="preview")setPresentation("pinned")}},
-      el("div",{className:"notch-clip"},el("div",{key:shellKey,className:"notch-content"},panel)))),
-    el("div",{className:"canvas-note"},h(Icon,{name:"Mouse",size:13}),"Hover to preview · click to pin · ",el("kbd",null,"Esc")," to close"),
-    el("span",{className:"corner-note"},"Notch geometry · CSS px")),
-   el("div",{className:"bottom"},
-    el("section",{className:"study-panel"},el("div",{className:"study-head"},"OS event studies"),
-     el("div",{className:"event-actions"},eventNav.map(([key,name,label])=>el("button",{key,onClick:()=>onEvent(key),"aria-label":"Simulate "+label},h(Icon,{name,size:15}),label)))),
-    el("section",{className:"study-panel"},el("div",{className:"study-head"},"Interaction graph"),
-     el("div",{className:"graph"},el("strong",null,"Idle"),h(Icon,{name:"ChevronRight",size:13}),el("strong",null,"Home"),
-       h(Icon,{name:"ChevronRight",size:13}),el("strong",null,"Agent / Music / Focus"),
-       el("div",null,"Settings return to their owner. OS events never create a new permanent page."),
-       el("div",{className:"muted"},"Current: "+(event?"OS event":drawer?"Settings / "+drawer:page)+" · "+(event?"compact":presentation))))),
-   el("div",{className:"footnote"},"Prototype only — no CLI execution, device monitoring, screenshot, OS playback or native permissions. Imports React and lucide-react from pinned esm.sh URLs."))));
+  el("header",{className:"preview-bar"},
+   el("nav",{className:"preview-nav","aria-label":"Otto feature navigation"},
+    stageNav.map(([key,name,title])=>
+      el("button",{type:"button",key,className:(key==="settings"?drawer==="global":key===page&&!drawer)?"active":"",
+       "aria-current":(key==="settings"?drawer==="global":key===page&&!drawer)?"page":undefined,
+       onClick:()=>key==="settings"?(setPage("home"),setPresentation("pinned"),setDrawer("global")):navigate(key)},
+       h(Icon,{name,size:15}),title))),
+   el("div",{className:"preview-controls"},
+    el("div",{className:"preview-group","aria-label":"Notch presentation"},
+     [["compact","Compact"],["pinned","Expanded"]].map(([mode,label])=>
+      el("button",{type:"button",key:mode,className:presentation===mode?"active":"",
+       onClick:()=>{setEvent(null);setPresentation(mode)}},label))),
+    el("button",{type:"button",className:placement==="attached"?"active":"",
+      onClick:()=>setPlacement(v=>v==="floating"?"attached":"floating"),
+      title:"Toggle floating or attached notch","aria-label":"Placement: "+placement},
+      h(Icon,{name:"Monitor",size:14}),placement==="attached"?"Attached":"Floating"),
+    el("button",{type:"button",onClick:()=>{onEvent(eventKeys[eventIndex.current%eventKeys.length]);eventIndex.current++},
+      title:"Preview OS event, click again for next type","aria-label":"Cycle OS event previews"},
+      h(Icon,{name:"Volume2",size:14}),"OS Event"))),
+  el("main",{className:"preview-stage","aria-label":"Otto prototype",
+   onClick:e=>{if(prefs.clickOutside&&presentation==="pinned"&&!e.target.closest(".notch"))collapse()}},
+   el("div",{className:"mount",style:{top:placement==="attached"?0:Math.max(16,prefs.topOffset+20)}},
+    el("div",{className:"notch"+(placement==="attached"?" attached":""),
+      style:{"--w":dim[0]+"px","--h":dim[1]+"px","--rad":presentation==="compact"||event?"999px":"27px"},
+      onMouseEnter:enter,onMouseLeave:leave,
+      onPointerDownCapture:()=>{if(presentation==="preview")setPresentation("pinned")}},
+     el("div",{className:"notch-clip"},el("div",{key:shellKey,className:"notch-content"},panel))))));
+
+
 }
 createRoot(document.getElementById("root")).render(h(App));
 </script>
