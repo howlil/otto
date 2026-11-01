@@ -1,8 +1,8 @@
 use super::job::Job;
 use crate::agent::events::{AgentEvent, ProviderEvents};
-use crate::agent::{
-    CapturedImage, ChatMessage, Control, ProviderReadiness, Snapshot,
-};
+use crate::agent::{CapturedImage, Control, ProviderReadiness};
+#[cfg(test)]
+use crate::agent::{ChatMessage, Snapshot};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
@@ -11,10 +11,12 @@ use std::{
     sync::atomic::Ordering,
     time::Duration,
 };
+#[cfg(test)]
+use tokio::sync::watch;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
     process::{Child, ChildStdin, ChildStdout, Command},
-    sync::{mpsc, watch},
+    sync::mpsc,
     time::timeout,
 };
 
@@ -302,7 +304,10 @@ fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
                             .flatten()
                     })
                     .collect();
-                events.emit(AgentEvent::TextFinal { run_id: id, text: answer });
+                events.emit(AgentEvent::TextFinal {
+                    run_id: id,
+                    text: answer,
+                });
             }
         }
         Some("agent_settled") => {
@@ -379,7 +384,10 @@ pub async fn run(
         rpc.terminate().await;
         return;
     }
-    events.emit(AgentEvent::SessionReady { run_id, session_id: session });
+    events.emit(AgentEvent::SessionReady {
+        run_id,
+        session_id: session,
+    });
     let mut active_capture = capture;
     let request = match prompt_command(run_id, &text, active_capture.as_ref()).await {
         Ok(request) => request,
@@ -624,7 +632,6 @@ mod tests {
     #[test]
     fn pi_only_finishes_on_settled_and_rejects_stale_events() {
         let tx = state();
-        let events = ProviderEvents::new(tx.clone());
         let events = ProviderEvents::new(tx.clone());
         assert!(!observe(&json!({"type":"agent_end"}), 7, &events));
         observe(
