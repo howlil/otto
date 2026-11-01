@@ -50,13 +50,13 @@ export function AgentHeader({
     previousSettings.current = settings;
   }, [settings]);
   return (
-    <header className="flex h-[53px] shrink-0 items-center gap-[9px] px-[15px] pb-[5px] pt-[9px]">
+    <header className={settings ? "flex h-[51px] shrink-0 items-center gap-[9px] border-b border-otto-line-soft px-[15px]" : "flex h-[53px] shrink-0 items-center gap-[9px] px-[15px] pb-[5px] pt-[9px]"}>
       {settings ? (
         <IconButton
           icon="back"
           label="Back to Agent"
-          variant="raised"
-          size={19}
+          variant="outlined"
+          size={18}
           ref={back}
           onClick={onSettingsBack}
         />
@@ -73,7 +73,7 @@ export function AgentHeader({
       <div className="min-w-0 flex-1">
         <Text
           as="strong"
-          variant="title"
+          variant={settings ? "display" : "title"}
           className="block overflow-hidden text-ellipsis whitespace-nowrap"
         >
           {settings ? (
@@ -85,14 +85,17 @@ export function AgentHeader({
             </>
           )}
         </Text>
-        <Text
-          as="small"
-          variant="meta"
-          className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-otto-text-tertiary"
-        >
-          {settings ? "Local CLI configuration" : scopeLabel}
-        </Text>
+        {!settings && (
+          <Text as="small" variant="meta" className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-otto-text-tertiary">
+            {scopeLabel}
+          </Text>
+        )}
       </div>
+      {settings && (
+        <Text as="span" variant="status" className="text-otto-label-muted">
+          {provider === "pi" ? "Pi" : provider === "agy" ? "Agy" : "Codex"}
+        </Text>
+      )}
       {!settings && (
         <>
           <span
