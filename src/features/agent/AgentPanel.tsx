@@ -3,6 +3,7 @@ import { AgentSettings } from "./AgentSettings";
 import { AgentHeader } from "./AgentHeader";
 import { AgentTranscript } from "./AgentTranscript";
 import type { AgentPanelModel } from "./view-model";
+import { captureAgentNow } from "../../platform/tauri";
 
 type Props = {
   agent: AgentPanelModel;
@@ -38,6 +39,7 @@ export function AgentPanel({
   } = agent;
   const [denied, setDenied] = useState(false);
   const [captureSettingsEntry, setCaptureSettingsEntry] = useState(false);
+  const [captureActionError, setCaptureActionError] = useState<string | null>(null);
   const approval = snapshot.approval;
   const approvalPending = snapshot.status === "approvalRequired" && Boolean(approval);
   const project =
@@ -106,6 +108,15 @@ export function AgentPanel({
           denied={denied}
           approvalPending={approvalPending}
           onDenied={() => setDenied(true)}
+          captureActionError={captureActionError}
+          onCapture={() => {
+            setCaptureActionError(null);
+            void captureAgentNow().catch((error: unknown) =>
+              setCaptureActionError(
+                error instanceof Error ? error.message : "Screen capture is unavailable.",
+              ),
+            );
+          }}
           onConfigureCapture={() => {
             setCaptureSettingsEntry(true);
             onSettings();

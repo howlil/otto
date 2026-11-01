@@ -11,7 +11,7 @@ export function AgentComposer({
   approvalPending,
   canSend,
   stopping,
-  onConfigureCapture,
+  onCapture,
   send,
   stop,
 }: {
@@ -23,7 +23,7 @@ export function AgentComposer({
   approvalPending: boolean;
   canSend: boolean;
   stopping: boolean;
-  onConfigureCapture: () => void;
+  onCapture: () => void;
   send: () => Promise<void>;
   stop: () => Promise<void>;
 }) {
@@ -104,11 +104,12 @@ export function AgentComposer({
             <IconButton
               id="otto-capture-setup"
               icon="camera"
-              label="Configure screen capture shortcut"
+              label="Capture selected screen source"
               variant="round"
               className="grid shrink-0 place-items-center rounded-full"
-              onClick={onConfigureCapture}
-              title="Configure screen capture shortcut"
+              onClick={onCapture}
+              title="Capture using the configured source"
+              disabled={busy || approvalPending}
             />
           )}
           <button

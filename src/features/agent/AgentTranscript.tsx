@@ -18,12 +18,16 @@ export function AgentTranscript({
   approvalPending,
   onDenied,
   onConfigureCapture,
+  onCapture,
+  captureActionError,
 }: {
   agent: AgentTranscriptModel;
   denied: boolean;
   approvalPending: boolean;
   onDenied: () => void;
   onConfigureCapture: () => void;
+  onCapture: () => void;
+  captureActionError: string | null;
 }) {
   const {
     snapshot,
@@ -150,6 +154,14 @@ export function AgentTranscript({
           />
         </div>
       </div>
+      {captureActionError && (
+        <div role="alert" className="mx-[18px] mb-1 text-otto-xs text-otto-danger">
+          {captureActionError}{" "}
+          <button type="button" className="underline" onClick={onConfigureCapture}>
+            Screen Capture settings
+          </button>
+        </div>
+      )}
       <AgentComposer
         imageTransport={readiness.imageTransport}
         provider={snapshot.provider}
@@ -159,7 +171,7 @@ export function AgentTranscript({
         approvalPending={approvalPending}
         canSend={canSend}
         stopping={snapshot.status === "stopping"}
-        onConfigureCapture={onConfigureCapture}
+        onCapture={onCapture}
         send={send}
         stop={stop}
       />

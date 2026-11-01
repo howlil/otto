@@ -119,6 +119,11 @@ export async function configureCaptureSource(source: CaptureSource): Promise<voi
   await invoke("agent_configure_capture_source", { source });
 }
 
+export async function captureAgentNow(): Promise<void> {
+  if (!nativeAvailable) throw new Error("Screen capture requires Otto on Windows.");
+  await invoke("agent_capture_now");
+}
+
 export async function getCaptureTargetTitle(): Promise<string> {
   return invoke<string>("agent_capture_target_title");
 }
