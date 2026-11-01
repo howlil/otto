@@ -131,15 +131,28 @@ unsafe extern "system" fn on_foreground(
     }
 }
 
+fn choose_capture_target(
+    foreground_pid: u32,
+    own_pid: u32,
+    current: Option<WindowTarget>,
+    last: Option<WindowTarget>,
+) -> Option<WindowTarget> {
+    if foreground_pid == 0 {
+        None
+    } else if foreground_pid == own_pid {
+        last
+    } else {
+        current
+    }
+}
+
 fn select_capture_target() -> Result<WindowTarget, String> {
     let current = unsafe { GetForegroundWindow() };
-    let target = if external_window(current) {
-        WindowTarget::pin(current)
-    } else {
-        *LAST_EXTERNAL_WINDOW
-            .lock()
-            .map_err(|_| "Window tracking is unavailable.")?
-    };
+    let pid = window_pid(current);
+    let last = *LAST_EXTERNAL_WINDOW
+        .lock()
+        .map_err(|_| "Window tracking is unavailable.")?;
+    let target = choose_capture_target(pid, std::process::id(), WindowTarget::pin(current), last);
     let target = target.ok_or("Previous application window is unavailable. Focus it and retry.")?;
     if !valid_capture_window(target.handle as HWND)
         || !target.matches(target.handle, window_pid(target.handle as HWND))
@@ -571,6 +584,25 @@ mod tests {
         );
         assert!(CaptureSource::parse("screen").is_err());
         assert!(CaptureSource::parse("").is_err());
+    }
+
+    #[test]
+    fn unknown_foreground_never_falls_back_to_an_unrelated_window() {
+        let last = WindowTarget {
+            handle: 10,
+            pid: 20,
+        };
+        let current = WindowTarget {
+            handle: 30,
+            pid: 40,
+        };
+        assert_eq!(choose_capture_target(0, 99, Some(current), Some(last)), None);
+        assert_eq!(choose_capture_target(99, 99, None, Some(last)), Some(last));
+        assert_eq!(
+            choose_capture_target(40, 99, Some(current), Some(last)),
+            Some(current)
+        );
+        assert_eq!(choose_capture_target(40, 99, None, Some(last)), None);
     }
 
     #[test]
