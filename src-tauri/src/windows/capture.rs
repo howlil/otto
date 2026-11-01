@@ -564,10 +564,22 @@ mod tests {
 
     #[test]
     fn transient_external_focus_does_not_discard_last_capture_target() {
-        let previous = WindowTarget { handle: 12, pid: 42 };
-        let current = WindowTarget { handle: 20, pid: 43 };
-        assert_eq!(preferred_capture_target(None, Some(previous)), Some(previous));
-        assert_eq!(preferred_capture_target(Some(current), Some(previous)), Some(current));
+        let previous = WindowTarget {
+            handle: 12,
+            pid: 42,
+        };
+        let current = WindowTarget {
+            handle: 20,
+            pid: 43,
+        };
+        assert_eq!(
+            preferred_capture_target(None, Some(previous)),
+            Some(previous)
+        );
+        assert_eq!(
+            preferred_capture_target(Some(current), Some(previous)),
+            Some(current)
+        );
         assert_eq!(preferred_capture_target(None, None), None);
     }
 
