@@ -507,32 +507,40 @@ fn register(shortcut: Shortcut) -> bool {
     }
 }
 
-fn dispatch_capture(app: &tauri::AppHandle, source: CaptureSource, hook_available: bool) {
-    let target = match source {
+fn capture_intent(
+    source: CaptureSource,
+    hook_available: bool,
+    find_window: impl FnOnce() -> Result<WindowTarget, String>,
+) -> Result<CaptureIntent, String> {
+    match source {
         CaptureSource::Window if !hook_available => {
             Err("Window focus tracking is unavailable.".to_string())
         }
-        CaptureSource::Window => select_capture_target().map(CaptureIntent::Window),
+        CaptureSource::Window => find_window().map(CaptureIntent::Window),
         CaptureSource::FullScreen => Ok(CaptureIntent::FullScreen),
-    };
+    }
+}
+
+fn dispatch_capture(
+    app: &tauri::AppHandle,
+    source: CaptureSource,
+    hook_available: bool,
+) -> Result<(), String> {
+    let intent = capture_intent(source, hook_available, select_capture_target)?;
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         let runtime = handle.state::<AgentRuntime>();
-        match target {
-            Ok(intent) => {
-                if let Err(reason) = runtime
-                    .capture_hotkey(move || match intent {
-                        CaptureIntent::Window(window) => capture_foreground(window),
-                        CaptureIntent::FullScreen => capture_full_screen(),
-                    })
-                    .await
-                {
-                    runtime.capture_error(&reason);
-                }
-            }
-            Err(reason) => runtime.capture_error(&reason),
+        if let Err(reason) = runtime
+            .capture_hotkey(move || match intent {
+                CaptureIntent::Window(window) => capture_foreground(window),
+                CaptureIntent::FullScreen => capture_full_screen(),
+            })
+            .await
+        {
+            runtime.capture_error(&reason);
         }
     });
+    Ok(())
 }
 
 fn run_hotkeys(
@@ -578,8 +586,8 @@ fn run_hotkeys(
             while let Ok(change) = changes.try_recv() {
                 match change {
                     HotkeyChange::Trigger(reply) => {
-                        dispatch_capture(&app, source, !hook.is_null());
-                        let _ = reply.send(Ok(()));
+                        let result = dispatch_capture(&app, source, !hook.is_null());
+                        let _ = reply.send(result);
                     }
                     HotkeyChange::Source(requested, reply) => {
                         source = requested;
@@ -612,10 +620,11 @@ fn run_hotkeys(
                 }
             }
         }
-        if message.message == WM_HOTKEY && message.wParam == HOTKEY_ID as usize {
-            if armed.load(Ordering::SeqCst) {
-                dispatch_capture(&app, source, !hook.is_null());
-            }
+        if message.message == WM_HOTKEY && message.wParam == HOTKEY_ID as usize
+            && armed.load(Ordering::SeqCst)
+            && let Err(reason) = dispatch_capture(&app, source, !hook.is_null())
+        {
+            app.state::<AgentRuntime>().capture_error(&reason);
         }
     }
     if registered.is_some() {
@@ -711,6 +720,28 @@ mod tests {
         ] {
             assert_eq!(capture_file_owner(name), None, "accepted {name}");
         }
+    }
+
+    #[test]
+    fn capture_target_preflight_rejects_invalid_window_without_scheduling_work() {
+        let unavailable = capture_intent(CaptureSource::Window, true, || {
+            Err("Window target changed. Refocus the app and retry.".into())
+        });
+        assert!(unavailable.err().expect("invalid target must fail").contains("Window target changed"));
+
+        let no_hook = capture_intent(CaptureSource::Window, false, || {
+            panic!("No window lookup is allowed when foreground tracking is unavailable")
+        });
+        assert_eq!(no_hook.err().expect("missing hook must fail"), "Window focus tracking is unavailable.");
+
+        let target = WindowTarget { handle: 17, pid: 31 };
+        let selected = capture_intent(CaptureSource::Window, true, || Ok(target)).unwrap();
+        assert!(matches!(selected, CaptureIntent::Window(actual) if actual == target));
+
+        let full_screen = capture_intent(CaptureSource::FullScreen, false, || {
+            panic!("Full-screen capture must not require a window target or foreground hook")
+        });
+        assert!(matches!(full_screen, Ok(CaptureIntent::FullScreen)));
     }
 
     #[test]
