@@ -1,5 +1,6 @@
 #[cfg(not(windows))]
 use crate::agent::fail;
+use crate::agent::events::ProviderEvents;
 use crate::agent::policy::InteractionMode;
 use crate::agent::{Control, ProviderReadiness, Snapshot};
 use std::path::PathBuf;
@@ -77,7 +78,7 @@ impl ProviderId {
         match self {
             Self::Codex => super::codex::run(controls, updates, initial, mode).await,
             #[cfg(windows)]
-            Self::Pi => super::pi::run(controls, updates, initial).await,
+            Self::Pi => super::pi::run(controls, ProviderEvents::new(updates), initial).await,
             #[cfg(windows)]
             Self::Agy => super::agy::run(controls, updates, initial).await,
             #[cfg(not(windows))]
