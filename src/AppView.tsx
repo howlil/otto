@@ -31,7 +31,7 @@ export function ShellView({
 }) {
   return (
     <main
-      className={`relative h-full w-full overflow-hidden border border-otto-line bg-otto-surface text-otto-text ${shell.expanded ? "rounded-[28px]" : "rounded-otto-island"} ${shell.reducedMotion ? "transition-none" : "transition-[border-radius] duration-[420ms] ease-otto"} data-[reduced=true]:[&_*]:animate-none data-[reduced=true]:[&_*]:transition-none motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:transition-none`}
+      className={`relative h-full w-full overflow-hidden border border-otto-line bg-otto-surface text-otto-text ${shell.expanded ? "rounded-[27px]" : "rounded-otto-island"} ${shell.reducedMotion ? "transition-none" : "transition-[border-radius] duration-[420ms] ease-otto"} data-[reduced=true]:[&_*]:animate-none data-[reduced=true]:[&_*]:transition-none motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:transition-none`}
       data-reduced={shell.reducedMotion ? "true" : undefined}
       onPointerEnter={shell.handleEnter}
       onPointerLeave={shell.handleLeave}
