@@ -479,7 +479,7 @@ impl Approvals {
 
 enum StartupControl {
     Stop,
-    Reply(Value),
+    Reply(Value, String),
     Continue,
 }
 
@@ -496,11 +496,7 @@ fn classify_startup_control(
             decision,
         }) => {
             if let Some(reply) = approvals.decide(&approval_id, decision) {
-                updates.emit(AgentEvent::ApprovalResolved {
-                    run_id: updates.snapshot().run_id,
-                    approval_id,
-                });
-                Ok(StartupControl::Reply(reply))
+                Ok(StartupControl::Reply(reply, approval_id))
             } else {
                 publish_approval(approvals, updates);
                 Ok(StartupControl::Continue)
@@ -600,7 +596,13 @@ impl Rpc {
                     Err(control) => {
                         match classify_startup_control(control, approvals, updates)? {
                             StartupControl::Stop => return Ok(None),
-                            StartupControl::Reply(reply) => self.send(reply).await?,
+                            StartupControl::Reply(reply, approval_id) => {
+                                self.send(reply).await?;
+                                updates.emit(AgentEvent::ApprovalResolved {
+                                    run_id: approvals.run_id,
+                                    approval_id,
+                                });
+                            },
                             StartupControl::Continue => {}
                         }
                         continue;
@@ -1626,7 +1628,7 @@ mod tests {
             &ProviderEvents::new(updates.clone()),
         )
         .expect("decision must remain available before the ack");
-        let StartupControl::Reply(reply) = action else {
+        let StartupControl::Reply(reply, approval_id) = action else {
             panic!("follow-up approval must not terminate the session");
         };
         assert_eq!(
@@ -1683,6 +1685,8 @@ mod tests {
             json!({ "id": 1, "result": { "decision": "accept" } })
         );
         assert!(approvals.pending.is_none());
+        assert_eq!(approval_id, "appr-9-1");
+        assert_eq!(tx.borrow().status, "approvalRequired");
         assert!(matches!(
             classify_startup_control(
                 Some(Control::Stop),
