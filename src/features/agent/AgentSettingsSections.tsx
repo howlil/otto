@@ -1,13 +1,13 @@
 import { Icon, RadioGroup, StatusMessage, Text, TextField } from "../../shared/ui";
 import type { AgentMode, AgentProvider, ProviderReadiness } from "../../platform/tauri";
-import { ProviderChoice, type ProviderTone } from "./ProviderChoice";
+import { ProviderChoice } from "./ProviderChoice";
 
 type ProviderName = "Codex" | "Pi" | "Agy";
 
-const providers: ReadonlyArray<{ name: ProviderName; mark: string; tone: ProviderTone }> = [
-  { name: "Codex", mark: "✦", tone: "codex" },
-  { name: "Agy", mark: "A", tone: "agy" },
-  { name: "Pi", mark: "π", tone: "pi" },
+const providers: ReadonlyArray<{ name: ProviderName; detail: string }> = [
+  { name: "Codex", detail: "Text · image input · tool approvals" },
+  { name: "Pi", detail: "Text · vision model · no tools" },
+  { name: "Agy", detail: "Text only · no tools" },
 ];
 
 export function ProviderSettings({
@@ -26,36 +26,18 @@ export function ProviderSettings({
   locked: boolean;
 }) {
   return (
-    <section className="border-b border-otto-raised-deep pb-3 pt-[5px]">
-      <div className="flex items-center justify-between gap-[10px]">
-        <Text
-          as="span"
-          variant="meta"
-          className="mb-2 block text-otto-muted-strong"
-          id="otto-provider-label"
-        >
-          Provider
-        </Text>
-        <Text
-          as="span"
-          variant="caption"
-          className="uppercase tracking-[0.03em] text-otto-text-subtle"
-        >
-          {provider === "pi" ? "Pi" : provider === "agy" ? "Agy" : "Codex"}
-        </Text>
-      </div>
-      <fieldset
-        className="m-0 grid min-w-0 grid-cols-3 gap-[7px] border-0 p-0"
-        aria-labelledby="otto-provider-label"
-      >
-        {providers.map(({ name, mark, tone }) => {
+    <section className="border-b border-otto-raised-deep pb-3">
+      <Text as="span" variant="label" className="mb-[9px] block text-otto-text-secondary" id="otto-provider-label">
+        Local CLI
+      </Text>
+      <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0" aria-labelledby="otto-provider-label">
+        {providers.map(({ name, detail }) => {
           const selected = name.toLowerCase() === provider;
           return (
             <ProviderChoice
               key={name}
               name={name}
-              mark={mark}
-              tone={tone}
+              detail={detail}
               status={selected ? providerStatus : "Select"}
               selected={selected}
               onSelect={
@@ -112,8 +94,8 @@ export function ModeSettings({
         disabledReason="Start a new session to change mode or project"
         onChange={setMode}
         choices={[
-          { value: "quickAsk", label: "Quick Ask" },
-          { value: "agentSession", label: "Agent Session" },
+          { value: "quickAsk", label: "Quick Ask", help: "Follow-up supported · no file changes" },
+          { value: "agentSession", label: "Agent Session", help: "Codex only · tools require approval" },
         ]}
       />
       <StatusMessage
