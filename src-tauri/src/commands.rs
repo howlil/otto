@@ -142,6 +142,17 @@ pub fn agent_capture_target_title() -> Result<String, String> {
     }
 }
 
+fn agent_content_size(surface: &str, content_height: Option<u32>, available_height: u32) -> Option<(u32, u32)> {
+    let (width, base_height) = surface_size(surface)?;
+    if !matches!(surface, "agentReady" | "agentThinking" | "agentFull" | "agentApproval" | "agentError") {
+        return Some((width, base_height));
+    }
+    let height = content_height
+        .map(|value| value.clamp(170, 610.min(available_height.max(170))))
+        .unwrap_or(base_height);
+    Some((width, height))
+}
+
 fn surface_size(surface: &str) -> Option<(u32, u32)> {
     match surface {
         "idle" => Some((92, 42)),
@@ -162,6 +173,7 @@ struct Frame {
     origin_x: i32,
     origin_y: i32,
     bounds_width: u32,
+    bounds_height: u32,
     scale: f64,
     last: Option<(i32, i32, i32, i32)>,
 }
@@ -179,6 +191,7 @@ impl Frame {
             origin_x: origin.x,
             origin_y: origin.y,
             bounds_width: bounds.width,
+            bounds_height: bounds.height,
             scale,
             last: None,
         })
@@ -269,8 +282,11 @@ pub async fn notch_set_surface(
     surface: String,
     top_offset: u32,
     animate: bool,
+    content_height: Option<u32>,
 ) -> Result<(), String> {
-    let (width, height) = surface_size(&surface).ok_or("Invalid notch surface.")?;
+    if surface_size(&surface).is_none() {
+        return Err("Invalid notch surface.".to_string());
+    }
     if top_offset > 64 {
         return Err("Top offset must be between 0 and 64 px.".to_string());
     }
@@ -278,6 +294,10 @@ pub async fn notch_set_surface(
     let token = motion.epoch.fetch_add(1, Ordering::SeqCst) + 1;
     let mut frame = Frame::capture(&window)?;
     let scale = frame.scale;
+    let available_height = ((f64::from(frame.bounds_height) / scale).floor() as u32)
+        .saturating_sub(top_offset.saturating_add(16));
+    let (width, height) = agent_content_size(&surface, content_height, available_height)
+        .ok_or("Invalid notch surface.")?;
     let current = window.outer_size().map_err(|_| "Notch size unavailable.")?;
     let start_w = f64::from(current.width) / scale;
     let start_h = f64::from(current.height) / scale;
@@ -322,6 +342,16 @@ mod tests {
         let samples: Vec<_> = (0..=100).map(|i| home_ease(f64::from(i) / 100.0)).collect();
         assert!(samples.windows(2).all(|p| p[0] <= p[1]));
     }
+    #[test]
+    fn dynamic_agent_height_is_bounded_and_does_not_resize_settings() {
+        assert_eq!(agent_content_size("agentFull", Some(98), 900), Some((526, 170)));
+        assert_eq!(agent_content_size("agentFull", Some(410), 900), Some((526, 410)));
+        assert_eq!(agent_content_size("agentFull", Some(850), 900), Some((526, 610)));
+        assert_eq!(agent_content_size("agentFull", Some(580), 420), Some((526, 420)));
+        assert_eq!(agent_content_size("agentSettings", Some(580), 900), Some((526, 466)));
+        assert_eq!(agent_content_size("home", Some(580), 900), Some((452, 148)));
+    }
+
     #[test]
     fn approved_home_agent_and_settings_sizes() {
         assert_eq!(surface_size("home"), Some((452, 148)));
