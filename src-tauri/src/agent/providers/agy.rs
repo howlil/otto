@@ -259,9 +259,8 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         return ProviderReadiness::new("unsupported", &reason, "Review Agy setup, then Retry.");
     }
     let mut command = super::background_command(binary);
-    command
-        .args(model_discovery_args())
-        .current_dir(cwd);
+    command.args(model_discovery_args());
+    command.current_dir(cwd);
     match Job::probe(command, Duration::from_secs(12)).await {
         Ok(output) if output.status.success() => {
             if !serde_json::from_slice::<Value>(&output.stdout)

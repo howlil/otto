@@ -1,4 +1,7 @@
-use std::{process::{Output, Stdio}, time::Duration};
+use std::{
+    process::{Output, Stdio},
+    time::Duration,
+};
 use tokio::{process::Command, time::timeout};
 use windows_sys::Win32::{
     Foundation::{CloseHandle, HANDLE},
@@ -93,5 +96,17 @@ mod tests {
             .expect("owned probe must succeed");
         assert!(output.status.success());
         assert!(String::from_utf8_lossy(&output.stdout).contains("OTTO_PROBE_READY"));
+    }
+
+    #[tokio::test]
+    async fn readiness_probe_timeout_is_bounded() {
+        let mut command = super::super::background_command("powershell.exe");
+        command.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Start-Sleep -Seconds 5",
+        ]);
+        assert!(Job::probe(command, Duration::from_millis(100)).await.is_err());
     }
 }

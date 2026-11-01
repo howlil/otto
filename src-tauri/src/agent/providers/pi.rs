@@ -377,9 +377,8 @@ pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderR
         }
     };
     let mut command = super::background_command(binary);
-    command
-        .args(["auth", "check", "--model", &model, "--json"])
-        .current_dir(cwd);
+    command.args(["auth", "check", "--model", &model, "--json"]);
+    command.current_dir(cwd);
     let mut readiness = match Job::probe(command, Duration::from_secs(10)).await {
         Ok(output) => match serde_json::from_slice::<Value>(&output.stdout) {
             Ok(value) => authentication(&value),
