@@ -197,7 +197,8 @@ mod tests {
         let stdout = child.stdout.take().expect("stdout pipe");
         let mut line = String::new();
         use tokio::io::AsyncBufReadExt;
-        timeout(Duration::from_secs(10), tokio::io::BufReader::new(stdout).read_line(&mut line))
+        let mut reader = tokio::io::BufReader::new(stdout);
+        timeout(Duration::from_secs(10), reader.read_line(&mut line))
             .await
             .expect("child start must be bounded")
             .expect("child must return its descendant pid");
