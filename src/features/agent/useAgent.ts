@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useCaptureSource } from "./useCaptureSource";
 import { clearAcceptedDraft, restoreRejectedDraft, type SubmittedDraft } from "./draft-state";
 import { captureIsWorking } from "./status";
+import { ReadinessProbeController } from "./readiness-probe";
 import {
   askAgent,
   captureAgentNow,
   getAgentReadiness,
+  cancelAgentReadiness,
   getCaptureTargetTitle,
   selectAgentProvider,
   selectAgentRuntimeOptions,
@@ -80,65 +82,53 @@ const checking: ProviderReadiness = {
   thinkingEfforts: [],
 };
 
-function useProviderReadiness(cwd: string, provider: AgentProvider, model: string | null) {
+function useProviderReadiness(
+  cwd: string,
+  provider: AgentProvider,
+  model: string | null,
+  active: boolean,
+) {
   const [readiness, setReadiness] = useState<ProviderReadiness>(checking);
-  const projectRef = useRef("");
-  const providerRef = useRef<AgentProvider>("codex");
-  const modelRef = useRef<string | null>(null);
-  const probeRef = useRef(0);
+  const controller = useRef<ReadinessProbeController | null>(null);
 
-  const refreshProvider = useCallback(async () => {
-    const probe = ++probeRef.current;
-    setReadiness(checking);
-    if (!nativeAvailable) {
-      setReadiness({
-        status: "unavailable",
-        message: "Provider readiness requires the Otto desktop app.",
-        recovery: "Open Otto on Windows.",
-        imageInput: false,
-        imageTransport: false,
-        agentSession: false,
-        model: null,
-        models: [],
-        thinkingEffort: null,
-        thinkingEfforts: [],
-      });
-      return;
-    }
-    try {
-      const status = await getAgentReadiness(
-        providerRef.current,
-        projectRef.current || undefined,
-        modelRef.current,
-      );
-      if (probeRef.current === probe) setReadiness(status);
-    } catch {
-      if (probeRef.current === probe) {
-        setReadiness({
-          status: "unavailable",
-          message: "Could not check provider readiness.",
-          recovery: "Retry the connection.",
-          imageInput: false,
-          imageTransport: false,
-          agentSession: false,
-          model: null,
-          models: [],
-          thinkingEffort: null,
-          thinkingEfforts: [],
-        });
-      }
-    }
+  useEffect(() => {
+    const unavailable: ProviderReadiness = {
+      ...checking,
+      status: "unavailable",
+      message: "Provider readiness requires the Otto desktop app.",
+      recovery: "Open Otto on Windows.",
+    };
+    const failed: ProviderReadiness = {
+      ...checking,
+      status: "unavailable",
+      message: "Could not check provider readiness.",
+      recovery: "Retry the connection.",
+    };
+    const probe = new ReadinessProbeController({
+      read: ({ cwd, provider, model }, requestId) =>
+        nativeAvailable
+          ? getAgentReadiness(provider, requestId, cwd || undefined, model)
+          : Promise.resolve(unavailable),
+      cancel: (requestId) =>
+        nativeAvailable ? cancelAgentReadiness(requestId) : Promise.resolve(),
+      publish: setReadiness,
+      checking,
+      failed,
+    });
+    controller.current = probe;
+    return () => {
+      probe.dispose();
+      if (controller.current === probe) controller.current = null;
+    };
   }, []);
 
   useEffect(() => {
-    projectRef.current = cwd;
-    providerRef.current = provider;
-    modelRef.current = model;
-    probeRef.current += 1;
-    setReadiness(checking);
-    const timer = setTimeout(() => void refreshProvider(), 350);
-    return () => clearTimeout(timer);
-  }, [cwd, provider, model, refreshProvider]);
+    controller.current?.update(active ? { cwd, provider, model } : null);
+  }, [active, cwd, provider, model]);
+
+  const refreshProvider = useCallback(async () => {
+    await controller.current?.refresh();
+  }, []);
 
   return { readiness, refreshProvider };
 }
@@ -455,7 +445,7 @@ function useCaptureShortcut() {
   };
 }
 
-export function useAgent() {
+export function useAgent(readinessActive: boolean) {
   const capture = useCaptureShortcut();
   const [snapshot, setSnapshot] = useState<AgentSnapshot>(initial);
   const [draft, setDraft] = useState("");
@@ -477,7 +467,12 @@ export function useAgent() {
     runtimeSelectionPending;
   const captureBusy = captureIsWorking(snapshot.capture.phase);
   const locked = busy || captureBusy || snapshot.threadId !== null;
-  const { readiness, refreshProvider } = useProviderReadiness(cwd, provider, model);
+  const { readiness, refreshProvider } = useProviderReadiness(
+    cwd,
+    provider,
+    model,
+    readinessActive,
+  );
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
   useEffect(() => {
     if (readiness.status !== "ready" || (model && readiness.model !== model)) return;

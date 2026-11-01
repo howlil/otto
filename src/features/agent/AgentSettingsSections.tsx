@@ -30,7 +30,12 @@ export function ProviderSettings({
   return (
     <section className="border-b border-otto-raised-deep pb-3">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <Text as="span" variant="label" className="text-otto-text-secondary" id="otto-provider-label">
+        <Text
+          as="span"
+          variant="label"
+          className="text-otto-text-secondary"
+          id="otto-provider-label"
+        >
           Choose your agent
         </Text>
         <Text as="span" variant="caption" className="text-otto-text-tertiary">
