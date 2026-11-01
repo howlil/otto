@@ -29,6 +29,8 @@ jobs:
         run: bun install
       - name: TypeScript and frontend build
         run: bun run build
+      - name: Frontend behavior tests
+        run: bun run test:frontend:critical
       - name: Biome lint and formatting
         run: bun run check
       - name: Critical frontend draft behavior

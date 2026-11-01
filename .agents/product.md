@@ -22,6 +22,7 @@ Alternate context path: B2 → B4 user-triggered screen capture → B3 answer. S
 - B9: Before starting agent work, user can see the selected provider and working project/context. Quick Ask is the default, with no file-changing actions; entering an Agent Session or approving a tool action requires an explicit user choice. An approval request visibly waits for a valid decision.
 - B10: Background AI, music, or timer updates never switch the active feature or seize keyboard focus; completed AI work appears as a quiet 'Answer ready' status that can be opened on demand.
 - B11: Provider setup exposes whether the CLI is ready, needs authentication/setup, or lacks a required capability; user can recover or select another provider without losing a draft.
+- B12: In the active Agent conversation, users can read basic formatted Markdown/code, copy a code block, insert a preset or quote an answer into an editable follow-up, search visible messages, and export/copy the transcript as Markdown; these actions never initiate a provider request.
 
 Material breaks:
 - X1 (B3,B11): CLI absent, incompatible, or fails → explain, preserve draft/session context, offer setup, retry, or provider switch.
@@ -34,6 +35,8 @@ Material breaks:
 - X8 (B4): Capture hotkey conflicts with another shortcut or cannot register → show conflict and allow reassignment; never silently capture.
 - X9 (B11): CLI exists but authentication/session expired → show setup/sign-in required; do not falsely mark it ready.
 - X10 (B8): After app restart, an interrupted CLI session cannot be recovered → distinguish finished history from interrupted/unknown state, never fabricate a completed answer.
+
+- X11 (B12): If transcript download is unavailable, show a failure and keep Copy Markdown available. Untrusted CLI Markdown must never be executable HTML.
 
 ## Constraints
 - C1: Windows 11 first; Tauri 2 + React + Vite + Rust + Tailwind CSS, Bun for JS package management/scripts.
@@ -69,6 +72,8 @@ Material breaks:
 - P11 (B11,X8,X9,Q3): Given a missing/unauthenticated/incompatible CLI or conflicting hotkey, the user sees the specific unavailable state and recovery action; no request or capture is silently executed.
 - P12 (X10): Given an interrupted session followed by restart, Otto reports recovered state only if it actually exists; otherwise it labels the session interrupted/unknown and offers a fresh request.
 - P13 (Q6): Given a question during another app task, the user can ask, read/copy/follow up on the answer, dismiss Otto, and return to the same task without switching to a standalone AI interface.
+
+- P14 (B12,X11): Given active messages, formatted text/code remain readable during streaming without executing HTML; code copy, quote, search, and export/copy operate on those same messages. Presets edit drafts without sending, and export failure offers copy.
 
 ## Assumptions
 - A1 [non-blocking]: Codex is the initial supported provider; specific capabilities of Pi and Agy will be checked against installed versions.

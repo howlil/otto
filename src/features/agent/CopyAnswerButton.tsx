@@ -18,7 +18,7 @@ function feedbackAnnouncement(state: CopyFeedbackState) {
   return "";
 }
 
-export function CopyAnswerButton({ value }: { value: string }) {
+export function CopyAnswerButton({ value, label = "Copy answer" }: { value: string; label?: string }) {
   const { state, copy } = useCopyFeedback();
 
   return (
@@ -62,11 +62,11 @@ export function CopyAnswerButton({ value }: { value: string }) {
                   : "pointer-events-none translate-y-0.5 opacity-0"
               }`}
             >
-              {view.label}
+              {view.state === "idle" ? label : view.label}
             </span>
           ))}
         </span>
-        <VisuallyHidden>Copy answer</VisuallyHidden>
+        <VisuallyHidden>{label}</VisuallyHidden>
       </button>
       <span className="sr-only" role="status" aria-live="polite">
         {feedbackAnnouncement(state)}
