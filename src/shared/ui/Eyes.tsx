@@ -27,6 +27,10 @@ export function Eyes({
       ? (["h-[14px] w-[10px]", "h-[14px] w-[10px]"] as const)
       : eyeShapes[expression];
   const motion = reactive === "alive" ? "motion-safe:animate-otto-blink motion-reduce:animate-none" : "";
+  const eyeColor = mini ? "bg-otto-agent-eye" : compact ? "bg-otto-idle-eye" : "bg-otto-text";
+  const hover = compact && expression === "calm"
+    ? "group-hover:h-3 group-hover:w-[11px] group-hover:-translate-y-px"
+    : "";
   return (
     <span
       className={`inline-flex h-[23px] flex-none items-center justify-center ${mini ? "w-[23px] gap-1.5" : compact ? "w-[44px] gap-[17px]" : "w-[33px] gap-2"}`}
@@ -36,7 +40,7 @@ export function Eyes({
       {shapes.map((shape, index) => (
         <i
           key={index}
-          className={`block flex-none rounded-[7px] bg-otto-text transition-[height,width,transform] duration-200 ease-otto ${shape} ${motion}`}
+          className={`block flex-none rounded-[7px] ${eyeColor} transition-[height,width,transform] duration-[190ms] ease-otto ${shape} ${hover} ${motion}`}
         />
       ))}
     </span>
