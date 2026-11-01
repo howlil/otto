@@ -4,9 +4,9 @@ use windows_sys::Win32::{
     Foundation::{GetLastError, HWND, SetLastError},
     UI::WindowsAndMessaging::{
         GWL_EXSTYLE, GetWindowDisplayAffinity, GetWindowLongPtrW, GetWindowTextLengthW,
-        SWP_FRAMECHANGED,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowDisplayAffinity,
-        SetWindowLongPtrW, SetWindowPos, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+        SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+        SetWindowDisplayAffinity, SetWindowLongPtrW, SetWindowPos, WS_EX_APPWINDOW,
+        WS_EX_TOOLWINDOW,
     },
 };
 
@@ -65,7 +65,10 @@ fn apply_tool_style(hwnd: HWND) -> io::Result<()> {
     }
 
     let applied = refresh_frame(hwnd).and_then(|_| read_style(hwnd));
-    if applied.as_ref().is_ok_and(|style| is_overlay_window_style(*style)) {
+    if applied
+        .as_ref()
+        .is_ok_and(|style| is_overlay_window_style(*style))
+    {
         return Ok(());
     }
 
@@ -74,7 +77,9 @@ fn apply_tool_style(hwnd: HWND) -> io::Result<()> {
     }
     let _ = refresh_frame(hwnd);
     match applied {
-        Ok(_) => Err(io::Error::other("The overlay tool-window style was not retained.")),
+        Ok(_) => Err(io::Error::other(
+            "The overlay tool-window style was not retained.",
+        )),
         Err(error) => Err(error),
     }
 }
@@ -97,7 +102,9 @@ fn apply_capture_exclusion(hwnd: HWND) -> io::Result<()> {
     }
 
     if read_affinity(hwnd)? != EXCLUDE_FROM_CAPTURE {
-        return Err(io::Error::other("Capture exclusion affinity was not retained."));
+        return Err(io::Error::other(
+            "Capture exclusion affinity was not retained.",
+        ));
     }
     Ok(())
 }
@@ -109,7 +116,9 @@ fn clear_picker_title(window: &WebviewWindow, hwnd: HWND) -> io::Result<()> {
         SetLastError(0);
         let length = GetWindowTextLengthW(hwnd);
         if length != 0 {
-            return Err(io::Error::other("The overlay window title was not cleared."));
+            return Err(io::Error::other(
+                "The overlay window title was not cleared.",
+            ));
         }
         if GetLastError() != 0 {
             return Err(io::Error::last_os_error());
