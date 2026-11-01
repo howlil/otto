@@ -142,9 +142,16 @@ pub fn agent_capture_target_title() -> Result<String, String> {
     }
 }
 
-fn agent_content_size(surface: &str, content_height: Option<u32>, available_height: u32) -> Option<(u32, u32)> {
+fn agent_content_size(
+    surface: &str,
+    content_height: Option<u32>,
+    available_height: u32,
+) -> Option<(u32, u32)> {
     let (width, base_height) = surface_size(surface)?;
-    if !matches!(surface, "agentReady" | "agentThinking" | "agentFull" | "agentApproval" | "agentError") {
+    if !matches!(
+        surface,
+        "agentReady" | "agentThinking" | "agentFull" | "agentApproval" | "agentError"
+    ) {
         return Some((width, base_height));
     }
     let height = content_height
