@@ -578,6 +578,65 @@ mod tests {
         tx
     }
 
+    #[tokio::test]
+    async fn pi_screenshot_prompt_transports_real_png_pixels_and_deletes_temp() {
+        let path = std::env::temp_dir().join(format!(
+            "otto-pi-image-{}-{}.png",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        {
+            let output = std::fs::File::create(&path).unwrap();
+            let mut encoder = png::Encoder::new(output, 1, 1);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            let mut writer = encoder.write_header().unwrap();
+            writer.write_image_data(&[20, 30, 40, 255]).unwrap();
+        }
+        let capture = CapturedImage::new(path.clone());
+        let expected = STANDARD.encode(std::fs::read(&path).unwrap());
+        let command = prompt_command(7, "What is on screen?", Some(&capture))
+            .await
+            .unwrap();
+        assert_eq!(command["type"], "prompt");
+        assert_eq!(command["id"], "otto-7");
+        assert_eq!(command["message"], "What is on screen?");
+        assert_eq!(command["images"][0]["type"], "image");
+        assert_eq!(command["images"][0]["mimeType"], "image/png");
+        assert_eq!(command["images"][0]["data"], expected);
+        assert!(!command.to_string().contains(path.to_string_lossy().as_ref()));
+        drop(capture);
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn pi_text_only_and_invalid_png_never_fake_image_payload() {
+        let text = prompt_command(8, "Hello", None).await.unwrap();
+        assert!(text.get("images").is_none());
+        let path = std::env::temp_dir().join(format!(
+            "otto-pi-invalid-{}.png",
+            std::process::id()
+        ));
+        std::fs::write(&path, b"this is not a png").unwrap();
+        let capture = CapturedImage::new(path);
+        assert!(prompt_command(9, "Analyze this", Some(&capture)).await.is_err());
+    }
+
+    #[test]
+    fn pi_image_readiness_requires_selected_model_capability() {
+        assert!(model_accepts_images(
+            &json!({"model":{"provider":"openai","id":"vision","input":["text","image"]}})
+        ));
+        assert!(!model_accepts_images(
+            &json!({"model":{"provider":"openai","id":"text-only","input":["text"]}})
+        ));
+        assert!(!model_accepts_images(&json!({"model":{"input":"image"}})));
+        assert!(!model_accepts_images(&json!({})));
+    }
+
     #[test]
     fn pi_quick_ask_disables_all_model_tools_and_extension_execution() {
         for flag in [
