@@ -51,7 +51,7 @@ Material breaks:
 - Q6: User can obtain an answer and return to the original task without opening a separate AI interface.
 
 ## Scope
-- Agent outcome in scope: compact Otto entry → select Codex, Pi or Agy and working context → provider-verified Quick Ask → streamed response → collapse/reopen → follow-up or Stop → recoverable failure. Codex Agent Session with explicit approvals and hotkey-triggered image analysis are additional required Agent behaviors. Codex and Pi accept screenshots only when selected provider/model confirms image input; Pi remains tool-free Quick Ask. Agy is tool-free text Quick Ask until headless image transport is documented and verified.
+- Agent outcome in scope: compact Otto entry → select Codex, Pi or Agy and working context → provider-verified Quick Ask → streamed response → collapse/reopen → follow-up or Stop → recoverable failure. Codex Agent Session with explicit approvals and hotkey-triggered image analysis are additional required Agent behaviors. Codex and Pi accept screenshots only when selected provider/model confirms image input; Pi remains tool-free Quick Ask. Agy stream-json headless input accepts text blocks only, so screenshots are unsupported in this transport.
 - Supporting product direction retained but not Agent completion prerequisites: configurable placement, media, Pomodoro, and optional idle information.
 - Out: OpenCode provider, cloud backend, standalone model API credentials, universal capture invisibility, automatic screen surveillance, auto-approval of agent actions, database, telemetry server, auto-updater, multi-OS parity, speculative plugin system.
 
