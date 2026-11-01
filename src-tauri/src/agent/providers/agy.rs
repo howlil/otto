@@ -1,5 +1,8 @@
 use super::job::Job;
-use crate::agent::{ChatMessage, Control, ProviderReadiness, Snapshot, fail, mutate};
+use crate::agent::events::{AgentEvent, ProviderEvents};
+use crate::agent::{Control, ProviderReadiness};
+#[cfg(test)]
+use crate::agent::{ChatMessage, Snapshot};
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -7,10 +10,12 @@ use std::{
     sync::atomic::Ordering,
     time::Duration,
 };
+#[cfg(test)]
+use tokio::sync::watch;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
     process::{Child, ChildStdin, ChildStdout, Command},
-    sync::{mpsc, watch},
+    sync::mpsc,
     time::timeout,
 };
 
@@ -258,85 +263,52 @@ fn result_confirms_prompt(frame: &Value) -> bool {
     frame["event"] == "result" && frame["result"]["status"] == "SUCCESS"
 }
 
-fn begin(updates: &watch::Sender<Snapshot>, id: u64, text: &str) {
-    mutate(updates, |s| {
-        if s.run_id != id || s.status != "starting" {
-            return;
-        }
-        s.status = "streaming".into();
-        s.error = None;
-        s.messages.push(ChatMessage {
-            id: format!("{id}:user"),
-            role: "user".into(),
-            text: text.into(),
-        });
-        s.messages.push(ChatMessage {
-            id: format!("{id}:assistant"),
-            role: "assistant".into(),
-            text: String::new(),
-        });
-        if s.messages.len() > 24 {
-            s.messages.drain(0..2);
-        }
+fn begin(events: &ProviderEvents, id: u64, text: &str) {
+    events.emit(AgentEvent::TurnStarted {
+        run_id: id,
+        text: text.to_owned(),
     });
 }
 
-fn observe(frame: &Value, id: u64, updates: &watch::Sender<Snapshot>) -> bool {
-    let snapshot = updates.borrow().clone();
+fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
+    let snapshot = events.snapshot();
     if snapshot.run_id != id || !matches!(snapshot.status.as_str(), "starting" | "streaming") {
         return false;
     }
     if frame["event"] == "step_update" {
         let step = &frame["step_update"];
         if step["step_type"] == "tool" {
-            fail(updates, id, "Agy attempted an unsupported tool action.");
+            events.fail(id, "Agy attempted an unsupported tool action.");
             return true;
         }
         if step["step_type"] == "agent_response"
             && let Some(delta) = step["text_delta"].as_str()
         {
             if snapshot.status == "starting" {
-                fail(
-                    updates,
-                    id,
-                    "Agy returned output before the request was acknowledged.",
-                );
+                events.fail(id, "Agy returned output before the request was acknowledged.");
                 return true;
             }
-            mutate(updates, |s| {
-                if let Some(last) = s
-                    .messages
-                    .last_mut()
-                    .filter(|entry| entry.role == "assistant")
-                {
-                    last.text.push_str(delta);
-                }
+            events.emit(AgentEvent::TextDelta {
+                run_id: id,
+                delta: delta.to_owned(),
             });
         }
     }
     if frame["event"] == "result" {
         if frame["result"]["status"] != "SUCCESS" {
-            fail(updates, id, "Agy could not finish this request.");
+            events.fail(id, "Agy could not finish this request.");
             return true;
         }
         let response = frame["result"]["response"].as_str().unwrap_or("");
         if response.trim().is_empty() {
-            fail(updates, id, "Agy returned an empty answer.");
+            events.fail(id, "Agy returned an empty answer.");
             return true;
         }
-        mutate(updates, |s| {
-            if s.run_id == id && s.status == "streaming" {
-                if let Some(last) = s
-                    .messages
-                    .last_mut()
-                    .filter(|entry| entry.role == "assistant")
-                {
-                    last.text = response.into();
-                }
-                s.status = "completed".into();
-                s.activity = None;
-            }
+        events.emit(AgentEvent::TextFinal {
+            run_id: id,
+            text: response.to_owned(),
         });
+        events.emit(AgentEvent::Completed { run_id: id });
         return true;
     }
     false
@@ -344,7 +316,7 @@ fn observe(frame: &Value, id: u64, updates: &watch::Sender<Snapshot>) -> bool {
 
 pub async fn run(
     mut controls: mpsc::Receiver<Control>,
-    updates: watch::Sender<Snapshot>,
+    events: ProviderEvents,
     initial: Control,
 ) {
     let Control::Ask {
@@ -354,21 +326,20 @@ pub async fn run(
         capture: None,
     } = initial
     else {
-        fail(
-            &updates,
-            updates.borrow().run_id,
+        events.fail(
+            events.snapshot().run_id,
             "Agy only supports tool-free text Quick Ask.",
         );
         return;
     };
     if let Err(reason) = ensure_profile() {
-        fail(&updates, run_id, &reason);
+        events.fail( run_id, &reason);
         return;
     }
     let mut rpc = match Rpc::launch(&cwd) {
         Ok(value) => value,
         Err(reason) => {
-            fail(&updates, run_id, &reason);
+            events.fail( run_id, &reason);
             return;
         }
     };
@@ -376,9 +347,9 @@ pub async fn run(
         init = timeout(Duration::from_secs(20), rpc.read()) => init,
         action = controls.recv() => {
             if matches!(action, Some(Control::Stop)) {
-                mutate(&updates, |s| if s.run_id == run_id { s.status = "stopped".into(); });
+                events.stopped(run_id);
             } else {
-                fail(&updates, run_id, "Agy startup interrupted.");
+                events.fail( run_id, "Agy startup interrupted.");
             }
             rpc.terminate().await;
             return;
@@ -388,14 +359,13 @@ pub async fn run(
         Ok(Ok(frame)) => match safe_init(&frame) {
             Ok(session) => session,
             Err(reason) => {
-                fail(&updates, run_id, &reason);
+                events.fail( run_id, &reason);
                 rpc.terminate().await;
                 return;
             }
         },
         _ => {
-            fail(
-                &updates,
+            events.fail(
                 run_id,
                 "Agy startup did not confirm tool-free capabilities.",
             );
@@ -403,13 +373,12 @@ pub async fn run(
             return;
         }
     };
-    mutate(&updates, |s| {
-        if s.run_id == run_id {
-            s.thread_id = Some(session);
-        }
+    events.emit(AgentEvent::SessionReady {
+        run_id,
+        session_id: session,
     });
     if rpc.send(&text).await.is_err() {
-        fail(&updates, run_id, "Agy rejected the prompt.");
+        events.fail( run_id, "Agy rejected the prompt.");
         rpc.terminate().await;
         return;
     }
@@ -421,7 +390,7 @@ pub async fn run(
             action = controls.recv() => match action {
                 Some(Control::Stop) if active.is_some() => {
                     if let Some(id) = active {
-                        mutate(&updates, |s| if s.run_id == id { s.status = "stopped".into(); });
+                        events.stopped(id);
                     }
                     rpc.terminate().await;
                     break;
@@ -433,12 +402,12 @@ pub async fn run(
                     break;
                 }
                 Some(Control::Ask {text, cwd, run_id, capture: None}) if active.is_none() => {
-                    if cwd.as_path() != Path::new(&updates.borrow().cwd) {
-                        fail(&updates, run_id, "Agy context changed. Start a new session.");
+                    if cwd.as_path() != Path::new(&events.snapshot().cwd) {
+                        events.fail( run_id, "Agy context changed. Start a new session.");
                         continue;
                     }
                     if rpc.send(&text).await.is_err() {
-                        fail(&updates, run_id, "Agy follow-up could not start.");
+                        events.fail( run_id, "Agy follow-up could not start.");
                         rpc.terminate().await;
                         break;
                     }
@@ -457,24 +426,24 @@ pub async fn run(
                     {
                         if !acknowledged {
                             acknowledged = true;
-                            begin(&updates, id, &pending_text);
+                            begin(&events, id, &pending_text);
                         }
                         continue;
                     }
                     if result_confirms_prompt(&value) && !acknowledged {
                         acknowledged = true;
-                        begin(&updates, id, &pending_text);
+                        begin(&events, id, &pending_text);
                     }
                     if value["event"] == "step_update"
                         && value["step_update"]["step_type"] == "agent_response"
                         && !acknowledged
                     {
-                        fail(&updates, id, "Agy output arrived before request acceptance.");
+                        events.fail( id, "Agy output arrived before request acceptance.");
                         rpc.terminate().await;
                         break;
                     }
-                    if observe(&value, id, &updates) {
-                        if updates.borrow().status == "failed" {
+                    if observe(&value, id, &events) {
+                        if events.snapshot().status == "failed" {
                             rpc.terminate().await;
                             break;
                         }
@@ -483,7 +452,7 @@ pub async fn run(
                 }
                 Err(reason) => {
                     if let Some(id) = active {
-                        fail(&updates, id, &reason);
+                        events.fail( id, &reason);
                     }
                     rpc.terminate().await;
                     break;
@@ -491,18 +460,17 @@ pub async fn run(
             }
         }
     }
-    let snapshot = updates.borrow().clone();
+    let snapshot = events.snapshot();
     if matches!(
         snapshot.status.as_str(),
         "starting" | "streaming" | "approvalRequired"
     ) {
-        fail(
-            &updates,
+        events.fail(
             snapshot.run_id,
             "Agy terminated before completion.",
         );
     } else if snapshot.status == "stopping" {
-        mutate(&updates, |s| s.status = "stopped".into());
+        events.stopped(snapshot.run_id);
     }
 }
 
@@ -571,10 +539,11 @@ mod tests {
             approval: None,
             error: None,
         });
+        let tx_events = ProviderEvents::new(tx.clone());
         assert!(observe(
             &json!({"event":"result","result":{"status":"ERROR","response":""}}),
             9,
-            &tx
+            &tx_events
         ));
         assert_eq!(tx.borrow().status, "failed");
         assert!(tx.borrow().messages.is_empty());
@@ -599,10 +568,11 @@ mod tests {
             approval: None,
             error: None,
         });
+        let tx_events = ProviderEvents::new(tx.clone());
         assert!(observe(
             &json!({"event":"result","result":{"status":"SUCCESS","response":""}}),
             7,
-            &tx
+            &tx_events
         ));
         assert_eq!(tx.borrow().status, "failed");
 
@@ -623,17 +593,18 @@ mod tests {
             approval: None,
             error: None,
         });
+        let done_events = ProviderEvents::new(done.clone());
         assert!(observe(
             &json!({"event":"result","result":{"status":"SUCCESS","response":"answer"}}),
             8,
-            &done
+            &done_events
         ));
         assert_eq!(done.borrow().status, "completed");
         assert_eq!(done.borrow().messages[0].text, "answer");
         assert!(!observe(
             &json!({"event":"result","result":{"status":"SUCCESS","response":"late"}}),
             7,
-            &done
+            &done_events
         ));
     }
 }
