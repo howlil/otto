@@ -119,7 +119,11 @@ export function AgentPanel({
             setCaptureActionError(null);
             void captureAgentNow().catch((error: unknown) =>
               setCaptureActionError(
-                error instanceof Error ? error.message : "Screen capture is unavailable.",
+                typeof error === "string"
+                  ? error
+                  : error instanceof Error
+                    ? error.message
+                    : "Screen capture is unavailable.",
               ),
             );
           }}

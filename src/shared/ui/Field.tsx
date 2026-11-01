@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithRef, ComponentPropsWithoutRef } from "react";
 import { Text } from "./Text";
 
 export type Choice<T extends string> = { value: T; label: string; help?: string };
@@ -89,7 +89,7 @@ export function TextField(props: ComponentPropsWithoutRef<"input">) {
   return <input {...props} />;
 }
 
-export function TextArea(props: ComponentPropsWithoutRef<"textarea">) {
+export function TextArea(props: ComponentPropsWithRef<"textarea">) {
   return <textarea {...props} />;
 }
 
