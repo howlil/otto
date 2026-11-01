@@ -3,55 +3,49 @@
 ## System
 Windows-first Tauri 2 modular monolith, not a cloud service:
 React presentation (K1) -> narrow Tauri controller (K2) -> Rust agent/use-case owner (K3) <- provider adapters (K4); native Windows host (K5) handles window/capture/media integrations. Bun builds the frontend. WebView2 is part of the desktop runtime.
-Current feature branch implements the Codex Quick Ask code path and the Agent Session approval slice (mode policy, Rust-owned pending approval, real command/file-change approval, Allow once / Deny), **not Windows-verified**. Screenshot, music, timer, attached placement and gestures remain contracts, not implemented behavior.
+Current feature branch has Codex Quick Ask/Agent Session, approval, and B4 native capture/hotkey paths; Rust unit/Windows CI does **not** prove real signed-in image-to-answer or desktop capture fidelity. Music/Focus remain UI placeholders; attached placement is not an accepted Windows behavior.
 
 ## Structure
-Target layout below is a **design**, not a claim that directories exist. Present now: `src/{main.tsx,App.tsx,style.css}`, `src-tauri/src/{main.rs,lib.rs}`, Tauri configuration/capabilities, and root project files. Create future files only with the behavior that uses them.
+Current K1 is feature-first: `src/App.tsx` composes the Shell and Agent hooks, `AppView.tsx` routes surfaces, `features/{shell,agent,home}` owns UI behavior, `platform/tauri.ts` owns native transport and IPC DTOs, and `shared/ui` owns genuinely reusable controls. Music/Focus are Home placeholders; do not pre-create feature folders.
 
+Target **within the existing modular monolith**, introduced incrementally only when that behavior is changed:
 ```text
-otto/
-├── src/                               # K1: React presentation
-│   ├── main.tsx, App.tsx, style.css   # existing entry, shell, tokens
-│   ├── features/                      # add per implemented behavior
-│   │   ├── shell/                     # B1/B2/B7/B10: notch UI + focus intent
-│   │   ├── agent/                     # B3/B8/B9/B11: chat, draft, status UI
-│   │   ├── music/                     # B5: music UI, later
-│   │   └── timer/                     # B6: Pomodoro UI, later
-│   ├── platform/tauri.ts              # typed Tauri transport, later
-│   └── shared/ui/                     # reused stateless primitives only
-├── src-tauri/
-│   ├── src/
-│   │   ├── main.rs, lib.rs            # existing startup/composition root
-│   │   ├── commands.rs                # K2: Tauri IPC validation/dispatch
-│   │   ├── agent/                     # K3: Rust run/policy owner
-│   │   │   ├── mod.rs                 # agent public entry + domain contract
-│   │   │   ├── session.rs             # run lifecycle/ordered stream/cleanup
-│   │   │   ├── policy.rs              # Quick Ask/approval enforcement
-│   │   │   └── providers/             # K4: CLI protocol adapters
-│   │   │       ├── mod.rs             # provider port implementations
-│   │   │       ├── codex.rs           # first actual provider
-│   │   │       ├── agy.rs             # later
-│   │   │       ├── pi.rs              # later
-│   │   │       └── opencode.rs        # later
-│   │   ├── windows/                   # K5: native Windows integration
-│   │   │   ├── mod.rs                 # OS integration public entry
-│   │   │   ├── window.rs              # position/focus/capture protection
-│   │   │   ├── capture.rs             # explicit hotkey/target/image lifetime
-│   │   │   └── media.rs               # OS media session, later
-│   │   └── timer.rs                   # R5: timer owner, later
-│   ├── capabilities/default.json      # existing privilege allowlist
-│   └── tauri.conf.json                # existing app/window configuration
-├── .agents/                           # product.md, engineering.md, DESIGN.md
-└── AGENTS.md                          # short agent operating instructions
+src/
+  main.tsx                  composition bootstrap
+  App.tsx                   compose feature controllers; coordinate native surface
+  AppView.tsx               page-to-view rendering only
+  features/
+    shell/
+      index.ts               public feature API
+      useNotchShell.ts       shell facade (navigation, focus and preferences composed)
+      preferences.ts         validated local preferences
+      surface.ts             pure surface resolution
+      [navigation.ts]        only when extracted/tested shell transitions need an owner
+    agent/
+      index.ts               public Agent API
+      useAgent.ts            facade over narrow hooks; no CLI policy enforcement
+      useCaptureSource.ts    existing source selection lifecycle
+      [useAgentConnection.ts]    snapshot channel and reconnect
+      [useAgentRequests.ts]      submit/stop/approval/draft reconciliation
+      [useCaptureShortcut.ts]   registration/target status
+      status.ts, surface.ts, view-model.ts
+      Agent*.tsx, Transcript*.tsx, ApprovalCard.tsx
+    home/
+      index.ts, HomeSurface.tsx, HomeCard.tsx
+  platform/
+    tauri.ts                 sole Tauri command/event transport boundary
+  shared/ui/                stateless reusable controls, no feature imports
+  assets/, style.css        art and semantic tokens
 ```
+Square-bracket paths are **proposed extractions, not current files or a mandate to create empty folders**. Keep existing Agent/Settings visual components as-is; the problem is lifecycle ownership, not insufficient UI nesting. Do not introduce app-wide stores, generic services, repositories, or extra layers without a second concrete consumer.
 
-- **K1 (presentation):** each feature owns its view and UI-local state; render-only UI takes props/events, not direct IPC calls. Feature adapters call `src/platform/tauri.ts` when a shared typed transport is needed. `shared/ui` appears only after real reuse.
-- **K2 (controller):** `lib.rs` wires commands/state; `commands.rs` parses/validates and delegates to K3/K5/R5, without business or CLI protocol rules.
-- **K3 (logic):** `agent/mod.rs` is the only Rust agent-domain entry; session and policy own S3/S4, define provider-facing capabilities, and depend on no Tauri, React, or concrete CLI adapter types.
-- **K4 (data/external):** `agent/providers/mod.rs` provides implementations of K3-owned provider contracts; `codex.rs` first, remaining files only when supported. No provider imports presentation or owns authoritative session state.
-- **K5 (native):** `windows/mod.rs` exposes bounded OS capabilities; private window/capture/media code cannot authorize an AI action. `timer.rs` is feature-specific, not a generic service.
-- **Dependency direction:** React feature -> typed IPC client -> K2 controller -> K3 logic <- K4 provider adapter; K2 -> K5 native capabilities. Cross-feature calls use a public `index.ts`/`mod.rs` only once an actual second consumer exists; no import of sibling internals or generic `utils`/service folders.
-- **Conventions/patterns:** PascalCase React components/types, camelCase TS values, `useX` Hooks, kebab-case feature folders; Rust snake_case modules/functions, PascalCase types. Prefer one state owner, composition, and an Adapter only where CLI protocols actually differ; avoid speculative Factories/Repositories/DI.
+- **K1 (frontend):** `App.tsx` is the composition root; only feature hooks and the root coordinator invoke `src/platform/tauri.ts`. Render-only TSX receives explicit narrow view contracts and callbacks, not native effects; no feature imports a sibling's internals. `AppView.tsx` should eventually depend on a stable exposed feature view model rather than `ReturnType<typeof useAgent>` or `ReturnType<typeof useNotchShell>`.
+- **K2 (Rust controller):** `lib.rs` wires commands/state; `commands.rs` validates and delegates to K3/K5/R5.
+- **K3 (Rust logic):** `agent/mod.rs` owns authoritative run/session/approval state; Quick Ask privileges remain enforced here, never in React.
+- **K4 (provider boundary):** `agent/providers/` owns Codex protocol and later verified provider adapters; frontend readiness labels do not grant capabilities.
+- **K5 (Windows host):** `windows/` owns OS foreground, capture and shortcut lifetimes.
+- **Dependency direction:** `App → features/{shell,agent,home} → shared/ui`; feature controller → `platform/tauri.ts → Rust commands` (one-direction runtime calls); platform never imports feature presentation. Public feature `index.ts` is the cross-feature seam; feature internals remain private. Keep TS DTOs co-located with the IPC bridge until actual independent consumers justify splitting contracts.
+- **Refactor constraint:** no observable UI or permission change, no new folder by category alone, no simultaneous architecture+feature rewrite. For changed critical agent state transitions first add a failing behavior test (Red), extract the owner, reach Green, then remove obsolete code.
 
 ## Responsibilities
 - R1 (B1,B2,B10): present idle/compact/expanded state, navigation, active feature, drafts, unobtrusive completion and keyboard/focus intent.
@@ -63,13 +57,14 @@ otto/
 - R7 (B3,B9,B11,X1,X7,X9): validate provider readiness/auth/capability, working context, Quick Ask restrictions and explicit tool approvals; fail closed when unsupported.
 
 ## State
-- S1: active feature, exclusive Compact/Preview/Pinned shell mode and feature-local unsent agent draft | owner R1 (React) | background events cannot change selection/focus; one UI writer; draft is sensitive local memory, discarded on exit (RPO: unsent edits may be lost).
+- S1: selected page and exclusive Compact/Preview/Pinned mode | owner Shell hook (R1/React) | background updates cannot select a new page or take keyboard focus; hover timers may request Preview but never pin without explicit activation. Shell preferences have one React writer and a validated localStorage mirror; native bounds are owned separately by S2.
 - S2: placement, native bounds and focus policy | owner R6 (Rust) | no implicit activation on hover; single window host writer; internal metadata, restore preference only if explicitly persisted later.
 - S3: agent run/session/status/output | owner R2 (Rust) | run_id with ordered sequence and exactly one terminal outcome; terminal run rejects late events; one authority even if UI collapses; sensitive user/model text stays memory-only. For X10, app-local storage keeps only an in-flight numeric run marker; startup treats a leftover marker as possibly interrupted, never as resumed/completed, and does not persist transcript/image/auth. RPO: active run is not durable; recover only provider-verifiable sessions (A5).
 - S4: provider identity, capability, working directory and approval state | owner R7 (Rust) | readiness verified before launch; no approval assumed or invented; never persist authentication secrets; sensitive context metadata remains memory-only by default.
 - S5: target window, capture request and image lifetime | owner R3 (Rust) | explicit invocation provenance, still-valid non-Otto target, no send on ambiguity/denial; sensitive images are ephemeral with Drop cleanup on finish/error/cancel. After a crash, startup may delete only named capture files aged >=24h when the owning PID is confirmed exited; unknown/active PIDs and unrelated files are preserved. Best effort, not secure erasure.
 - S6: media observation | owner R4 (Rust cache; OS is source of truth) | no fabricated lyrics/sessions; ephemeral, no permanent media history.
 - S7: focus/break duration, timer deadline and paused state | owner R5 | deadline is authority and remaining time derived; settings retention only if preference storage is explicitly introduced.
+- S8: unsent agent draft, selected project/mode draft, transient connectivity and capture-setting feedback | owner Agent hook (R1/React) | a failed or superseded request may restore only its own unsent text; async success must not erase newer typing. Rust S3/S4/S5, not UI values, authorize session mode, approval, target and capture. Draft remains memory-only and may be lost on exit.
 - Concurrent writes: one active run owner serializes run transitions; independent background completions update their own data, never S1. UI events are observations, not independent authoritative copies.
 
 ## Contracts
@@ -128,6 +123,7 @@ otto/
 - DEC7 [two-way]: Agent Session ships as `workspace-write` + `on-request` (Codex `AskForApproval`) with only `accept` (Allow once) and `cancel` (Deny) decisions; `decline` is used for Quick Ask and fail-closed rejections. `permissions/requestApproval`, `acceptForSession`, and exec/network-policy amendments are out of scope and answered `decline`. Trade-off: no session-wide or policy amendment from Otto; revisit when the approval contract is verified on a real Windows run.
 - DEC8 [one-way]: the provider's raw JSON-RPC request id stays private in the adapter; K1 only receives an opaque Otto `approvalId`. Rejected alternatives: exposing provider ids (leaks adapter shape and invites stale resolution) and auto-approving unsupported requests (violates G8).
 - DEC9 [two-way]: mode and working directory are fixed for an existing conversation; changing them requires a new session. Trade-off: no in-place mode switch; prevents silently escalating or dropping a live thread's approval policy.
+- DEC10 [two-way] (B2/B3/B8/G7): retain feature-first UI and a small root composition coordinator; extract individual hooks by state/side-effect lifetime as problems are addressed, over global Redux/context layers or a generic clean-architecture directory hierarchy. Trade-off: some current facades remain large until proved refactors; revisit if an independent feature needs a shared authoritative state owner.
 
 ## Fitness
 - F1: Tauri imports and native event wiring exist only in `src/platform/`; render-only feature TSX has no runtime platform imports (type-only snapshot imports allowed) | signal: TypeScript import scan | tool: `scripts/frontend-rules.mjs` | pass: zero boundary violations | cadence: PR | mode: enforce; exceptions -> D#.
@@ -136,6 +132,12 @@ otto/
 - F4: the frontend does not grow more complex than the recorded budget | signal: largest component file, features missing a public entry, total Biome diagnostics, aria-label count, hand-drawn SVG count | tool: `scripts/frontend-rules.mjs` R3–R7 | pass: each metric ≤ its baseline | cadence: PR | mode: enforce as a ratchet — lower it freely, never raise it to pass; exceptions -> D#.
 - F5: icons are a vetted dependency and accessible names are rendered text | signal: `lucide-react` in `package.json`/lockfile, `shared/ui` as the only icon source, no `aria-label` | tool: `scripts/frontend-rules.mjs` R6/R7 | pass: 0 `aria-label`, 0 inline `<svg>` outside `shared/ui` | cadence: PR | mode: enforce; exceptions -> D#.
 - `bun run check` runs Biome and then the ratchet, so F1–F4 are executed at PR cadence and are proof when it exits 0. Baseline lives in `.agents/frontend-budget.json`; regenerate it only after a real reduction with `bun run lint:frontend -- --write-baseline`.
+- F1/F2 enforce import direction today; TSX-size ratchet does **not** cover large `.ts` hooks or validate behavioral ownership. Do not claim these checks prove SRP, runtime lifecycle, or React state correctness.
+
+## Debt
+- D1 (S8,P3/P8): `src/features/agent/useAgent.ts` mixes subscription, provider probing, capture configuration, requests and draft reconciliation; async response can clear newer draft text and same-text history is not a request identity. Pay down with a failing lifecycle/draft behavior test before extracting one owner.
+- D2 (S1,B2): `useNotchShell.ts` mixes navigation/pointer timers, focus subscription and persistence. Extract only on a changed interaction needing isolated proof; preserve Compact/Preview/Pinned semantics.
+- D3 (K1): `AppView.tsx` uses hook `ReturnType` as its external prop contract, making render types change with controller internals. Replace with narrow explicit feature contracts in a targeted refactor. Frontend critical-state behavior tests currently have no runner; add only when the first such refactor requires them.
 
 ## Verification
 - **Critical-proof contract (P#/X#/G#):** changed core state/policy, authorization/approval, provider lifecycle/Stop, concurrent ordering, capture consent/target, and restart/recovery must have behavior-based automated proof. Prefer unit tests for core decisions; use real boundary integration where a unit test cannot prove the invariant. Reuse existing tests if they genuinely fail for the defect; no test-count or coverage quotas.
