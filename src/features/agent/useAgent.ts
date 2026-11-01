@@ -8,6 +8,7 @@ import {
   getAgentReadiness,
   getCaptureTargetTitle,
   selectAgentProvider,
+  selectAgentRuntimeOptions,
   configureCaptureShortcut,
   nativeAvailable,
   decideAgentApproval,
@@ -469,13 +470,17 @@ export function useAgent() {
   const [model, setModelValue] = useState<string | null>(null);
   const [thinkingEffort, setThinkingEffortValue] = useState<string | null>(null);
   const changingProvider = useRef(false);
-  const busy = ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status);
+  const changingRuntime = useRef(false);
+  const [runtimeSelectionPending, setRuntimeSelectionPending] = useState(false);
+  const busy =
+    ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status) ||
+    runtimeSelectionPending;
   const captureBusy = captureIsWorking(snapshot.capture.phase);
   const locked = busy || captureBusy || snapshot.threadId !== null;
   const { readiness, refreshProvider } = useProviderReadiness(cwd, provider, model);
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
   useEffect(() => {
-    if (readiness.status !== "ready") return;
+    if (readiness.status !== "ready" || (model && readiness.model !== model)) return;
     setModelValue((current) =>
       current && readiness.models.some((option) => option.id === current)
         ? current
@@ -503,13 +508,43 @@ export function useAgent() {
     [receive],
   );
   const connection = useAgentConnection(receive, acceptSnapshot);
-  const selectModel = useCallback(
-    (next: string | null) => {
-      setModelValue(next);
-      const selected = readiness.models.find((option) => option.id === next);
-      setThinkingEffortValue(selected?.defaultThinkingEffort ?? null);
+  const confirmRuntimeSelection = useCallback(
+    async (nextModel: string | null, nextEffort: string | null) => {
+      if (changingRuntime.current || busy || captureBusy) return false;
+      changingRuntime.current = true;
+      setRuntimeSelectionPending(true);
+      try {
+        if (provider === "pi" && nativeAvailable) {
+          await selectAgentRuntimeOptions(nextModel, nextEffort);
+        }
+        connection.clearError();
+        return true;
+      } catch (reason) {
+        connection.setRequestError(reason);
+        return false;
+      } finally {
+        changingRuntime.current = false;
+        setRuntimeSelectionPending(false);
+      }
     },
-    [readiness.models],
+    [busy, captureBusy, provider, connection.clearError, connection.setRequestError],
+  );
+  const selectModel = useCallback(
+    async (next: string | null) => {
+      const selected = readiness.models.find((option) => option.id === next);
+      const effort = selected?.defaultThinkingEffort ?? null;
+      if (!(await confirmRuntimeSelection(next, effort))) return;
+      setModelValue(next);
+      setThinkingEffortValue(effort);
+    },
+    [readiness.models, confirmRuntimeSelection],
+  );
+  const selectThinkingEffort = useCallback(
+    async (next: string | null) => {
+      if (!(await confirmRuntimeSelection(model ?? readiness.model, next))) return;
+      setThinkingEffortValue(next);
+    },
+    [model, readiness.model, confirmRuntimeSelection],
   );
   const selectProvider = useCallback(
     async (next: AgentProvider) => {
@@ -574,7 +609,7 @@ export function useAgent() {
     thinkingEffort,
     setProvider: selectProvider,
     setModel: selectModel,
-    setThinkingEffort: setThinkingEffortValue,
+    setThinkingEffort: selectThinkingEffort,
     locked,
     error: connection.error ?? snapshot.error,
     busy,

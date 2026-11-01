@@ -1,12 +1,17 @@
 import { Icon, RadioGroup, StatusMessage, Text, TextField } from "../../shared/ui";
 import type { AgentMode, AgentProvider, ProviderReadiness } from "../../platform/tauri";
-import { ProviderChoice } from "./ProviderChoice";
-type ProviderName = "Codex" | "Pi" | "Agy";
-const providers: ReadonlyArray<{ name: ProviderName; detail: string }> = [
-  { name: "Codex", detail: "Text · image input · tool approvals" },
-  { name: "Agy", detail: "Text only · no tools" },
-  { name: "Pi", detail: "Text · vision model · no tools" },
+import { ProviderChoice, type ProviderName } from "./ProviderChoice";
+
+const providers: ReadonlyArray<{
+  name: ProviderName;
+  command: AgentProvider;
+  detail: string;
+}> = [
+  { name: "Codex", command: "codex", detail: "OpenAI coding agent" },
+  { name: "Agy", command: "agy", detail: "Google Antigravity CLI" },
+  { name: "Pi", command: "pi", detail: "Minimal coding harness" },
 ];
+
 export function ProviderSettings({
   readiness,
   providerStatus,
@@ -24,35 +29,39 @@ export function ProviderSettings({
 }) {
   return (
     <section className="border-b border-otto-raised-deep pb-3">
-      <Text
-        as="span"
-        variant="label"
-        className="mb-[9px] block text-otto-text-secondary"
-        id="otto-provider-label"
-      >
-        Local CLI
-      </Text>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <Text as="span" variant="label" className="text-otto-text-secondary" id="otto-provider-label">
+          Choose your agent
+        </Text>
+        <Text as="span" variant="caption" className="text-otto-text-tertiary">
+          Local CLI
+        </Text>
+      </div>
       <fieldset
-        className="m-0 grid min-w-0 grid-cols-3 gap-1.5 border-0 p-0"
+        className="grid h-[233px] min-w-0 grid-cols-[1.15fr_1fr] grid-rows-3 gap-2 border-0 p-0"
         aria-labelledby="otto-provider-label"
       >
-        {providers.map(({ name, detail }) => {
-          const selected = name.toLowerCase() === provider;
-          return (
-            <ProviderChoice
-              key={name}
-              name={name}
-              detail={detail}
-              status={selected ? providerStatus : "Select"}
-              selected={selected}
-              onSelect={
-                !locked
-                  ? () => onSelect(name === "Pi" ? "pi" : name === "Agy" ? "agy" : "codex")
-                  : undefined
-              }
-            />
-          );
-        })}
+        {providers.map(({ name, command, detail }) => (
+          <ProviderChoice
+            key={name}
+            name={name}
+            command={command}
+            detail={detail}
+            status={provider === command ? providerStatus : "Select"}
+            selected={provider === command}
+            locked={locked}
+            onSelect={!locked ? () => onSelect(command) : undefined}
+          />
+        ))}
+        <ProviderChoice
+          name="OpenCode"
+          command="opencode"
+          detail="Not supported yet"
+          status="Planned"
+          selected={false}
+          planned
+          locked={locked}
+        />
       </fieldset>
       <StatusMessage
         tone={
@@ -75,6 +84,7 @@ export function ProviderSettings({
     </section>
   );
 }
+
 export function ModeSettings({
   mode,
   locked,

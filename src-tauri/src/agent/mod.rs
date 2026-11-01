@@ -91,6 +91,7 @@ pub struct ProviderReadiness {
     pub thinking_efforts: Vec<String>,
 }
 
+#[derive(Clone, Default)]
 struct ModelSelection {
     model: Option<String>,
     thinking_effort: Option<String>,
@@ -238,6 +239,7 @@ pub enum Control {
 pub struct AgentRuntime {
     updates: watch::Sender<Snapshot>,
     control: Mutex<Option<mpsc::Sender<Control>>>,
+    selected_runtime: StdMutex<ModelSelection>,
     next_run_id: AtomicU64,
     subscriptions: StdMutex<Option<(u64, oneshot::Sender<()>)>>,
     next_subscription_id: AtomicU64,
@@ -283,6 +285,7 @@ impl AgentRuntime {
         Self {
             updates,
             control: Mutex::new(None),
+            selected_runtime: StdMutex::new(ModelSelection::default()),
             next_run_id: AtomicU64::new(0),
             subscriptions: StdMutex::new(None),
             next_subscription_id: AtomicU64::new(0),
@@ -379,12 +382,55 @@ impl AgentRuntime {
             return Err("Start a new session before changing the provider.".into());
         }
         if current.provider != provider {
+            *self.selected_runtime.lock().unwrap() = ModelSelection::default();
             mutate(&self.updates, |state| {
                 state.provider = provider;
                 state.error = None;
             });
         }
         Ok(())
+    }
+
+    pub async fn select_runtime_options(
+        &self,
+        model: Option<String>,
+        thinking_effort: Option<String>,
+    ) -> Result<(), String> {
+        let _guard = self.control.lock().await;
+        let current = self.snapshot();
+        if current.provider != "pi" {
+            return Err("Pi runtime selection requires the Pi provider.".into());
+        }
+        if matches!(
+            current.status.as_str(),
+            "starting" | "streaming" | "stopping" | "approvalRequired"
+        ) || current.capture.phase != "idle"
+        {
+            return Err("Finish the current request or capture before changing the Pi model.".into());
+        }
+        let readiness = self
+            .provider_readiness_for(&current.provider, Some(&current.cwd), model.as_deref())
+            .await;
+        if readiness.status != "ready" {
+            return Err(format!("{} {}", readiness.message, readiness.recovery));
+        }
+        validate_runtime_options(&readiness, model.as_deref(), thinking_effort.as_deref())?;
+        *self.selected_runtime.lock().unwrap() = ModelSelection {
+            model,
+            thinking_effort,
+        };
+        Ok(())
+    }
+
+    fn capture_runtime_options(&self, state: &Snapshot) -> ModelSelection {
+        if state.provider == "pi" {
+            self.selected_runtime.lock().unwrap().clone()
+        } else {
+            ModelSelection {
+                model: state.model.clone(),
+                thinking_effort: state.thinking_effort.clone(),
+            }
+        }
     }
 
     pub async fn provider_readiness(
@@ -481,8 +527,9 @@ impl AgentRuntime {
         if state.thread_id.is_some() && state.mode != "quickAsk" {
             return Err("Start a new Quick Ask session before using screen capture.".into());
         }
+        let selected = self.capture_runtime_options(&state);
         let ready = self
-            .provider_readiness_for(&state.provider, Some(&state.cwd), state.model.as_deref())
+            .provider_readiness_for(&state.provider, Some(&state.cwd), selected.model.as_deref())
             .await;
         if ready.status != "ready" || !ready.image_input {
             return Err(
@@ -496,12 +543,7 @@ impl AgentRuntime {
             }
         });
         let reservation = Arc::new(_reservation);
-        let image = capture_with_deadline(
-            &reservation,
-            Duration::from_secs(8),
-            capture,
-        )
-        .await?;
+        let image = capture_with_deadline(&reservation, Duration::from_secs(8), capture).await?;
         mutate(&self.updates, |state| {
             if state.capture.request_id == request_id {
                 state.capture.phase = "submitting".into();
@@ -512,10 +554,7 @@ impl AgentRuntime {
             state.cwd,
             "quickAsk".into(),
             state.provider,
-            ModelSelection {
-                model: state.model,
-                thinking_effort: state.thinking_effort,
-            },
+            selected,
             Some(image),
         ).await
     }
@@ -666,6 +705,12 @@ impl AgentRuntime {
             if let Some(marker) = &self.recovery {
                 marker.mark(run_id);
             }
+            if provider == "pi" {
+                *self.selected_runtime.lock().unwrap() = ModelSelection {
+                    model: model.clone(),
+                    thinking_effort: thinking_effort.clone(),
+                };
+            }
             mutate(&self.updates, |s| {
                 s.run_id = run_id;
                 s.status = "starting".into();
@@ -676,6 +721,7 @@ impl AgentRuntime {
                 s.error = None;
                 s.model = model.clone();
                 s.thinking_effort = thinking_effort.clone();
+                s.usage = None;
             });
             permit.send(Control::Ask {
                 text,
@@ -690,6 +736,12 @@ impl AgentRuntime {
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
         if let Some(marker) = &self.recovery {
             marker.mark(run_id);
+        }
+        if provider == "pi" {
+            *self.selected_runtime.lock().unwrap() = ModelSelection {
+                model: model.clone(),
+                thinking_effort: thinking_effort.clone(),
+            };
         }
         mutate(&self.updates, |s| {
             s.run_id = run_id;
@@ -765,6 +817,7 @@ impl AgentRuntime {
             }
         }
         *guard = None;
+        *self.selected_runtime.lock().unwrap() = ModelSelection::default();
         if let Some(marker) = &self.recovery {
             marker.clear_if(current.run_id);
         }
@@ -886,6 +939,61 @@ mod tests {
     use super::*;
 
     #[cfg(windows)]
+    #[test]
+    fn selected_pi_runtime_is_independent_of_previous_answer() {
+        let runtime = AgentRuntime::new();
+        mutate(&runtime.updates, |state| {
+            state.provider = "pi".into();
+            state.model = Some("netra/text-only".into());
+            state.thinking_effort = Some("off".into());
+        });
+        *runtime.selected_runtime.lock().unwrap() = ModelSelection {
+            model: Some("opencode-go/vision".into()),
+            thinking_effort: Some("high".into()),
+        };
+        let state = runtime.snapshot();
+        let chosen = runtime.capture_runtime_options(&state);
+        assert_eq!(chosen.model.as_deref(), Some("opencode-go/vision"));
+        assert_eq!(chosen.thinking_effort.as_deref(), Some("high"));
+        assert_eq!(state.model.as_deref(), Some("netra/text-only"));
+    }
+
+    #[tokio::test]
+    async fn switching_provider_clears_pi_capture_selection() {
+        let runtime = AgentRuntime::new();
+        mutate(&runtime.updates, |state| {
+            state.provider = "pi".into();
+        });
+        *runtime.selected_runtime.lock().unwrap() = ModelSelection {
+            model: Some("opencode-go/vision".into()),
+            thinking_effort: Some("high".into()),
+        };
+        runtime.select_provider("codex".into()).await.unwrap();
+        assert!(runtime.selected_runtime.lock().unwrap().model.is_none());
+    }
+
+    #[tokio::test]
+    async fn new_session_clears_pi_capture_selection() {
+        let runtime = AgentRuntime::new();
+        *runtime.selected_runtime.lock().unwrap() = ModelSelection {
+            model: Some("opencode-go/vision".into()),
+            thinking_effort: None,
+        };
+        runtime.new_session().await.unwrap();
+        assert!(runtime.selected_runtime.lock().unwrap().model.is_none());
+    }
+
+    #[tokio::test]
+    async fn cannot_change_pi_runtime_while_running() {
+        let runtime = AgentRuntime::new();
+        mutate(&runtime.updates, |state| {
+            state.provider = "pi".into();
+            state.status = "streaming".into();
+        });
+        assert!(runtime.select_runtime_options(Some("pi/model".into()), None).await.is_err());
+        assert!(runtime.selected_runtime.lock().unwrap().model.is_none());
+    }
+
     #[test]
     fn duplicate_hotkey_never_overwrites_an_active_capture_status() {
         let runtime = AgentRuntime::new();

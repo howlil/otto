@@ -9,9 +9,10 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "check": "biome check --max-diagnostics=none src vite.config.ts && node scripts/frontend-rules.mjs",
-    "test:frontend:critical": "bun test tests/*.test.mjs",
+    "test:frontend:critical": "bun test tests/*.test.mjs && node --test tests/e2e/codex-fixture.test.mjs",
     "format": "biome check --write src vite.config.ts",
-    "lint:frontend": "node scripts/frontend-rules.mjs"
+    "lint:frontend": "node scripts/frontend-rules.mjs",
+    "test:e2e:native": "node tests/e2e/p8-native.mjs"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.3.0",

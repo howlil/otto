@@ -15,7 +15,6 @@ fn acquire_named(name: &str) -> io::Result<Option<InstanceGuard>> {
     wide_name.push(0);
     let handle = unsafe { CreateMutexW(std::ptr::null(), 0, wide_name.as_ptr()) };
     let error = unsafe { GetLastError() };
-
     if handle.is_null() {
         return Err(io::Error::from_raw_os_error(error as i32));
     }
@@ -39,18 +38,16 @@ mod tests {
     use std::thread;
 
     #[test]
-    fn duplicate_is_rejected_until_original_guard_is_dropped() {
+    fn duplicate_rejected_until_owner_drops_handle() {
         let name = format!("Local\\site.howlil.otto.test.{}", std::process::id());
-        let original = acquire_named(&name).unwrap().expect("original owns mutex");
-
+        let original = acquire_named(&name).unwrap().expect("first instance");
         assert!(acquire_named(&name).unwrap().is_none());
-
         drop(original);
         assert!(acquire_named(&name).unwrap().is_some());
     }
 
     #[test]
-    fn concurrent_launches_have_only_one_owner() {
+    fn concurrent_threads_have_exactly_one_owner() {
         let name = format!("Local\\site.howlil.otto.test.concurrent.{}", std::process::id());
         let start = Arc::new(Barrier::new(8));
         let acquired = Arc::new(Barrier::new(8));
@@ -67,12 +64,36 @@ mod tests {
                 })
             })
             .collect::<Vec<_>>();
-
         let owners = threads
             .into_iter()
-            .map(|thread| thread.join().unwrap().expect("mutex acquisition should succeed"))
+            .map(|thread| thread.join().unwrap().expect("Windows mutex acquisition"))
             .filter(|owns| *owns)
             .count();
         assert_eq!(owners, 1);
+    }
+
+    #[test]
+    fn duplicate_rejected_across_independent_processes() {
+        let name = format!("Local\\site.howlil.otto.test.process.{}", std::process::id());
+        let _owner = acquire_named(&name).unwrap().expect("parent owns mutex");
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "windows::single_instance::tests::child_observes_parent_mutex"])
+            .env("OTTO_TEST_SINGLE_INSTANCE_MUTEX", &name)
+            .output()
+            .expect("launch independent test process");
+        assert!(
+            output.status.success()
+                && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+            "child process regression failed: stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn child_observes_parent_mutex() {
+        if let Some(name) = std::env::var_os("OTTO_TEST_SINGLE_INSTANCE_MUTEX") {
+            assert!(acquire_named(&name.to_string_lossy()).unwrap().is_none());
+        }
     }
 }

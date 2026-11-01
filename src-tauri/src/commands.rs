@@ -46,6 +46,15 @@ pub async fn agent_provider_readiness(
 }
 
 #[tauri::command]
+pub async fn agent_select_runtime_options(
+    runtime: State<'_, AgentRuntime>,
+    model: Option<String>,
+    thinking_effort: Option<String>,
+) -> Result<(), String> {
+    runtime.select_runtime_options(model, thinking_effort).await
+}
+
+#[tauri::command]
 pub async fn agent_select_provider(
     runtime: State<'_, AgentRuntime>,
     provider: String,

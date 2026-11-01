@@ -142,6 +142,13 @@ export async function selectAgentProvider(provider: AgentProvider): Promise<void
   await invoke("agent_select_provider", { provider });
 }
 
+export async function selectAgentRuntimeOptions(
+  model: string | null,
+  thinkingEffort: string | null,
+): Promise<void> {
+  await invoke("agent_select_runtime_options", { model, thinkingEffort });
+}
+
 export async function askAgent(
   text: string,
   cwd: string,
