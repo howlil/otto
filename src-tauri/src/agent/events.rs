@@ -25,7 +25,10 @@ impl ProviderEvents {
     }
 
     pub fn fail(&self, run_id: u64, message: &str) {
-        self.emit(AgentEvent::Failed { run_id, message: message.to_owned() });
+        self.emit(AgentEvent::Failed {
+            run_id,
+            message: message.to_owned(),
+        });
     }
 
     pub fn stopped(&self, run_id: u64) {
@@ -150,14 +153,32 @@ mod tests {
     #[test]
     fn adapter_events_have_one_owner_and_reject_stale_or_terminal_changes() {
         let (updates, events) = state(7);
-        events.emit(AgentEvent::SessionReady { run_id: 7, session_id: "s1".into() });
-        events.emit(AgentEvent::TurnStarted { run_id: 7, text: "hello".into() });
-        events.emit(AgentEvent::TextDelta { run_id: 7, delta: "partial".into() });
-        events.emit(AgentEvent::TextFinal { run_id: 7, text: "final".into() });
+        events.emit(AgentEvent::SessionReady {
+            run_id: 7,
+            session_id: "s1".into(),
+        });
+        events.emit(AgentEvent::TurnStarted {
+            run_id: 7,
+            text: "hello".into(),
+        });
+        events.emit(AgentEvent::TextDelta {
+            run_id: 7,
+            delta: "partial".into(),
+        });
+        events.emit(AgentEvent::TextFinal {
+            run_id: 7,
+            text: "final".into(),
+        });
         events.emit(AgentEvent::Completed { run_id: 7 });
         let final_seq = updates.borrow().seq;
-        events.emit(AgentEvent::TextDelta { run_id: 7, delta: "late".into() });
-        events.emit(AgentEvent::Failed { run_id: 6, message: "stale".into() });
+        events.emit(AgentEvent::TextDelta {
+            run_id: 7,
+            delta: "late".into(),
+        });
+        events.emit(AgentEvent::Failed {
+            run_id: 6,
+            message: "stale".into(),
+        });
         events.emit(AgentEvent::Stopped { run_id: 7 });
         let result = updates.borrow();
         assert_eq!(result.status, "completed");
@@ -169,25 +190,43 @@ mod tests {
     #[test]
     fn stop_prevents_late_completion_and_empty_completion_is_failure() {
         let (updates, events) = state(3);
-        events.emit(AgentEvent::TurnStarted { run_id: 3, text: "hi".into() });
+        events.emit(AgentEvent::TurnStarted {
+            run_id: 3,
+            text: "hi".into(),
+        });
         events.emit(AgentEvent::Stopped { run_id: 3 });
-        events.emit(AgentEvent::TextDelta { run_id: 3, delta: "late".into() });
+        events.emit(AgentEvent::TextDelta {
+            run_id: 3,
+            delta: "late".into(),
+        });
         events.emit(AgentEvent::Completed { run_id: 3 });
         assert_eq!(updates.borrow().status, "stopped");
         assert!(updates.borrow().messages[1].text.is_empty());
 
         let (updates, events) = state(4);
-        events.emit(AgentEvent::TurnStarted { run_id: 4, text: "hi".into() });
+        events.emit(AgentEvent::TurnStarted {
+            run_id: 4,
+            text: "hi".into(),
+        });
         events.emit(AgentEvent::Completed { run_id: 4 });
         assert_eq!(updates.borrow().status, "failed");
-        assert_eq!(updates.borrow().error.as_deref(), Some("Provider finished without an answer."));
+        assert_eq!(
+            updates.borrow().error.as_deref(),
+            Some("Provider finished without an answer.")
+        );
     }
 
     #[test]
     fn failed_and_stopped_runs_cannot_be_resurrected() {
         let (updates, events) = state(2);
-        events.emit(AgentEvent::Failed { run_id: 2, message: "disconnected".into() });
-        events.emit(AgentEvent::TurnStarted { run_id: 2, text: "late".into() });
+        events.emit(AgentEvent::Failed {
+            run_id: 2,
+            message: "disconnected".into(),
+        });
+        events.emit(AgentEvent::TurnStarted {
+            run_id: 2,
+            text: "late".into(),
+        });
         assert_eq!(updates.borrow().status, "failed");
         assert!(updates.borrow().messages.is_empty());
     }
