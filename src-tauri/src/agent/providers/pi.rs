@@ -206,9 +206,7 @@ impl Rpc {
 }
 
 fn protocol_parse_error(frame: &Value) -> bool {
-    frame["type"] == "response"
-        && frame["command"] == "parse"
-        && frame["success"] == false
+    frame["type"] == "response" && frame["command"] == "parse" && frame["success"] == false
 }
 
 fn model_key(model: &Value) -> Option<String> {

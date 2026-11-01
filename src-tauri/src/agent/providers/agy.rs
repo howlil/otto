@@ -186,10 +186,7 @@ async fn read_frame<R: AsyncBufRead + Unpin>(
     frame: &mut Vec<u8>,
 ) -> Result<Option<Value>, String> {
     loop {
-        let chunk = reader
-            .fill_buf()
-            .await
-            .map_err(|_| "Agy stream failed.")?;
+        let chunk = reader.fill_buf().await.map_err(|_| "Agy stream failed.")?;
         if chunk.is_empty() {
             if frame.is_empty() {
                 return Ok(None);
@@ -362,13 +359,11 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             "Agy CLI is initialized; model access is verified on the first answer.",
             "",
         ),
-        Err(reason) if reason.starts_with("Agy authentication expired.") => {
-            ProviderReadiness::new(
-                "authRequired",
-                "Agy needs authentication.",
-                "Sign in to Agy, then Retry.",
-            )
-        }
+        Err(reason) if reason.starts_with("Agy authentication expired.") => ProviderReadiness::new(
+            "authRequired",
+            "Agy needs authentication.",
+            "Sign in to Agy, then Retry.",
+        ),
         Err(reason) if reason.starts_with("Agy disconnected.") || reason.contains("timed out") => {
             ProviderReadiness::new("unavailable", &reason, "Check Agy and Retry.")
         }
@@ -393,9 +388,15 @@ fn result_failure_message(error: Option<&str>) -> &'static str {
     let detail = error.unwrap_or_default().to_ascii_lowercase();
     if authentication_required(&detail) {
         "Agy authentication expired. Sign in to Agy, then Retry."
-    } else if ["rate limit", "rate-limit", "quota", "429", "resource exhausted"]
-        .iter()
-        .any(|signal| detail.contains(signal))
+    } else if [
+        "rate limit",
+        "rate-limit",
+        "quota",
+        "429",
+        "resource exhausted",
+    ]
+    .iter()
+    .any(|signal| detail.contains(signal))
     {
         "Agy rate limit or quota reached. Retry later."
     } else {
@@ -640,18 +641,30 @@ mod tests {
 
     #[tokio::test]
     async fn ndjson_stream_preserves_sequential_frames_and_eof() {
-        let input = b"{\"event\":\"init\"}\n{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\"}}\r\n";
+        let input =
+            b"{\"event\":\"init\"}\n{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\"}}\r\n";
         let mut reader = BufReader::with_capacity(7, &input[..]);
         let mut pending = Vec::new();
         assert_eq!(
-            read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
+            read_frame(&mut reader, &mut pending)
+                .await
+                .unwrap()
+                .unwrap()["event"],
             "init"
         );
         assert_eq!(
-            read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
+            read_frame(&mut reader, &mut pending)
+                .await
+                .unwrap()
+                .unwrap()["event"],
             "result"
         );
-        assert!(read_frame(&mut reader, &mut pending).await.unwrap().is_none());
+        assert!(
+            read_frame(&mut reader, &mut pending)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -695,7 +708,10 @@ mod tests {
         output.write_all(&payload[9..]).await.unwrap();
         output.write_all(b"\n").await.unwrap();
         assert_eq!(
-            read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
+            read_frame(&mut reader, &mut pending)
+                .await
+                .unwrap()
+                .unwrap()["event"],
             "init"
         );
         assert!(pending.is_empty());
@@ -739,8 +755,16 @@ mod tests {
     #[test]
     fn stream_launch_disables_cli_slash_command_expansion() {
         assert!(launch_args().contains(&"--disable-slash-commands"));
-        assert!(launch_args().windows(2).any(|args| args == ["--input-format", "stream-json"]));
-        assert!(launch_args().windows(2).any(|args| args == ["--output-format", "stream-json"]));
+        assert!(
+            launch_args()
+                .windows(2)
+                .any(|args| args == ["--input-format", "stream-json"])
+        );
+        assert!(
+            launch_args()
+                .windows(2)
+                .any(|args| args == ["--output-format", "stream-json"])
+        );
     }
 
     #[test]
@@ -829,13 +853,15 @@ mod tests {
         assert_eq!(usage.context_tokens, None);
         assert_eq!(usage.model_context_window, None);
         assert!(usage_snapshot(&json!({"input_tokens": 1})).is_none());
-        assert!(usage_snapshot(&json!({
-            "input_tokens": 1,
-            "output_tokens": -1,
-            "cache_read_tokens": 0,
-            "total_tokens": 1
-        }))
-        .is_none());
+        assert!(
+            usage_snapshot(&json!({
+                "input_tokens": 1,
+                "output_tokens": -1,
+                "cache_read_tokens": 0,
+                "total_tokens": 1
+            }))
+            .is_none()
+        );
     }
 
     #[test]
@@ -949,7 +975,13 @@ mod tests {
         ));
         assert_eq!(done.borrow().status, "completed");
         assert_eq!(done.borrow().messages[0].text, "answer");
-        assert_eq!(done.borrow().usage.as_ref().map(|usage| usage.session_tokens), Some(40));
+        assert_eq!(
+            done.borrow()
+                .usage
+                .as_ref()
+                .map(|usage| usage.session_tokens),
+            Some(40)
+        );
         assert!(!observe(
             &json!({"event":"result","result":{"status":"SUCCESS","response":"late"}}),
             7,

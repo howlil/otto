@@ -48,7 +48,10 @@ mod tests {
 
     #[test]
     fn concurrent_threads_have_exactly_one_owner() {
-        let name = format!("Local\\site.howlil.otto.test.concurrent.{}", std::process::id());
+        let name = format!(
+            "Local\\site.howlil.otto.test.concurrent.{}",
+            std::process::id()
+        );
         let start = Arc::new(Barrier::new(8));
         let acquired = Arc::new(Barrier::new(8));
         let threads = (0..8)
@@ -74,16 +77,21 @@ mod tests {
 
     #[test]
     fn duplicate_rejected_across_independent_processes() {
-        let name = format!("Local\\site.howlil.otto.test.process.{}", std::process::id());
+        let name = format!(
+            "Local\\site.howlil.otto.test.process.{}",
+            std::process::id()
+        );
         let _owner = acquire_named(&name).unwrap().expect("parent owns mutex");
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "windows::single_instance::tests::child_observes_parent_mutex"])
+            .args([
+                "--exact",
+                "windows::single_instance::tests::child_observes_parent_mutex",
+            ])
             .env("OTTO_TEST_SINGLE_INSTANCE_MUTEX", &name)
             .output()
             .expect("launch independent test process");
         assert!(
-            output.status.success()
-                && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+            output.status.success() && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
             "child process regression failed: stdout={} stderr={}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)

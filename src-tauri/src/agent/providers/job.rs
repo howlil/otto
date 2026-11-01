@@ -13,11 +13,10 @@ use windows_sys::Win32::{
             CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
         },
         JobObjects::{
-            AssignProcessToJobObject, CreateJobObjectW, QueryInformationJobObject,
-            JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JobObjectBasicAccountingInformation,
-            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-            SetInformationJobObject, TerminateJobObject,
+            AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation,
+            QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
         },
         Threading::{
             CREATE_NO_WINDOW, CREATE_SUSPENDED, OpenProcess, OpenThread, PROCESS_SET_QUOTA,
@@ -221,7 +220,11 @@ mod tests {
             "Start-Sleep -Seconds 5",
         ]);
         let started = Instant::now();
-        assert!(Job::probe(command, Duration::from_millis(100)).await.is_err());
+        assert!(
+            Job::probe(command, Duration::from_millis(100))
+                .await
+                .is_err()
+        );
         assert!(started.elapsed() < Duration::from_secs(4));
     }
 }

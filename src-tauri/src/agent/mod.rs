@@ -402,7 +402,8 @@ impl AgentRuntime {
         if matches!(
             state.status.as_str(),
             "starting" | "streaming" | "stopping" | "approvalRequired"
-        ) || state.thread_id.is_some() || state.capture.phase != "idle"
+        ) || state.thread_id.is_some()
+            || state.capture.phase != "idle"
         {
             return Err("Finish the current session before editing the project.".into());
         }
@@ -455,7 +456,9 @@ impl AgentRuntime {
             "starting" | "streaming" | "stopping" | "approvalRequired"
         ) || current.capture.phase != "idle"
         {
-            return Err("Finish the current request or capture before changing the Pi model.".into());
+            return Err(
+                "Finish the current request or capture before changing the Pi model.".into(),
+            );
         }
         let readiness = self
             .provider_readiness_for(&current.provider, Some(&current.cwd), model.as_deref())
@@ -1066,14 +1069,7 @@ mod tests {
         snapshot.cwd = cwd.to_string_lossy().into_owned();
 
         let eligible = |snapshot: &Snapshot, cwd: &std::path::Path, model: Option<&str>| {
-            can_reuse_agy_session(
-                snapshot,
-                cwd,
-                InteractionMode::QuickAsk,
-                model,
-                None,
-                false,
-            )
+            can_reuse_agy_session(snapshot, cwd, InteractionMode::QuickAsk, model, None, false)
         };
         assert!(eligible(&snapshot, &cwd, None));
         assert!(!eligible(&snapshot, &cwd, Some("different-model")));
@@ -1226,7 +1222,12 @@ mod tests {
             state.provider = "pi".into();
             state.status = "streaming".into();
         });
-        assert!(runtime.select_runtime_options(Some("pi/model".into()), None).await.is_err());
+        assert!(
+            runtime
+                .select_runtime_options(Some("pi/model".into()), None)
+                .await
+                .is_err()
+        );
         assert!(runtime.selected_runtime.lock().unwrap().model.is_none());
     }
 
@@ -1658,8 +1659,7 @@ mod tests {
     #[tokio::test]
     async fn timed_out_capture_keeps_native_work_reserved_until_it_finishes() {
         let in_flight = Arc::new(AtomicBool::new(false));
-        let reservation =
-            Arc::new(CaptureReservation::acquire(Arc::clone(&in_flight)).unwrap());
+        let reservation = Arc::new(CaptureReservation::acquire(Arc::clone(&in_flight)).unwrap());
         let (started_tx, started_rx) = oneshot::channel();
         let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
         let attempt = tokio::spawn({
