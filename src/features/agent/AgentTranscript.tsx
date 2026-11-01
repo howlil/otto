@@ -151,6 +151,7 @@ export function AgentTranscript({
         </div>
       </div>
       <AgentComposer
+        imageTransport={readiness.imageTransport}
         provider={snapshot.provider}
         draft={draft}
         setDraft={setDraft}
