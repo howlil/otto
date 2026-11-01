@@ -36,7 +36,7 @@ mod tests {
 
     #[tokio::test]
     async fn windows_batch_shim_does_not_create_a_console() {
-        let script = r#"Add-Type -Namespace Otto -Name Probe -MemberDefinition '[DllImport("kernel32.dll")] public static extern System.IntPtr GetConsoleWindow();'; if ([Otto.Probe]::GetConsoleWindow() -ne [IntPtr]::Zero) { exit 19 }"#;
+        let script = r#"Add-Type -Namespace Otto -Name Probe -MemberDefinition '[DllImport("kernel32.dll")] public static extern System.IntPtr GetConsoleWindow();'; if ([Otto.Probe]::GetConsoleWindow() -ne [IntPtr]::Zero) { exit 19 }; Write-Output 'OTTO_HIDDEN_OK'"#;
         let bytes = script
             .encode_utf16()
             .flat_map(|unit| unit.to_le_bytes())
@@ -63,5 +63,14 @@ mod tests {
             "CLI opened a console or its probe failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("OTTO_HIDDEN_OK"));
+
+        let direct = background_command("powershell.exe")
+            .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])
+            .output()
+            .await
+            .expect("Windows executable must spawn");
+        assert!(direct.status.success());
+        assert!(String::from_utf8_lossy(&direct.stdout).contains("OTTO_HIDDEN_OK"));
     }
 }

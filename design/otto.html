@@ -634,7 +634,7 @@ async function copyPrototypeText(value){
   document.body.appendChild(input);input.select();const copied=document.execCommand("copy");input.remove();return copied;
  }catch{return false}
 }
-function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSettings,onHome,onCapture,onApprove,onDeny,onRetry,onMeasured}){
+function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onNewSession,onCaptureSettings,onHome,onCapture,onApprove,onDeny,onRetry,onMeasured}){
  const feedRef=useRef(null),composerRef=useRef(null),textareaRef=useRef(null);
  const [feedback,setFeedback]=useState("");
  const phase=agent.phase||"ready",capturePhase=agent.capturePhase||"idle",ready=agent.readiness==="ready",unread=agent.unread&&!agent.busy;
@@ -675,6 +675,7 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
   el("button",{type:"button",className:"af-eyebutton",onClick:onHome,"aria-label":"Return to Home"},el("i"),el("i")),
   el("div",{className:"af-identity"},el("strong",null,agent.provider,el("em",null," / "+agent.cwd.split("/").pop())),el("small",null,agent.mode+" · Prototype, no CLI connected")),
   el("span",{className:"af-state"+(ready?"":" af-attention"),role:"status"},el("i",{className:!ready||phase==="approval"?"warn":phase==="error"?"bad":""}),status),
+  agent.messages.length>0?h(IconButton,{name:"Plus",label:"New session",disabled:agent.busy,onClick:onNewSession}):null,
   h(IconButton,{name:"Settings2",label:"Agent settings",onClick:onSettings}));
  const messages=agent.messages.map((m,i)=>{
   const isAnswer=m.role==="assistant"&&m.text.trim();
@@ -719,7 +720,7 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onCaptureSetti
 
 
 
-function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack,onNewSession}){
+function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack}){
  const names=["Setup","Capture"];
  const [showSample,setShowSample]=useState(false);
  const runtimeInfo=agent.runtimeInfo||(showSample?AGENT_RUNTIME_EXAMPLE[agent.provider]:null);
@@ -730,7 +731,6 @@ function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack,onNe
  const field=(label,control)=>el("div",{className:"as-field"},el("div",{className:"as-fieldlabel"},label),control);
  const status=(heading,note)=>el("div",{className:"as-status",role:"status"},h(Icon,{name:"AlertCircle",size:15}),el("div",null,el("strong",null,heading),el("small",null,note)));
  const modeButton=(name,desc,active,callback,disabled=false)=>el("button",{type:"button",className:"as-mode"+(active?" active":""),onClick:callback,disabled},el("i",{className:"as-radio"}),el("span",null,el("strong",null,name),el("small",null,desc)));
- const reset=locked?h(IconButton,{name:"Plus",label:"New session",disabled:agent.busy,onClick:onNewSession}):null;
  const parts=[];
  if(tab==="Setup"){
   const providers=["Codex","Agy","Pi"].map(name=>{
@@ -770,7 +770,7 @@ function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack,onNe
   parts.push(status(condition,help));
   parts.push(status(agent.provider+(caps.image?" · Image transport supported":" · Screenshots unsupported"),caps.image?"The selected model must separately confirm image input before capture.":"This CLI transport accepts text only. Choose Codex or a vision-capable Pi model."));
  }
-  const header=el("header",{className:"as-header"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("strong",null,"Agent settings"),el("span",{className:"as-meta"},agent.provider),reset);
+  const header=el("header",{className:"as-header"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("strong",null,"Agent settings"),el("span",{className:"as-meta"},agent.provider));
  const sidebar=el("nav",{className:"as-nav","aria-label":"Agent settings sections"},...names.map(name=>el("button",{type:"button",key:name,className:"as-navitem"+(tab===name?" active":""),onClick:()=>setTab(name)},name)));
  return el("div",{className:"as-root"},header,el("div",{className:"as-body"},sidebar,el("div",{className:"as-scroll"},el("section",{className:"as-view"},...parts))));
 }
@@ -1080,7 +1080,7 @@ function App(){
  const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(prefs.leaveDelay,pinnedUntil.current-Date.now()+140))}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else if(page==="focus"&&timer.confirmPhase){setTimer(t=>({...t,confirmPhase:null}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null),onNewSession:()=>{clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",mode:"Quick Ask",unread:false,warning:""}));setAgentDraft("")}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onMeasured:onAgentMeasured,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Setup");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onMeasured:onAgentMeasured,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Setup");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onNewSession:()=>{if(agent.busy)return;clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",mode:"Quick Ask",model:"",effort:"",unread:false,warning:""}))},onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
 
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
  const eventKeys=["volume","wifi","bluetooth","brightness","battery","headphones"];

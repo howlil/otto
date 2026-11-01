@@ -1,4 +1,4 @@
-import { IconButton, StatusMessage, Text } from "../../shared/ui";
+import { StatusMessage, Text } from "../../shared/ui";
 import type { AgentStatus } from "../../platform/tauri";
 import { AgentCaptureSettings } from "./AgentCaptureSettings";
 import type { AgentSettingsProps } from "./AgentSettings";
@@ -12,29 +12,12 @@ const headings: Record<AgentSettingsTab, string> = {
   capture: "Screen capture",
 };
 
-function SettingsHeader({
-  tab,
-  hasThread,
-  busy,
-  onNewSession,
-}: Pick<AgentSettingsProps, "hasThread" | "busy" | "onNewSession"> & {
-  tab: AgentSettingsTab;
-}) {
+function SettingsHeader({ tab }: { tab: AgentSettingsTab }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-2">
+    <div className="mb-3">
       <Text as="h2" variant="heading">
         {headings[tab]}
       </Text>
-      {hasThread && (
-        <IconButton
-          icon="plus"
-          label="New session"
-          title="New session"
-          variant="primary"
-          disabled={busy}
-          onClick={onNewSession}
-        />
-      )}
     </div>
   );
 }
@@ -113,12 +96,7 @@ export function AgentSettingsDetails({
         : "Setup required";
   return (
     <div className="min-w-0 overflow-y-auto px-[17px] pb-5 pt-[15px] [overscroll-behavior:contain] [scrollbar-width:none]">
-      <SettingsHeader
-        tab={tab}
-        hasThread={props.hasThread}
-        busy={props.busy}
-        onNewSession={props.onNewSession}
-      />
+      <SettingsHeader tab={tab} />
       <ActiveRunNotice {...props} />
       {tab === "setup" && (
         <div className="space-y-3">

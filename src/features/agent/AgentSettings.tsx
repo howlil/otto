@@ -27,10 +27,8 @@ export type AgentSettingsProps = {
   locked: boolean;
   cwd: string;
   setCwd: (cwd: string) => void;
-  hasThread: boolean;
   busy: boolean;
   error: string | null;
-  onNewSession: () => void;
   onDone: () => void;
   capture: CaptureShortcutModel;
   focusCaptureShortcut: boolean;

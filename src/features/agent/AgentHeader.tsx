@@ -10,12 +10,15 @@ export function AgentHeader({
   mode,
   provider,
   status,
+  hasThread,
+  resetBusy,
   capturePhase,
   readiness,
   activity,
   eventMotion,
   onSettings,
   onSettingsBack,
+  onNewSession,
   onHome,
 }: {
   settings: boolean;
@@ -23,12 +26,15 @@ export function AgentHeader({
   mode: AgentPanelModel["snapshot"]["mode"];
   provider: AgentPanelModel["provider"];
   status: AgentStatus;
+  hasThread: boolean;
+  resetBusy: boolean;
   capturePhase: AgentPanelModel["snapshot"]["capture"]["phase"];
   readiness: ProviderReadiness["status"];
   activity: boolean;
   eventMotion?: string;
   onSettings: () => void;
   onSettingsBack: () => void;
+  onNewSession: () => void;
   onHome: () => void;
 }) {
   const back = useRef<HTMLButtonElement>(null);
@@ -121,6 +127,17 @@ export function AgentHeader({
                   : agentStatusLabel(status, readiness)}
             </Text>
           </span>
+          {hasThread && (
+            <IconButton
+              icon="plus"
+              label="New session"
+              title={resetBusy ? "Finish or stop the current request first" : "New session"}
+              variant="quiet"
+              className="shrink-0"
+              disabled={resetBusy}
+              onClick={onNewSession}
+            />
+          )}
           <IconButton
             icon="settings"
             label="Agent settings"

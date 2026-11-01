@@ -1332,10 +1332,10 @@ mod tests {
             }
         }))
         .expect("valid usage notification");
-        assert_eq!(usage.context_tokens, 200);
+        assert_eq!(usage.context_tokens, Some(200));
         assert_eq!(usage.session_tokens, 200);
         assert_eq!(usage.cached_input_tokens, 40);
-        assert_eq!(usage.reasoning_output_tokens, 20);
+        assert_eq!(usage.reasoning_output_tokens, Some(20));
         assert_eq!(usage.model_context_window, Some(4000));
     }
 
