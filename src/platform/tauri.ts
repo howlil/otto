@@ -19,6 +19,8 @@ export type ProviderReadiness = {
   message: string;
   recovery: string;
   imageInput: boolean;
+  imageTransport: boolean;
+  agentSession: boolean;
 };
 
 export type AgentApproval = {
