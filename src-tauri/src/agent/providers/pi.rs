@@ -291,7 +291,10 @@ fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
             }
         }
         Some("message_end") if frame["message"]["role"] == "assistant" => {
-            if matches!(frame["message"]["stopReason"].as_str(), Some("error" | "aborted")) {
+            if matches!(
+                frame["message"]["stopReason"].as_str(),
+                Some("error" | "aborted")
+            ) {
                 events.fail(id, "Pi could not finish the answer.");
                 return true;
             }
@@ -329,11 +332,7 @@ fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
     false
 }
 
-pub async fn run(
-    mut controls: mpsc::Receiver<Control>,
-    events: ProviderEvents,
-    initial: Control,
-) {
+pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, initial: Control) {
     let Control::Ask {
         text,
         cwd,
@@ -341,10 +340,7 @@ pub async fn run(
         capture,
     } = initial
     else {
-        events.fail(
-            events.snapshot().run_id,
-            "Pi only supports text Quick Ask.",
-        );
+        events.fail(events.snapshot().run_id, "Pi only supports text Quick Ask.");
         return;
     };
     let mut rpc = match Rpc::launch(&cwd) {
@@ -377,10 +373,7 @@ pub async fn run(
         return;
     };
     if capture.is_some() && !image_input {
-        events.fail(
-            run_id,
-            "The selected Pi model cannot accept screenshots.",
-        );
+        events.fail(run_id, "The selected Pi model cannot accept screenshots.");
         rpc.terminate().await;
         return;
     }
@@ -515,10 +508,7 @@ pub async fn run(
         snapshot.status.as_str(),
         "starting" | "streaming" | "approvalRequired"
     ) {
-        events.fail(
-            snapshot.run_id,
-            "Pi exited before completing the answer.",
-        );
+        events.fail(snapshot.run_id, "Pi exited before completing the answer.");
     } else if snapshot.status == "stopping" {
         events.stopped(snapshot.run_id);
     }
