@@ -259,6 +259,26 @@ button{touch-action:manipulation}
 .af-project{background:#232326;border:1px solid #3a3a3e;border-radius:9px;height:33px;color:#fff;padding:0 10px}
 .af-done{display:flex;justify-content:flex-end;margin-top:auto;padding-top:16px}
 @media(prefers-reduced-motion:reduce){.module-art{transition:none!important}}
+
+/* Faithful Agent state and capture extensions */
+.af-state.af-attention{color:#d7b98b}
+.af-inline-state{background:#25252a;border:1px solid #4a4040;padding:10px;border-radius:10px;font-size:11px;color:#eee}
+.af-inline-heading{display:flex;align-items:center;gap:7px;font-weight:590}
+.af-inline-state p{font-size:10px;color:#b9b9be;line-height:1.55;margin:8px 0}
+.af-inline-state button,.af-error button{border:0;background:#e9e9ec;color:#16171a;border-radius:8px;padding:7px 11px;font-size:10px}
+.af-working{display:flex;align-items:center;gap:9px;font-size:10px;color:#a6a8b2}
+.af-working .activity{width:23px;height:17px;display:inline-flex;align-items:center;gap:2px}
+.af-working .activity i{width:3px;height:6px;border-radius:5px;background:#d5d7dd}
+.af-working .activity.playing i{animation:levels .65s ease-in-out infinite alternate}
+.af-copy{display:inline-flex;align-items:center;align-self:flex-start;gap:6px;border:0;background:transparent;color:#a5a6ab;font-size:10px;padding:6px 0}
+.af-copy:hover{color:#fff}
+.af-readiness{font-size:10px;color:#adafb8;padding:6px 0;margin:0}
+.af-context{display:flex;align-items:center;background:#232326;border:1px solid #3a3a3e;border-radius:9px;padding:0 10px;gap:8px}
+.af-context input{flex:1;min-width:0;background:transparent;border:0;color:#fff;height:33px;outline:0;font-size:11px}
+.af-capture-meta{display:flex;align-items:center;gap:9px;background:#242427;padding:10px;border-radius:9px;font:11px Consolas,monospace;color:#e6e6e7}
+.af-capture-controls{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.af-capture-controls button{background:#26272c;border:1px solid #484951;color:#ddd;border-radius:8px;padding:7px 9px;font-size:10px}
+.af-capture-controls button.selected{background:#55565e;color:#fff;border-color:#81828d}
 </style>
 </head>
 <body>
@@ -293,16 +313,17 @@ function Header({title,context,onHome,onSettings,onBack}){
       onSettings?h(IconButton,{name:"Settings2",label:"Open settings",onClick:onSettings}):null,
       onHome?h(IconButton,{name:"House",label:"Back to Home",onClick:onHome}):null));
 }
+
 function Compact({page,agent,music,timer,open,onToggle}){
  if(page==="home")return el("button",{className:"eye-pair",onClick:open,"aria-label":"Open Otto Home"},el("span",{className:"eye"}),el("span",{className:"eye"}));
- const identity=page==="agent"?{icon:"Terminal",name:agent.provider,sub:agent.unread?"Answer ready":agent.busy?"Working...":agent.provider==="Codex"?"Ready":"Not connected"}:page==="music"?{icon:"Music2",name:tracks[music.track].title,sub:tracks[music.track].artist}:{icon:"Timer",name:formatTime(timer.remaining),sub:names[timer.phase]};
- return el("div",{className:"compact"},
-  el("button",{type:"button",className:"compact-icon"+(page==="music"?" album-mini":""),onClick:open,"aria-label":"Open "+page},h(Icon,{name:identity.icon,size:16})),
-  el("button",{type:"button",onClick:open,className:"compact-identity",style:{border:0,background:"none",textAlign:"left",padding:0,color:"inherit"}},el("strong",null,identity.name),el("small",null,identity.sub)),
-  page==="agent"?(agent.busy?el("span",{className:"activity playing"},el("i"),el("i"),el("i")):agent.unread?el("span",{className:"unread"}):null):null,
-  page==="music"?el("span",{className:"activity"+(music.playing?" playing":"")},el("i"),el("i"),el("i")):null,
-  page==="focus"?h(IconButton,{name:timer.running?"Pause":"Play",label:timer.running?"Pause timer":"Start timer",onClick:onToggle}):null
- );
+ const phase=agent.phase||"ready";
+ const name=phase==="complete"&&agent.unread?"Answer ready":phase==="approval"?"Approval needed":agent.provider;
+ const agentSub=agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported capability":phase==="interrupted"?"Session interrupted":phase==="stopped"?"Stopped":agent.busy?"Responding":phase==="complete"?"Answer ready":agent.cwd.split("/").pop()+" · Ready";
+ const identity=page==="agent"?{icon:phase==="complete"?"CheckCircle2":"Terminal",name,sub:agentSub}:page==="music"?{icon:"Music2",name:tracks[music.track].title,sub:tracks[music.track].artist}:{icon:"Timer",name:formatTime(timer.remaining),sub:names[timer.phase]};
+ return el("div",{className:"compact"},el("button",{type:"button",className:"compact-icon"+(page==="music"?" album-mini":""),onClick:open,"aria-label":"Open "+page},h(Icon,{name:identity.icon,size:16})),el("button",{type:"button",onClick:open,className:"compact-identity",style:{border:0,background:"none",textAlign:"left",padding:0,color:"inherit"}},el("strong",null,identity.name),el("small",null,identity.sub)),
+ page==="agent"?(agent.busy?el("span",{className:"activity playing"},el("i"),el("i"),el("i")):agent.unread?el("span",{className:"unread"}):null):null,
+ page==="music"?el("span",{className:"activity"+(music.playing?" playing":"")},el("i"),el("i"),el("i")):null,
+ page==="focus"?h(IconButton,{name:timer.running?"Pause":"Play",label:timer.running?"Pause timer":"Start timer",onClick:onToggle}):null);
 }
 
 const HOME_ART={"agent":"<svg class=\"art-svg agent-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"ag-window\" x1=\"26\" y1=\"8\" x2=\"111\" y2=\"93\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#44474C\" stop-opacity=\".70\"/><stop offset=\"1\" stop-color=\"#2B2C30\" stop-opacity=\".17\"/></linearGradient><linearGradient id=\"ag-stroke\" x1=\"34\" y1=\"19\" x2=\"109\" y2=\"82\"><stop stop-color=\"#D3D5DA\" stop-opacity=\".56\"/><stop offset=\"1\" stop-color=\"#7D8087\" stop-opacity=\".15\"/></linearGradient></defs>\n<g class=\"agent-stack\"><rect x=\"43\" y=\"2\" width=\"84\" height=\"65\" rx=\"13\" stroke=\"#777A81\" stroke-opacity=\".16\" transform=\"rotate(11 43 2)\"/><rect x=\"27\" y=\"12\" width=\"92\" height=\"68\" rx=\"13\" fill=\"url(#ag-window)\" stroke=\"#8D9198\" stroke-opacity=\".21\"/></g>\n<g class=\"agent-window\"><rect x=\"17\" y=\"24\" width=\"94\" height=\"68\" rx=\"13\" fill=\"#26282C\" fill-opacity=\".8\" stroke=\"url(#ag-stroke)\" stroke-width=\"1.1\"/><path d=\"M18 44H110\" stroke=\"#CACCD0\" stroke-opacity=\".15\"/><circle cx=\"30\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".48\"/><circle cx=\"38\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".22\"/><circle cx=\"46\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".16\"/>\n<path class=\"agent-prompt\" d=\"m32 58 8 7-8 7\" stroke=\"#E0E2E6\" stroke-opacity=\".89\" stroke-width=\"3.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path class=\"agent-caret\" d=\"M47 72H63\" stroke=\"#E0E2E6\" stroke-opacity=\".89\" stroke-width=\"3.2\" stroke-linecap=\"round\"/>\n<path d=\"M73 58h18M73 65h13M73 72h18\" stroke=\"#A2A5AD\" stroke-opacity=\".27\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></g></svg>","music":"<svg class=\"art-svg music-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"mu-ink\" x1=\"60\" y1=\"10\" x2=\"103\" y2=\"91\"><stop stop-color=\"#DBDDE1\" stop-opacity=\".9\"/><stop offset=\"1\" stop-color=\"#A3A7B0\" stop-opacity=\".52\"/></linearGradient><linearGradient id=\"mu-wave\" x1=\"0\" y1=\"0\" x2=\"128\" y2=\"0\"><stop stop-color=\"#666970\" stop-opacity=\"0\"/><stop offset=\".55\" stop-color=\"#D2D6DB\" stop-opacity=\".42\"/><stop offset=\"1\" stop-color=\"#9299A3\" stop-opacity=\".05\"/></linearGradient></defs>\n<g class=\"wave-group\"><path class=\"music-wave one\" d=\"M-6 75C19 55 34 86 60 66s41-40 75-25\" stroke=\"url(#mu-wave)\" stroke-width=\"1.5\"/><path class=\"music-wave two\" d=\"M-5 83C22 63 38 94 65 73s42-35 71-19\" stroke=\"url(#mu-wave)\" stroke-opacity=\".6\" stroke-width=\"1.1\"/><path class=\"music-wave three\" d=\"M-4 67C18 49 36 76 62 56s43-37 71-28\" stroke=\"url(#mu-wave)\" stroke-opacity=\".4\" stroke-width=\"1\"/></g>\n<g class=\"music-note\" stroke=\"url(#mu-ink)\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M73 72V22L109 14V62\"/><path d=\"M73 23L109 15\"/><ellipse cx=\"61\" cy=\"77\" rx=\"13\" ry=\"8\" transform=\"rotate(-24 61 77)\" fill=\"#92969F\" fill-opacity=\".32\"/><ellipse cx=\"97\" cy=\"67\" rx=\"13\" ry=\"8\" transform=\"rotate(-24 97 67)\" fill=\"#92969F\" fill-opacity=\".32\"/></g></svg>","focus":"<svg class=\"art-svg focus-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"fo-ring\" x1=\"30\" y1=\"0\" x2=\"113\" y2=\"96\"><stop stop-color=\"#D7DADF\" stop-opacity=\".65\"/><stop offset=\".56\" stop-color=\"#93979F\" stop-opacity=\".25\"/><stop offset=\"1\" stop-color=\"#777B84\" stop-opacity=\".10\"/></linearGradient><radialGradient id=\"fo-face\" cx=\"0\" cy=\"0\" r=\"1\" gradientTransform=\"translate(76 43) rotate(90) scale(53)\"><stop stop-color=\"#3C3E43\" stop-opacity=\".55\"/><stop offset=\"1\" stop-color=\"#242629\" stop-opacity=\"0\"/></radialGradient></defs>\n<circle cx=\"78\" cy=\"49\" r=\"47\" stroke=\"#9EA1A7\" stroke-opacity=\".08\" stroke-width=\"1\"/><circle cx=\"78\" cy=\"49\" r=\"37\" fill=\"url(#fo-face)\" stroke=\"url(#fo-ring)\" stroke-width=\"1.5\"/><circle class=\"focus-progress\" cx=\"78\" cy=\"49\" r=\"37\" stroke=\"#B6BAC2\" stroke-opacity=\".62\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"42 191\" transform=\"rotate(-90 78 49)\"/>\n<g stroke=\"#B8BBC2\" stroke-opacity=\".40\" stroke-linecap=\"round\" stroke-width=\"1.5\"><path d=\"M78 18v4M78 76v4M47 49h4M105 49h4\"/></g>\n<g class=\"clock-hand\" stroke=\"#D9DCE1\" stroke-linecap=\"round\" stroke-width=\"3.5\"><path d=\"M78 49V27\"/><path d=\"M78 49 94 60\" stroke-opacity=\".74\"/></g><circle cx=\"78\" cy=\"49\" r=\"4\" fill=\"#C7CBD2\"/><circle cx=\"78\" cy=\"49\" r=\"1.5\" fill=\"#34363B\"/></svg>"};
@@ -315,43 +336,81 @@ function Home({onHomeSettings,onNavigate,agent}){
  return el("div",{className:"panel hf"},head,el("div",{className:"home-panels"},items));
 }
 
+
 function AgentPanel({agent,draft,onDraft,onSend,onStop,onSettings,onHome,onCapture,onApprove,onDeny,onRetry}){
  const feedRef=useRef(null);
- useEffect(()=>{if(feedRef.current)feedRef.current.scrollTop=feedRef.current.scrollHeight},[agent.messages,agent.busy,agent.phase]);
- const phase=agent.phase||"ready";
- const state=phase==="approval"?"Approval needed":phase==="error"?"Disconnected":agent.busy?"Responding":phase==="complete"?"Answer ready":"Ready";
+ useEffect(()=>{if(feedRef.current)feedRef.current.scrollTop=feedRef.current.scrollHeight},[agent.messages,agent.busy,agent.phase,agent.readiness]);
+ const phase=agent.phase||"ready", ready=agent.readiness==="ready";
+ const status=agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="approval"?"Approval needed":phase==="interrupted"?"Interrupted":phase==="error"?"Disconnected":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Ready";
+ const unread=agent.unread&&!agent.busy;
  const head=el("div",{className:"af-head"},
-  el("button",{type:"button",className:"af-eyebutton",onClick:onHome,"aria-label":"Home"},el("i"),el("i")),
+  el("button",{type:"button",className:"af-eyebutton",onClick:onHome,"aria-label":"Return to Home"},el("i"),el("i")),
   el("div",{className:"af-identity"},el("strong",null,agent.provider,el("em",null," / "+agent.cwd.split("/").pop())),el("small",null,agent.mode+" · Local CLI preview")),
-  el("span",{className:"af-state"},el("i",{className:phase==="error"?"bad":phase==="approval"?"warn":""}),state),
+  el("span",{className:"af-state"+(ready?"":" af-attention"),role:"status"},el("i",{className:!ready||phase==="approval"?"warn":phase==="error"?"bad":""}),status),
   h(IconButton,{name:"Settings2",label:"Agent settings",onClick:onSettings}));
+ const messages=agent.messages.map((m,i)=>el("div",{key:i,className:m.role==="user"?"af-question":"af-response"},m.text||el("span",{className:"af-thinking"},el("span",{className:"activity playing"},el("i"),el("i"),el("i")),"Reading context…")));
+ const hint=!ready?el("div",{className:"af-inline-state"},
+  el("div",{className:"af-inline-heading"},h(Icon,{name:"AlertCircle",size:15}),status),
+  el("p",null,agent.readiness==="auth"?"The selected CLI needs authentication. Your draft is retained.":agent.readiness==="missing"?"CLI executable not found. Install it or choose a working provider.":"This provider cannot fulfill the selected capability or mode."),
+  el("button",{type:"button",onClick:onSettings},"Configure provider")):null;
+ const approval=phase==="approval"?el("div",{className:"af-approval"},
+  el("strong",null,h(Icon,{name:"AlertCircle",size:15})," Approval required"),
+  el("p",null,agent.provider+" requests permission to modify a project file. No action happens without a decision."),
+  el("code",null,"Write · src/agent/session.ts"),
+  el("div",{className:"af-approvalbuttons"},el("button",{onClick:onApprove},"Allow once"),el("button",{onClick:onDeny},"Deny"))):null;
+ const error=["error","interrupted"].includes(phase)?el("div",{className:"af-error"},
+  el("strong",null,phase==="interrupted"?"Session interrupted":"Cannot reach "+agent.provider),
+  el("p",null,phase==="interrupted"?"The previous CLI session cannot be confirmed after restart. Its outcome is unknown.":"Provider request failed. Your draft and previous output are preserved."),
+  el("button",{onClick:onRetry},phase==="interrupted"?"Start new request":"Retry")):null;
+ const lastAnswer=[...agent.messages].reverse().find(m=>m.role==="assistant"&&m.text);
  const feed=el("div",{className:"af-feed",ref:feedRef,"aria-live":"polite"},el("div",{className:"af-feedstack"},
-   agent.messages.length===0&&phase==="ready"?el("div",{className:"af-empty"},"Ask "+agent.provider+" about your current task"):null,
-   agent.messages.map((m,i)=>el("div",{key:i,className:m.role==="user"?"af-question":"af-response"},m.text||"Reading context…")),
-   phase==="approval"?el("div",{className:"af-approval"},
-     el("strong",null,h(Icon,{name:"AlertCircle",size:15})," Approval required"),
-     el("p",null,agent.provider+" requests permission to modify a project file."),
-     el("code",null,"Write · src/agent/session.ts"),
-     el("div",{className:"af-approvalbuttons"},el("button",{onClick:onApprove},"Allow once"),el("button",{onClick:onDeny},"Deny"))):null,
-   phase==="error"?el("div",{className:"af-error"},el("strong",null,"Cannot reach "+agent.provider),el("p",null,"Simulated provider error. Draft preserved."),el("button",{onClick:onRetry},"Retry")):null,
-   agent.warning?el("div",{className:"af-warning"},agent.warning):null
- ));
- const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(draft.trim()){onSend(draft.trim());onDraft("")}};
+  agent.messages.length===0&&ready&&phase==="ready"?el("div",{className:"af-empty"},"Ask "+agent.provider+" about your current task"):null,
+  ...messages,
+  agent.busy?el("div",{className:"af-working"},el("span",{className:"activity playing"},el("i"),el("i"),el("i")),phase==="thinking"?"Reading context":"Streaming output · simulated"):null,
+  approval,hint,error,
+  unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
+  !agent.busy&&phase==="complete"&&lastAnswer?el("button",{type:"button",className:"af-copy",onClick:()=>{if(navigator.clipboard?.writeText)navigator.clipboard.writeText(lastAnswer.text)}} ,h(Icon,{name:"Copy",size:14}),"Copy answer"):null,
+  agent.warning?el("div",{className:"af-warning"},agent.warning):null));
+ const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(ready&&draft.trim()&&phase!=="approval"){onSend(draft.trim());onDraft("")}};
  const composer=el("div",{className:"af-composewrap"},el("form",{className:"af-composer",onSubmit:send},
-  h(IconButton,{name:"Camera",label:"Capture settings",onClick:onCapture}),
-  el("textarea",{rows:1,value:draft,placeholder:"Ask "+agent.provider+"…",onChange:e=>onDraft(e.target.value),"aria-label":"Agent prompt"}),
-  el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:phase==="approval"||(!agent.busy&&!draft.trim()),"aria-label":agent.busy?"Stop":"Send"},
+  h(IconButton,{name:"Camera",label:"Choose screen capture source",onClick:onCapture}),
+  el("textarea",{rows:1,value:draft,placeholder:ready?"Ask "+agent.provider+"…":"Configure "+agent.provider+" to send","aria-label":"Agent prompt",onChange:e=>onDraft(e.target.value)}),
+  el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:!agent.busy&&(!draft.trim()||!ready||phase==="approval"),"aria-label":agent.busy?"Stop request":"Send"},
    h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16}))));
  return el("div",{className:"af"},head,feed,composer);
 }
 
+
 function AgentSettings({agent,setAgent,onBack}){
- const head=el("div",{className:"af-head"},h(IconButton,{name:"ArrowLeft",label:"Back",onClick:onBack}),el("div",{className:"af-identity"},el("strong",null,"Agent settings"),el("small",null,"Local configuration preview")));
- const providers=el("div",{className:"af-providergrid"},["Codex","Agy","Pi","OpenCode"].map(p=>el("button",{key:p,className:"af-provider"+(agent.provider===p?" selected":""),onClick:()=>setAgent(a=>({...a,provider:p,phase:p==="Codex"?"ready":"error",warning:p==="Codex"?"":"Adapter unavailable in prototype"}))},p,el("small",null,p==="Codex"?"Demo":"Offline"))));
- const modes=["Quick Ask","Agent Session"].map(p=>el("button",{key:p,className:"af-mode"+(agent.mode===p?" selected":""),onClick:()=>setAgent(a=>({...a,mode:p}))},el("span",{className:"af-radio"}),el("span",null,el("strong",null,p),el("small",null,p==="Quick Ask"?"One question, quick response":"Continue in a CLI session"))));
- const body=el("div",{className:"af-settings"},el("p",{className:"muted small"},"Choose what Otto uses when you send a request."),el("p",{className:"af-sectiontitle"},"Provider"),providers,el("hr"),el("p",{className:"af-sectiontitle"},"Interaction mode"),...modes,el("hr"),el("p",{className:"af-sectiontitle"},"Working project"),el("input",{className:"af-project",value:agent.cwd,onChange:e=>setAgent(a=>({...a,cwd:e.target.value}))}),el("p",{className:"muted small"},"CLI authentication and permissions are simulated."),el("div",{className:"af-done"},h(Primary,{name:"Check",onClick:onBack},"Done")));
+ const head=el("div",{className:"af-head"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("div",{className:"af-identity"},el("strong",null,"Agent settings"),el("small",null,"Provider, permissions and context")));
+ const changeProvider=p=>setAgent(a=>({...a,provider:p,readiness:p==="Codex"?"ready":p==="Agy"?"auth":p==="Pi"?"unsupported":"missing",warning:"",phase:"ready"}));
+ const providers=el("div",{className:"af-providergrid"},["Codex","Agy","Pi","OpenCode"].map(p=>el("button",{key:p,className:"af-provider"+(agent.provider===p?" selected":""),onClick:()=>changeProvider(p),disabled:agent.busy},p,el("small",null,p==="Codex"?"Ready · demo":p==="Agy"?"Auth needed":p==="Pi"?"Limited":"Not found"))));
+ const modes=["Quick Ask","Agent Session"].map(p=>el("button",{key:p,className:"af-mode"+(agent.mode===p?" selected":""),onClick:()=>setAgent(a=>({...a,mode:p})),disabled:agent.busy},el("span",{className:"af-radio"}),el("span",null,el("strong",null,p),el("small",null,p==="Quick Ask"?"Request-only simulation · no file changes":"Multi-turn CLI session · approval for privileged tools"))));
+ const body=el("div",{className:"af-settings"},
+   el("p",{className:"muted small"},"Provider readiness below is simulated, not detected from a local installation."),
+   el("p",{className:"af-sectiontitle"},"Provider"),providers,
+   el("p",{className:"af-readiness",role:"status"},agent.provider+": "+(agent.readiness==="ready"?"Ready (demo)":agent.readiness==="auth"?"Sign-in required":agent.readiness==="unsupported"?"Capability unsupported":"CLI not installed")),
+   el("hr"),el("p",{className:"af-sectiontitle"},"Interaction mode"),...modes,
+   el("hr"),el("p",{className:"af-sectiontitle"},"Working project"),
+   el("label",{className:"af-context"},h(Icon,{name:"Terminal",size:15}),el("input",{value:agent.cwd,onChange:e=>setAgent(a=>({...a,cwd:e.target.value})),"aria-label":"Working project"})),
+   el("div",{className:"af-done"},h(Primary,{name:"Check",onClick:onBack},"Done")));
  return el("div",{className:"af"},head,body);
 }
+function CapturePanel({capture,setCapture,onBack,onDemo}){
+ const head=el("div",{className:"af-head"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("div",{className:"af-identity"},el("strong",null,"Screen capture"),el("small",null,"User-triggered only · preview")));
+ const body=el("div",{className:"af-settings"},
+ el("p",{className:"muted small"},"Choose the intended source. No image is captured or sent from this HTML preview."),
+ el("p",{className:"af-sectiontitle"},"Capture source"),
+ ...["Last focused window","Full screen"].map(src=>el("button",{key:src,className:"af-mode"+(capture.source===src?" selected":""),onClick:()=>setCapture(c=>({...c,source:src}))},el("span",{className:"af-radio"}),el("span",null,el("strong",null,src),el("small",null,src==="Last focused window"?"Default · excludes Otto when possible":"Explicit alternative · whole desktop")))),
+ el("hr"),el("p",{className:"af-sectiontitle"},"Hotkey"),
+ el("div",{className:"af-capture-meta"},h(Icon,{name:"Command",size:15}),capture.hotkey),
+ el("p",{className:"af-sectiontitle"},"Permission simulation"),
+ el("div",{className:"af-capture-controls"},["available","denied","missing target","conflict"].map(state=>el("button",{key:state,className:capture.permission===state?"selected":"",onClick:()=>setCapture(c=>({...c,permission:state}))},state))),
+ capture.permission!=="available"?el("div",{className:"af-inline-state",role:"status"},capture.permission==="denied"?"Permission denied — no capture occurs.":capture.permission==="missing target"?"Target window unavailable — select a valid target.":"Hotkey conflict — reassign the shortcut."):null,
+ el("div",{className:"af-done"},h(Primary,{name:"Check",onClick:()=>onDemo(capture.permission)},"Try capture demo")));
+ return el("div",{className:"af"},head,body);
+}
+
 function Album(){return el("div",{className:"album"},h(Icon,{name:"Disc3",size:42}))}
 function MusicPanel({music,setMusic,onHome}){
  const track=tracks[music.track];
@@ -417,11 +476,12 @@ function App(){
  const [drawer,setDrawer]=useState(null);
  const [tab,setTab]=useState("General");
  const [prefs,setPrefs]=useState({expression:"Calm",reactive:"Quiet",hover:"On",motion:"Fluid",placement:"Floating"});
- const [agent,setAgent]=useState({provider:"Codex",cwd:"~/projects/otto",mode:"Quick Ask",messages:[],busy:false,warning:"",unread:false,phase:"ready"});
+ const [agent,setAgent]=useState({provider:"Codex",cwd:"~/projects/otto",mode:"Quick Ask",messages:[],busy:false,warning:"",unread:false,phase:"ready",readiness:"ready"});
  const [agentDraft,setAgentDraft]=useState("");
  const [music,setMusic]=useState({track:0,position:71,playing:true,lyrics:false,line:2});
  const [timer,setTimer]=useState({phase:"focus",remaining:1500,running:false,deadline:null,duration:{...durations}});
  const [event,setEvent]=useState(null);
+ const [capture,setCapture]=useState({source:"Last focused window",permission:"available",hotkey:"Ctrl + Shift + X"});
  const pointerEnter=useRef(null),pointerLeave=useRef(null),completion=useRef(null),agentRun=useRef(null),pinnedUntil=useRef(0);
  const currentPage=useRef(page);currentPage.current=page;
  const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches||prefs.motion==="Reduced";
@@ -434,7 +494,7 @@ function App(){
  useEffect(()=>{if(!music.playing)return;const handle=setInterval(()=>setMusic(m=>{const pos=m.position+1;return pos>=tracks[m.track].duration?{...m,playing:false,position:tracks[m.track].duration}:{...m,position:pos}}),1000);return()=>clearInterval(handle)},[music.playing]);
  useEffect(()=>()=>{clearInterval(agentRun.current);clearTimeout(completion.current);clearTimeout(pointerEnter.current);clearTimeout(pointerLeave.current)},[]);
  const stopAgent=()=>{clearInterval(agentRun.current);setAgent(a=>({...a,busy:false,phase:"stopped",warning:"Request stopped"}))};
- const sendAgent=text=>{if(agent.provider!=="Codex"){setAgent(a=>({...a,warning:"Provider adapter unavailable in this prototype"}));return}
+ const sendAgent=text=>{if(agent.readiness!=="ready"){setAgent(a=>({...a,warning:"Provider adapter unavailable in this prototype"}));return}
  clearInterval(agentRun.current);
  setAgent(a=>({...a,busy:true,phase:"thinking",warning:"",messages:[...a.messages,{role:"user",text},{role:"assistant",text:""}]}));
  const chunks=["This is a simulated response from Otto's unified design study. ","The real CLI adapter would stream output into this same surface. ","Collapse and reopening preserve the current conversation."];
@@ -443,15 +503,15 @@ function App(){
  const chunk=chunks[index++];setAgent(a=>({...a,phase:"streaming",messages:a.messages.map((m,i)=>i===a.messages.length-1?{...m,text:m.text+chunk}:m)}))},560);
  };
  const onEvent=name=>{clearTimeout(completion.current);setEvent(name);completion.current=setTimeout(()=>setEvent(null),2200)};
- const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,agent.phase==="approval"?336:agent.phase==="error"?270:agent.busy?346:agent.messages.length?346:170]:page==="music"?[444,music.lyrics?212:178]:[408,174];
+ const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="capture"?[526,390]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,agent.phase==="approval"?336:agent.phase==="error"||agent.phase==="interrupted"||agent.readiness!=="ready"?270:agent.busy?346:agent.messages.length?346:170]:page==="music"?[444,music.lyrics?212:178]:[408,174];
  const shape=event?"event":presentation==="compact"?"compact":"expanded";
  const shellKey=event?"event-"+event:shape==="compact"?page+"-compact":drawer||page+(music.lyrics?"-lyrics":"");
  const enter=()=>{clearTimeout(pointerLeave.current);if(event||presentation!=="compact"||prefs.hover==="Off")return;clearTimeout(pointerEnter.current);pointerEnter.current=setTimeout(()=>{pinnedUntil.current=Date.now()+470;setPresentation("preview")},150)};
  const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(340,pinnedUntil.current-Date.now()+140))}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer}):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null)}):drawer==="agent"?h(AgentSettings,{agent,setAgent,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>setDrawer("global"),onNavigate:navigate,agent}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>setDrawer("agent"),onCapture:()=>setDrawer("agent"),onHome:()=>navigate("home")}):page==="music"?h(MusicPanel,{music,setMusic,onHome:()=>navigate("home")}):h(FocusPanel,{timer,setTimer,onToggle:toggleTimer,onReset:resetTimer,onSettings:()=>setDrawer("focus"),onHome:()=>navigate("home")});
- const onAgentDemo=phase=>{clearInterval(agentRun.current);navigate("agent");if(phase==="run"){sendAgent("How should Otto preserve a CLI session?");return}const sample=phase==="approval"?"Update the session adapter safely.":phase==="error"?"Check why the CLI cannot connect.":"";setAgent(a=>({...a,busy:false,phase,warning:"",messages:sample?[{role:"user",text:sample}]:[],unread:false}))};
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer}):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null)}):drawer==="agent"?h(AgentSettings,{agent,setAgent,onBack:()=>setDrawer(null)}):drawer==="capture"?h(CapturePanel,{capture,setCapture,onBack:()=>setDrawer(null),onDemo:permission=>{setDrawer(null);setAgent(a=>({...a,warning:permission==="available"?"Capture is a UI simulation only — no image sent.":"Capture blocked: "+permission+" — no image sent."}))}}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>setDrawer("global"),onNavigate:navigate,agent}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onSend:sendAgent,onStop:stopAgent,onApprove:()=>setAgent(a=>({...a,phase:"complete",warning:"Simulated approval granted"})),onDeny:()=>setAgent(a=>({...a,phase:"stopped",warning:"Approval denied"})),onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>setDrawer("agent"),onCapture:()=>setDrawer("capture"),onHome:()=>navigate("home")}):page==="music"?h(MusicPanel,{music,setMusic,onHome:()=>navigate("home")}):h(FocusPanel,{timer,setTimer,onToggle:toggleTimer,onReset:resetTimer,onSettings:()=>setDrawer("focus"),onHome:()=>navigate("home")});
+ const onAgentDemo=phase=>{clearInterval(agentRun.current);navigate("agent");if(phase==="run"){setAgent(a=>({...a,readiness:"ready",provider:"Codex"}));sendAgent("How should Otto preserve a CLI session?");return}const read=phase==="auth"?"auth":phase==="missing"?"missing":"ready";const actual=phase==="auth"||phase==="missing"?"ready":phase;const sample=phase==="approval"?"Update the session adapter safely.":phase==="error"?"Check why the CLI cannot connect.":"";setAgent(a=>({...a,busy:false,phase:actual,readiness:read,provider:phase==="auth"?"Agy":phase==="missing"?"OpenCode":"Codex",warning:"",messages:sample?[{role:"user",text:sample}]:[],unread:false}))};
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
  const eventNav=[["volume","Volume2","Volume"],["wifi","Wifi","Wi-Fi"],["bluetooth","Bluetooth","Bluetooth"],["brightness","Sun","Brightness"],["battery","BatteryCharging","Battery"],["headphones","Headphones","Headset"]];
  return el("div",{className:"lab"+(reduce?" motion-reduced":"")},
@@ -463,7 +523,7 @@ function App(){
   el("div",{className:"rail-rule"}),
   el("div",null,el("p",{className:"label"},"Presentation"),el("div",{className:"segment"},["compact","preview","pinned"].map(mode=>el("button",{key:mode,className:presentation===mode?"selected":"",onClick:()=>{setEvent(null);setPresentation(mode)}},mode==="pinned"?"Expanded":mode[0].toUpperCase()+mode.slice(1))))),
   el("div",null,el("p",{className:"label"},"Placement"),el("div",{className:"segment"},["floating","attached"].map(choice=>el("button",{key:choice,className:placement===choice?"selected":"",onClick:()=>setPlacement(choice)},choice[0].toUpperCase()+choice.slice(1))))),
-  el("div",{className:"rail-footer"},el("div",{className:"event-actions",style:{marginBottom:12}},[["run","Run"],["approval","Approval"],["error","Error"],["ready","Reset"]].map(([phase,label])=>el("button",{key:phase,onClick:()=>onAgentDemo(phase)},label))),el("strong",null,"Prototype controls"),el("span",null,"The side rail belongs to the design lab, never the notch itself."),el("span",null,"All CLI, media and OS data are simulated."))),
+  el("div",{className:"rail-footer"},el("div",{className:"event-actions",style:{marginBottom:12}},[["run","Run"],["approval","Approval"],["error","Error"],["auth","Auth"],["missing","Missing"],["interrupted","Interrupted"],["ready","Reset"]].map(([phase,label])=>el("button",{key:phase,onClick:()=>onAgentDemo(phase)},label))),el("strong",null,"Prototype controls"),el("span",null,"The side rail belongs to the design lab, never the notch itself."),el("span",null,"All CLI, media and OS data are simulated."))),
  el("div",{className:"main"},
   el("header",{className:"top"},el("div",null,el("div",{className:"top-title"},"One surface system. Continuous motion."),el("div",{className:"top-desc"},"Idle → Home → Module → Contextual settings · Floating / Attached")),
   el("div",{className:"top-status"},el("i",{className:"status-dot"}),"Lucide React · Single HTML")),
