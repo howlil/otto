@@ -41,12 +41,12 @@ export function ShellView({
       }}
     >
       <ShellContent
-          agent={agent}
-          shell={shell}
-          agentHomeCopy={agentHomeCopy}
-          artProps={artProps}
-          onAgentMeasured={onAgentMeasured}
-        />
+        agent={agent}
+        shell={shell}
+        agentHomeCopy={agentHomeCopy}
+        artProps={artProps}
+        onAgentMeasured={onAgentMeasured}
+      />
       <SurfaceError message={surfaceError} expanded={shell.expanded} />
     </main>
   );
