@@ -74,10 +74,12 @@ export function ProviderSettings({
 export function ModeSettings({
   mode,
   locked,
+  agentSessionAvailable,
   setMode,
 }: {
   mode: AgentMode;
   locked: boolean;
+  agentSessionAvailable: boolean;
   setMode: (mode: AgentMode) => void;
 }) {
   return (
@@ -106,7 +108,11 @@ export function ModeSettings({
           {
             value: "agentSession",
             label: "Agent Session",
-            help: "Codex only · tools require approval",
+            help: agentSessionAvailable
+              ? "Codex only · tools require approval"
+              : "Not supported by the current CLI",
+            disabled: !agentSessionAvailable,
+            disabledReason: "Agent Session is currently available only through Codex",
           },
         ]}
       />
