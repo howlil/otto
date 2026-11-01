@@ -73,7 +73,9 @@ export function AgentSettings({
           aria-labelledby="otto-agent-settings-sections"
           className="flex flex-col gap-1 border-r border-otto-line-soft bg-otto-nav-bg px-2 py-[13px]"
         >
-          <span id="otto-agent-settings-sections" className="sr-only">Agent settings sections</span>
+          <span id="otto-agent-settings-sections" className="sr-only">
+            Agent settings sections
+          </span>
           {tabs.map((item) => (
             <button
               key={item.id}

@@ -57,7 +57,9 @@ export function AgentComposer({
           aria-labelledby="otto-model-context-heading"
         >
           <div className="flex items-center justify-between gap-2">
-            <strong id="otto-model-context-heading" className="text-otto-md">Model &amp; context</strong>
+            <strong id="otto-model-context-heading" className="text-otto-md">
+              Model &amp; context
+            </strong>
             <button
               type="button"
               className="rounded-otto-control px-2 py-1 text-otto-xs text-otto-text-secondary hover:bg-otto-control-hover"

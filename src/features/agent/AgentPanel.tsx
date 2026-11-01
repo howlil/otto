@@ -116,15 +116,17 @@ export function AgentPanel({
           setActionsOpen={setActionsOpen}
           onCapture={() => {
             setCaptureActionError(null);
-            void agent.captureNow().catch((error: unknown) =>
-              setCaptureActionError(
-                typeof error === "string"
-                  ? error
-                  : error instanceof Error
-                    ? error.message
-                    : "Screen capture is unavailable.",
-              ),
-            );
+            void agent
+              .captureNow()
+              .catch((error: unknown) =>
+                setCaptureActionError(
+                  typeof error === "string"
+                    ? error
+                    : error instanceof Error
+                      ? error.message
+                      : "Screen capture is unavailable.",
+                ),
+              );
           }}
           onConfigureCapture={() => {
             setCaptureSettingsEntry(true);
