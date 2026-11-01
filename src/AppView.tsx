@@ -87,7 +87,7 @@ function ShellContent({
       {!isAgent && page === "home" && (
         <button
           ref={shell.compactButton}
-          className={`absolute left-0 top-0 z-[4] grid h-[42px] w-[92px] place-items-center border-0 bg-transparent p-0 text-inherit transition-[left,top,width,height] duration-[420ms] ease-otto ${expanded ? "left-4 top-[15px] h-7 w-[34px]" : ""} ${shell.reducedMotion ? "transition-none" : ""}`}
+          className={`group absolute left-0 top-0 z-[4] grid h-[42px] w-[92px] place-items-center border-0 bg-transparent p-0 text-inherit transition-[left,top,width,height] duration-[420ms] ease-otto ${expanded ? "left-4 top-[15px] h-7 w-[34px]" : ""} ${shell.reducedMotion ? "transition-none" : ""}`}
           type="button"
           aria-expanded={expanded}
           onClick={() => (expanded ? shell.collapse() : shell.open("home"))}
