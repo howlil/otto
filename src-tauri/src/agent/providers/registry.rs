@@ -1,6 +1,4 @@
 use crate::agent::events::ProviderEvents;
-#[cfg(not(windows))]
-use crate::agent::fail;
 use crate::agent::policy::InteractionMode;
 use crate::agent::{Control, ProviderReadiness, Snapshot};
 use std::path::PathBuf;
@@ -86,7 +84,7 @@ impl ProviderId {
             #[cfg(not(windows))]
             Self::Pi | Self::Agy => {
                 let run_id = updates.borrow().run_id;
-                fail(&updates, run_id, "This provider requires Windows.");
+                ProviderEvents::new(updates).fail(run_id, "This provider requires Windows.");
             }
         }
     }
