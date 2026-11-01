@@ -1,9 +1,9 @@
 use crate::agent::events::{AgentEvent, ProviderEvents};
 use crate::agent::policy::{self, InteractionMode};
 use crate::agent::session::{self, ApprovalDecision, PendingApproval, ToolActivity};
-use crate::agent::{Control, ProviderReadiness, Snapshot};
 #[cfg(test)]
 use crate::agent::{ChatMessage, mutate};
+use crate::agent::{Control, ProviderReadiness, Snapshot};
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
 use tokio::{
@@ -1212,7 +1212,13 @@ mod tests {
             "method": "turn/completed",
             "params": { "threadId": "thread", "turn": { "id": "turn", "status": "completed" } }
         });
-        assert!(handle_event(&completed, "thread", "turn", 7, &ProviderEvents::new(tx.clone())));
+        assert!(handle_event(
+            &completed,
+            "thread",
+            "turn",
+            7,
+            &ProviderEvents::new(tx.clone())
+        ));
         assert_eq!(tx.borrow().status, "stopped");
         let late = json!({
             "method": "item/agentMessage/delta",
@@ -1540,7 +1546,13 @@ mod tests {
             "method": "turn/completed",
             "params": { "threadId": "thread", "turn": { "id": "turn", "status": "interrupted" } }
         });
-        assert!(handle_event(&interrupted, "thread", "turn", 7, &ProviderEvents::new(tx.clone())));
+        assert!(handle_event(
+            &interrupted,
+            "thread",
+            "turn",
+            7,
+            &ProviderEvents::new(tx.clone())
+        ));
         assert_eq!(tx.borrow().status, "stopped");
         assert!(tx.borrow().approval.is_none());
     }
@@ -1641,7 +1653,12 @@ mod tests {
         );
         assert!(approvals.pending.is_none());
         assert!(matches!(
-            classify_startup_control(Some(Control::Stop), &mut approvals, &ProviderEvents::new(tx.clone())).unwrap(),
+            classify_startup_control(
+                Some(Control::Stop),
+                &mut approvals,
+                &ProviderEvents::new(tx.clone())
+            )
+            .unwrap(),
             StartupControl::Stop
         ));
     }
