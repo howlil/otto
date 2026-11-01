@@ -59,14 +59,12 @@ export function ProviderSettings({
               status={
                 selected
                   ? providerStatus
-                  : name === "Codex" || name === "Pi"
-                    ? "Select"
-                    : "Coming soon"
+                  : "Select"
               }
               selected={selected}
               onSelect={
-                !locked && (name === "Codex" || name === "Pi")
-                  ? () => onSelect(name === "Pi" ? "pi" : "codex")
+                !locked
+                  ? () => onSelect(name === "Pi" ? "pi" : name === "Agy" ? "agy" : "codex")
                   : undefined
               }
             />
@@ -127,7 +125,7 @@ export function ModeSettings({
         className="mt-2.5 block border border-otto-line-mid rounded-otto-chip bg-otto-field-deep p-[9px_10px] text-otto-text-tertiary [&>div>p]:m-0 [&>div>p]:mt-0.5"
         title="Execution scope"
       >
-        Quick Ask uses a read-only Codex sandbox or a tool-free Pi session. Agent Session is
+        Quick Ask uses a read-only Codex sandbox or tool-free Pi/Agy sessions. Agent Session is
         currently Codex-only.
       </StatusMessage>
     </section>
