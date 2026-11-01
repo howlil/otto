@@ -37,9 +37,7 @@ export default function App() {
   const [agentContentHeight, setAgentContentHeight] = useState(170);
   const onAgentMeasured = useCallback((height: number) => {
     const bounded = Math.max(170, Math.min(610, Math.ceil(height)));
-    setAgentContentHeight((current) =>
-      Math.abs(current - bounded) > 2 ? bounded : current,
-    );
+    setAgentContentHeight((current) => (Math.abs(current - bounded) > 2 ? bounded : current));
   }, []);
   const shell = useNotchShell();
   const { page, expanded, prefs, reducedMotion, isAgent, setEventMotion } = shell;
