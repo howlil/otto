@@ -1,12 +1,11 @@
 import { Text } from "../../shared/ui";
 
-export type ProviderTone = "codex" | "agy" | "pi" | "opencode";
+export type ProviderTone = "codex" | "agy" | "pi";
 
 const markVariants: Record<ProviderTone, string> = {
   codex: "text-otto-completion-soft",
   agy: "text-otto-text-bright",
   pi: "font-serif text-otto-xl",
-  opencode: "font-mono text-otto-xs",
 };
 
 export function ProviderChoice({
