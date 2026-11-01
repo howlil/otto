@@ -144,6 +144,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             seq: 0,
             status: "idle".into(),
             mode: "quickAsk".into(),
+            provider: "codex".into(),
             cwd: String::new(),
             thread_id: None,
             messages: Vec::new(),
@@ -1246,6 +1247,7 @@ mod tests {
             seq: 1,
             status: status.into(),
             mode: "agentSession".into(),
+            provider: "codex".into(),
             cwd: String::new(),
             thread_id: None,
             messages: vec![ChatMessage {

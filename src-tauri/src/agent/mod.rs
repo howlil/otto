@@ -56,6 +56,7 @@ pub struct Snapshot {
     pub seq: u64,
     pub status: String,
     pub mode: String,
+    pub provider: String,
     pub cwd: String,
     pub thread_id: Option<String>,
     pub messages: Vec<ChatMessage>,
@@ -153,6 +154,7 @@ impl AgentRuntime {
             seq: u64::from(interrupted),
             status: if interrupted { "failed" } else { "idle" }.into(),
             mode: InteractionMode::QuickAsk.as_str().into(),
+            provider: "codex".into(),
             cwd,
             thread_id: None,
             messages: Vec::new(),
@@ -247,6 +249,31 @@ impl AgentRuntime {
         providers::codex::executable().is_some()
     }
 
+    pub async fn provider_readiness(
+        &self,
+        provider: &str,
+        requested_cwd: Option<&str>,
+    ) -> ProviderReadiness {
+        if provider == "codex" {
+            return self.codex_readiness(requested_cwd).await;
+        }
+        if provider != "pi" {
+            return ProviderReadiness::new("unsupported", "Provider adapter unavailable.",
+                "Choose Codex or Pi.");
+        }
+        let snapshot = self.snapshot();
+        let directory = requested_cwd.filter(|value| !value.trim().is_empty())
+            .unwrap_or(&snapshot.cwd);
+        let Ok(cwd) = std::fs::canonicalize(directory) else {
+            return ProviderReadiness::new("unavailable", "Working project folder does not exist.",
+                "Select a valid folder, then Retry.");
+        };
+        #[cfg(windows)]
+        { providers::pi::readiness(&cwd).await }
+        #[cfg(not(windows))]
+        { ProviderReadiness::new("unsupported", "Pi requires Windows.", "Run Otto on Windows.") }
+    }
+
     pub async fn codex_readiness(&self, requested_cwd: Option<&str>) -> ProviderReadiness {
         let snapshot = self.snapshot();
         let directory = requested_cwd
@@ -298,6 +325,7 @@ impl AgentRuntime {
             "Analyze the captured application window. Describe what is visible and answer any apparent question without modifying files.".into(),
             state.cwd,
             "quickAsk".into(),
+            "codex".into(),
             Some(image),
         ).await
     }
@@ -336,8 +364,8 @@ impl AgentRuntime {
         });
     }
 
-    pub async fn ask(&self, text: String, cwd: String, mode: String) -> Result<(), String> {
-        self.ask_with_capture(text, cwd, mode, None).await
+    pub async fn ask(&self, text: String, cwd: String, mode: String, provider: String) -> Result<(), String> {
+        self.ask_with_capture(text, cwd, mode, provider, None).await
     }
 
     async fn ask_with_capture(
@@ -345,6 +373,7 @@ impl AgentRuntime {
         text: String,
         cwd: String,
         mode: String,
+        provider: String,
         capture: Option<CapturedImage>,
     ) -> Result<(), String> {
         let text = text.trim().to_owned();
@@ -352,12 +381,18 @@ impl AgentRuntime {
             return Err("Enter a question (up to 12,000 bytes).".into());
         }
         let mode = InteractionMode::parse(&mode)?;
+        if provider != "codex" && provider != "pi" {
+            return Err("Selected provider is unavailable.".into());
+        }
+        if provider == "pi" && (mode != InteractionMode::QuickAsk || capture.is_some()) {
+            return Err("Pi currently supports text-only Quick Ask with no tools.".into());
+        }
         let cwd =
             std::fs::canonicalize(cwd).map_err(|_| "Working folder does not exist.".to_string())?;
         if !cwd.is_dir() {
             return Err("Working context must be a folder.".into());
         }
-        if !self.codex_installed() {
+        if provider == "codex" && !self.codex_installed() {
             return Err("Codex executable not found. Install Codex CLI, then retry.".into());
         }
         let mut guard = self.control.lock().await;
@@ -369,7 +404,7 @@ impl AgentRuntime {
             return Err("An answer is already running.".into());
         }
 
-        let readiness = providers::codex::readiness(&cwd).await;
+        let readiness = self.provider_readiness(&provider, Some(&cwd.to_string_lossy())).await;
         if readiness.status != "ready" {
             return Err(format!("{} {}", readiness.message, readiness.recovery));
         }
@@ -384,6 +419,9 @@ impl AgentRuntime {
                 );
             }
 
+            if current.provider != provider {
+                return Err("Provider is fixed for the conversation. Start a new session.".into());
+            }
             if current.mode != mode.as_str() {
                 return Err(
                     "Execution mode is fixed for this conversation. Start a new session to change it."
@@ -421,6 +459,7 @@ impl AgentRuntime {
             s.run_id = run_id;
             s.status = "starting".into();
             s.mode = mode.as_str().into();
+            s.provider = provider.clone();
             s.activity = None;
             s.approval = None;
             s.error = None;
@@ -431,18 +470,15 @@ impl AgentRuntime {
         let (tx, rx) = mpsc::channel(4);
         let updates = self.updates.clone();
         tauri::async_runtime::spawn(async move {
-            providers::codex::run(
-                rx,
-                updates.clone(),
-                Control::Ask {
-                    text,
-                    cwd,
-                    run_id,
-                    capture,
-                },
-                mode,
-            )
-            .await;
+            let initial = Control::Ask { text, cwd, run_id, capture };
+            if provider == "pi" {
+                #[cfg(windows)]
+                providers::pi::run(rx, updates.clone(), initial).await;
+                #[cfg(not(windows))]
+                fail(&updates, run_id, "Pi requires Windows.");
+            } else {
+                providers::codex::run(rx, updates.clone(), initial, mode).await;
+            }
         });
         *guard = Some(tx);
         Ok(())
@@ -496,6 +532,7 @@ impl AgentRuntime {
             s.run_id = run_id;
             s.status = "idle".into();
             s.mode = InteractionMode::QuickAsk.as_str().into();
+            s.provider = "codex".into();
             s.thread_id = None;
             s.messages.clear();
             s.activity = None;
@@ -618,6 +655,7 @@ mod tests {
             seq: 4,
             status: "completed".into(),
             mode: "quickAsk".into(),
+            provider: "codex".into(),
             cwd: String::new(),
             thread_id: None,
             messages: vec![],
@@ -785,7 +823,7 @@ mod tests {
             .to_string_lossy()
             .into_owned();
         let escalated = runtime
-            .ask("edit files".into(), cwd, "agentSession".into())
+            .ask("edit files".into(), cwd, "agentSession".into(), "codex".into())
             .await;
         assert!(escalated.is_err());
     }

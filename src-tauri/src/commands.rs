@@ -25,6 +25,15 @@ pub async fn agent_codex_readiness(
     Ok(runtime.codex_readiness(cwd.as_deref()).await)
 }
 #[tauri::command]
+pub async fn agent_provider_readiness(
+    runtime: State<'_, AgentRuntime>,
+    provider: String,
+    cwd: Option<String>,
+) -> Result<crate::agent::ProviderReadiness, String> {
+    Ok(runtime.provider_readiness(&provider, cwd.as_deref()).await)
+}
+
+#[tauri::command]
 pub fn agent_subscribe(runtime: State<'_, AgentRuntime>, on_event: Channel<Snapshot>) -> u64 {
     runtime.subscribe(on_event)
 }
@@ -38,8 +47,9 @@ pub async fn agent_ask(
     text: String,
     cwd: String,
     mode: String,
+    provider: String,
 ) -> Result<(), String> {
-    runtime.ask(text, cwd, mode).await
+    runtime.ask(text, cwd, mode, provider).await
 }
 #[tauri::command]
 pub async fn agent_decide_approval(
