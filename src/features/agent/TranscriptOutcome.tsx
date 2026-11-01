@@ -1,5 +1,4 @@
 import { Text } from "../../shared/ui";
-import { CopyAnswerButton } from "./CopyAnswerButton";
 import type { AgentSnapshot } from "../../platform/tauri";
 import { AgentErrorNotice } from "./AgentErrorNotice";
 import { ApprovalCard } from "./ApprovalCard";
@@ -18,7 +17,6 @@ export function TranscriptOutcome({
   retryConnection,
   refreshProvider,
   clearError,
-  lastAnswer,
 }: {
   approval: AgentTranscriptModel["snapshot"]["approval"];
   approvalPending: boolean;
@@ -32,7 +30,6 @@ export function TranscriptOutcome({
   retryConnection: AgentTranscriptModel["retryConnection"];
   refreshProvider: AgentTranscriptModel["refreshProvider"];
   clearError: AgentTranscriptModel["clearError"];
-  lastAnswer: string | null;
 }) {
   return (
     <>
@@ -59,11 +56,6 @@ export function TranscriptOutcome({
           refreshProvider={refreshProvider}
           clearError={clearError}
         />
-      )}
-      {snapshot.status === "completed" && lastAnswer && (
-        <div>
-          <CopyAnswerButton value={lastAnswer} />
-        </div>
       )}
     </>
   );
