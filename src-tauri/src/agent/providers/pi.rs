@@ -6,6 +6,7 @@ use crate::agent::{CapturedImage, Control, ModelOption, ProviderReadiness, Usage
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
+    future::Future,
     path::{Path, PathBuf},
     process::Stdio,
     sync::atomic::Ordering,
@@ -124,6 +125,9 @@ impl Rpc {
         timeout(Duration::from_secs(8), async {
             loop {
                 let frame = self.read().await?;
+                if protocol_parse_error(&frame) {
+                    return Err("Pi rejected malformed RPC data.".into());
+                }
                 if frame["type"] == "tool_execution_start"
                     || frame["type"] == "extension_ui_request"
                 {
@@ -205,6 +209,12 @@ impl Rpc {
         let _ = timeout(Duration::from_secs(3), self.child.wait()).await;
         let _ = self.child.start_kill();
     }
+}
+
+fn protocol_parse_error(frame: &Value) -> bool {
+    frame["type"] == "response"
+        && frame["command"] == "parse"
+        && frame["success"] == false
 }
 
 fn model_key(model: &Value) -> Option<String> {
@@ -515,6 +525,29 @@ fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
     false
 }
 
+async fn await_controlled<T, F>(
+    controls: &mut mpsc::Receiver<Control>,
+    events: &ProviderEvents,
+    run_id: u64,
+    operation: F,
+) -> Result<Option<T>, String>
+where
+    F: Future<Output = Result<T, String>>,
+{
+    tokio::select! {
+        biased;
+        control = controls.recv() => {
+            if matches!(control, Some(Control::Stop)) {
+                events.stopped(run_id);
+            } else {
+                events.fail(run_id, "Pi request was interrupted.");
+            }
+            Ok(None)
+        }
+        result = operation => result.map(Some),
+    }
+}
+
 pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, initial: Control) {
     let Control::Ask {
         text,
@@ -571,15 +604,31 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         session_id: session,
     });
     let mut active_capture = capture;
-    let request = match prompt_command(run_id, &text, active_capture.as_ref()).await {
-        Ok(request) => request,
+    let prepared = await_controlled(
+        &mut controls,
+        &events,
+        run_id,
+        prompt_command(run_id, &text, active_capture.as_ref()),
+    )
+    .await;
+    let request = match prepared {
+        Ok(Some(request)) => request,
+        Ok(None) => {
+            rpc.terminate().await;
+            return;
+        }
         Err(reason) => {
             events.fail(run_id, &reason);
             rpc.terminate().await;
             return;
         }
     };
-    if rpc.send(request).await.is_err() {
+    let sent = await_controlled(&mut controls, &events, run_id, rpc.send(request)).await;
+    if matches!(sent, Ok(None)) {
+        rpc.terminate().await;
+        return;
+    }
+    if sent.is_err() {
         events.fail(run_id, "Cannot submit the Pi request.");
         rpc.terminate().await;
         return;
@@ -611,9 +660,19 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                         events.fail(run_id, "Pi context changed. Start a new session.");
                         continue;
                     }
-                    let configured = rpc.configure(model.as_deref(), thinking_effort.as_deref()).await;
+                    let configured = await_controlled(
+                        &mut controls,
+                        &events,
+                        run_id,
+                        rpc.configure(model.as_deref(), thinking_effort.as_deref()),
+                    )
+                    .await;
                     let (active_model, active_thinking, selected_images, _) = match configured {
-                        Ok(configured) => configured,
+                        Ok(Some(configured)) => configured,
+                        Ok(None) => {
+                            rpc.terminate().await;
+                            break;
+                        }
                         Err(reason) => {
                             events.fail(run_id, &reason);
                             continue;
@@ -628,15 +687,37 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                         model: Some(active_model),
                         thinking_effort: active_thinking,
                     });
-                    let request = match prompt_command(run_id, &text, capture.as_ref()).await {
-                        Ok(request) => request,
+                    let prepared = await_controlled(
+                        &mut controls,
+                        &events,
+                        run_id,
+                        prompt_command(run_id, &text, capture.as_ref()),
+                    )
+                    .await;
+                    let request = match prepared {
+                        Ok(Some(request)) => request,
+                        Ok(None) => {
+                            rpc.terminate().await;
+                            break;
+                        }
                         Err(reason) => {
                             events.fail(run_id, &reason);
                             continue;
                         }
                     };
-                    if rpc.send(request).await.is_err() {
-                        events.fail(run_id, "Pi follow-up could not start.");
+                    let sent = await_controlled(
+                        &mut controls,
+                        &events,
+                        run_id,
+                        rpc.send(request),
+                    )
+                    .await;
+                    if matches!(sent, Ok(None)) {
+                        rpc.terminate().await;
+                        break;
+                    }
+                    if let Err(reason) = sent {
+                        events.fail(run_id, &reason);
                         rpc.terminate().await;
                         break;
                     }
@@ -686,8 +767,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                         rpc.terminate().await;
                         break;
                     }
-                    if acknowledged {
-                        if let Some(settlement) = settled.take() {
+                    if acknowledged && let Some(settlement) = settled.take() {
                             if settlement["aborted"] != true {
                                 let stats = tokio::select! {
                                     result = timeout(
@@ -718,7 +798,6 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                             observe(&settlement, id, &events);
                             active = None;
                             drop(active_capture.take());
-                        }
                     }
 
                 }
@@ -991,6 +1070,39 @@ mod tests {
         assert_eq!(usage.cached_input_tokens, 40000);
         assert_eq!(usage.reasoning_output_tokens, None);
         assert!(usage_snapshot(&json!({"tokens":{"input":7}})).is_none());
+    }
+
+    #[tokio::test]
+    async fn stop_interrupts_an_unresponsive_pi_setup_before_prompt() {
+        let snapshot = state();
+        let events = ProviderEvents::new(snapshot.clone());
+        let (sender, mut controls) = mpsc::channel(1);
+        sender.send(Control::Stop).await.unwrap();
+        let result = await_controlled(
+            &mut controls,
+            &events,
+            7,
+            std::future::pending::<Result<(), String>>(),
+        )
+        .await
+        .unwrap();
+        assert!(result.is_none());
+        assert_eq!(snapshot.borrow().status, "stopped");
+    }
+
+    #[test]
+    fn malformed_pi_rpc_frame_is_reported_without_waiting_for_request_timeout() {
+        assert!(protocol_parse_error(&json!({
+            "type":"response",
+            "command":"parse",
+            "success":false,
+            "error":"Invalid JSON"
+        })));
+        assert!(!protocol_parse_error(&json!({
+            "type":"response",
+            "command":"get_state",
+            "success":false
+        })));
     }
 
     #[test]
