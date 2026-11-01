@@ -150,7 +150,7 @@ export function ModelUsageSettings({
           className="mt-3 h-1.5 overflow-hidden rounded-full bg-otto-control"
           role="progressbar"
           aria-labelledby="otto-context-used-label"
-          aria-valuenow={contextUsed}
+          aria-valuenow={contextUsed ?? undefined}
           aria-valuemin={0}
           aria-valuemax={contextWindow ?? 0}
         >
