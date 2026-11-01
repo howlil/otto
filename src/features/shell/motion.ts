@@ -16,11 +16,7 @@ export function shouldAnimateNotch(
 }
 
 export function isContentResize(previous: NotchGeometry | null, next: NotchGeometry): boolean {
-  return (
-    previous !== null &&
-    previous.surface === next.surface &&
-    previous.height !== next.height
-  );
+  return previous !== null && previous.surface === next.surface && previous.height !== next.height;
 }
 
 export function measuredNotchHeight(height: number): number {

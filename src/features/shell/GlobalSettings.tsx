@@ -138,11 +138,11 @@ export function GlobalSettings({
                   Restore defaults
                 </Button>
                 <UpdateSettings update={update} />
-              {captureProtected === false ? (
-                <Text as="p" variant="caption" className="mt-3 text-otto-text-secondary">
-                  Screen capture protection is unavailable. Some recorders may show Otto.
-                </Text>
-              ) : null}
+                {captureProtected === false ? (
+                  <Text as="p" variant="caption" className="mt-3 text-otto-text-secondary">
+                    Screen capture protection is unavailable. Some recorders may show Otto.
+                  </Text>
+                ) : null}
               </>
             )}
             {tab === "interaction" && (

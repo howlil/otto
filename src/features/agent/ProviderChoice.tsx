@@ -87,14 +87,14 @@ export function ProviderChoice({
           </span>
           <span className="flex min-w-0 flex-1 flex-col gap-1.5">
             <span className="truncate text-otto-sm font-semibold">{displayName}</span>
-            <span className="truncate font-otto-mono text-otto-xs text-otto-muted">
-              {command}
-            </span>
+            <span className="truncate font-otto-mono text-otto-xs text-otto-muted">{command}</span>
           </span>
           {planned ? (
             <span className="shrink-0 text-otto-2xs text-otto-muted">Planned</span>
           ) : (
-            <span aria-hidden="true" className="shrink-0 text-otto-text-tertiary">›</span>
+            <span aria-hidden="true" className="shrink-0 text-otto-text-tertiary">
+              ›
+            </span>
           )}
         </>
       )}

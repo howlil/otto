@@ -53,14 +53,13 @@ export function TransitionContent({
         : direction === "back"
           ? "otto-page-back-enter"
           : "otto-page-forward-enter";
-  const exit =
-    isTab
-      ? "otto-tab-exit"
-      : kind === "compact"
-        ? "otto-compact-exit"
-        : direction === "back"
-          ? "otto-page-back-exit"
-          : "otto-page-forward-exit";
+  const exit = isTab
+    ? "otto-tab-exit"
+    : kind === "compact"
+      ? "otto-compact-exit"
+      : direction === "back"
+        ? "otto-page-back-exit"
+        : "otto-page-forward-exit";
 
   return (
     <div className={`relative min-w-0 ${className}`}>

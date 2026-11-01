@@ -70,8 +70,7 @@ export default function App() {
 
   const previousGeometry = useRef<NotchGeometry | null>(null);
   const measuredHeight =
-    expanded &&
-    (page === "agent" || page === "agent-settings" || page === "global-settings")
+    expanded && (page === "agent" || page === "agent-settings" || page === "global-settings")
       ? contentHeights[page]
       : undefined;
   useEffect(() => {
