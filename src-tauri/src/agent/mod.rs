@@ -4,6 +4,7 @@ mod recovery;
 pub mod session;
 
 use policy::InteractionMode;
+use providers::registry::ProviderId;
 use serde::Serialize;
 use session::{ApprovalDecision, PendingApproval};
 use std::{
@@ -36,6 +37,7 @@ pub struct ProviderReadiness {
     pub recovery: String,
 
     pub image_input: bool,
+    pub agent_session: bool,
 }
 
 impl ProviderReadiness {
@@ -45,6 +47,7 @@ impl ProviderReadiness {
             message: message.into(),
             recovery: recovery.into(),
             image_input: false,
+            agent_session: false,
         }
     }
 }
@@ -161,7 +164,7 @@ impl AgentRuntime {
             activity: None,
             approval: None,
             error: interrupted.then(|| {
-                "Previous Codex request may have been interrupted. No answer was restored. Ask again to start a new session.".into()
+                "Previous agent request may have been interrupted. No answer was restored. Ask again to start a new session.".into()
             }),
         });
         Self {
@@ -250,9 +253,7 @@ impl AgentRuntime {
     }
 
     pub async fn select_provider(&self, provider: String) -> Result<(), String> {
-        if provider != "codex" && provider != "pi" && provider != "agy" {
-            return Err("Unknown provider.".into());
-        }
+        ProviderId::parse(&provider).ok_or("Unknown provider.")?;
         let guard = self.control.lock().await;
         let current = self.snapshot();
         if matches!(
@@ -277,16 +278,13 @@ impl AgentRuntime {
         provider: &str,
         requested_cwd: Option<&str>,
     ) -> ProviderReadiness {
-        if provider == "codex" {
-            return self.codex_readiness(requested_cwd).await;
-        }
-        if provider != "pi" && provider != "agy" {
+        let Some(provider) = ProviderId::parse(provider) else {
             return ProviderReadiness::new(
                 "unsupported",
                 "Provider adapter unavailable.",
-                "Choose Codex, Pi, or Agy.",
+                "Choose a supported provider.",
             );
-        }
+        };
         let snapshot = self.snapshot();
         let directory = requested_cwd
             .filter(|value| !value.trim().is_empty())
@@ -298,44 +296,19 @@ impl AgentRuntime {
                 "Select a valid folder, then Retry.",
             );
         };
-        #[cfg(windows)]
-        {
-            if provider == "agy" {
-                providers::agy::readiness(&cwd).await
-            } else {
-                providers::pi::readiness(&cwd).await
-            }
-        }
-        #[cfg(not(windows))]
-        {
-            ProviderReadiness::new(
-                "unsupported",
-                "Local CLI adapters require Windows.",
-                "Run Otto on Windows.",
-            )
-        }
-    }
-
-    pub async fn codex_readiness(&self, requested_cwd: Option<&str>) -> ProviderReadiness {
-        let snapshot = self.snapshot();
-        let directory = requested_cwd
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or(&snapshot.cwd);
-        let Ok(cwd) = std::fs::canonicalize(directory) else {
-            return ProviderReadiness::new(
-                "unavailable",
-                "Working project folder does not exist.",
-                "Select a valid project folder, then Retry.",
-            );
-        };
         if !cwd.is_dir() {
             return ProviderReadiness::new(
                 "unavailable",
                 "Working project must be a folder.",
-                "Select a valid project folder, then Retry.",
+                "Select a valid folder, then Retry.",
             );
         }
-        providers::codex::readiness(&cwd).await
+        provider.readiness(&cwd).await
+    }
+
+    pub async fn codex_readiness(&self, requested_cwd: Option<&str>) -> ProviderReadiness {
+        self.provider_readiness(ProviderId::Codex.as_str(), requested_cwd)
+            .await
     }
 
     #[cfg(windows)]
@@ -351,7 +324,9 @@ impl AgentRuntime {
         ) {
             return Err("Finish or Stop the current answer before capturing.".into());
         }
-        if state.provider == "agy" {
+        if !ProviderId::parse(&state.provider)
+            .is_some_and(ProviderId::image_transport)
+        {
             return Err("Agy headless streaming accepts text only. Select Codex or Pi.".into());
         }
         if state.thread_id.is_some() && state.mode != "quickAsk" {
@@ -435,22 +410,13 @@ impl AgentRuntime {
             return Err("Enter a question (up to 12,000 bytes).".into());
         }
         let mode = InteractionMode::parse(&mode)?;
-        if provider != "codex" && provider != "pi" && provider != "agy" {
-            return Err("Selected provider is unavailable.".into());
-        }
-        if (provider == "pi" || provider == "agy") && mode != InteractionMode::QuickAsk {
-            return Err("This provider supports tool-free Quick Ask only.".into());
-        }
-        if provider == "agy" && capture.is_some() {
-            return Err("Agy headless streaming accepts text only.".into());
-        }
+        let selected = ProviderId::parse(&provider)
+            .ok_or("Selected provider is unavailable.")?;
+        selected.validate(mode, capture.is_some())?;
         let cwd =
             std::fs::canonicalize(cwd).map_err(|_| "Working folder does not exist.".to_string())?;
         if !cwd.is_dir() {
             return Err("Working context must be a folder.".into());
-        }
-        if provider == "codex" && !self.codex_installed() {
-            return Err("Codex executable not found. Install Codex CLI, then retry.".into());
         }
         let mut guard = self.control.lock().await;
         let current = self.snapshot();
@@ -495,7 +461,7 @@ impl AgentRuntime {
             let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
             let permit = sender
                 .try_reserve()
-                .map_err(|_| "Codex is busy. Try again.".to_string())?;
+                .map_err(|_| "Agent provider is busy. Try again.".to_string())?;
 
             if let Some(marker) = &self.recovery {
                 marker.mark(run_id);
@@ -540,19 +506,7 @@ impl AgentRuntime {
                 run_id,
                 capture,
             };
-            if provider == "pi" {
-                #[cfg(windows)]
-                providers::pi::run(rx, updates.clone(), initial).await;
-                #[cfg(not(windows))]
-                fail(&updates, run_id, "Pi requires Windows.");
-            } else if provider == "agy" {
-                #[cfg(windows)]
-                providers::agy::run(rx, updates.clone(), initial).await;
-                #[cfg(not(windows))]
-                fail(&updates, run_id, "Agy requires Windows.");
-            } else {
-                providers::codex::run(rx, updates.clone(), initial, mode).await;
-            }
+            selected.run(rx, updates, initial, mode).await;
         });
         *guard = Some(tx);
         Ok(())
@@ -579,7 +533,7 @@ impl AgentRuntime {
                     claimed: Arc::clone(&claimed),
                     finished,
                 })
-                .map_err(|_| "Codex is busy. Try again.".to_string())?;
+                .map_err(|_| "Agent provider is busy. Try again.".to_string())?;
             match timeout(Duration::from_secs(5), &mut closed).await {
                 Ok(Ok(())) => {}
                 Ok(Err(_)) => {
@@ -634,10 +588,10 @@ impl AgentRuntime {
         if pending.approval_id != approval_id || pending.run_id != current.run_id {
             return Err("That approval is no longer current. Ignored.".into());
         }
-        let sender = guard.as_ref().ok_or("No active Codex process.")?;
+        let sender = guard.as_ref().ok_or("No active agent process.")?;
         let permit = sender
             .try_reserve()
-            .map_err(|_| "Codex is busy. Try again.".to_string())?;
+            .map_err(|_| "Agent provider is busy. Try again.".to_string())?;
 
         mutate(&self.updates, |s| {
             if s.status == "approvalRequired" {
@@ -659,12 +613,12 @@ impl AgentRuntime {
             self.snapshot().status.as_str(),
             "starting" | "streaming" | "approvalRequired"
         ) {
-            return Err("No active Codex turn.".into());
+            return Err("No active agent turn.".into());
         }
-        let sender = guard.as_ref().ok_or("No active Codex process.")?;
+        let sender = guard.as_ref().ok_or("No active agent process.")?;
         let permit = sender
             .try_reserve()
-            .map_err(|_| "Codex is busy; retry Stop.".to_string())?;
+            .map_err(|_| "Agent is busy; retry Stop.".to_string())?;
 
         mutate(&self.updates, |s| {
             if matches!(
