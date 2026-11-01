@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: B4 source fail-closed native hotkey gate and Windows test.
+# Verification dispatch: B4 transient focus target regression and Clippy fix.
 
 'on':
   push:
