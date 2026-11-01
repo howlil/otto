@@ -567,7 +567,7 @@ input:focus-visible {
   margin-top: 12px !important;
 }
 
-/* Agent compact/expanded, based on design/agent.html */
+/* Agent Compact/Expanded — canonical reference: design/otto.html */
 
 .otto-agent-head {
   height: 53px;
