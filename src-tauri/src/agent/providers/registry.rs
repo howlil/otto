@@ -76,7 +76,9 @@ impl ProviderId {
         mode: InteractionMode,
     ) {
         match self {
-            Self::Codex => super::codex::run(controls, ProviderEvents::new(updates), initial, mode).await,
+            Self::Codex => {
+                super::codex::run(controls, ProviderEvents::new(updates), initial, mode).await
+            }
             #[cfg(windows)]
             Self::Pi => super::pi::run(controls, ProviderEvents::new(updates), initial).await,
             #[cfg(windows)]
