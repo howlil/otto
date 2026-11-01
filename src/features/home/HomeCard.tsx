@@ -77,20 +77,20 @@ export function HomeCard({
     <button
       ref={buttonRef}
       type="button"
-      className={`group relative isolate block h-[76px] min-w-0 overflow-hidden rounded-[15px] border border-otto-line-strong px-[13px] py-[11px] text-left text-otto-text transition-[transform,border-color,background] duration-[260ms] ease-otto [--art-tilt:43deg] [--dx:0px] [--dy:0px] [--shimmer:0.8] before:pointer-events-none before:absolute before:inset-0 before:z-[1] before:bg-[radial-gradient(ellipse_120px_100px_at_78%_30%,var(--color-otto-art-halo),transparent_70%)] before:opacity-[var(--shimmer)] before:mix-blend-screen before:transition-opacity before:duration-[250ms] after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:bg-[linear-gradient(90deg,var(--color-otto-art-overlay-start)_0%,var(--color-otto-art-overlay-middle)_29%,var(--color-otto-art-overlay-end)_64%,transparent_100%)] hover:border-otto-line-hover focus-visible:border-otto-line-hover active:scale-[0.985] ${backgroundClass} ${entryMotion}`}
+      className={`group relative isolate block h-[76px] min-w-0 overflow-hidden rounded-[15px] border border-otto-home-card-border py-[11px] pl-[13px] pr-[10px] text-left text-otto-text transition-[transform,border-color,background] duration-[260ms] ease-otto [--art-tilt:43deg] [--dx:0px] [--dy:0px] [--shimmer:0.8] before:pointer-events-none before:absolute before:inset-0 before:z-[1] before:bg-[radial-gradient(ellipse_120px_98px_at_78%_25%,var(--color-otto-art-halo),transparent_72%)] before:opacity-100 before:mix-blend-screen before:transition-opacity before:duration-[250ms] after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:bg-[linear-gradient(90deg,var(--color-otto-art-overlay-start)_0%,var(--color-otto-art-overlay-middle)_29%,var(--color-otto-art-overlay-end)_64%,transparent_100%)] hover:border-otto-line-hover focus-visible:border-otto-line-hover active:scale-[0.985] ${backgroundClass} ${entryMotion}`}
       onClick={onClick}
       onPointerMove={move}
       onPointerLeave={reset}
       style={{ "--art-tilt": `${tilt}deg`, "--shimmer": String(gradient / 100) } as CSSProperties}
     >
       <span className="pointer-events-none relative z-[3] flex h-full max-w-[81%] flex-col justify-center whitespace-nowrap">
-        <strong className="text-otto-md font-[550] leading-[1.2]">{name}</strong>
-        <Text as="small" variant="meta" className="mt-1.5 text-otto-text-floating-muted">
+        <strong className="text-otto-home-card-title text-otto-md font-[550] leading-[1.2]">{name}</strong>
+        <Text as="small" variant="meta" className="mt-1.5 text-otto-home-card-subtitle">
           {subtitle}
         </Text>
       </span>
       <img
-        className="pointer-events-none absolute right-[-7px] top-[-23px] z-0 h-[132px] w-[148px] select-none object-contain opacity-[0.91] [transform:perspective(380px)_rotateY(calc(-1*var(--art-tilt)))_rotateZ(-6deg)_translate3d(var(--dx),var(--dy),0)] [transform-origin:60%_50%] transition-[transform,opacity] duration-[370ms] ease-otto group-hover:opacity-100 group-data-[tracking=true]:transition-opacity group-data-[tracking=true]:duration-[240ms]"
+        className="pointer-events-none absolute right-[-7px] top-[-23px] z-0 h-[132px] w-[148px] select-none object-contain opacity-90 [transform:perspective(380px)_rotateY(calc(-1*var(--art-tilt)))_rotateZ(-6deg)_translate3d(var(--dx),var(--dy),0)] [transform-origin:60%_50%] transition-[transform,opacity] duration-[370ms] ease-otto group-hover:opacity-100 group-data-[tracking=true]:transition-opacity group-data-[tracking=true]:duration-[240ms]"
         src={artwork}
         alt=""
         draggable={false}
