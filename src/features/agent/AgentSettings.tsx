@@ -100,9 +100,21 @@ export function AgentSettings({
         </nav>
         <div className="min-h-0 min-w-0 overflow-y-auto px-[17px] pb-5 pt-[15px] [overscroll-behavior:contain] [scrollbar-width:none]">
           <Text as="h2" variant="heading" className="mb-1">
-            {tab === "mode" ? "Interaction mode" : tab === "workspace" ? "Working project" : tab === "usage" ? "Model & usage" : tab === "capture" ? "Screen Capture" : "Provider"}
+            {tab === "mode"
+              ? "Interaction mode"
+              : tab === "workspace"
+                ? "Working project"
+                : tab === "usage"
+                  ? "Model & usage"
+                  : tab === "capture"
+                    ? "Screen Capture"
+                    : "Provider"}
           </Text>
-          <Text as="p" variant="meta" className="mb-[15px] block leading-[1.5] text-otto-text-tertiary">
+          <Text
+            as="p"
+            variant="meta"
+            className="mb-[15px] block leading-[1.5] text-otto-text-tertiary"
+          >
             {introductions[tab]}
           </Text>
           {busy && (
