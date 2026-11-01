@@ -5,10 +5,6 @@ import { resolveSurface, useNotchShell } from "./features/shell";
 import { setNotchSurface } from "./platform/tauri";
 import type { AgentSnapshot, ProviderReadiness } from "./platform/tauri";
 
-function hasAmbientAgent(isAgent: boolean, snapshot: AgentSnapshot, error: string | null) {
-  return isAgent || snapshot.status !== "idle" || Boolean(error) || snapshot.messages.length > 0;
-}
-
 function agentHomeSubtitle(
   snapshot: AgentSnapshot,
   readiness: ProviderReadiness,
@@ -47,7 +43,6 @@ export default function App() {
     page,
     agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
   });
-  const ambientAgent = hasAmbientAgent(isAgent, agent.snapshot, agent.error);
   const agentHomeCopy = agentHomeSubtitle(agent.snapshot, agent.readiness, agent.error);
   const artProps = {
     parallax: prefs.parallax,
@@ -90,7 +85,6 @@ export default function App() {
       agent={agent}
       shell={shell}
       surfaceError={surfaceError}
-      ambientAgent={ambientAgent}
       agentHomeCopy={agentHomeCopy}
       artProps={artProps}
     />

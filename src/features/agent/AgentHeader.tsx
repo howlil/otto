@@ -15,7 +15,7 @@ export function AgentHeader({
   eventMotion,
   onSettings,
   onSettingsBack,
-  onCollapse,
+  onHome,
 }: {
   settings: boolean;
   project: string;
@@ -27,7 +27,7 @@ export function AgentHeader({
   eventMotion?: string;
   onSettings: () => void;
   onSettingsBack: () => void;
-  onCollapse: () => void;
+  onHome: () => void;
 }) {
   const back = useRef<HTMLButtonElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
@@ -60,10 +60,10 @@ export function AgentHeader({
         <button
           className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-otto-panel border-0 bg-otto-raised-soft text-otto-control-text transition-[background,transform] duration-150 hover:bg-otto-line-mid active:scale-[0.96]"
           type="button"
-          onClick={onCollapse}
+          onClick={onHome}
         >
           <Eyes mini />
-          <VisuallyHidden>Collapse Agent</VisuallyHidden>
+          <VisuallyHidden>Return to Home</VisuallyHidden>
         </button>
       )}
       <div className="min-w-0 flex-1">

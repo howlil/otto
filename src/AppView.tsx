@@ -12,14 +12,12 @@ export function ShellView({
   agent,
   shell,
   surfaceError,
-  ambientAgent,
   agentHomeCopy,
   artProps,
 }: {
   agent: AgentModel;
   shell: ShellModel;
   surfaceError: string | null;
-  ambientAgent: boolean;
   agentHomeCopy: string;
   artProps: {
     parallax: boolean;
@@ -43,7 +41,6 @@ export function ShellView({
       <ShellContent
         agent={agent}
         shell={shell}
-        ambientAgent={ambientAgent}
         agentHomeCopy={agentHomeCopy}
         artProps={artProps}
       />
@@ -55,13 +52,11 @@ export function ShellView({
 function ShellContent({
   agent,
   shell,
-  ambientAgent,
   agentHomeCopy,
   artProps,
 }: {
   agent: AgentModel;
   shell: ShellModel;
-  ambientAgent: boolean;
   agentHomeCopy: string;
   artProps: {
     parallax: boolean;
@@ -97,7 +92,7 @@ function ShellContent({
         </button>
       )}
       {!expanded ? (
-        ambientAgent ? (
+        isAgent ? (
           <AgentCapsule
             snapshot={agent.snapshot}
             installed={agent.installed}
@@ -133,7 +128,6 @@ function ShellContent({
           onSettings={() => shell.open("agent-settings")}
           onSettingsBack={() => shell.setPage("agent")}
           onBack={() => shell.open("home")}
-          onCollapse={shell.collapse}
           motionClass={`${surfaceMotion} ${nudgeMotion}`.trim()}
           eventMotion={shell.eventMotion}
         />

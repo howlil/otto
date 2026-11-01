@@ -10,7 +10,6 @@ type Props = {
   onSettings: () => void;
   onSettingsBack: () => void;
   onBack: () => void;
-  onCollapse: () => void;
   motionClass?: string;
   eventMotion?: string;
 };
@@ -21,7 +20,6 @@ export function AgentPanel({
   onSettings,
   onSettingsBack,
   onBack,
-  onCollapse,
   motionClass = "",
   eventMotion,
 }: Props) {
@@ -79,7 +77,7 @@ export function AgentPanel({
           onSettings();
         }}
         onSettingsBack={onSettingsBack}
-        onCollapse={onCollapse}
+        onHome={onBack}
       />
       {settings ? (
         <AgentSettings
