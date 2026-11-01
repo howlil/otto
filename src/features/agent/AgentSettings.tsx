@@ -1,7 +1,12 @@
 import { useEffect } from "react";
 import { Button, ChoiceGroup, StatusMessage, Text, TextField } from "../../shared/ui";
 import type { CaptureShortcutModel } from "./view-model";
-import type { AgentMode, AgentStatus, CaptureSource, ProviderReadiness } from "../../platform/tauri";
+import type {
+  AgentMode,
+  AgentStatus,
+  CaptureSource,
+  ProviderReadiness,
+} from "../../platform/tauri";
 import { ModeSettings, ProjectSettings, ProviderSettings } from "./AgentSettingsSections";
 import { agentStatusLabel } from "./status";
 
@@ -42,7 +47,16 @@ export function AgentSettings({
   capture: CaptureShortcutModel;
   focusCaptureShortcut: boolean;
 }) {
-  const { source, selectSource, shortcut, setShortcut, captureMessage, savingCapture, available, saveShortcut } = capture;
+  const {
+    source,
+    selectSource,
+    shortcut,
+    setShortcut,
+    captureMessage,
+    savingCapture,
+    available,
+    saveShortcut,
+  } = capture;
   useEffect(() => {
     if (!focusCaptureShortcut || !available) return;
     const frame = requestAnimationFrame(() => {

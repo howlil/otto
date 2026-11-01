@@ -1,4 +1,9 @@
-import type { AgentMode, AgentSnapshot, CaptureSource, ProviderReadiness } from "../../platform/tauri";
+import type {
+  AgentMode,
+  AgentSnapshot,
+  CaptureSource,
+  ProviderReadiness,
+} from "../../platform/tauri";
 import type { AgentErrorKind } from "./useAgent";
 
 export type AgentTranscriptModel = {
