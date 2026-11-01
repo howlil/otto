@@ -15,7 +15,7 @@ use tokio::{
 };
 
 const AGENT_NAME: &str = "otto-quick-ask";
-const AGENT_DEFINITION: &str = "---\nname: otto-quick-ask\ndescription: Tool-free text answers from Otto.\nmainAgent: true\nsubagent: false\ntools: []\ncommandExecutionPolicy: off\ninheritMcp: false\ninheritCustomizations: false\n---\nAnswer the user's question without executing tools or modifying any files.\n";
+const AGENT_DEFINITION: &str = "---\nname: otto-quick-ask\ndescription: Tool-free text answers from Otto.\nmainAgent: true\nsubagent: false\ntools: []\ncommandExecutionPolicy: \"off\"\ninheritMcp: false\ninheritCustomizations: false\n---\nAnswer the user's question without executing tools or modifying any files.\n";
 
 pub fn executable() -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
@@ -254,6 +254,10 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
     }
 }
 
+fn result_confirms_prompt(frame: &Value) -> bool {
+    frame["event"] == "result" && frame["result"]["status"] == "SUCCESS"
+}
+
 fn begin(updates: &watch::Sender<Snapshot>, id: u64, text: &str) {
     mutate(updates, |s| {
         if s.run_id != id || s.status != "starting" {
@@ -457,7 +461,7 @@ pub async fn run(
                         }
                         continue;
                     }
-                    if value["event"] == "result" && !acknowledged {
+                    if result_confirms_prompt(&value) && !acknowledged {
                         acknowledged = true;
                         begin(&updates, id, &pending_text);
                     }
@@ -544,6 +548,36 @@ mod tests {
         assert!(available_models(&json!({"models":[{"id":"gemini"}]})));
         assert!(!available_models(&json!({"models":[]})));
         assert!(!available_models(&json!({"message":"auth required"})));
+    }
+
+    #[test]
+    fn failed_result_before_user_input_does_not_acknowledge_prompt() {
+        assert!(!result_confirms_prompt(
+            &json!({"event":"result","result":{"status":"ERROR","response":""}})
+        ));
+        assert!(result_confirms_prompt(
+            &json!({"event":"result","result":{"status":"SUCCESS","response":"done"}})
+        ));
+        let (tx, _) = watch::channel(Snapshot {
+            run_id: 9,
+            seq: 0,
+            status: "starting".into(),
+            mode: "quickAsk".into(),
+            provider: "agy".into(),
+            cwd: String::new(),
+            thread_id: None,
+            messages: vec![],
+            activity: None,
+            approval: None,
+            error: None,
+        });
+        assert!(observe(
+            &json!({"event":"result","result":{"status":"ERROR","response":""}}),
+            9,
+            &tx
+        ));
+        assert_eq!(tx.borrow().status, "failed");
+        assert!(tx.borrow().messages.is_empty());
     }
 
     #[test]
