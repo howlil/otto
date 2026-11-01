@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: Pi B3 capture regression compile and Clippy at 28868e94.
+# Verification dispatch: B3 three-provider scope and draft reconciliation proof.
 
 'on':
   push:
@@ -31,6 +31,8 @@ jobs:
         run: bun run build
       - name: Biome lint and formatting
         run: bun run check
+      - name: Critical frontend draft behavior
+        run: bun run test:frontend:critical
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
