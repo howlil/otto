@@ -255,7 +255,7 @@ fn capture_image(
             DIB_RGB_COLORS,
         )
     };
-    if copied != height as i32 {
+    if copied != height {
         return Err("Cannot read the rendered target pixels.".into());
     }
 
