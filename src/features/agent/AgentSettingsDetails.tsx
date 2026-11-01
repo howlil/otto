@@ -1,5 +1,5 @@
 import { Button, StatusMessage, Text } from "../../shared/ui";
-import type { AgentStatus, ProviderReadiness } from "../../platform/tauri";
+import type { AgentStatus } from "../../platform/tauri";
 import { AgentCaptureSettings } from "./AgentCaptureSettings";
 import type { AgentSettingsProps } from "./AgentSettings";
 import type { AgentSettingsTab } from "./AgentSettingsNavigation";
