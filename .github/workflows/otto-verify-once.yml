@@ -1,6 +1,6 @@
 name: Otto Windows verification (on demand)
 # Run only on deliberate workflow updates in feature branches, or manual dispatch. No per-source-push CI.
-# Verification dispatch: Pi reducer registry import fix and complete Windows gates.
+# Verification dispatch: Pi and Agy normalized stream reducer with Clippy fix.
 
 'on':
   push:
