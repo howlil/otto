@@ -250,7 +250,7 @@ impl AgentRuntime {
     }
 
     pub async fn select_provider(&self, provider: String) -> Result<(), String> {
-        if provider != "codex" && provider != "pi" {
+        if provider != "codex" && provider != "pi" && provider != "agy" {
             return Err("Unknown provider.".into());
         }
         let guard = self.control.lock().await;
@@ -280,11 +280,11 @@ impl AgentRuntime {
         if provider == "codex" {
             return self.codex_readiness(requested_cwd).await;
         }
-        if provider != "pi" {
+        if provider != "pi" && provider != "agy" {
             return ProviderReadiness::new(
                 "unsupported",
                 "Provider adapter unavailable.",
-                "Choose Codex or Pi.",
+                "Choose Codex, Pi, or Agy.",
             );
         }
         let snapshot = self.snapshot();
@@ -300,13 +300,17 @@ impl AgentRuntime {
         };
         #[cfg(windows)]
         {
-            providers::pi::readiness(&cwd).await
+            if provider == "agy" {
+                providers::agy::readiness(&cwd).await
+            } else {
+                providers::pi::readiness(&cwd).await
+            }
         }
         #[cfg(not(windows))]
         {
             ProviderReadiness::new(
                 "unsupported",
-                "Pi requires Windows.",
+                "Local CLI adapters require Windows.",
                 "Run Otto on Windows.",
             )
         }
@@ -428,11 +432,13 @@ impl AgentRuntime {
             return Err("Enter a question (up to 12,000 bytes).".into());
         }
         let mode = InteractionMode::parse(&mode)?;
-        if provider != "codex" && provider != "pi" {
+        if provider != "codex" && provider != "pi" && provider != "agy" {
             return Err("Selected provider is unavailable.".into());
         }
-        if provider == "pi" && (mode != InteractionMode::QuickAsk || capture.is_some()) {
-            return Err("Pi currently supports text-only Quick Ask with no tools.".into());
+        if (provider == "pi" || provider == "agy")
+            && (mode != InteractionMode::QuickAsk || capture.is_some())
+        {
+            return Err("This provider supports tool-free text Quick Ask only.".into());
         }
         let cwd =
             std::fs::canonicalize(cwd).map_err(|_| "Working folder does not exist.".to_string())?;
@@ -535,6 +541,11 @@ impl AgentRuntime {
                 providers::pi::run(rx, updates.clone(), initial).await;
                 #[cfg(not(windows))]
                 fail(&updates, run_id, "Pi requires Windows.");
+            } else if provider == "agy" {
+                #[cfg(windows)]
+                providers::agy::run(rx, updates.clone(), initial).await;
+                #[cfg(not(windows))]
+                fail(&updates, run_id, "Agy requires Windows.");
             } else {
                 providers::codex::run(rx, updates.clone(), initial, mode).await;
             }
