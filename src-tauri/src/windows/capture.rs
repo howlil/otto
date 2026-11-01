@@ -389,8 +389,9 @@ fn run_hotkeys(app: tauri::AppHandle, changes: Receiver<HotkeyChange>, ready: Sy
                 let runtime = handle.state::<AgentRuntime>();
                 match target {
                     Ok(window) => {
-                        if let Err(reason) =
-                            runtime.capture_hotkey(move || capture_foreground(window)).await
+                        if let Err(reason) = runtime
+                            .capture_hotkey(move || capture_foreground(window))
+                            .await
                         {
                             runtime.capture_error(&reason);
                         }
