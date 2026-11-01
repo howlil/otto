@@ -681,7 +681,8 @@ mod tests {
         let (mut output, input) = tokio::io::duplex(64);
         let mut reader = BufReader::with_capacity(4, input);
         let mut pending = Vec::new();
-        output.write_all(b"{\\"event\\":").await.unwrap();
+        let payload = br#"{\"event\":\"init\"}"#;
+        output.write_all(&payload[..9]).await.unwrap();
         assert!(
             timeout(
                 Duration::from_millis(30),
@@ -691,7 +692,8 @@ mod tests {
             .is_err()
         );
         assert!(!pending.is_empty());
-        output.write_all(b"\\"init\\"}\\n").await.unwrap();
+        output.write_all(&payload[9..]).await.unwrap();
+        output.write_all(b"\n").await.unwrap();
         assert_eq!(
             read_frame(&mut reader, &mut pending).await.unwrap().unwrap()["event"],
             "init"
