@@ -33,6 +33,7 @@ export type AgentSettingsProps = {
   capture: CaptureShortcutModel;
   focusCaptureShortcut: boolean;
   onMeasured: (height: number) => void;
+  reducedMotion: boolean;
 };
 
 export function AgentSettings(props: AgentSettingsProps) {
