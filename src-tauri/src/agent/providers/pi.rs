@@ -67,14 +67,8 @@ impl Rpc {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .kill_on_drop(true);
-        let mut child = command.spawn().map_err(|_| "Cannot launch Pi RPC mode.")?;
-        let job = match child.id().and_then(|pid| Job::attach(pid).ok()) {
-            Some(job) => job,
-            None => {
-                let _ = child.start_kill();
-                return Err("Cannot isolate the Pi process tree.".into());
-            }
-        };
+        let (job, mut child) = Job::spawn(&mut command)
+            .map_err(|_| "Cannot launch an isolated Pi process tree.")?;
         let stdin = child.stdin.take().ok_or("Pi stdin unavailable.")?;
         let stdout = child.stdout.take().ok_or("Pi stdout unavailable.")?;
         Ok(Self {

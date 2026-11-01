@@ -572,15 +572,11 @@ impl Rpc {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .kill_on_drop(true);
-        let mut child = cmd.spawn().map_err(|_| "Cannot start Codex CLI.")?;
         #[cfg(windows)]
-        let job = match child.id().and_then(|pid| super::job::Job::attach(pid).ok()) {
-            Some(job) => job,
-            None => {
-                let _ = child.start_kill();
-                return Err("Cannot isolate the Codex process tree on Windows.".into());
-            }
-        };
+        let (job, mut child) = super::job::Job::spawn(&mut cmd)
+            .map_err(|_| "Cannot launch an isolated Codex process tree on Windows.")?;
+        #[cfg(not(windows))]
+        let mut child = cmd.spawn().map_err(|_| "Cannot start Codex CLI.")?;
         let stdin = child.stdin.take().ok_or("Codex stdin unavailable.")?;
         let stdout = child.stdout.take().ok_or("Codex stdout unavailable.")?;
         Ok(Self {

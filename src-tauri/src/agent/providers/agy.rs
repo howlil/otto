@@ -112,16 +112,8 @@ impl Rpc {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .kill_on_drop(true);
-        let mut child = command
-            .spawn()
-            .map_err(|_| "Cannot start Agy stream-json mode.")?;
-        let job = match child.id().and_then(|pid| Job::attach(pid).ok()) {
-            Some(job) => job,
-            None => {
-                let _ = child.start_kill();
-                return Err("Cannot isolate the Agy process tree.".into());
-            }
-        };
+        let (job, mut child) = Job::spawn(&mut command)
+            .map_err(|_| "Cannot launch an isolated Agy process tree.")?;
         let stdin = child.stdin.take().ok_or("Agy stdin unavailable.")?;
         let stdout = child.stdout.take().ok_or("Agy stdout unavailable.")?;
         Ok(Self {
