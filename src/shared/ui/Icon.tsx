@@ -5,6 +5,7 @@ import {
   CircleAlert,
   Copy,
   Folder,
+  MoreHorizontal,
   Send,
   Settings,
   Square,
@@ -25,6 +26,7 @@ const icons = {
   alert: TriangleAlert,
   unavailable: CircleAlert,
   terminal: Terminal,
+  actions: MoreHorizontal,
 } as const;
 
 export type IconName = keyof typeof icons;

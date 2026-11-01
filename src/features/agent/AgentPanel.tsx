@@ -40,6 +40,7 @@ export function AgentPanel({
   const [denied, setDenied] = useState(false);
   const [captureSettingsEntry, setCaptureSettingsEntry] = useState(false);
   const [captureActionError, setCaptureActionError] = useState<string | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const approval = snapshot.approval;
   const approvalPending = snapshot.status === "approvalRequired" && Boolean(approval);
   const project =
@@ -74,7 +75,10 @@ export function AgentPanel({
         readiness={readiness.status}
         activity={Boolean(snapshot.activity)}
         eventMotion={eventMotion}
+        actionsOpen={actionsOpen}
+        onActions={() => setActionsOpen((open) => !open)}
         onSettings={() => {
+          setActionsOpen(false);
           setCaptureSettingsEntry(false);
           onSettings();
         }}
@@ -109,6 +113,8 @@ export function AgentPanel({
           approvalPending={approvalPending}
           onDenied={() => setDenied(true)}
           captureActionError={captureActionError}
+          actionsOpen={actionsOpen}
+          setActionsOpen={setActionsOpen}
           onCapture={() => {
             setCaptureActionError(null);
             void captureAgentNow().catch((error: unknown) =>

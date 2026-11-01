@@ -16,6 +16,8 @@ export function AgentHeader({
   onSettings,
   onSettingsBack,
   onHome,
+  actionsOpen,
+  onActions,
 }: {
   settings: boolean;
   project: string;
@@ -28,6 +30,8 @@ export function AgentHeader({
   onSettings: () => void;
   onSettingsBack: () => void;
   onHome: () => void;
+  actionsOpen: boolean;
+  onActions: () => void;
 }) {
   const back = useRef<HTMLButtonElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
@@ -104,6 +108,15 @@ export function AgentHeader({
                 : agentStatusLabel(status, readiness)}
             </Text>
           </span>
+          <IconButton
+            id="otto-conversation-actions"
+            icon="actions"
+            label="Conversation actions"
+            variant="quiet"
+            aria-expanded={actionsOpen}
+            aria-controls="otto-conversation-menu"
+            onClick={onActions}
+          />
           <IconButton
             icon="settings"
             label="Agent settings"

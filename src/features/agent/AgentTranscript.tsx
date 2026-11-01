@@ -20,6 +20,8 @@ export function AgentTranscript({
   onConfigureCapture,
   onCapture,
   captureActionError,
+  actionsOpen,
+  setActionsOpen,
 }: {
   agent: AgentTranscriptModel;
   denied: boolean;
@@ -28,6 +30,8 @@ export function AgentTranscript({
   onConfigureCapture: () => void;
   onCapture: () => void;
   captureActionError: string | null;
+  actionsOpen: boolean;
+  setActionsOpen: (open: boolean) => void;
 }) {
   const {
     snapshot,
@@ -105,6 +109,8 @@ export function AgentTranscript({
     <>
       <ConversationToolbar
         messageCount={snapshot.messages.length}
+        actionsOpen={actionsOpen}
+        setActionsOpen={setActionsOpen}
         searchOpen={searchOpen}
         searchTerm={searchTerm}
         matchCursor={matchCursor}
