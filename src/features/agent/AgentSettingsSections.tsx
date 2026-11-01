@@ -27,10 +27,18 @@ export function ProviderSettings({
 }) {
   return (
     <section className="border-b border-otto-raised-deep pb-3">
-      <Text as="span" variant="label" className="mb-[9px] block text-otto-text-secondary" id="otto-provider-label">
+      <Text
+        as="span"
+        variant="label"
+        className="mb-[9px] block text-otto-text-secondary"
+        id="otto-provider-label"
+      >
         Local CLI
       </Text>
-      <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0" aria-labelledby="otto-provider-label">
+      <fieldset
+        className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0"
+        aria-labelledby="otto-provider-label"
+      >
         {providers.map(({ name, detail }) => {
           const selected = name.toLowerCase() === provider;
           return (
@@ -95,7 +103,11 @@ export function ModeSettings({
         onChange={setMode}
         choices={[
           { value: "quickAsk", label: "Quick Ask", help: "Follow-up supported · no file changes" },
-          { value: "agentSession", label: "Agent Session", help: "Codex only · tools require approval" },
+          {
+            value: "agentSession",
+            label: "Agent Session",
+            help: "Codex only · tools require approval",
+          },
         ]}
       />
       <StatusMessage
