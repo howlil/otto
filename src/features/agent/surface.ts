@@ -44,8 +44,7 @@ export function compactDetail(
   }
   if (error) return `${project} · Connection issue`;
   if (installed === false) return `${project} · ${readiness.message}`;
-  if (readiness.status === "checking")
-    return `${project} · Checking ${snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex"}`;
+  if (readiness.status === "checking") return `${project} · Open Agent to check`;
   if (snapshot.status === "idle") return `${project} · Ready`;
   return `${project} · ${agentStatusLabel(snapshot.status)}`;
 }

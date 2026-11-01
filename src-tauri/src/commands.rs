@@ -39,10 +39,16 @@ pub async fn agent_provider_readiness(
     provider: String,
     cwd: Option<String>,
     model: Option<String>,
+    request_id: u64,
 ) -> Result<crate::agent::ProviderReadiness, String> {
-    Ok(runtime
-        .provider_readiness_for(&provider, cwd.as_deref(), model.as_deref())
-        .await)
+    runtime
+        .probe_provider_readiness(request_id, &provider, cwd.as_deref(), model.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub fn agent_cancel_provider_readiness(runtime: State<'_, AgentRuntime>, request_id: u64) {
+    runtime.cancel_provider_readiness(request_id);
 }
 
 #[tauri::command]
@@ -330,6 +336,7 @@ pub async fn notch_set_surface(
     top_offset: u32,
     animate: bool,
     content_height: Option<u32>,
+    content_only: bool,
 ) -> Result<(), String> {
     if surface_size(&surface).is_none() {
         return Err("Invalid notch surface.".to_string());
@@ -354,7 +361,8 @@ pub async fn notch_set_surface(
         return frame.apply(&window, target_w, target_h, top_offset);
     }
     let start = tokio::time::Instant::now();
-    let duration = std::time::Duration::from_millis(420);
+    let height_only = content_only && (start_w - target_w).abs() < 1.0;
+    let duration = std::time::Duration::from_millis(if height_only { 170 } else { 420 });
     let mut tick = tokio::time::interval(std::time::Duration::from_millis(16));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     tick.tick().await;
@@ -374,6 +382,9 @@ pub async fn notch_set_surface(
         tick.tick().await;
     }
 
+    if motion.epoch.load(Ordering::SeqCst) != token {
+        return Ok(());
+    }
     frame.apply(&window, target_w, target_h, top_offset)
 }
 

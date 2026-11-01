@@ -33,31 +33,40 @@ export type AgentSettingsProps = {
   capture: CaptureShortcutModel;
   focusCaptureShortcut: boolean;
   onMeasured: (height: number) => void;
+  reducedMotion: boolean;
 };
 
 export function AgentSettings(props: AgentSettingsProps) {
   const [tab, setTab] = useState<AgentSettingsTab>("setup");
   const root = useRef<HTMLElement>(null);
+  const scrollViewport = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (props.focusCaptureShortcut) setTab("capture");
   }, [props.focusCaptureShortcut]);
   useLayoutEffect(() => {
     const element = root.current;
-    if (!element) return;
-    const measure = () => props.onMeasured(element.scrollHeight + 51);
+    const viewport = scrollViewport.current;
+    if (!element || !viewport) return;
+    const measure = () => {
+      const navigationHeight = element.querySelector("nav")?.offsetHeight ?? 0;
+      const contentHeight = viewport.firstElementChild?.scrollHeight ?? viewport.scrollHeight;
+      props.onMeasured(navigationHeight + contentHeight + 51);
+    };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
-    observer.observe(element);
+    observer.observe(viewport);
+    if (viewport.firstElementChild) observer.observe(viewport.firstElementChild);
     return () => observer.disconnect();
-  }, [props.onMeasured]);
+  }, [props.onMeasured, tab]);
 
   return (
-    <section ref={root} className="min-w-0">
-      <div className="min-w-0">
-        <AgentSettingsNavigation tab={tab} onSelect={setTab} />
-        <AgentSettingsDetails {...props} tab={tab} />
-      </div>
+    <section
+      ref={root}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      <AgentSettingsNavigation tab={tab} onSelect={setTab} />
+      <AgentSettingsDetails {...props} tab={tab} scrollRef={scrollViewport} />
     </section>
   );
 }

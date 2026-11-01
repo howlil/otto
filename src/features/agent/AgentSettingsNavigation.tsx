@@ -15,7 +15,7 @@ export function AgentSettingsNavigation({
   return (
     <nav
       aria-labelledby="otto-agent-settings-sections"
-      className="flex min-h-0 flex-row gap-1 border-b border-otto-line-soft bg-otto-nav-bg px-3 py-2"
+      className="flex min-h-0 shrink-0 flex-row gap-1 border-b border-otto-line-soft bg-otto-nav-bg px-3 py-2"
     >
       <span id="otto-agent-settings-sections" className="sr-only">
         Agent settings sections

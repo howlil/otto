@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
 use tokio::{
     io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
-    process::{Child, ChildStdin, ChildStdout},
+    process::{Child, ChildStdin, ChildStdout, Command},
     sync::{mpsc, watch},
     time::timeout,
 };
@@ -565,7 +565,7 @@ fn classify_startup_control(
 impl Rpc {
     fn launch(cwd: &PathBuf) -> Result<Self, String> {
         let binary = executable().ok_or("Codex CLI is not installed.")?;
-        let mut cmd = super::background_command(binary);
+        let mut cmd = Command::new(binary);
         cmd.args(["app-server", "--stdio"])
             .current_dir(cwd)
             .stdin(Stdio::piped())
@@ -573,8 +573,8 @@ impl Rpc {
             .stderr(Stdio::null())
             .kill_on_drop(true);
         #[cfg(windows)]
-        let (job, mut child) = super::job::Job::spawn(&mut cmd)
-            .map_err(|_| "Cannot launch an isolated Codex process tree on Windows.")?;
+        let (mut child, job) = super::job::Job::spawn(cmd)
+            .map_err(|_| "Cannot start isolated Codex CLI on Windows.")?;
         #[cfg(not(windows))]
         let mut child = cmd.spawn().map_err(|_| "Cannot start Codex CLI.")?;
         let stdin = child.stdin.take().ok_or("Codex stdin unavailable.")?;

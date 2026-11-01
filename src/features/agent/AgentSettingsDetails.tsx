@@ -1,4 +1,5 @@
-import { StatusMessage, Text } from "../../shared/ui";
+import type { Ref } from "react";
+import { StatusMessage, Text, TransitionContent } from "../../shared/ui";
 import type { AgentStatus } from "../../platform/tauri";
 import { AgentCaptureSettings } from "./AgentCaptureSettings";
 import type { AgentSettingsProps } from "./AgentSettings";
@@ -86,8 +87,9 @@ function SettingsFooter({ error }: Pick<AgentSettingsProps, "error">) {
 
 export function AgentSettingsDetails({
   tab,
+  scrollRef,
   ...props
-}: AgentSettingsProps & { tab: AgentSettingsTab }) {
+}: AgentSettingsProps & { tab: AgentSettingsTab; scrollRef: Ref<HTMLDivElement> }) {
   const providerStatus =
     props.readiness.status === "ready"
       ? "Ready"
@@ -95,41 +97,48 @@ export function AgentSettingsDetails({
         ? "Checking"
         : "Setup required";
   return (
-    <div className="min-w-0 overflow-y-auto px-[17px] pb-5 pt-[15px] [overscroll-behavior:contain] [scrollbar-width:none]">
-      <SettingsHeader tab={tab} />
-      <ActiveRunNotice {...props} />
-      {tab === "setup" && (
-        <div className="space-y-3">
-          <ProviderSettings
-            readiness={props.readiness}
-            providerStatus={providerStatus}
-            provider={props.provider}
-            onSelect={props.setProvider}
-            locked={props.locked}
-            onRetry={props.onRetry}
-          />
-          <div className="grid grid-cols-1 items-start gap-3 min-[360px]:grid-cols-2">
-            <ModeSettings
-              mode={props.mode}
-              locked={props.locked}
-              agentSessionAvailable={props.readiness.agentSession}
-              setMode={props.setMode}
-            />
-            <ProjectSettings cwd={props.cwd} locked={props.locked} setCwd={props.setCwd} />
-          </div>
-          <ModelUsageSettings
-            readiness={props.readiness}
-            snapshot={props.snapshot}
-            model={props.model}
-            setModel={props.setModel}
-            thinkingEffort={props.thinkingEffort}
-            setThinkingEffort={props.setThinkingEffort}
-            busy={props.busy}
-          />
-        </div>
-      )}
-      {tab === "capture" && <CaptureSettings {...props} />}
-      <SettingsFooter error={props.error} />
+    <div
+      ref={scrollRef}
+      className="min-h-0 min-w-0 flex-1 overflow-y-auto [overscroll-behavior:contain] [scrollbar-width:none]"
+    >
+      <div className="min-w-0 px-[17px] pb-5 pt-[15px]">
+        <SettingsHeader tab={tab} />
+        <ActiveRunNotice {...props} />
+        <TransitionContent transitionKey={tab} kind="tab" reducedMotion={props.reducedMotion}>
+          {tab === "setup" && (
+            <div className="space-y-3">
+              <ProviderSettings
+                readiness={props.readiness}
+                providerStatus={providerStatus}
+                provider={props.provider}
+                onSelect={props.setProvider}
+                locked={props.locked}
+                onRetry={props.onRetry}
+              />
+              <div className="grid grid-cols-1 items-start gap-3 min-[360px]:grid-cols-2">
+                <ModeSettings
+                  mode={props.mode}
+                  locked={props.locked}
+                  agentSessionAvailable={props.readiness.agentSession}
+                  setMode={props.setMode}
+                />
+                <ProjectSettings cwd={props.cwd} locked={props.locked} setCwd={props.setCwd} />
+              </div>
+              <ModelUsageSettings
+                readiness={props.readiness}
+                snapshot={props.snapshot}
+                model={props.model}
+                setModel={props.setModel}
+                thinkingEffort={props.thinkingEffort}
+                setThinkingEffort={props.setThinkingEffort}
+                busy={props.busy}
+              />
+            </div>
+          )}
+          {tab === "capture" && <CaptureSettings {...props} />}
+        </TransitionContent>
+        <SettingsFooter error={props.error} />
+      </div>
     </div>
   );
 }

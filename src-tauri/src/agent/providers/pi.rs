@@ -16,7 +16,7 @@ use std::{
 use tokio::sync::watch;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
-    process::{Child, ChildStdin, ChildStdout},
+    process::{Child, ChildStdin, ChildStdout, Command},
     sync::mpsc,
     time::timeout,
 };
@@ -60,7 +60,7 @@ struct Rpc {
 impl Rpc {
     fn launch(cwd: &Path) -> Result<Self, String> {
         let binary = executable().ok_or("Pi CLI was not found in PATH.")?;
-        let mut command = super::background_command(binary);
+        let mut command = Command::new(binary);
         command
             .args(launch_args())
             .current_dir(cwd)
@@ -68,8 +68,8 @@ impl Rpc {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .kill_on_drop(true);
-        let (job, mut child) = Job::spawn(&mut command)
-            .map_err(|_| "Cannot launch an isolated Pi process tree.")?;
+        let (mut child, job) =
+            Job::spawn(command).map_err(|_| "Cannot start isolated Pi RPC mode.")?;
         let stdin = child.stdin.take().ok_or("Pi stdin unavailable.")?;
         let stdout = child.stdout.take().ok_or("Pi stdout unavailable.")?;
         Ok(Self {
@@ -380,9 +380,13 @@ pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderR
             );
         }
     };
-    let mut command = super::background_command(binary);
-    command.args(["auth", "check", "--model", &model, "--json"]);
-    command.current_dir(cwd);
+    let mut command = Command::new(binary);
+    command
+        .args(["auth", "check", "--model", &model, "--json"])
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
     let mut readiness = match Job::probe(command, Duration::from_secs(10)).await {
         Ok(output) => match serde_json::from_slice::<Value>(&output.stdout) {
             Ok(value) => authentication(&value),

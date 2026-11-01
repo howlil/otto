@@ -117,10 +117,14 @@ export async function getCodexReadiness(cwd?: string): Promise<ProviderReadiness
 }
 export async function getAgentReadiness(
   provider: AgentProvider,
+  requestId: number,
   cwd?: string,
-  model?: string | null,
+  model: string | null = null,
 ): Promise<ProviderReadiness> {
-  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd, model });
+  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd, model, requestId });
+}
+export async function cancelAgentReadiness(requestId: number): Promise<void> {
+  await invoke("agent_cancel_provider_readiness", { requestId });
 }
 export type AgentSubscription = {
   channel: Channel<AgentSnapshot>;
@@ -201,7 +205,8 @@ export async function setNotchSurface(
   topOffset = 20,
   animate = true,
   contentHeight?: number,
+  contentOnly = false,
 ): Promise<void> {
   if (nativeAvailable)
-    await invoke("notch_set_surface", { surface, topOffset, animate, contentHeight });
+    await invoke("notch_set_surface", { surface, topOffset, animate, contentHeight, contentOnly });
 }
