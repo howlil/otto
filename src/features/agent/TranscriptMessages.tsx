@@ -8,11 +8,9 @@ import { CopyAnswerButton } from "./CopyAnswerButton";
 export function TranscriptMessages({
   snapshot,
   busy,
-  onQuote,
 }: {
   snapshot: AgentSnapshot;
   busy: boolean;
-  onQuote: (answer: string) => void;
 }) {
   return (
     <>
@@ -30,13 +28,6 @@ export function TranscriptMessages({
               {!busy && message.text.trim() && (
                 <div className="mt-1 flex items-center gap-[7px]">
                   <CopyAnswerButton value={message.text} label="Copy" />
-                  <button
-                    type="button"
-                    onClick={() => onQuote(message.text)}
-                    className="inline-flex min-h-7 items-center rounded-md border-0 bg-transparent px-1 py-[5px] text-otto-xs text-otto-text-tertiary hover:bg-otto-control-deep hover:text-otto-text"
-                  >
-                    Quote
-                  </button>
                 </div>
               )}
               {busy && index === snapshot.messages.length - 1 && (

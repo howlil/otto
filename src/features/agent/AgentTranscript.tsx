@@ -3,7 +3,6 @@ import { capturePhaseLabel, providerIssue, providerIssueTitle } from "./status";
 import { TranscriptMessages } from "./TranscriptMessages";
 import { TranscriptOutcome } from "./TranscriptOutcome";
 import type { AgentTranscriptModel } from "./view-model";
-import { quoteForFollowUp } from "./conversation";
 import { useTranscriptViewport } from "./useTranscriptViewport";
 
 export function AgentTranscript({
@@ -69,14 +68,7 @@ export function AgentTranscript({
         onScroll={onFeedScroll}
       >
         <div className="flex min-w-0 flex-col gap-[11px]">
-          <TranscriptMessages
-            snapshot={snapshot}
-            busy={busy}
-            onQuote={(answer) => {
-              setDraft(quoteForFollowUp(answer, draft));
-              document.getElementById("otto-prompt")?.focus({ preventScroll: true });
-            }}
-          />
+          <TranscriptMessages snapshot={snapshot} busy={busy} />
           <TranscriptOutcome
             approval={approval}
             approvalPending={approvalPending}
