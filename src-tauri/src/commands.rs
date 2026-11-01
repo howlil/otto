@@ -79,10 +79,7 @@ pub fn agent_configure_capture_shortcut(
 }
 
 #[tauri::command]
-pub fn agent_configure_capture_source(
-    app: tauri::AppHandle,
-    source: String,
-) -> Result<(), String> {
+pub fn agent_configure_capture_source(app: tauri::AppHandle, source: String) -> Result<(), String> {
     #[cfg(windows)]
     {
         app.state::<crate::windows::capture::CaptureHotkeys>()

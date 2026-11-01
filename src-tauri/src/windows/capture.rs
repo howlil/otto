@@ -211,7 +211,19 @@ fn capture_image(
     }
 
     let copied = if let Some((x, y)) = screen_origin {
-        unsafe { BitBlt(capture.memory, 0, 0, width, height, source, x, y, SRCCOPY | CAPTUREBLT) }
+        unsafe {
+            BitBlt(
+                capture.memory,
+                0,
+                0,
+                width,
+                height,
+                source,
+                x,
+                y,
+                SRCCOPY | CAPTUREBLT,
+            )
+        }
     } else {
         unsafe { PrintWindow(hwnd, capture.memory, 0) }
     };
@@ -505,8 +517,14 @@ mod tests {
 
     #[test]
     fn unsupported_capture_source_never_selects_a_default() {
-        assert_eq!(CaptureSource::parse("window").unwrap(), CaptureSource::Window);
-        assert_eq!(CaptureSource::parse("fullScreen").unwrap(), CaptureSource::FullScreen);
+        assert_eq!(
+            CaptureSource::parse("window").unwrap(),
+            CaptureSource::Window
+        );
+        assert_eq!(
+            CaptureSource::parse("fullScreen").unwrap(),
+            CaptureSource::FullScreen
+        );
         assert!(CaptureSource::parse("screen").is_err());
         assert!(CaptureSource::parse("").is_err());
     }
