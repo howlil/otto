@@ -139,6 +139,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Cannot publish prerelease updater manifest' }
           $published = gh api "repos/$repo/contents/latest.json?ref=$branch"
           if ($LASTEXITCODE -ne 0) { throw 'Cannot verify updater manifest publication' }
-          $publishedBytes = [Convert]::FromBase64String((($published | ConvertFrom-Json).content -replace '\\s', ''))
+          $publishedBytes = [Convert]::FromBase64String((($published | ConvertFrom-Json).content -replace '\s', ''))
           $publishedManifest = [Text.Encoding]::UTF8.GetString($publishedBytes) | ConvertFrom-Json
           if ($publishedManifest.version -ne $env:VERSION) { throw 'Updater manifest version mismatch' }

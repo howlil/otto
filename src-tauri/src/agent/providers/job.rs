@@ -2,7 +2,10 @@ use std::{
     process::{Output, Stdio},
     time::Duration,
 };
-use tokio::{process::{Child, Command}, time::timeout};
+use tokio::{
+    process::{Child, Command},
+    time::timeout,
+};
 use windows_sys::Win32::{
     Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE},
     System::Diagnostics::ToolHelp::{
@@ -10,7 +13,9 @@ use windows_sys::Win32::{
     },
     System::{
         JobObjects::{
-            AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            AssignProcessToJobObject, CreateJobObjectW, QueryInformationJobObject,
+            JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JobObjectBasicAccountingInformation,
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
             JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
             SetInformationJobObject, TerminateJobObject,
         },
@@ -122,6 +127,21 @@ impl Job {
         result.map_err(|_| ())?.map_err(|_| ())
     }
 
+    #[cfg(test)]
+    fn active_processes(&self) -> Result<u32, ()> {
+        let mut info: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = unsafe { std::mem::zeroed() };
+        let success = unsafe {
+            QueryInformationJobObject(
+                self.0,
+                JobObjectBasicAccountingInformation,
+                &mut info as *mut _ as *mut _,
+                std::mem::size_of_val(&info) as u32,
+                std::ptr::null_mut(),
+            )
+        };
+        if success == 0 { Err(()) } else { Ok(info.ActiveProcesses) }
+    }
+
     pub fn terminate(&self) {
         unsafe { TerminateJobObject(self.0, 1) };
     }
@@ -161,6 +181,37 @@ mod tests {
         assert!(output.status.success());
         assert!(String::from_utf8_lossy(&output.stdout).contains("OTTO_JOB_ACTIVE"));
         drop(job);
+    }
+
+    #[tokio::test]
+    async fn job_contains_and_terminates_a_spawned_descendant() {
+        let mut command = super::super::background_command("powershell.exe");
+        command.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "$child = Start-Process -FilePath powershell.exe -ArgumentList '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 20' -WindowStyle Hidden -PassThru; Write-Output $child.Id; Start-Sleep -Seconds 20",
+        ]);
+        command.stdout(Stdio::piped()).kill_on_drop(true);
+        let (job, mut child) = Job::spawn(&mut command).expect("PowerShell must be owned");
+        let stdout = child.stdout.take().expect("stdout pipe");
+        let mut line = String::new();
+        use tokio::io::AsyncBufReadExt;
+        timeout(Duration::from_secs(10), tokio::io::BufReader::new(stdout).read_line(&mut line))
+            .await
+            .expect("child start must be bounded")
+            .expect("child must return its descendant pid");
+        assert!(line.trim().parse::<u32>().is_ok(), "invalid descendant pid");
+        assert!(job.active_processes().expect("job accounting") >= 2);
+        job.terminate();
+        timeout(Duration::from_secs(5), async {
+            while job.active_processes().expect("job accounting") != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("entire owned process tree must exit");
+        let _ = child.wait().await;
     }
 
     #[tokio::test]

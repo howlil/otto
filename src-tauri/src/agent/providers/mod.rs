@@ -57,6 +57,11 @@ mod tests {
         )
         .unwrap();
         let result = background_command(&file).output().await;
+        let owned = super::job::Job::probe(
+            background_command(&file),
+            std::time::Duration::from_secs(10),
+        )
+        .await;
         fs::remove_file(&file).unwrap();
         let output = result.expect("Windows batch shim must spawn");
         assert!(
@@ -65,6 +70,9 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
         assert!(String::from_utf8_lossy(&output.stdout).contains("OTTO_HIDDEN_OK"));
+        let owned = owned.expect("owned batch shim must spawn without a console");
+        assert!(owned.status.success());
+        assert!(String::from_utf8_lossy(&owned.stdout).contains("OTTO_HIDDEN_OK"));
 
         let direct = background_command("powershell.exe")
             .args([
