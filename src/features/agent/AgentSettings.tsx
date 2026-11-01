@@ -49,7 +49,8 @@ export function AgentSettings(props: AgentSettingsProps) {
     if (!element || !viewport) return;
     const measure = () => {
       const navigationHeight = element.querySelector("nav")?.offsetHeight ?? 0;
-      props.onMeasured(navigationHeight + viewport.scrollHeight + 51);
+      const contentHeight = viewport.firstElementChild?.scrollHeight ?? viewport.scrollHeight;
+      props.onMeasured(navigationHeight + contentHeight + 51);
     };
     measure();
     if (typeof ResizeObserver === "undefined") return;
@@ -60,7 +61,10 @@ export function AgentSettings(props: AgentSettingsProps) {
   }, [props.onMeasured, tab]);
 
   return (
-    <section ref={root} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <section
+      ref={root}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
       <AgentSettingsNavigation tab={tab} onSelect={setTab} />
       <AgentSettingsDetails {...props} tab={tab} scrollRef={scrollViewport} />
     </section>
