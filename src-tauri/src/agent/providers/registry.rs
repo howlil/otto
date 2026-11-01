@@ -61,6 +61,7 @@ impl ProviderId {
             ),
         };
         ready.agent_session = self.agent_session();
+        ready.image_transport = self.image_transport();
         ready
     }
 
