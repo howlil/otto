@@ -114,16 +114,8 @@ impl Rpc {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
-        let mut child = command
-            .spawn()
-            .map_err(|_| "Cannot start Agy stream-json mode.")?;
-        let job = match child.id().and_then(|pid| Job::attach(pid).ok()) {
-            Some(job) => job,
-            None => {
-                let _ = child.start_kill();
-                return Err("Cannot isolate the Agy process tree.".into());
-            }
-        };
+        let (mut child, job) =
+            Job::spawn(command).map_err(|_| "Cannot start isolated Agy stream-json mode.")?;
         let stdin = child.stdin.take().ok_or("Agy stdin unavailable.")?;
         let stdout = child.stdout.take().ok_or("Agy stdout unavailable.")?;
         let mut stderr = child.stderr.take().ok_or("Agy stderr unavailable.")?;
@@ -296,8 +288,8 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    match timeout(Duration::from_secs(12), command.output()).await {
-        Ok(Ok(output)) if output.status.success() => {
+    match Job::probe(command, Duration::from_secs(12)).await {
+        Ok(output) if output.status.success() => {
             let parsed = serde_json::from_slice::<Value>(&output.stdout).ok();
             if parsed
                 .as_ref()
@@ -313,7 +305,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
                 );
             }
         }
-        Ok(Ok(output)) => {
+        Ok(output) => {
             return model_discovery_failure(&output.stdout, &output.stderr);
         }
         _ => {

@@ -68,14 +68,8 @@ impl Rpc {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .kill_on_drop(true);
-        let mut child = command.spawn().map_err(|_| "Cannot launch Pi RPC mode.")?;
-        let job = match child.id().and_then(|pid| Job::attach(pid).ok()) {
-            Some(job) => job,
-            None => {
-                let _ = child.start_kill();
-                return Err("Cannot isolate the Pi process tree.".into());
-            }
-        };
+        let (mut child, job) =
+            Job::spawn(command).map_err(|_| "Cannot start isolated Pi RPC mode.")?;
         let stdin = child.stdin.take().ok_or("Pi stdin unavailable.")?;
         let stdout = child.stdout.take().ok_or("Pi stdout unavailable.")?;
         Ok(Self {
@@ -393,8 +387,8 @@ pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderR
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .kill_on_drop(true);
-    let mut readiness = match timeout(Duration::from_secs(10), command.output()).await {
-        Ok(Ok(output)) => match serde_json::from_slice::<Value>(&output.stdout) {
+    let mut readiness = match Job::probe(command, Duration::from_secs(10)).await {
+        Ok(output) => match serde_json::from_slice::<Value>(&output.stdout) {
             Ok(value) => authentication(&value),
             Err(_) => ProviderReadiness::new(
                 "unsupported",

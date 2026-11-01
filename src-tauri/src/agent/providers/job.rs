@@ -1,21 +1,43 @@
+use std::{
+    process::{Output, Stdio},
+    time::Duration,
+};
+use tokio::{
+    process::{Child, Command},
+    time::timeout,
+};
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, HANDLE},
+    Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE},
     System::{
+        Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+        },
         JobObjects::{
             AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
             JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
             SetInformationJobObject, TerminateJobObject,
         },
-        Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE},
+        Threading::{
+            CREATE_NO_WINDOW, CREATE_SUSPENDED, OpenProcess, OpenThread, PROCESS_SET_QUOTA,
+            PROCESS_TERMINATE, ResumeThread, THREAD_SUSPEND_RESUME,
+        },
     },
 };
+
+struct ScopedHandle(HANDLE);
+
+impl Drop for ScopedHandle {
+    fn drop(&mut self) {
+        unsafe { CloseHandle(self.0) };
+    }
+}
 
 pub struct Job(HANDLE);
 
 unsafe impl Send for Job {}
 
 impl Job {
-    pub fn attach(pid: u32) -> Result<Self, ()> {
+    fn attach(pid: u32) -> Result<Self, ()> {
         let handle = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
         if handle.is_null() {
             return Err(());
@@ -39,12 +61,73 @@ impl Job {
         if process.is_null() {
             return Err(());
         }
-        let assigned = unsafe { AssignProcessToJobObject(job.0, process) };
-        unsafe { CloseHandle(process) };
-        if assigned == 0 {
+        let process = ScopedHandle(process);
+        if unsafe { AssignProcessToJobObject(job.0, process.0) } == 0 {
             return Err(());
         }
         Ok(job)
+    }
+
+    fn resume(pid: u32) -> Result<(), ()> {
+        let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
+        if snapshot == INVALID_HANDLE_VALUE {
+            return Err(());
+        }
+        let snapshot = ScopedHandle(snapshot);
+        let mut entry: THREADENTRY32 = unsafe { std::mem::zeroed() };
+        entry.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+        if unsafe { Thread32First(snapshot.0, &mut entry) } == 0 {
+            return Err(());
+        }
+        loop {
+            if entry.th32OwnerProcessID == pid {
+                let thread = unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID) };
+                if thread.is_null() {
+                    return Err(());
+                }
+                let thread = ScopedHandle(thread);
+                let previous = unsafe { ResumeThread(thread.0) };
+                return if previous == u32::MAX || previous == 0 {
+                    Err(())
+                } else {
+                    Ok(())
+                };
+            }
+            if unsafe { Thread32Next(snapshot.0, &mut entry) } == 0 {
+                return Err(());
+            }
+        }
+    }
+
+    pub fn spawn(mut command: Command) -> Result<(Child, Self), ()> {
+        command
+            .creation_flags(CREATE_NO_WINDOW | CREATE_SUSPENDED)
+            .kill_on_drop(true);
+        let mut child = command.spawn().map_err(|_| ())?;
+        let job = match child.id().and_then(|pid| Self::attach(pid).ok()) {
+            Some(job) => job,
+            None => {
+                let _ = child.start_kill();
+                return Err(());
+            }
+        };
+        if child.id().is_none_or(|pid| Self::resume(pid).is_err()) {
+            job.terminate();
+            let _ = child.start_kill();
+            return Err(());
+        }
+        Ok((child, job))
+    }
+
+    pub async fn probe(mut command: Command, deadline: Duration) -> Result<Output, ()> {
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let (child, job) = Self::spawn(command)?;
+        let result = timeout(deadline, child.wait_with_output()).await;
+        job.terminate();
+        result.map_err(|_| ())?.map_err(|_| ())
     }
 
     pub fn terminate(&self) {
@@ -55,5 +138,36 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         unsafe { CloseHandle(self.0) };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+
+    #[tokio::test]
+    async fn suspended_child_resumes_with_piped_output() {
+        let mut command = Command::new("cmd.exe");
+        command.args(["/d", "/c", "echo OTTO_JOB_READY"]);
+        let output = Job::probe(command, Duration::from_secs(5))
+            .await
+            .expect("owned child must start and complete");
+        assert!(output.status.success());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("OTTO_JOB_READY"));
+    }
+
+    #[tokio::test]
+    async fn deadline_terminates_owned_probe() {
+        let mut command = Command::new("powershell.exe");
+        command.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Start-Sleep -Seconds 5",
+        ]);
+        let started = Instant::now();
+        assert!(Job::probe(command, Duration::from_millis(100)).await.is_err());
+        assert!(started.elapsed() < Duration::from_secs(4));
     }
 }
