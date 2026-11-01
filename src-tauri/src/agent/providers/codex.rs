@@ -789,17 +789,17 @@ async fn resolve_approval(
     approval_id: &str,
     decision: ApprovalDecision,
     updates: &ProviderEvents,
-) {
+) -> Result<(), String> {
     if let Some(reply) = approvals.decide(approval_id, decision) {
-        if rpc.send(reply).await.is_ok() {
-            updates.emit(AgentEvent::ApprovalResolved {
-                run_id: updates.snapshot().run_id,
-                approval_id: approval_id.to_owned(),
-            });
-        }
+        rpc.send(reply).await?;
+        updates.emit(AgentEvent::ApprovalResolved {
+            run_id: updates.snapshot().run_id,
+            approval_id: approval_id.to_owned(),
+        });
     } else {
         publish_approval(approvals, updates);
     }
+    Ok(())
 }
 
 pub async fn run(
@@ -931,7 +931,13 @@ pub async fn run(
                     }
                 }
                 Some(Control::Decide { approval_id, decision }) => {
-                    resolve_approval(&mut rpc, &mut approvals, &approval_id, decision, &updates).await;
+                    if let Err(error) = resolve_approval(&mut rpc, &mut approvals, &approval_id, decision, &updates).await {
+                        if let Some(id) = active {
+                            updates.fail(id, &error);
+                        }
+                        rpc.terminate().await;
+                        break;
+                    }
                 }
                 Some(Control::Ask { text, cwd, run_id, capture }) if active.is_none() => {
                     if cwd.as_path() != std::path::Path::new(&updates.snapshot().cwd) {
