@@ -7,7 +7,7 @@ Windows-first Tauri 2, Rust edition 2024, React 19, Vite 8, TypeScript 6, Tailwi
 Install: `bun install`; dev frontend: `bun run dev`; desktop: `bun run tauri dev`.
 Frontend: `bun run check` (Biome), `bun run format` (fix), `bun run build` (TS/Vite).
 Rust: `cd src-tauri && cargo fmt --all -- --check`; `cargo clippy --all-targets -- -D warnings`; `cargo check` on Windows MSVC.
-Tests: `cargo test --manifest-path src-tauri/Cargo.toml` (Rust core); no frontend unit runner is configured yet. Generate/commit Bun and Cargo locks when dependency resolution becomes available for a reproducible build; do not fabricate locks.
+Tests: `cargo test --manifest-path src-tauri/Cargo.toml` (Rust core) and `bun run test:frontend:critical` (Agent draft behavior); both run in the existing Windows verification workflow. Generate/commit Bun and Cargo locks when dependency resolution becomes available for a reproducible build; do not fabricate locks.
 
 ## Verification gate
 Critical-path or core-logic changes **must** have an automated behavior test at the cheapest faithful boundary (unit for pure rules/state; integration when correctness depends on OS, process, persistence or IPC). Reuse existing proof if it already catches the regression; missing proof blocks review/merge. Cosmetic, trivial wiring and docs changes do not require ceremonial new tests.
