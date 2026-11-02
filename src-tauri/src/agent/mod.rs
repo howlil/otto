@@ -25,7 +25,7 @@ use std::{
 };
 use tauri::ipc::Channel;
 use tokio::{
-    sync::{Mutex, mpsc, oneshot, watch},
+    sync::{Mutex, MutexGuard, mpsc, oneshot, watch},
     time::timeout,
 };
 
@@ -404,9 +404,9 @@ impl AgentRuntime {
 
     pub async fn history_open(&self, id: &str) -> Result<Snapshot, String> {
         self.conversation.history.open(id)?;
-        self.new_session_with_timeout(Duration::from_secs(5))
+        let mut guard = self.control.lock().await;
+        self.new_session_locked(&mut guard, Duration::from_secs(5))
             .await?;
-        let guard = self.control.lock().await;
         let current = self.snapshot();
         if matches!(
             current.status,
@@ -458,8 +458,11 @@ impl AgentRuntime {
     }
 
     pub async fn history_delete(&self, id: &str) -> Result<(), String> {
+        self.conversation.history.open(id)?;
+        let mut guard = self.control.lock().await;
         if self.snapshot().conversation_id == id.trim() {
-            self.new_session().await?;
+            self.new_session_locked(&mut guard, Duration::from_secs(5))
+                .await?;
         }
         self.conversation.history.delete(id).map_err(String::from)
     }
@@ -1158,6 +1161,14 @@ impl AgentRuntime {
 
     async fn new_session_with_timeout(&self, close_timeout: Duration) -> Result<(), String> {
         let mut guard = self.control.lock().await;
+        self.new_session_locked(&mut guard, close_timeout).await
+    }
+
+    async fn new_session_locked(
+        &self,
+        guard: &mut MutexGuard<'_, Option<mpsc::Sender<Control>>>,
+        close_timeout: Duration,
+    ) -> Result<(), String> {
         let current = self.snapshot();
         if matches!(
             current.status,
@@ -1173,7 +1184,7 @@ impl AgentRuntime {
             close_owned_transport(sender, close_timeout).await?;
         }
         self.persist_current_snapshot(current.status != RunPhase::Completed)?;
-        *guard = None;
+        **guard = None;
         *self.selected_runtime.lock().unwrap() = ModelSelection::default();
         let clear_failed = self
             .recovery
@@ -2257,6 +2268,32 @@ mod tests {
         let items = runtime.conversation.history.list().unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, after.conversation_id);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn deleting_missing_active_history_does_not_reset_current_conversation() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-delete-missing-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            root.join("conversations.json"),
+        );
+        runtime.persist_prompt(5, "Keep active conversation").unwrap();
+        let before = runtime.snapshot();
+        let missing = "not-a-saved-conversation";
+        assert!(runtime.history_delete(missing).await.is_err());
+        let after = runtime.snapshot();
+        assert_eq!(after.conversation_id, before.conversation_id);
+        assert_eq!(after.run_id, before.run_id);
+        assert_eq!(runtime.conversation.id.lock().unwrap().as_str(), before.conversation_id);
+        assert!(runtime.conversation.history.open(&before.conversation_id).is_ok());
         let _ = std::fs::remove_dir_all(root);
     }
 
