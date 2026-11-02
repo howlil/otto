@@ -1057,7 +1057,7 @@ impl AgentRuntime {
             return self.fail_starting_run(run_id, &error);
         }
         let (tx, rx) = mpsc::channel(4);
-        let updates = self.updates.clone();
+        let events = events::ProviderEvents::new(self.updates.clone());
         tauri::async_runtime::spawn(async move {
             let initial = Control::Ask {
                 text: provider_text,
@@ -1068,7 +1068,7 @@ impl AgentRuntime {
                 thinking_effort,
                 capture,
             };
-            selected.run(rx, updates, initial).await;
+            selected.run(rx, events, initial).await;
         });
         *guard = Some(tx);
         Ok(AcceptedRun { run_id })

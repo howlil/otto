@@ -1,9 +1,10 @@
 use crate::agent::events::ProviderEvents;
 use crate::agent::runtime::{ProviderId, RuntimeCapabilities, SessionReuse};
-use crate::agent::{Control, ModelSelection, ProviderReadiness, RunPhase, Snapshot};
+use crate::agent::{Control, ModelSelection, ProviderReadiness, RunPhase};
+#[cfg(test)]
+use crate::agent::Snapshot;
 use std::path::PathBuf;
-use tokio::sync::{mpsc, watch};
-
+use tokio::sync::mpsc;
 
 impl ProviderId {
     pub(in crate::agent) fn capabilities(self) -> RuntimeCapabilities {
@@ -103,19 +104,19 @@ impl ProviderId {
     pub async fn run(
         self,
         controls: mpsc::Receiver<Control>,
-        updates: watch::Sender<Snapshot>,
+        events: ProviderEvents,
         initial: Control,
     ) {
         match self {
-            Self::Codex => super::codex::run(controls, ProviderEvents::new(updates), initial).await,
+            Self::Codex => super::codex::run(controls, events, initial).await,
             #[cfg(windows)]
-            Self::Pi => super::pi::run(controls, ProviderEvents::new(updates), initial).await,
+            Self::Pi => super::pi::run(controls, events, initial).await,
             #[cfg(windows)]
-            Self::Agy => super::agy::run(controls, ProviderEvents::new(updates), initial).await,
+            Self::Agy => super::agy::run(controls, events, initial).await,
             #[cfg(not(windows))]
             Self::Pi | Self::Agy => {
-                let run_id = updates.borrow().run_id;
-                ProviderEvents::new(updates).fail(run_id, "This provider requires Windows.");
+                let run_id = events.snapshot().run_id;
+                events.fail(run_id, "This provider requires Windows.");
             }
         }
     }
