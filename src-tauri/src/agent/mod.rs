@@ -1,5 +1,6 @@
 #[cfg(windows)]
 pub(crate) mod capture_context;
+mod conversation;
 mod error;
 mod events;
 pub(crate) mod history;
@@ -295,8 +296,7 @@ pub enum Control {
 pub struct AgentRuntime {
     updates: watch::Sender<Snapshot>,
     control: Mutex<Option<mpsc::Sender<Control>>>,
-    history: Arc<history::HistoryStore>,
-    conversation_id: Arc<StdMutex<String>>,
+    conversation: Arc<conversation::ConversationOwner>,
     selected_runtime: StdMutex<ModelSelection>,
     next_runtime_selection_id: AtomicU64,
     readiness_probes: StdMutex<readiness_probe::ReadinessProbeState>,
@@ -360,12 +360,11 @@ impl AgentRuntime {
                 "Previous agent request may have been interrupted. No answer was restored. Ask again to start a new session.".into()
             }),
         });
-        let conversation_id = Arc::new(StdMutex::new(conversation_id));
+        let conversation = Arc::new(conversation::ConversationOwner::new(history, conversation_id));
         Self {
             updates,
             control: Mutex::new(None),
-            history,
-            conversation_id,
+            conversation,
             selected_runtime: StdMutex::new(ModelSelection::default()),
             next_runtime_selection_id: AtomicU64::new(0),
             readiness_probes: StdMutex::new(readiness_probe::ReadinessProbeState::default()),
@@ -384,14 +383,13 @@ impl AgentRuntime {
         let Some(marker) = self.recovery.clone() else {
             return;
         };
-        let history = Arc::clone(&self.history);
-        let conversation_id = Arc::clone(&self.conversation_id);
+        let conversation = Arc::clone(&self.conversation);
         let mut receiver = self.updates.subscribe();
         let updates = self.updates.clone();
         tauri::async_runtime::spawn(async move {
             while receiver.changed().await.is_ok() {
                 let snapshot = receiver.borrow_and_update().clone();
-                persist_terminal_outcome(&history, &marker, &conversation_id, &updates, &snapshot);
+                persist_terminal_outcome(&conversation, &marker, &updates, &snapshot);
             }
         });
     }
@@ -401,11 +399,11 @@ impl AgentRuntime {
     }
 
     pub fn history_list(&self) -> Result<Vec<history::ConversationSummary>, String> {
-        self.history.list().map_err(String::from)
+        self.conversation.history.list().map_err(String::from)
     }
 
     pub async fn history_open(&self, id: &str) -> Result<Snapshot, String> {
-        let record = self.history.open(id)?;
+        let record = self.conversation.history.open(id)?;
         self.new_session_with_timeout(Duration::from_secs(5))
             .await?;
         let guard = self.control.lock().await;
@@ -418,7 +416,7 @@ impl AgentRuntime {
             return Err("Stop the current request before opening a saved conversation.".into());
         }
         let mut active_id = self
-            .conversation_id
+            .conversation.id
             .lock()
             .map_err(|_| AgentError::internal("Conversation history is unavailable."))?;
         *active_id = record.id.clone();
@@ -445,14 +443,14 @@ impl AgentRuntime {
     }
 
     pub fn history_rename(&self, id: &str, title: &str) -> Result<(), String> {
-        self.history.rename(id, title).map_err(String::from)
+        self.conversation.history.rename(id, title).map_err(String::from)
     }
 
     pub async fn history_delete(&self, id: &str) -> Result<(), String> {
         if self.snapshot().conversation_id == id.trim() {
             self.new_session().await?;
         }
-        self.history.delete(id).map_err(String::from)
+        self.conversation.history.delete(id).map_err(String::from)
     }
 
     fn persist_prompt(&self, run_id: u64, text: &str) -> Result<(), AgentError> {
@@ -462,27 +460,12 @@ impl AgentRuntime {
             role: "user".into(),
             text: text.to_owned(),
         });
-        let id = self
-            .conversation_id
-            .lock()
-            .map_err(|_| AgentError::internal("Conversation history is unavailable."))?
-            .clone();
-        if let Some(record) = history::record_from_snapshot(&id, &snapshot, true) {
-            self.history.upsert(record)?;
-        }
-        Ok(())
+        self.conversation.persist_snapshot(&snapshot, true)
     }
 
     fn persist_current_snapshot(&self, interrupted: bool) -> Result<(), AgentError> {
-        let id = self
-            .conversation_id
-            .lock()
-            .map_err(|_| AgentError::internal("Conversation history is unavailable."))?
-            .clone();
-        if let Some(record) = history::record_from_snapshot(&id, &self.snapshot(), interrupted) {
-            self.history.upsert(record)?;
-        }
-        Ok(())
+        self.conversation
+            .persist_snapshot(&self.snapshot(), interrupted)
     }
 
     pub fn subscribe(&self, channel: Channel<Snapshot>) -> u64 {
@@ -579,7 +562,7 @@ impl AgentRuntime {
         }
 
         let id_guard = self
-            .conversation_id
+            .conversation.id
             .lock()
             .map_err(|_| "Conversation history is unavailable.".to_string())?;
         let id = id_guard.clone();
@@ -594,7 +577,7 @@ impl AgentRuntime {
         if let Some(record) =
             history::record_from_snapshot(&id, &switched, current.status != RunPhase::Completed)
         {
-            if let Err(error) = self.history.upsert(record) {
+            if let Err(error) = self.conversation.history.upsert(record) {
                 *guard = None;
                 mutate(&self.updates, |state| {
                     state.thread_id = None;
@@ -1186,20 +1169,23 @@ impl AgentRuntime {
             .fetch_max(current.run_id, Ordering::Relaxed);
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
         let next_conversation = history::new_id();
+        let mut id = self
+            .conversation
+            .id
+            .lock()
+            .map_err(|_| "Conversation history is unavailable.")?;
+        *id = next_conversation.clone();
         mutate(&self.updates, |s| {
             s.run_id = run_id;
             s.status = RunPhase::Idle;
             s.provider = current.provider;
-            s.conversation_id = next_conversation.clone();
+            s.conversation_id = next_conversation;
             s.thread_id = None;
             s.messages.clear();
             s.capture = CaptureSnapshot::default();
             s.error = clear_failed.then(|| MARKER_CLEAR_NOTICE.into());
         });
-        *self
-            .conversation_id
-            .lock()
-            .map_err(|_| "Conversation history is unavailable.")? = next_conversation;
+        drop(id);
         Ok(())
     }
 
@@ -1278,9 +1264,8 @@ fn append_notice(message: &str, marker_failed: bool) -> String {
 }
 
 fn persist_terminal_outcome(
-    history: &history::HistoryStore,
+    conversation: &conversation::ConversationOwner,
     marker: &recovery::RecoveryMarker,
-    conversation_id: &StdMutex<String>,
     updates: &watch::Sender<Snapshot>,
     snapshot: &Snapshot,
 ) {
@@ -1292,7 +1277,7 @@ fn persist_terminal_outcome(
         return;
     }
     let interrupted = snapshot.status != RunPhase::Completed;
-    let stored = match conversation_id.lock() {
+    let stored = match conversation.id.lock() {
         Ok(id)
             if updates.borrow().run_id == snapshot.run_id
                 && updates.borrow().conversation_id == *id
@@ -1300,7 +1285,7 @@ fn persist_terminal_outcome(
         {
             let record = history::record_from_snapshot(&id, snapshot, interrupted);
             match record {
-                Some(record) => history.upsert(record),
+                Some(record) => conversation.history.upsert(record),
                 None => Ok(()),
             }
         }
@@ -1532,7 +1517,7 @@ mod tests {
         assert!(after.usage.is_none());
         assert!(after.run_id > before.run_id);
         assert!(runtime.control.lock().await.is_none());
-        let saved = runtime.history.open(&after.conversation_id).unwrap();
+        let saved = runtime.conversation.history.open(&after.conversation_id).unwrap();
         assert_eq!(saved.provider, ProviderId::Pi);
         assert_eq!(saved.messages[1].text, "Ownership controls lifetime.");
         let raw = std::fs::read_to_string(history_path).unwrap();
@@ -1704,13 +1689,12 @@ mod tests {
         }];
         mutate(&runtime.updates, |state| state.run_id = 4);
         persist_terminal_outcome(
-            &runtime.history,
+            &runtime.conversation,
             runtime.recovery.as_ref().unwrap(),
-            &runtime.conversation_id,
             &runtime.updates,
             &old,
         );
-        assert!(runtime.history.list().unwrap().is_empty());
+        assert!(runtime.conversation.history.list().unwrap().is_empty());
         assert_eq!(std::fs::read_to_string(root.join("marker")).unwrap(), "3");
         let _ = std::fs::remove_dir_all(root);
     }
@@ -1771,7 +1755,7 @@ mod tests {
         let original = runtime.snapshot().conversation_id;
         assert!(!original.is_empty());
 
-        let opened = runtime.history.list().unwrap();
+        let opened = runtime.conversation.history.list().unwrap();
         assert_eq!(opened.len(), 1);
         let snapshot = runtime
             .history_open(&opened[0].id)
@@ -1811,7 +1795,7 @@ mod tests {
         assert_ne!(snapshot.conversation_id, previous);
         assert!(!snapshot.conversation_id.is_empty());
         assert_eq!(snapshot.messages.len(), 0);
-        let list = runtime.history.list().unwrap();
+        let list = runtime.conversation.history.list().unwrap();
         assert!(list.iter().any(|summary| summary.id == previous));
         let _ = std::fs::remove_dir_all(root);
     }
@@ -1830,8 +1814,8 @@ mod tests {
         let runtime =
             AgentRuntime::persistent_with_history(root.join("marker"), history_path.clone());
         runtime.persist_prompt(1, "Explain ownership").unwrap();
-        let id = runtime.conversation_id.lock().unwrap().clone();
-        let record = runtime.history.open(&id).unwrap();
+        let id = runtime.conversation.id.lock().unwrap().clone();
+        let record = runtime.conversation.history.open(&id).unwrap();
         assert_eq!(record.messages[0].text, "Explain ownership");
         let raw = std::fs::read_to_string(history_path).unwrap();
         assert!(!raw.contains("cwd"));
@@ -1882,9 +1866,8 @@ mod tests {
         mutate(&runtime.updates, |state| state.run_id = 3);
 
         persist_terminal_outcome(
-            &runtime.history,
+            &runtime.conversation,
             runtime.recovery.as_ref().unwrap(),
-            &runtime.conversation_id,
             &runtime.updates,
             &Snapshot {
                 conversation_id: runtime.snapshot().conversation_id,
@@ -1926,9 +1909,8 @@ mod tests {
         mutate(&runtime.updates, |state| state.run_id = 3);
 
         persist_terminal_outcome(
-            &runtime.history,
+            &runtime.conversation,
             runtime.recovery.as_ref().unwrap(),
-            &runtime.conversation_id,
             &runtime.updates,
             &Snapshot {
                 conversation_id: runtime.snapshot().conversation_id,
@@ -1938,9 +1920,9 @@ mod tests {
 
         assert!(runtime.snapshot().error.is_none());
         assert!(!root.join("marker").exists());
-        let id = runtime.conversation_id.lock().unwrap().clone();
+        let id = runtime.conversation.id.lock().unwrap().clone();
         assert_eq!(
-            runtime.history.open(&id).unwrap().messages[0].text,
+            runtime.conversation.history.open(&id).unwrap().messages[0].text,
             "Explain ownership"
         );
         let _ = fs::remove_dir_all(root);
@@ -2041,7 +2023,7 @@ mod tests {
         assert_eq!(snapshot.messages.len(), 2);
         assert!(snapshot.thread_id.is_none());
         assert_eq!(snapshot.provider, ProviderId::Codex);
-        assert_eq!(runtime.conversation_id.lock().unwrap().as_str(), "saved");
+        assert_eq!(runtime.conversation.id.lock().unwrap().as_str(), "saved");
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -2111,21 +2093,21 @@ mod tests {
         );
         runtime.persist_prompt(7, "Original chat").unwrap();
         let deleted = runtime.snapshot().conversation_id;
-        assert!(runtime.history.open(&deleted).is_ok());
+        assert!(runtime.conversation.history.open(&deleted).is_ok());
 
         runtime.history_delete(&deleted).await.unwrap();
 
         let after = runtime.snapshot();
         assert_ne!(after.conversation_id, deleted);
-        assert_eq!(after.conversation_id, *runtime.conversation_id.lock().unwrap());
+        assert_eq!(after.conversation_id, *runtime.conversation.id.lock().unwrap());
         assert_eq!(after.status, RunPhase::Idle);
         assert!(after.messages.is_empty());
         assert!(after.thread_id.is_none());
-        assert!(runtime.history.open(&deleted).is_err());
+        assert!(runtime.conversation.history.open(&deleted).is_err());
 
         runtime.persist_prompt(8, "Fresh chat").unwrap();
-        assert!(runtime.history.open(&deleted).is_err());
-        let items = runtime.history.list().unwrap();
+        assert!(runtime.conversation.history.open(&deleted).is_err());
+        let items = runtime.conversation.history.list().unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, after.conversation_id);
         let _ = std::fs::remove_dir_all(root);
@@ -2153,7 +2135,7 @@ mod tests {
         });
         assert!(runtime.history_delete(&id).await.is_err());
         assert_eq!(runtime.snapshot().conversation_id, id);
-        assert_eq!(runtime.history.open(&id).unwrap().messages[0].text, "Still running");
+        assert_eq!(runtime.conversation.history.open(&id).unwrap().messages[0].text, "Still running");
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -2176,13 +2158,12 @@ mod tests {
         let stale = terminal_snapshot(RunPhase::Completed);
 
         persist_terminal_outcome(
-            &runtime.history,
+            &runtime.conversation,
             runtime.recovery.as_ref().unwrap(),
-            &runtime.conversation_id,
             &runtime.updates,
             &stale,
         );
-        assert!(runtime.history.list().unwrap().is_empty());
+        assert!(runtime.conversation.history.list().unwrap().is_empty());
         assert_eq!(fs::read_to_string(root.join("marker")).unwrap(), "3");
         let _ = std::fs::remove_dir_all(root);
     }
