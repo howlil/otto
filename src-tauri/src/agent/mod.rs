@@ -557,13 +557,25 @@ impl AgentRuntime {
             RunPhase::Starting | RunPhase::Streaming | RunPhase::Stopping
         ) || current.capture.phase != "idle"
         {
-            return Err("Finish or Stop the current answer or capture before changing provider.".into());
+            return Err(
+                "Finish or Stop the current answer or capture before changing provider.".into(),
+            );
         }
         if current.provider == provider {
             return Ok(());
         }
         if let Some(sender) = guard.as_ref().filter(|sender| !sender.is_closed()) {
             close_owned_transport(sender, close_timeout).await?;
+        }
+        let latest = self.snapshot();
+        if latest.capture.request_id != current.capture.request_id
+            || latest.capture.phase != "idle"
+        {
+            *guard = None;
+            mutate(&self.updates, |state| state.thread_id = None);
+            return Err(
+                "Screen capture started while changing provider. Retry after capture.".into(),
+            );
         }
 
         let id = self
@@ -582,7 +594,17 @@ impl AgentRuntime {
         if let Some(record) =
             history::record_from_snapshot(&id, &switched, current.status != RunPhase::Completed)
         {
-            self.history.upsert(record).map_err(String::from)?;
+            if let Err(error) = self.history.upsert(record) {
+                *guard = None;
+                mutate(&self.updates, |state| {
+                    state.thread_id = None;
+                    state.error = Some(
+                        "Conversation history could not be saved. The previous provider session was closed."
+                            .into(),
+                    );
+                });
+                return Err(String::from(error));
+            }
         }
 
         *guard = None;
@@ -1455,7 +1477,8 @@ mod tests {
                 .as_nanos()
         ));
         let history_path = root.join("conversations.json");
-        let runtime = AgentRuntime::persistent_with_history(root.join("marker"), history_path.clone());
+        let runtime =
+            AgentRuntime::persistent_with_history(root.join("marker"), history_path.clone());
         let (sender, mut receiver) = mpsc::channel(2);
         *runtime.control.lock().await = Some(sender);
         mutate(&runtime.updates, |state| {
@@ -1464,8 +1487,16 @@ mod tests {
             state.thread_id = Some("native-codex-thread".into());
             state.model = Some("old-model".into());
             state.messages = vec![
-                ChatMessage { id: "7:user".into(), role: "user".into(), text: "Explain ownership".into() },
-                ChatMessage { id: "7:assistant".into(), role: "assistant".into(), text: "Ownership controls lifetime.".into() },
+                ChatMessage {
+                    id: "7:user".into(),
+                    role: "user".into(),
+                    text: "Explain ownership".into(),
+                },
+                ChatMessage {
+                    id: "7:assistant".into(),
+                    role: "assistant".into(),
+                    text: "Ownership controls lifetime.".into(),
+                },
             ];
         });
         let before = runtime.snapshot();
@@ -1499,7 +1530,10 @@ mod tests {
             root.join("marker2"),
             root.join("conversations.json"),
         );
-        let reopened = restarted.history_open(&after.conversation_id).await.unwrap();
+        let reopened = restarted
+            .history_open(&after.conversation_id)
+            .await
+            .unwrap();
         assert_eq!(reopened.provider, ProviderId::Pi);
         assert!(reopened.thread_id.is_none());
         assert_eq!(reopened.messages.len(), 2);
@@ -1544,6 +1578,93 @@ mod tests {
         drop(receiver);
     }
 
+    #[tokio::test]
+    async fn history_failure_after_close_clears_native_identity_without_changing_provider() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-switch-save-failure-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let blocker = root.join("not-a-directory");
+        std::fs::write(&blocker, b"blocked").unwrap();
+        let runtime = AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            blocker.join("conversations.json"),
+        );
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+        mutate(&runtime.updates, |state| {
+            state.status = RunPhase::Completed;
+            state.thread_id = Some("native-session".into());
+            state.messages.push(ChatMessage {
+                id: "1:user".into(),
+                role: "user".into(),
+                text: "Original question".into(),
+            });
+        });
+        let before = runtime.snapshot();
+        let worker = tokio::spawn(async move {
+            let Some(Control::Close { claimed, finished }) = receiver.recv().await else {
+                panic!("close request expected");
+            };
+            assert!(!claimed.swap(true, Ordering::SeqCst));
+            finished.send(()).unwrap();
+        });
+        assert!(runtime.select_provider("pi".into()).await.is_err());
+        worker.await.unwrap();
+        let after = runtime.snapshot();
+        assert_eq!(after.provider, ProviderId::Codex);
+        assert_eq!(after.conversation_id, before.conversation_id);
+        assert_eq!(after.messages[0].text, "Original question");
+        assert!(after.thread_id.is_none());
+        assert!(runtime.control.lock().await.is_none());
+        assert!(after.error.as_deref().unwrap().contains("could not be saved"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn capture_started_during_close_prevents_provider_switch() {
+        let runtime = AgentRuntime::new();
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+        mutate(&runtime.updates, |state| {
+            state.status = RunPhase::Completed;
+            state.thread_id = Some("old-session".into());
+        });
+        let (received, acknowledged) = oneshot::channel();
+        let (release, proceed) = oneshot::channel();
+        let worker = tokio::spawn(async move {
+            let Some(Control::Close { claimed, finished }) = receiver.recv().await else {
+                panic!("close request expected");
+            };
+            assert!(!claimed.swap(true, Ordering::SeqCst));
+            received.send(()).unwrap();
+            proceed.await.unwrap();
+            finished.send(()).unwrap();
+        });
+        let switch = runtime.select_provider("pi".into());
+        tokio::pin!(switch);
+        tokio::select! {
+            result = &mut switch => panic!("switch completed before close: {result:?}"),
+            result = acknowledged => assert!(result.is_ok()),
+        }
+        mutate(&runtime.updates, |state| {
+            state.capture.request_id = 1;
+            state.capture.phase = "preparing".into();
+        });
+        release.send(()).unwrap();
+        assert!(switch.await.is_err());
+        worker.await.unwrap();
+        let state = runtime.snapshot();
+        assert_eq!(state.provider, ProviderId::Codex);
+        assert!(state.thread_id.is_none());
+        assert_eq!(state.capture.phase, "preparing");
+    }
+
     #[test]
     fn stale_terminal_observer_does_not_overwrite_new_provider_history() {
         let root = std::env::temp_dir().join(format!(
@@ -1555,14 +1676,17 @@ mod tests {
                 .as_nanos()
         ));
         let runtime = AgentRuntime::persistent_with_history(
-            root.join("marker"), root.join("conversations.json"),
+            root.join("marker"),
+            root.join("conversations.json"),
         );
         runtime.recovery.as_ref().unwrap().mark(3).unwrap();
         let mut old = runtime.snapshot();
         old.run_id = 3;
         old.status = RunPhase::Completed;
         old.messages = vec![ChatMessage {
-            id: "3:user".into(), role: "user".into(), text: "old".into(),
+            id: "3:user".into(),
+            role: "user".into(),
+            text: "old".into(),
         }];
         mutate(&runtime.updates, |state| state.run_id = 4);
         persist_terminal_outcome(
