@@ -2072,7 +2072,10 @@ mod tests {
             root.join("marker"),
             root.join("conversations.json"),
         );
-        runtime.conversation.history.upsert(history::ConversationRecord {
+        runtime
+            .conversation
+            .history
+            .upsert(history::ConversationRecord {
                 id: "saved".into(),
                 title: "Saved chat".into(),
                 provider: ProviderId::Codex,
@@ -2162,7 +2165,10 @@ mod tests {
             .expect("a long transcript must produce a record");
         assert_eq!(record.messages.len(), 24);
         assert_eq!(record.messages.first().unwrap().text, "message 6");
-        runtime.conversation.history.upsert(record)
+        runtime
+            .conversation
+            .history
+            .upsert(record)
             .expect("a bounded record must persist");
     }
 
