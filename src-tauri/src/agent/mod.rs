@@ -2132,7 +2132,18 @@ mod tests {
 
     #[tokio::test]
     async fn restored_pi_history_uses_saved_model_for_capture_selection() {
-        let runtime = AgentRuntime::new();
+        let root = std::env::temp_dir().join(format!(
+            "otto-pi-history-options-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            root.join("conversations.json"),
+        );
         runtime
             .conversation
             .history
@@ -2159,6 +2170,7 @@ mod tests {
         let capture = runtime.capture_runtime_options(&reopened);
         assert_eq!(capture.model.as_deref(), Some("saved-model"));
         assert_eq!(capture.thinking_effort.as_deref(), Some("high"));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[tokio::test]

@@ -122,8 +122,16 @@ mod tests {
 
     #[test]
     fn stale_conversation_cannot_write_under_new_identity() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-conversation-owner-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         let owner = ConversationOwner::new(
-            Arc::new(history::HistoryStore::memory()),
+            Arc::new(history::HistoryStore::file(root.join("conversations.json"))),
             "current".into(),
         );
         let mut snapshot = crate::agent::AgentRuntime::new().snapshot();
@@ -137,5 +145,6 @@ mod tests {
         snapshot.conversation_id = "current".into();
         owner.persist_snapshot(&snapshot, false).unwrap();
         assert_eq!(owner.history.open("current").unwrap().messages.len(), 1);
+        let _ = std::fs::remove_dir_all(root);
     }
 }
