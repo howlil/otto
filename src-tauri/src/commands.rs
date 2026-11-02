@@ -44,11 +44,11 @@ pub fn agent_history_rename(
     runtime.history_rename(&conversation_id, &title)
 }
 #[tauri::command]
-pub fn agent_history_delete(
+pub async fn agent_history_delete(
     runtime: State<'_, AgentRuntime>,
     conversation_id: String,
 ) -> Result<(), String> {
-    runtime.history_delete(&conversation_id)
+    runtime.history_delete(&conversation_id).await
 }
 #[tauri::command]
 pub fn agent_codex_installed(runtime: State<'_, AgentRuntime>) -> bool {

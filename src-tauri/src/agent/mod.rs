@@ -415,6 +415,11 @@ impl AgentRuntime {
         {
             return Err("Stop the current request before opening a saved conversation.".into());
         }
+        let mut active_id = self
+            .conversation_id
+            .lock()
+            .map_err(|_| AgentError::internal("Conversation history is unavailable."))?;
+        *active_id = record.id.clone();
         mutate(&self.updates, |state| {
             state.conversation_id = record.id.clone();
             state.provider = record.provider;
@@ -432,10 +437,7 @@ impl AgentRuntime {
             });
             state.capture = CaptureSnapshot::default();
         });
-        *self
-            .conversation_id
-            .lock()
-            .map_err(|_| AgentError::internal("Conversation history is unavailable."))? = record.id;
+        drop(active_id);
         drop(guard);
         Ok(self.snapshot())
     }
@@ -444,15 +446,11 @@ impl AgentRuntime {
         self.history.rename(id, title).map_err(String::from)
     }
 
-    pub fn history_delete(&self, id: &str) -> Result<(), String> {
-        self.history.delete(id).map_err(String::from)?;
-        let deleted = id.trim();
-        if let Ok(mut current) = self.conversation_id.lock()
-            && *current == deleted
-        {
-            *current = history::new_id();
+    pub async fn history_delete(&self, id: &str) -> Result<(), String> {
+        if self.snapshot().conversation_id == id.trim() {
+            self.new_session().await?;
         }
-        Ok(())
+        self.history.delete(id).map_err(String::from)
     }
 
     fn persist_prompt(&self, run_id: u64, text: &str) -> Result<(), AgentError> {
@@ -1293,7 +1291,11 @@ fn persist_terminal_outcome(
     }
     let interrupted = snapshot.status != RunPhase::Completed;
     let stored = match conversation_id.lock() {
-        Ok(id) if updates.borrow().run_id == snapshot.run_id => {
+        Ok(id)
+            if updates.borrow().run_id == snapshot.run_id
+                && updates.borrow().conversation_id == *id
+                && snapshot.conversation_id == *id =>
+        {
             let record = history::record_from_snapshot(&id, snapshot, interrupted);
             match record {
                 Some(record) => history.upsert(record),
@@ -1882,7 +1884,10 @@ mod tests {
             runtime.recovery.as_ref().unwrap(),
             &runtime.conversation_id,
             &runtime.updates,
-            &terminal_snapshot(RunPhase::Failed),
+            &Snapshot {
+                conversation_id: runtime.snapshot().conversation_id,
+                ..terminal_snapshot(RunPhase::Failed)
+            },
         );
 
         let observed = runtime.updates.borrow().clone();
@@ -1923,7 +1928,10 @@ mod tests {
             runtime.recovery.as_ref().unwrap(),
             &runtime.conversation_id,
             &runtime.updates,
-            &terminal_snapshot(RunPhase::Failed),
+            &Snapshot {
+                conversation_id: runtime.snapshot().conversation_id,
+                ..terminal_snapshot(RunPhase::Failed)
+            },
         );
 
         assert!(runtime.snapshot().error.is_none());
@@ -2086,9 +2094,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn deleting_the_open_conversation_does_not_resurrect_it() {
+    async fn active_history_deletion_resets_without_resurrecting() {
         let root = std::env::temp_dir().join(format!(
-            "otto-history-delete-{}-{}",
+            "otto-delete-active-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -2099,41 +2107,81 @@ mod tests {
             root.join("marker"),
             root.join("conversations.json"),
         );
-        runtime
-            .history
-            .upsert(history::ConversationRecord {
-                id: "doomed".into(),
-                title: "Doomed chat".into(),
-                provider: ProviderId::Codex,
-                model: None,
-                thinking_effort: None,
-                messages: vec![ChatMessage {
-                    id: "1:user".into(),
-                    role: "user".into(),
-                    text: "Explain".into(),
-                }],
-                created_at: 1,
-                updated_at: 1,
-                interrupted: false,
-            })
-            .unwrap();
-        *runtime.conversation_id.lock().unwrap() = "doomed".into();
-        runtime.history_delete("doomed").unwrap();
-        mutate(&runtime.updates, |state| {
-            state.messages.push(ChatMessage {
-                id: "2:user".into(),
-                role: "user".into(),
-                text: "Still here".into(),
-            });
-        });
-        runtime.persist_current_snapshot(false).unwrap();
-        assert!(
-            runtime.history.open("doomed").is_err(),
-            "a deleted conversation must not be re-created by later turns"
+        runtime.persist_prompt(7, "Original chat").unwrap();
+        let deleted = runtime.snapshot().conversation_id;
+        assert!(runtime.history.open(&deleted).is_ok());
+
+        runtime.history_delete(&deleted).await.unwrap();
+
+        let after = runtime.snapshot();
+        assert_ne!(after.conversation_id, deleted);
+        assert_eq!(after.conversation_id, *runtime.conversation_id.lock().unwrap());
+        assert_eq!(after.status, RunPhase::Idle);
+        assert!(after.messages.is_empty());
+        assert!(after.thread_id.is_none());
+        assert!(runtime.history.open(&deleted).is_err());
+
+        runtime.persist_prompt(8, "Fresh chat").unwrap();
+        assert!(runtime.history.open(&deleted).is_err());
+        let items = runtime.history.list().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, after.conversation_id);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn active_history_deletion_rejects_running_turn() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-delete-running-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            root.join("conversations.json"),
         );
-        let summaries = runtime.history.list().unwrap();
-        assert_eq!(summaries.len(), 1);
-        assert_ne!(summaries[0].id, "doomed");
+        runtime.persist_prompt(7, "Still running").unwrap();
+        let id = runtime.snapshot().conversation_id;
+        mutate(&runtime.updates, |state| {
+            state.run_id = 7;
+            state.status = RunPhase::Streaming;
+        });
+        assert!(runtime.history_delete(&id).await.is_err());
+        assert_eq!(runtime.snapshot().conversation_id, id);
+        assert_eq!(runtime.history.open(&id).unwrap().messages[0].text, "Still running");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn terminal_observer_refuses_different_conversation_with_same_run_id() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-stale-conversation-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            root.join("conversations.json"),
+        );
+        runtime.recovery.as_ref().unwrap().mark(3).unwrap();
+        mutate(&runtime.updates, |state| state.run_id = 3);
+        let stale = terminal_snapshot(RunPhase::Completed);
+
+        persist_terminal_outcome(
+            &runtime.history,
+            runtime.recovery.as_ref().unwrap(),
+            &runtime.conversation_id,
+            &runtime.updates,
+            &stale,
+        );
+        assert!(runtime.history.list().unwrap().is_empty());
+        assert_eq!(fs::read_to_string(root.join("marker")).unwrap(), "3");
         let _ = std::fs::remove_dir_all(root);
     }
 
