@@ -138,6 +138,7 @@ function ShellContent({
             update={appUpdate}
             reducedMotion={shell.reducedMotion}
             captureProtected={shell.captureProtected}
+            captureProtectionSupported={shell.captureProtectionSupported}
             captureProtectionPending={shell.captureProtectionPending}
             captureProtectionError={shell.captureProtectionError}
             setCaptureProtection={shell.setCaptureProtection}

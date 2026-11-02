@@ -20,6 +20,7 @@ export function GlobalSettings({
   update,
   reducedMotion,
   captureProtected,
+  captureProtectionSupported,
   captureProtectionPending,
   captureProtectionError,
   setCaptureProtection,
@@ -37,6 +38,7 @@ export function GlobalSettings({
   motionClass?: string;
   reducedMotion: boolean;
   captureProtected: boolean | null;
+  captureProtectionSupported: boolean;
   captureProtectionPending: boolean;
   captureProtectionError: string | null;
   setCaptureProtection: (enabled: boolean) => Promise<void>;
@@ -93,6 +95,7 @@ export function GlobalSettings({
                 change={change}
                 update={update}
                 captureProtected={captureProtected}
+                captureProtectionSupported={captureProtectionSupported}
                 captureProtectionPending={captureProtectionPending}
                 captureProtectionError={captureProtectionError}
                 onCaptureProtectionChange={setCaptureProtection}

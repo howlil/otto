@@ -1,5 +1,4 @@
 import { Button, SegmentedControl, Text, Toggle } from "../../shared/ui";
-import { nativeAvailable } from "../../platform/tauri";
 import { defaults, type Preferences } from "./preferences";
 import { UpdateSettings } from "./UpdateSettings";
 import type { AppUpdateState } from "./useAppUpdate";
@@ -9,6 +8,7 @@ export function GeneralSettings({
   change,
   update,
   captureProtected,
+  captureProtectionSupported,
   captureProtectionPending,
   captureProtectionError,
   onCaptureProtectionChange,
@@ -21,6 +21,7 @@ export function GeneralSettings({
     installUpdate: () => Promise<void>;
   };
   captureProtected: boolean | null;
+  captureProtectionSupported: boolean;
   captureProtectionPending: boolean;
   captureProtectionError: string | null;
   onCaptureProtectionChange: (enabled: boolean) => Promise<void>;
@@ -65,7 +66,7 @@ export function GeneralSettings({
         disabled={captureProtectionPending}
         onClick={() => {
           change({ ...defaults, hideFromCapture: prefs.hideFromCapture });
-          if (nativeAvailable) void onCaptureProtectionChange(defaults.hideFromCapture);
+          if (captureProtectionSupported) void onCaptureProtectionChange(defaults.hideFromCapture);
         }}
       >
         Restore defaults
@@ -75,11 +76,11 @@ export function GeneralSettings({
           title="Hide Otto from screen capture"
           help="Best effort: some recorders may still show Otto."
           checked={captureProtected ?? prefs.hideFromCapture}
-          disabled={!nativeAvailable || captureProtectionPending}
+          disabled={!captureProtectionSupported || captureProtectionPending}
           onChange={(enabled) => void onCaptureProtectionChange(enabled)}
         />
         <Text as="p" variant="caption" className="mt-2 text-otto-text-tertiary" role="status">
-          {!nativeAvailable
+          {!captureProtectionSupported
             ? "Requires Otto for Windows."
             : captureProtectionPending
               ? "Applying Windows capture setting…"

@@ -34,6 +34,8 @@ export function useNotchShell() {
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const morphUntil = useRef(0);
   const previousPage = useRef<Page>(page);
+  const focusPolicy = useRef({ mode, clickOutside: prefs.clickOutside });
+  focusPolicy.current = { mode, clickOutside: prefs.clickOutside };
   const compactButton = useRef<HTMLButtonElement>(null);
   const homeGear = useRef<HTMLButtonElement>(null);
 
@@ -119,7 +121,7 @@ export function useNotchShell() {
     let unlisten: (() => void) | undefined;
     let active = true;
     void onNotchFocusChanged((focused) => {
-      if (!focused && shouldCollapseOnBlur(mode, prefs.clickOutside)) collapse();
+      if (!focused && shouldCollapseOnBlur(focusPolicy.current.mode, focusPolicy.current.clickOutside)) collapse();
     })
       .then((stop) => {
         if (active) unlisten = stop;
@@ -130,7 +132,7 @@ export function useNotchShell() {
       active = false;
       unlisten?.();
     };
-  }, [mode, prefs.clickOutside, collapse]);
+  }, [collapse]);
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   const handleEnter = (event: PointerEvent<HTMLElement>) => {
@@ -190,6 +192,7 @@ export function useNotchShell() {
     notice,
     setNotice,
     captureProtected,
+    captureProtectionSupported: nativeAvailable,
     captureProtectionPending,
     captureProtectionError,
     setCaptureProtection,

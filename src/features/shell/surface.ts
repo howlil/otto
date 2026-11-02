@@ -18,6 +18,9 @@ export function resolveSurface({
   return agentSurface;
 }
 
-export function shouldCollapseOnBlur(mode: "compact" | "preview" | "pinned", clickOutside: boolean): boolean {
+export function shouldCollapseOnBlur(
+  mode: "compact" | "preview" | "pinned",
+  clickOutside: boolean,
+): boolean {
   return mode === "pinned" && clickOutside;
 }
