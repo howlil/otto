@@ -16,15 +16,22 @@ pub(super) fn start_turn(messages: &mut Vec<ChatMessage>, run_id: u64, text: Str
         role: "assistant".into(),
         text: String::new(),
     });
-    if messages.len() > MAX_TRANSCRIPT_MESSAGES {
-        messages.drain(..messages.len() - MAX_TRANSCRIPT_MESSAGES);
+    let overflow = messages.len().saturating_sub(MAX_TRANSCRIPT_MESSAGES);
+    if overflow > 0 {
+        messages.drain(..overflow);
     }
 }
 
-fn current_answer<'a>(messages: &'a mut [ChatMessage], run_id: u64) -> Option<&'a mut ChatMessage> {
-    messages.last_mut().filter(|message| {
-        message.id == format!("{run_id}:assistant") && message.role == "assistant"
-    })
+fn belongs_to_run(message: &ChatMessage, run_id: u64) -> bool {
+    message.role == "assistant"
+        && message
+            .id
+            .split_once(':')
+            .is_some_and(|(id, role)| role == "assistant" && id.parse::<u64>() == Ok(run_id))
+}
+
+fn current_answer(messages: &mut [ChatMessage], run_id: u64) -> Option<&mut ChatMessage> {
+    messages.last_mut().filter(|message| belongs_to_run(message, run_id))
 }
 
 pub(super) fn append_delta(messages: &mut [ChatMessage], run_id: u64, delta: &str) -> bool {
@@ -51,11 +58,9 @@ pub(super) fn set_final(messages: &mut [ChatMessage], run_id: u64, text: &str) -
 }
 
 pub(super) fn has_answer(messages: &[ChatMessage], run_id: u64) -> bool {
-    messages.last().is_some_and(|answer| {
-        answer.id == format!("{run_id}:assistant")
-            && answer.role == "assistant"
-            && !answer.text.trim().is_empty()
-    })
+    messages
+        .last()
+        .is_some_and(|answer| belongs_to_run(answer, run_id) && !answer.text.trim().is_empty())
 }
 
 pub(super) struct ConversationOwner {
