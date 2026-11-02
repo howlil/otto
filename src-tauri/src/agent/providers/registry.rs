@@ -185,28 +185,34 @@ mod tests {
         snapshot.status = RunPhase::Completed;
         snapshot.thread_id = Some("agy-conversation".into());
         snapshot.cwd = cwd.to_string_lossy().into_owned();
-
-        let eligible = |snapshot: &Snapshot, path: &std::path::Path,
-                        model: Option<&str>, effort: Option<&str>, capture: bool| {
-            snapshot.provider.can_reuse_without_probe(&SessionReuse::for_turn(
-                snapshot, path, model, effort, capture,
-            ))
-        };
-        assert!(eligible(&snapshot, &cwd, None, None, false));
-        assert!(!eligible(&snapshot, &cwd, Some("other"), None, false));
-        assert!(!eligible(&snapshot, &cwd, None, Some("high"), false));
-        assert!(!eligible(&snapshot, &cwd, None, None, true));
-        assert!(!eligible(&snapshot, &cwd.join("other"), None, None, false));
+        {
+            let mut session = SessionReuse::for_turn(&snapshot, &cwd, None, None, false);
+            assert!(ProviderId::Agy.can_reuse_without_probe(&session));
+            session.model = Some("other");
+            assert!(!ProviderId::Agy.can_reuse_without_probe(&session));
+            session.model = None;
+            session.thinking_effort = Some("high");
+            assert!(!ProviderId::Agy.can_reuse_without_probe(&session));
+            session.thinking_effort = None;
+            session.has_capture = true;
+            assert!(!ProviderId::Agy.can_reuse_without_probe(&session));
+            session.has_capture = false;
+            let other = cwd.join("other");
+            session.requested_cwd = &other;
+            assert!(!ProviderId::Agy.can_reuse_without_probe(&session));
+            session.requested_cwd = &cwd;
+            assert!(!ProviderId::Codex.can_reuse_without_probe(&session));
+        }
         snapshot.thread_id = None;
-        assert!(!eligible(&snapshot, &cwd, None, None, false));
+        let no_session = SessionReuse::for_turn(&snapshot, &cwd, None, None, false);
+        assert!(!ProviderId::Agy.can_reuse_without_probe(&no_session));
         snapshot.thread_id = Some("agy-conversation".into());
         snapshot.status = RunPhase::Failed;
-        assert!(!eligible(&snapshot, &cwd, None, None, false));
+        let failed = SessionReuse::for_turn(&snapshot, &cwd, None, None, false);
+        assert!(!ProviderId::Agy.can_reuse_without_probe(&failed));
         snapshot.status = RunPhase::Completed;
         snapshot.provider = ProviderId::Pi;
-        assert!(!eligible(&snapshot, &cwd, None, None, false));
-        snapshot.provider = ProviderId::Agy;
-        let context = SessionReuse::for_turn(&snapshot, &cwd, None, None, false);
-        assert!(!ProviderId::Codex.can_reuse_without_probe(&context));
+        let other_provider = SessionReuse::for_turn(&snapshot, &cwd, None, None, false);
+        assert!(!ProviderId::Agy.can_reuse_without_probe(&other_provider));
     }
 }

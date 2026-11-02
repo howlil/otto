@@ -9,7 +9,8 @@ mod readiness_probe;
 mod recovery;
 mod runtime;
 use error::AgentError;
-use runtime::{ProviderId, SessionReuse};
+pub use runtime::ProviderId;
+use runtime::SessionReuse;
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
@@ -343,7 +344,7 @@ impl AgentRuntime {
             } else {
                 RunPhase::Idle
             },
-            provider: ProviderId::Codex,
+            provider: ProviderId::default(),
             cwd,
             conversation_id: conversation_id.clone(),
             thread_id: None,
@@ -532,8 +533,8 @@ impl AgentRuntime {
         }
     }
 
-    pub fn codex_installed(&self) -> bool {
-        ProviderId::Codex.is_installed()
+    pub fn provider_installed(&self, provider: &str) -> bool {
+        ProviderId::parse(provider).is_some_and(ProviderId::is_installed)
     }
 
     pub async fn select_provider(&self, provider: String) -> Result<(), String> {
@@ -729,11 +730,6 @@ impl AgentRuntime {
             );
         }
         provider_id.readiness(&cwd, model).await
-    }
-
-    pub async fn codex_readiness(&self, requested_cwd: Option<&str>) -> ProviderReadiness {
-        self.provider_readiness(ProviderId::Codex.as_str(), requested_cwd)
-            .await
     }
 
     #[cfg(windows)]
@@ -1247,6 +1243,7 @@ fn persist_terminal_outcome(
 fn runtime_selection_still_current(previous: &Snapshot, latest: &Snapshot) -> bool {
     latest.run_id == previous.run_id
         && latest.provider == previous.provider
+        && latest.conversation_id == previous.conversation_id
         && latest.cwd == previous.cwd
         && latest.status == previous.status
         && latest.capture.request_id == previous.capture.request_id
@@ -1857,6 +1854,9 @@ mod tests {
         current.capture.phase = "idle".into();
         assert!(!runtime_selection_still_current(&previous, &current));
         assert!(runtime_selection_still_current(&previous, &previous));
+        let mut reopened = previous.clone();
+        reopened.conversation_id = "another-conversation".into();
+        assert!(!runtime_selection_still_current(&previous, &reopened));
     }
 
     #[tokio::test]

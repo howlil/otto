@@ -52,13 +52,13 @@ pub fn agent_history_delete(
 }
 #[tauri::command]
 pub fn agent_codex_installed(runtime: State<'_, AgentRuntime>) -> bool {
-    runtime.codex_installed()
+    runtime.provider_installed("codex")
 }
 #[tauri::command]
 pub async fn agent_codex_readiness(
     runtime: State<'_, AgentRuntime>,
 ) -> Result<crate::agent::ProviderReadiness, String> {
-    Ok(runtime.codex_readiness(None).await)
+    Ok(runtime.provider_readiness("codex", None).await)
 }
 #[tauri::command]
 pub async fn agent_provider_readiness(

@@ -2,9 +2,10 @@ use super::{RunPhase, Snapshot};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ProviderId {
+    #[default]
     Codex,
     Pi,
     Agy,
