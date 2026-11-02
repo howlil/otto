@@ -166,7 +166,7 @@ async function p8() {
   await until('completed chat persisted in local history', async () =>
     (await savedConversations()).some((record) => record.id === done.conversationId),
   );
-  await click('//button[@aria-label="Conversation history"]');
+  await click('//button[.//span[normalize-space()="Conversation history"]]');
   await until('saved history row ready', async () => {
     const id = await find('//li/button[.//span[normalize-space()="Deterministic streaming test"]]');
     return call('GET', endpoint('/element/' + id + '/enabled'));
