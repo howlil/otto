@@ -449,8 +449,9 @@ impl AgentRuntime {
             state.capture = CaptureSnapshot::default();
         });
         drop(active_id);
+        let opened = self.snapshot();
         drop(guard);
-        Ok(self.snapshot())
+        Ok(opened)
     }
 
     pub fn history_rename(&self, id: &str, title: &str) -> Result<(), String> {
@@ -458,8 +459,8 @@ impl AgentRuntime {
     }
 
     pub async fn history_delete(&self, id: &str) -> Result<(), String> {
-        self.conversation.history.open(id)?;
         let mut guard = self.control.lock().await;
+        self.conversation.history.open(id)?;
         if self.snapshot().conversation_id == id.trim() {
             self.new_session_locked(&mut guard, Duration::from_secs(5))
                 .await?;

@@ -88,6 +88,7 @@ export class AgentHistoryController {
   }
 
   async rename(id: string, rawTitle: string): Promise<RenameOutcome> {
+    if (this.disposed || this.busy) return { ok: false, error: "History is busy." };
     const title = normalizeTitle(rawTitle);
     if (!title) {
       const error = "Conversation title is required.";
