@@ -532,7 +532,7 @@ impl AgentRuntime {
     }
 
     pub fn codex_installed(&self) -> bool {
-        providers::codex::executable().is_some()
+        ProviderId::Codex.is_installed()
     }
 
     pub async fn select_provider(&self, provider: String) -> Result<(), String> {
@@ -564,7 +564,7 @@ impl AgentRuntime {
     ) -> Result<(), String> {
         let guard = self.control.lock().await;
         let current = self.snapshot();
-        if current.provider != ProviderId::Pi {
+        if !current.provider.capabilities().pending_model_selection {
             return Err("Pi runtime selection requires the Pi provider.".into());
         }
         if matches!(
@@ -607,14 +607,10 @@ impl AgentRuntime {
     }
 
     fn capture_runtime_options(&self, state: &Snapshot) -> ModelSelection {
-        if state.provider == ProviderId::Pi {
-            self.selected_runtime.lock().unwrap().clone()
-        } else {
-            ModelSelection {
-                model: state.model.clone(),
-                thinking_effort: state.thinking_effort.clone(),
-            }
-        }
+        state.provider.options_for_capture(
+            state,
+            &self.selected_runtime.lock().unwrap(),
+        )
     }
 
     pub async fn probe_provider_readiness(
@@ -782,8 +778,8 @@ impl AgentRuntime {
         ) {
             return Err("Finish or Stop the current answer before capturing.".into());
         }
-        if !state.provider.image_transport() {
-            return Err("Agy headless streaming accepts text only. Select Codex or Pi.".into());
+        if let Some(reason) = state.provider.capture_unavailable_reason() {
+            return Err(reason.into());
         }
         let selected = self.capture_runtime_options(&state);
         let ready = self
@@ -925,8 +921,8 @@ impl AgentRuntime {
 
         let provider_has_context =
             guard.as_ref().is_some_and(|sender| !sender.is_closed()) && current.thread_id.is_some();
-        let reused_agy = guard.as_ref().is_some_and(|sender| !sender.is_closed())
-            && can_reuse_agy_session(
+        let reusable_followup = guard.as_ref().is_some_and(|sender| !sender.is_closed())
+            && selected.can_reuse_without_probe(
                 &current,
                 &cwd,
                 model.as_deref(),
@@ -938,7 +934,7 @@ impl AgentRuntime {
         } else {
             contextual_prompt(&current.messages, &text)
         };
-        let reserved_run_id = if reused_agy {
+        let reserved_run_id = if reusable_followup {
             None
         } else {
             let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
@@ -1005,7 +1001,7 @@ impl AgentRuntime {
             {
                 return self.fail_starting_run(run_id, &AgentError::invalid_request(error));
             }
-            if selected == ProviderId::Pi {
+            if selected.capabilities().pending_model_selection {
                 *self.selected_runtime.lock().unwrap() = ModelSelection {
                     model: model.clone(),
                     thinking_effort: thinking_effort.clone(),
@@ -1032,7 +1028,7 @@ impl AgentRuntime {
             if let Some(marker) = &self.recovery {
                 marker.mark(run_id)?;
             }
-            if selected == ProviderId::Pi {
+            if selected.capabilities().pending_model_selection {
                 *self.selected_runtime.lock().unwrap() = ModelSelection {
                     model: model.clone(),
                     thinking_effort: thinking_effort.clone(),
@@ -1250,22 +1246,6 @@ fn persist_terminal_outcome(
     }
 }
 
-fn can_reuse_agy_session(
-    snapshot: &Snapshot,
-    cwd: &std::path::Path,
-    model: Option<&str>,
-    thinking_effort: Option<&str>,
-    has_capture: bool,
-) -> bool {
-    snapshot.provider == ProviderId::Agy
-        && snapshot.status == RunPhase::Completed
-        && snapshot.thread_id.is_some()
-        && std::path::Path::new(&snapshot.cwd) == cwd
-        && model.is_none()
-        && thinking_effort.is_none()
-        && !has_capture
-}
-
 fn validate_runtime_options(
     readiness: &ProviderReadiness,
     model: Option<&str>,
@@ -1390,40 +1370,6 @@ mod tests {
         assert!(snapshot.thread_id.is_none());
         assert!(snapshot.error.as_deref().unwrap().contains("interrupted"));
         assert!(!marker_path.exists());
-    }
-
-    #[test]
-    fn agy_reuse_requires_a_completed_unchanged_chat() {
-        let cwd = std::fs::canonicalize(std::env::current_dir().unwrap()).unwrap();
-        let runtime = AgentRuntime::new();
-        let mut snapshot = runtime.snapshot();
-        snapshot.provider = "agy".into();
-        snapshot.status = "completed".into();
-        snapshot.thread_id = Some("agy-conversation".into());
-        snapshot.cwd = cwd.to_string_lossy().into_owned();
-
-        let eligible = |snapshot: &Snapshot, cwd: &std::path::Path, model: Option<&str>| {
-            can_reuse_agy_session(snapshot, cwd, model, None, false)
-        };
-        assert!(eligible(&snapshot, &cwd, None));
-        assert!(!eligible(&snapshot, &cwd, Some("different-model")));
-        assert!(!can_reuse_agy_session(
-            &snapshot,
-            &cwd,
-            None,
-            Some("high"),
-            false,
-        ));
-        assert!(!can_reuse_agy_session(&snapshot, &cwd, None, None, true,));
-        assert!(!eligible(&snapshot, &cwd.join("different"), None));
-        snapshot.thread_id = None;
-        assert!(!eligible(&snapshot, &cwd, None));
-        snapshot.thread_id = Some("agy-conversation".into());
-        snapshot.status = "failed".into();
-        assert!(!eligible(&snapshot, &cwd, None));
-        snapshot.status = "completed".into();
-        snapshot.provider = "pi".into();
-        assert!(!eligible(&snapshot, &cwd, None));
     }
 
     #[tokio::test]

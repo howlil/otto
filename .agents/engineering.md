@@ -161,7 +161,7 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - D2 (S1,B2): `useNotchShell.ts` mixes navigation/pointer timers, focus subscription and persistence. Extract only on a changed interaction needing isolated proof; preserve Compact/Preview/Pinned semantics.
 - D3 (K1): `AppView.tsx` uses hook `ReturnType` as its external prop contract, making render types change with controller internals. Replace with narrow explicit feature contracts in a targeted refactor. Frontend critical-state behavior tests currently have no runner; add only when the first such refactor requires them.
 - D4 (F1/P14): `src/features/agent/CodeBlock.tsx` renders highlight.js HTML through `dangerouslySetInnerHTML` with a scoped Biome `noDangerouslySetInnerHtml` override in `biome.json`. Only `CodeBlock.tsx` may keep this override; it must render highlight.js output over markdown source that react-markdown already sanitized (no `rehype-raw`). Removing the override depends on a structured-token renderer.
-- D5 (B3,B14,G13): `agent/mod.rs`, registry and history/UI types couple provider identity with conversation/run decisions; isolate R8 identity and K4 capability selection incrementally.
+- D5 (B3,B14,G13): Slice 1 routes image capability, pending model selection, supported provider installation and completed Agy follow-up reuse through K4 registry metadata. Remaining debt: `ProviderId` is still a closed enum visible to K3, event state/session details remain coupled, and R8 transcript ownership is not yet independent; fix only with verified follow-on behavior changes.
 - D6 (B4,G1): `windows/capture.rs` calls AgentRuntime directly; move run orchestration to R9 while retaining platform-side lifetime/cleanup.
 
 ## Verification
