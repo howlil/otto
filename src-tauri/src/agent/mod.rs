@@ -403,7 +403,7 @@ impl AgentRuntime {
     }
 
     pub async fn history_open(&self, id: &str) -> Result<Snapshot, String> {
-        let record = self.conversation.history.open(id)?;
+        self.conversation.history.open(id)?;
         self.new_session_with_timeout(Duration::from_secs(5))
             .await?;
         let guard = self.control.lock().await;
@@ -415,6 +415,7 @@ impl AgentRuntime {
         {
             return Err("Stop the current request before opening a saved conversation.".into());
         }
+        let record = self.conversation.history.open(id)?;
         let mut active_id = self
             .conversation.id
             .lock()
@@ -426,6 +427,7 @@ impl AgentRuntime {
             state.model = record.model.clone();
             state.thinking_effort = record.thinking_effort.clone();
             state.thread_id = None;
+            state.usage = None;
             state.messages = record.messages.clone();
             state.status = if record.interrupted {
                 RunPhase::Failed
@@ -1184,6 +1186,9 @@ impl AgentRuntime {
             s.provider = current.provider;
             s.conversation_id = next_conversation;
             s.thread_id = None;
+            s.model = None;
+            s.thinking_effort = None;
+            s.usage = None;
             s.messages.clear();
             s.capture = CaptureSnapshot::default();
             s.error = clear_failed.then(|| MARKER_CLEAR_NOTICE.into());
@@ -1773,6 +1778,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reopening_current_history_uses_latest_persisted_transcript() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-history-refresh-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            root.join("conversations.json"),
+        );
+        runtime.persist_prompt(7, "Original question").unwrap();
+        let id = runtime.snapshot().conversation_id;
+        assert_eq!(runtime.conversation.history.open(&id).unwrap().messages.len(), 1);
+        mutate(&runtime.updates, |state| {
+            state.run_id = 7;
+            state.status = RunPhase::Completed;
+            state.messages = vec![
+                ChatMessage {
+                    id: "7:user".into(),
+                    role: "user".into(),
+                    text: "Original question".into(),
+                },
+                ChatMessage {
+                    id: "7:assistant".into(),
+                    role: "assistant".into(),
+                    text: "Latest completed answer".into(),
+                },
+            ];
+        });
+
+        let reopened = runtime.history_open(&id).await.unwrap();
+        assert_eq!(reopened.conversation_id, id);
+        assert_eq!(reopened.messages.len(), 2);
+        assert_eq!(reopened.messages[1].text, "Latest completed answer");
+        assert_eq!(
+            runtime.conversation.history.open(&id).unwrap().messages[1].text,
+            "Latest completed answer"
+        );
+        assert!(reopened.thread_id.is_none());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn new_session_clears_provider_selection_and_usage() {
+        let runtime = AgentRuntime::new();
+        mutate(&runtime.updates, |state| {
+            state.status = RunPhase::Completed;
+            state.model = Some("prior-model".into());
+            state.thinking_effort = Some("high".into());
+            state.usage = Some(UsageSnapshot {
+                context_tokens: Some(200),
+                session_tokens: 100,
+                input_tokens: 80,
+                cached_input_tokens: 0,
+                output_tokens: 20,
+                reasoning_output_tokens: None,
+                model_context_window: Some(8_000),
+            });
+        });
+        runtime.new_session().await.unwrap();
+        let reset = runtime.snapshot();
+        assert_eq!(reset.status, RunPhase::Idle);
+        assert!(reset.model.is_none());
+        assert!(reset.thinking_effort.is_none());
+        assert!(reset.usage.is_none());
+    }
+
+    #[tokio::test]
     async fn new_session_rotates_snapshot_conversation_id_and_keeps_the_old_record() {
         let root = std::env::temp_dir().join(format!(
             "otto-rotate-history-{}-{}",
@@ -1996,9 +2072,7 @@ mod tests {
             root.join("marker"),
             root.join("conversations.json"),
         );
-        runtime
-            .history
-            .upsert(history::ConversationRecord {
+        runtime.conversation.history.upsert(history::ConversationRecord {
                 id: "saved".into(),
                 title: "Saved chat".into(),
                 provider: ProviderId::Codex,
@@ -2021,8 +2095,22 @@ mod tests {
                 interrupted: false,
             })
             .unwrap();
+        mutate(&runtime.updates, |state| {
+            state.usage = Some(UsageSnapshot {
+                context_tokens: None,
+                session_tokens: 50,
+                input_tokens: 25,
+                cached_input_tokens: 0,
+                output_tokens: 25,
+                reasoning_output_tokens: None,
+                model_context_window: None,
+            });
+        });
         let snapshot = runtime.history_open("saved").await.unwrap();
         assert_eq!(snapshot.status, RunPhase::Completed);
+        assert!(snapshot.usage.is_none());
+        assert_eq!(snapshot.model.as_deref(), Some("model"));
+        assert_eq!(snapshot.thinking_effort.as_deref(), Some("high"));
         assert_eq!(snapshot.messages.len(), 2);
         assert!(snapshot.thread_id.is_none());
         assert_eq!(snapshot.provider, ProviderId::Codex);
@@ -2074,9 +2162,7 @@ mod tests {
             .expect("a long transcript must produce a record");
         assert_eq!(record.messages.len(), 24);
         assert_eq!(record.messages.first().unwrap().text, "message 6");
-        runtime
-            .history
-            .upsert(record)
+        runtime.conversation.history.upsert(record)
             .expect("a bounded record must persist");
     }
 
