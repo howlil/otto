@@ -2387,7 +2387,10 @@ mod tests {
             .expect("Agy should be selectable before the session");
         let (tx, _rx) = mpsc::channel(1);
         *runtime.control.lock().await = Some(tx);
-        assert!(runtime.select_provider("pi".into()).await.is_err());
+        assert!(runtime
+            .select_provider_with_timeout("pi".into(), Duration::from_millis(10))
+            .await
+            .is_err());
         assert_eq!(runtime.snapshot().provider, "agy");
     }
 
