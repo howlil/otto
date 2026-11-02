@@ -578,11 +578,11 @@ impl AgentRuntime {
             );
         }
 
-        let id = self
+        let id_guard = self
             .conversation_id
             .lock()
-            .map_err(|_| "Conversation history is unavailable.".to_string())?
-            .clone();
+            .map_err(|_| "Conversation history is unavailable.".to_string())?;
+        let id = id_guard.clone();
         let mut switched = current.clone();
         switched.conversation_id = id.clone();
         switched.provider = provider;
@@ -627,6 +627,7 @@ impl AgentRuntime {
                 state.error = marker_failed.then(|| MARKER_CLEAR_NOTICE.into());
             }
         });
+        drop(id_guard);
         Ok(())
     }
 
@@ -1292,13 +1293,14 @@ fn persist_terminal_outcome(
     }
     let interrupted = snapshot.status != RunPhase::Completed;
     let stored = match conversation_id.lock() {
-        Ok(id) => {
+        Ok(id) if updates.borrow().run_id == snapshot.run_id => {
             let record = history::record_from_snapshot(&id, snapshot, interrupted);
             match record {
                 Some(record) => history.upsert(record),
                 None => Ok(()),
             }
         }
+        Ok(_) => return,
         Err(_) => Err(AgentError::internal("Conversation history is unavailable.")),
     };
     let mut notices: Vec<String> = Vec::new();
