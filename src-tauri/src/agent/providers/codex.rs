@@ -1,19 +1,22 @@
-use crate::agent::events::{AgentEvent, ProviderEvents};
-use crate::agent::policy::{self, InteractionMode};
-use crate::agent::session::{self, ApprovalDecision, PendingApproval, ToolActivity};
-use crate::agent::{
-    CaptureSnapshot, Control, ModelOption, ProviderReadiness, Snapshot, UsageSnapshot,
-};
+use super::{BoundedLineError, read_bounded_line};
 #[cfg(test)]
-use crate::agent::{ChatMessage, mutate};
+use crate::agent::ChatMessage;
+use crate::agent::events::{AgentEvent, ProviderEvents};
+use crate::agent::policy;
+use crate::agent::providers::registry::ProviderId;
+use crate::agent::{
+    CaptureSnapshot, Control, ModelOption, ProviderReadiness, RunPhase, Snapshot, UsageSnapshot,
+};
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
 use tokio::{
-    io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
+    io::{AsyncBufRead, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
     sync::{mpsc, watch},
     time::timeout,
 };
+
+const MAX_RPC_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
 pub fn executable() -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
@@ -193,41 +196,30 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         );
     };
     let result = timeout(Duration::from_secs(12), async {
-        let (updates, _) = watch::channel(Snapshot {
+        let (_updates, _) = watch::channel(Snapshot {
             run_id: 0,
             seq: 0,
-            status: "idle".into(),
-            mode: "quickAsk".into(),
-            provider: "codex".into(),
+            status: RunPhase::Idle,
+            provider: ProviderId::Codex,
             cwd: String::new(),
+            conversation_id: String::new(),
             thread_id: None,
             model: None,
             thinking_effort: None,
             usage: None,
             messages: Vec::new(),
-            activity: None,
-            approval: None,
             capture: CaptureSnapshot::default(),
             error: None,
         });
-        let updates = ProviderEvents::new(updates);
-        let mut approvals = Approvals::for_mode(InteractionMode::QuickAsk, 0);
         rpc.request(
             "initialize",
             json!({ "clientInfo": { "name": "otto", "title": "Otto", "version": "0.1.0" } }),
-            &mut approvals,
-            &updates,
         )
         .await?;
         rpc.send(json!({ "method": "initialized", "params": {} }))
             .await?;
         let (account, _) = rpc
-            .request(
-                "account/read",
-                json!({ "refreshToken": true }),
-                &mut approvals,
-                &updates,
-            )
+            .request("account/read", json!({ "refreshToken": true }))
             .await?;
         let authentication = account_readiness(&account);
         if authentication.status != "ready" {
@@ -238,8 +230,6 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             .request(
                 "config/read",
                 json!({ "cwd": cwd.to_string_lossy(), "includeLayers": false }),
-                &mut approvals,
-                &updates,
             )
             .await?;
         let selected = match configured_model(&config) {
@@ -247,12 +237,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
             Err(status) => return Ok(*status),
         };
         let (models, _) = rpc
-            .request(
-                "model/list",
-                json!({ "limit": 100, "includeHidden": true }),
-                &mut approvals,
-                &updates,
-            )
+            .request("model/list", json!({ "limit": 100, "includeHidden": true }))
             .await?;
         Ok(model_readiness(&models, selected))
     })
@@ -278,288 +263,28 @@ struct Rpc {
     job: super::job::Job,
     child: Child,
     stdin: ChildStdin,
-    stdout: Lines<BufReader<ChildStdout>>,
+    stdout: BufReader<ChildStdout>,
     next_id: u64,
 }
 
-struct PendingRequest {
-    provider_id: Value,
-    approval: PendingApproval,
+fn bounded_line_error(error: BoundedLineError) -> &'static str {
+    match error {
+        BoundedLineError::TooLarge => "Codex response exceeded the size limit.",
+        BoundedLineError::InvalidUtf8 => "Codex returned invalid text.",
+        BoundedLineError::Read => "Codex output failed.",
+    }
 }
 
 async fn read_frame<R: AsyncBufRead + Unpin>(
-    lines: &mut Lines<R>,
+    reader: &mut R,
     idle_timeout: Duration,
-    awaiting_user_decision: bool,
 ) -> Result<Value, String> {
-    let next = if awaiting_user_decision {
-        lines.next_line().await
-    } else {
-        timeout(idle_timeout, lines.next_line())
-            .await
-            .map_err(|_| "Codex did not respond in time.")?
-    };
-    let line = next
-        .map_err(|_| "Codex output failed.")?
+    let line = timeout(idle_timeout, read_bounded_line(reader, MAX_RPC_FRAME_BYTES))
+        .await
+        .map_err(|_| "Codex did not respond in time.")?
+        .map_err(bounded_line_error)?
         .ok_or("Codex process disconnected.")?;
     serde_json::from_str(&line).map_err(|_| "Invalid Codex protocol response.".into())
-}
-
-enum ServerRequest {
-    Recorded,
-
-    Decline,
-
-    Unknown,
-}
-
-#[derive(Default)]
-struct Approvals {
-    pending: Option<PendingRequest>,
-    counter: u64,
-    thread: Option<String>,
-    turn: Option<String>,
-    previous_turn: Option<String>,
-    file_change_items: Vec<(String, String)>,
-    run_id: u64,
-
-    approval_capable: bool,
-}
-
-impl Approvals {
-    fn for_mode(mode: InteractionMode, run_id: u64) -> Self {
-        Self {
-            approval_capable: mode == InteractionMode::AgentSession,
-            run_id,
-            ..Self::default()
-        }
-    }
-
-    fn prepare_turn(&mut self, thread: &str, run_id: u64) {
-        self.thread = Some(thread.to_owned());
-        self.previous_turn = self.turn.take();
-        self.file_change_items.clear();
-        self.run_id = run_id;
-    }
-
-    fn context(&mut self, thread: &str, turn: &str, run_id: u64) {
-        self.thread = Some(thread.to_owned());
-        self.turn = Some(turn.to_owned());
-        self.run_id = run_id;
-    }
-
-    fn note_item(&mut self, event: &Value) {
-        let params = &event["params"];
-        if params["threadId"].as_str() != self.thread.as_deref() {
-            return;
-        }
-        let turn = params["turnId"].as_str();
-        if let Some(current) = self.turn.as_deref() {
-            if turn != Some(current) {
-                return;
-            }
-        } else if turn.is_none() || turn == self.previous_turn.as_deref() {
-            return;
-        }
-        let item = &params["item"];
-        let Some(id) = item["id"].as_str() else {
-            return;
-        };
-        match event["method"].as_str() {
-            Some("item/completed") => self.file_change_items.retain(|(key, _)| key != id),
-            Some("item/started") if item["type"].as_str() == Some("fileChange") => {
-                let Some(changes) = item["changes"].as_array() else {
-                    return;
-                };
-                if changes.is_empty() || changes.len() > 8 {
-                    return;
-                }
-                let mut paths = Vec::with_capacity(changes.len());
-                for change in changes {
-                    let Some(path) = change["path"].as_str().filter(|p| !p.trim().is_empty())
-                    else {
-                        return;
-                    };
-                    paths.push(path);
-                }
-                let detail = format!("Modify files:\n{}", paths.join("\n"));
-                if detail.chars().count() > session::MAX_DETAIL {
-                    return;
-                }
-                self.file_change_items.retain(|(key, _)| key != id);
-                if self.file_change_items.len() == 16 {
-                    self.file_change_items.remove(0);
-                }
-                self.file_change_items.push((id.to_owned(), detail));
-            }
-            _ => {}
-        }
-    }
-
-    fn parse(&mut self, value: &Value) -> ServerRequest {
-        let method = value["method"].as_str().unwrap_or_default();
-        let params = &value["params"];
-
-        let is_approval = method.ends_with("/requestApproval")
-            || method == "execCommandApproval"
-            || method == "applyPatchApproval";
-        if !is_approval {
-            return ServerRequest::Unknown;
-        }
-
-        if !self.approval_capable {
-            return ServerRequest::Decline;
-        }
-
-        if params["threadId"].as_str() != self.thread.as_deref() {
-            return ServerRequest::Decline;
-        }
-        let request_turn = params["turnId"].as_str();
-        if let Some(turn) = self.turn.as_deref() {
-            if request_turn != Some(turn) {
-                return ServerRequest::Decline;
-            }
-        } else if request_turn.is_none() || request_turn == self.previous_turn.as_deref() {
-            return ServerRequest::Decline;
-        }
-
-        if !params["additionalPermissions"].is_null() {
-            return ServerRequest::Decline;
-        }
-        if let Some(choices) = params["availableDecisions"].as_array() {
-            if !choices
-                .iter()
-                .any(|choice| choice.as_str() == Some("accept"))
-            {
-                return ServerRequest::Decline;
-            }
-        } else if !params["availableDecisions"].is_null() {
-            return ServerRequest::Decline;
-        }
-        let built = match method {
-            "item/commandExecution/requestApproval" => {
-                if !params["networkApprovalContext"].is_null() {
-                    let context = &params["networkApprovalContext"];
-                    let Some(host) = context["host"].as_str().filter(|s| !s.trim().is_empty())
-                    else {
-                        return ServerRequest::Decline;
-                    };
-                    let Some(protocol) = context["protocol"]
-                        .as_str()
-                        .filter(|s| matches!(*s, "http" | "https" | "socks5Tcp" | "socks5Udp"))
-                    else {
-                        return ServerRequest::Decline;
-                    };
-                    let detail = format!("{protocol} · {host}");
-                    if detail.chars().count() > session::MAX_DETAIL {
-                        return ServerRequest::Decline;
-                    }
-                    Some(("network", "Allow network access", detail))
-                } else {
-                    let Some(command) = params["command"].as_str().filter(|s| !s.trim().is_empty())
-                    else {
-                        return ServerRequest::Decline;
-                    };
-                    let cwd = params["cwd"].as_str().unwrap_or("");
-                    let detail = if cwd.is_empty() {
-                        command.to_owned()
-                    } else {
-                        format!("{command}\n(cwd: {cwd})")
-                    };
-                    if detail.chars().count() > session::MAX_DETAIL {
-                        return ServerRequest::Decline;
-                    }
-                    Some(("command", "Run command", detail))
-                }
-            }
-            "item/fileChange/requestApproval" => {
-                if !params["grantRoot"].is_null() {
-                    return ServerRequest::Decline;
-                }
-                let Some(id) = params["itemId"].as_str() else {
-                    return ServerRequest::Decline;
-                };
-                self.file_change_items
-                    .iter()
-                    .find(|(key, _)| key == id)
-                    .map(|(_, detail)| ("fileChange", "Change files", detail.clone()))
-            }
-
-            _ => None,
-        };
-        let Some((kind, title, detail)) = built else {
-            return ServerRequest::Decline;
-        };
-        if self.pending.is_some() {
-            return ServerRequest::Decline;
-        }
-        self.counter += 1;
-        self.pending = Some(PendingRequest {
-            provider_id: value["id"].clone(),
-            approval: PendingApproval {
-                approval_id: format!("appr-{}-{}", self.run_id, self.counter),
-                run_id: self.run_id,
-                kind: kind.into(),
-                title: title.into(),
-                detail: session::bounded(&detail),
-                reason: params["reason"].as_str().map(session::bounded),
-            },
-        });
-        ServerRequest::Recorded
-    }
-
-    fn decide(&mut self, approval_id: &str, decision: ApprovalDecision) -> Option<Value> {
-        let pending = self.pending.take()?;
-        if pending.approval.approval_id != approval_id {
-            self.pending = Some(pending);
-            return None;
-        }
-        Some(json!({
-            "id": pending.provider_id,
-            "result": { "decision": decision.provider_verb() }
-        }))
-    }
-
-    fn decline(value: &Value) -> Value {
-        json!({ "id": value["id"].clone(), "result": { "decision": "decline" } })
-    }
-
-    fn reject(value: &Value) -> Value {
-        json!({
-            "id": value["id"].clone(),
-            "error": { "code": -32601, "message": "Unsupported by Otto" }
-        })
-    }
-}
-
-enum StartupControl {
-    Stop,
-    Reply(Value, String),
-    Continue,
-}
-
-fn classify_startup_control(
-    command: Option<Control>,
-    approvals: &mut Approvals,
-    updates: &ProviderEvents,
-) -> Result<StartupControl, String> {
-    match command {
-        Some(Control::Stop) => Ok(StartupControl::Stop),
-        Some(Control::Close { .. }) => Err("Cannot close Codex while starting a turn.".into()),
-        Some(Control::Decide {
-            approval_id,
-            decision,
-        }) => {
-            if let Some(reply) = approvals.decide(&approval_id, decision) {
-                Ok(StartupControl::Reply(reply, approval_id))
-            } else {
-                publish_approval(approvals, updates);
-                Ok(StartupControl::Continue)
-            }
-        }
-        Some(Control::Ask { .. }) => Err("Cannot queue another turn during startup.".into()),
-        None => Err("Codex control channel closed during startup.".into()),
-    }
 }
 
 impl Rpc {
@@ -584,7 +309,7 @@ impl Rpc {
             job,
             child,
             stdin,
-            stdout: BufReader::new(stdout).lines(),
+            stdout: BufReader::new(stdout),
             next_id: 0,
         })
     }
@@ -602,32 +327,49 @@ impl Rpc {
             .map_err(|_| "Codex connection closed.".to_string())
     }
 
-    async fn read(&mut self, awaiting_user_decision: bool) -> Result<Value, String> {
-        read_frame(
-            &mut self.stdout,
-            Duration::from_secs(45),
-            awaiting_user_decision,
-        )
-        .await
+    async fn read(&mut self) -> Result<Value, String> {
+        read_frame(&mut self.stdout, Duration::from_secs(45)).await
     }
 
     async fn request(
         &mut self,
         method: &str,
         params: Value,
-        approvals: &mut Approvals,
-        updates: &ProviderEvents,
     ) -> Result<(Value, Vec<Value>), String> {
-        self.request_controlled(method, params, approvals, updates, None)
-            .await?
-            .ok_or_else(|| "Codex request stopped.".into())
+        self.next_id += 1;
+        let id = self.next_id;
+        self.send(json!({ "id": id, "method": method, "params": params }))
+            .await?;
+        let mut notifications = Vec::new();
+        loop {
+            let value = self.read().await?;
+            if value.get("id").and_then(Value::as_u64) == Some(id) && value.get("method").is_none()
+            {
+                if value.get("error").is_some() {
+                    return Err(format!(
+                        "Codex rejected {method}. Check installation, login and permissions."
+                    ));
+                }
+                return Ok((
+                    value.get("result").cloned().unwrap_or(Value::Null),
+                    notifications,
+                ));
+            }
+            if value.get("id").is_some() && value.get("method").is_some() {
+                return Err("Codex requested unsupported tool or approval control.".into());
+            }
+            if notifications.len() < 2048 {
+                notifications.push(value);
+            } else {
+                return Err("Codex emitted too many pending events.".into());
+            }
+        }
     }
 
     async fn request_controlled(
         &mut self,
         method: &str,
         params: Value,
-        approvals: &mut Approvals,
         updates: &ProviderEvents,
         mut controls: Option<&mut mpsc::Receiver<Control>>,
     ) -> Result<Option<(Value, Vec<Value>)>, String> {
@@ -639,28 +381,26 @@ impl Rpc {
         loop {
             let value = if let Some(receiver) = controls.as_deref_mut() {
                 let next = tokio::select! {
-                    incoming = self.read(approvals.pending.is_some()) => Ok(incoming?),
+                    incoming = self.read() => Ok(incoming?),
                     control = receiver.recv() => Err(control),
                 };
                 match next {
                     Ok(value) => value,
-                    Err(control) => {
-                        match classify_startup_control(control, approvals, updates)? {
-                            StartupControl::Stop => return Ok(None),
-                            StartupControl::Reply(reply, approval_id) => {
-                                self.send(reply).await?;
-                                updates.emit(AgentEvent::ApprovalResolved {
-                                    run_id: approvals.run_id,
-                                    approval_id,
-                                });
-                            }
-                            StartupControl::Continue => {}
+                    Err(control) => match control {
+                        Some(Control::Stop) => return Ok(None),
+                        Some(Control::Close { .. }) => {
+                            return Err("Cannot close Codex while starting a turn.".into());
                         }
-                        continue;
-                    }
+                        Some(Control::Ask { .. }) => {
+                            return Err("Cannot queue another turn during startup.".into());
+                        }
+                        None => {
+                            return Err("Codex control channel closed during startup.".into());
+                        }
+                    },
                 }
             } else {
-                self.read(false).await?
+                self.read().await?
             };
             if value.get("id").and_then(Value::as_u64) == Some(id) && value.get("method").is_none()
             {
@@ -674,13 +414,12 @@ impl Rpc {
                     notifications,
                 )));
             }
-            approvals.note_item(&value);
             if value.get("id").is_some() && value.get("method").is_some() {
-                match approvals.parse(&value) {
-                    ServerRequest::Recorded => publish_approval(approvals, updates),
-                    ServerRequest::Decline => self.send(Approvals::decline(&value)).await?,
-                    ServerRequest::Unknown => self.send(Approvals::reject(&value)).await?,
-                }
+                updates.fail(
+                    updates.snapshot().run_id,
+                    "Codex requested unsupported tool or approval control.",
+                );
+                return Err("Codex requested unsupported tool or approval control.".into());
             } else if notifications.len() < 2048 {
                 notifications.push(value);
             } else {
@@ -697,16 +436,6 @@ impl Rpc {
     }
 }
 
-fn publish_approval(approvals: &Approvals, updates: &ProviderEvents) {
-    if let Some(pending) = approvals.pending.as_ref() {
-        let approval = pending.approval.clone();
-        updates.emit(AgentEvent::ApprovalRequested {
-            run_id: approval.run_id,
-            approval,
-        });
-    }
-}
-
 fn is_for_turn(value: &Value, thread: &str, turn: &str) -> bool {
     let turn_matches = value["params"]["turnId"].as_str() == Some(turn)
         || value["params"]["turn"]["id"].as_str() == Some(turn);
@@ -715,26 +444,6 @@ fn is_for_turn(value: &Value, thread: &str, turn: &str) -> bool {
         None => value["method"].as_str() == Some("turn/completed") && turn_matches,
     };
     turn_matches && thread_matches
-}
-
-fn activity_for(item: &Value) -> Option<ToolActivity> {
-    let kind = item["type"].as_str()?;
-    let tool = match kind {
-        "commandExecution" => ("command", item["command"].as_str().unwrap_or("")),
-        "fileChange" => {
-            let root = item["changes"]
-                .as_array()
-                .and_then(|changes| changes.first())
-                .and_then(|change| change["path"].as_str())
-                .unwrap_or("workspace");
-            ("fileChange", root)
-        }
-        _ => return None,
-    };
-    Some(ToolActivity {
-        kind: tool.0.into(),
-        summary: session::bounded(tool.1),
-    })
 }
 
 fn handle_delta(value: &Value, run_id: u64, updates: &ProviderEvents) {
@@ -746,14 +455,21 @@ fn handle_delta(value: &Value, run_id: u64, updates: &ProviderEvents) {
     }
 }
 
-fn handle_item_started(value: &Value, run_id: u64, updates: &ProviderEvents) {
-    if let Some(activity) = activity_for(&value["params"]["item"]) {
-        updates.emit(AgentEvent::ActivityChanged { run_id, activity });
+fn handle_item_started(value: &Value, run_id: u64, updates: &ProviderEvents) -> bool {
+    let kind = value["params"]["item"]["type"].as_str();
+    if !matches!(kind, Some("agentMessage" | "reasoning")) {
+        updates.fail(run_id, "Codex attempted an unsupported tool action.");
+        return true;
     }
+    false
 }
 
-fn handle_item_completed(value: &Value, run_id: u64, updates: &ProviderEvents) {
+fn handle_item_completed(value: &Value, run_id: u64, updates: &ProviderEvents) -> bool {
     let item = &value["params"]["item"];
+    if !matches!(item["type"].as_str(), Some("agentMessage" | "reasoning")) {
+        updates.fail(run_id, "Codex attempted an unsupported tool action.");
+        return true;
+    }
     if item["type"].as_str() == Some("agentMessage")
         && let Some(text) = item["text"].as_str()
     {
@@ -762,6 +478,7 @@ fn handle_item_completed(value: &Value, run_id: u64, updates: &ProviderEvents) {
             text: text.to_owned(),
         });
     }
+    false
 }
 
 fn usage_snapshot(value: &Value) -> Option<UsageSnapshot> {
@@ -799,8 +516,8 @@ fn handle_event(
     }
     match value["method"].as_str() {
         Some("item/agentMessage/delta") => handle_delta(value, run_id, updates),
-        Some("item/started") => handle_item_started(value, run_id, updates),
-        Some("item/completed") => handle_item_completed(value, run_id, updates),
+        Some("item/started") => return handle_item_started(value, run_id, updates),
+        Some("item/completed") => return handle_item_completed(value, run_id, updates),
         Some("thread/tokenUsage/updated") => {
             if let Some(usage) = usage_snapshot(value) {
                 updates.emit(AgentEvent::UsageUpdated { run_id, usage });
@@ -827,6 +544,7 @@ fn handle_event(
 struct TurnInput<'a> {
     thread: &'a str,
     text: &'a str,
+    display_text: &'a str,
     model: Option<&'a str>,
     thinking_effort: Option<&'a str>,
     image: Option<&'a std::path::Path>,
@@ -836,24 +554,19 @@ async fn begin_turn(
     rpc: &mut Rpc,
     input: TurnInput<'_>,
     run_id: u64,
-    mode: InteractionMode,
-    approvals: &mut Approvals,
     updates: &ProviderEvents,
     controls: Option<&mut mpsc::Receiver<Control>>,
 ) -> Result<Option<(String, Vec<Value>)>, String> {
-    approvals.prepare_turn(input.thread, run_id);
     let response = rpc
         .request_controlled(
             "turn/start",
             policy::turn_start_with_image(
                 input.thread,
                 input.text,
-                mode,
                 input.model,
                 input.thinking_effort,
                 input.image,
             ),
-            approvals,
             updates,
             controls,
         )
@@ -866,7 +579,6 @@ async fn begin_turn(
         .and_then(Value::as_str)
         .ok_or("Codex returned no turn ID.")?
         .to_owned();
-    approvals.context(input.thread, &turn, run_id);
     updates.emit(AgentEvent::RuntimeChanged {
         run_id,
         model: result["turn"]["model"]
@@ -880,38 +592,15 @@ async fn begin_turn(
     });
     updates.emit(AgentEvent::TurnStarted {
         run_id,
-        text: input.text.to_owned(),
+        text: input.display_text.to_owned(),
     });
     Ok(Some((turn, buffered)))
 }
 
-async fn resolve_approval(
-    rpc: &mut Rpc,
-    approvals: &mut Approvals,
-    approval_id: &str,
-    decision: ApprovalDecision,
-    updates: &ProviderEvents,
-) -> Result<(), String> {
-    if let Some(reply) = approvals.decide(approval_id, decision) {
-        rpc.send(reply).await?;
-        updates.emit(AgentEvent::ApprovalResolved {
-            run_id: updates.snapshot().run_id,
-            approval_id: approval_id.to_owned(),
-        });
-    } else {
-        publish_approval(approvals, updates);
-    }
-    Ok(())
-}
-
-pub async fn run(
-    mut controls: mpsc::Receiver<Control>,
-    updates: ProviderEvents,
-    initial: Control,
-    mode: InteractionMode,
-) {
+pub async fn run(mut controls: mpsc::Receiver<Control>, updates: ProviderEvents, initial: Control) {
     let Control::Ask {
         text,
+        display_text,
         cwd,
         run_id,
         model,
@@ -922,7 +611,6 @@ pub async fn run(
         return;
     };
     let mut active_capture = capture;
-    let mut approvals = Approvals::for_mode(mode, run_id);
     let mut rpc = match Rpc::launch(&cwd) {
         Ok(rpc) => rpc,
         Err(e) => {
@@ -936,26 +624,18 @@ pub async fn run(
             rpc.request(
                 "initialize",
                 json!({ "clientInfo": { "name": "otto", "title": "Otto", "version": "0.1.0" } }),
-                &mut approvals,
-                &updates,
             ).await?;
             rpc.send(json!({ "method": "initialized", "params": {} })).await?;
             let (thread_response, _) = rpc.request(
                 "thread/start",
                 policy::thread_start(
                     &cwd.to_string_lossy(),
-                    mode,
                     model.as_deref(),
                     thinking_effort.as_deref(),
                 ),
-                &mut approvals,
-                &updates,
             ).await?;
-            if !policy::thread_matches_policy(&thread_response, mode) {
-                return Err(match mode {
-                    InteractionMode::QuickAsk => "Codex cannot confirm read-only sandbox. Quick Ask is unavailable.".into(),
-                    InteractionMode::AgentSession => "Codex cannot confirm workspace-write with on-request approval. Agent Session is unavailable.".to_string(),
-                });
+            if !policy::thread_matches_policy(&thread_response) {
+                return Err("Codex cannot confirm a read-only chat sandbox.".into());
             }
             let thread = thread_response.pointer("/thread/id").and_then(Value::as_str)
                 .ok_or("Codex returned no thread ID.")?.to_owned();
@@ -982,18 +662,17 @@ pub async fn run(
         }
     };
 
-    let (mut turn, buffered) = match begin_turn(
+    let (turn, buffered) = match begin_turn(
         &mut rpc,
         TurnInput {
             thread: &thread,
             text: &text,
+            display_text: &display_text,
             model: model.as_deref(),
             thinking_effort: thinking_effort.as_deref(),
             image: active_capture.as_ref().map(|image| image.path()),
         },
         run_id,
-        mode,
-        &mut approvals,
         &updates,
         Some(&mut controls),
     )
@@ -1011,11 +690,12 @@ pub async fn run(
             return;
         }
     };
-    let mut active = Some(run_id);
+    let active = run_id;
     for msg in buffered {
         if handle_event(&msg, &thread, &turn, run_id, &updates) {
-            active = None;
             drop(active_capture.take());
+            rpc.terminate().await;
+            return;
         }
     }
 
@@ -1032,96 +712,44 @@ pub async fn run(
                     break;
                 }
                 Some(Control::Stop) => {
-                    if let Some(id) = active {
-                        let _ = timeout(Duration::from_secs(5),
-                            rpc.request("turn/interrupt", json!({ "threadId": thread, "turnId": turn }), &mut approvals, &updates)
-                        ).await;
-                        updates.stopped(id);
-                        rpc.terminate().await;
-                        break;
-                    }
-                }
-                Some(Control::Decide { approval_id, decision }) => {
-                    if let Err(error) = resolve_approval(&mut rpc, &mut approvals, &approval_id, decision, &updates).await {
-                        if let Some(id) = active {
-                            updates.fail(id, &error);
-                        }
-                        rpc.terminate().await;
-                        break;
-                    }
-                }
-                Some(Control::Ask { text, cwd, run_id, model, thinking_effort, capture }) if active.is_none() => {
-                    if cwd.as_path() != std::path::Path::new(&updates.snapshot().cwd) {
-                        updates.fail(run_id, "Working context changed. Restart Otto.");
-                        continue;
-                    }
-
-                    active_capture = capture;
-                    match begin_turn(
-                        &mut rpc,
-                        TurnInput { thread: &thread, text: &text, model: model.as_deref(), thinking_effort: thinking_effort.as_deref(), image: active_capture.as_ref().map(|image| image.path()) },
-                        run_id,
-                        mode,
-                        &mut approvals,
-                        &updates,
-                        Some(&mut controls),
-                    ).await {
-                        Ok(Some((new_turn, buffered))) => {
-                            turn = new_turn;
-                            active = Some(run_id);
-                            for msg in buffered {
-                                if handle_event(&msg, &thread, &turn, run_id, &updates) {
-                                    active = None;
-                                    drop(active_capture.take());
-                                }
-                            }
-                        }
-                        Ok(None) => {
-                            updates.stopped(run_id);
-                            rpc.terminate().await;
-                            break;
-                        }
-                        Err(error) => {
-                            updates.fail(run_id, &error);
-                            rpc.terminate().await;
-                            break;
-                        }
-                    }
+                    let _ = timeout(Duration::from_secs(5),
+                        rpc.request("turn/interrupt", json!({ "threadId": thread, "turnId": turn }))
+                    ).await;
+                    updates.stopped(active);
+                    rpc.terminate().await;
+                    break;
                 }
                 None => { rpc.terminate().await; break; }
                 _ => {}
             },
-            line = rpc.stdout.next_line() => {
+            line = read_bounded_line(&mut rpc.stdout, MAX_RPC_FRAME_BYTES) => {
                 match line {
                     Ok(Some(line)) => {
                         let Ok(msg) = serde_json::from_str::<Value>(&line) else {
-                            if let Some(id) = active { updates.fail(id, "Invalid Codex stream."); }
+                            updates.fail(active, "Invalid Codex stream.");
                             rpc.terminate().await;
                             break;
                         };
-                        approvals.note_item(&msg);
                         if msg.get("method").is_some() && msg.get("id").is_some() {
-                            let reply = match approvals.parse(&msg) {
-                                ServerRequest::Recorded => { publish_approval(&approvals, &updates); None }
-                                ServerRequest::Decline => Some(Approvals::decline(&msg)),
-                                ServerRequest::Unknown => Some(Approvals::reject(&msg)),
-                            };
-                            if let Some(reply) = reply
-                                && rpc.send(reply).await.is_err()
-                            {
-                                if let Some(id) = active { updates.fail(id, "Cannot answer unsupported Codex request."); }
-                                rpc.terminate().await;
-                                break;
-                            }
-                        } else if let Some(id) = active
-                            && handle_event(&msg, &thread, &turn, id, &updates)
-                        {
-                            active = None;
+                            updates.fail(
+                                active,
+                                "Codex requested unsupported tool or approval control.",
+                            );
+                            rpc.terminate().await;
+                            break;
+                        } else if handle_event(&msg, &thread, &turn, active, &updates) {
                             drop(active_capture.take());
+                            rpc.terminate().await;
+                            break;
                         }
                     }
-                    _ => {
-                        if let Some(id) = active { updates.fail(id, "Codex disconnected."); }
+                    Ok(None) => {
+                        updates.fail(active, "Codex disconnected.");
+                        break;
+                    }
+                    Err(error) => {
+                        updates.fail(active, bounded_line_error(error));
+                        rpc.terminate().await;
                         break;
                     }
                 }
@@ -1130,12 +758,12 @@ pub async fn run(
     }
 
     let state = updates.snapshot();
-    match state.status.as_str() {
-        "starting" | "streaming" | "approvalRequired" => updates.fail(
+    match state.status {
+        RunPhase::Starting | RunPhase::Streaming => updates.fail(
             state.run_id,
             "Codex connection closed before the answer finished.",
         ),
-        "stopping" => updates.stopped(state.run_id),
+        RunPhase::Stopping => updates.stopped(state.run_id),
         _ => {}
     }
 }
@@ -1145,33 +773,11 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn approval_can_wait_longer_than_the_normal_rpc_idle_timeout() {
-        let (mut writer, reader) = tokio::io::duplex(512);
-        let mut frames = BufReader::new(reader).lines();
-        let delayed_frame = tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(35)).await;
-            writer
-                .write_all(b"{\"id\":1,\"result\":{}}\n")
-                .await
-                .unwrap();
-        });
-        let got = timeout(
-            Duration::from_secs(1),
-            read_frame(&mut frames, Duration::from_millis(5), true),
-        )
-        .await
-        .expect("pending approval remains available")
-        .expect("valid frame");
-        delayed_frame.await.unwrap();
-        assert_eq!(got["id"], 1);
-    }
-
-    #[tokio::test]
-    async fn ordinary_rpc_read_still_has_an_idle_timeout() {
+    async fn ordinary_rpc_read_has_an_idle_timeout() {
         let (writer, reader) = tokio::io::duplex(256);
         let _keep_writer_open = writer;
-        let mut frames = BufReader::new(reader).lines();
-        let error = read_frame(&mut frames, Duration::from_millis(5), false)
+        let mut frames = BufReader::new(reader);
+        let error = read_frame(&mut frames, Duration::from_millis(5))
             .await
             .unwrap_err();
         assert_eq!(error, "Codex did not respond in time.");
@@ -1189,13 +795,8 @@ mod tests {
         );
         assert_eq!(account_readiness(&json!({})).status, "unsupported");
         assert_eq!(
-            account_readiness(&json!({"account": {"type": "chatgpt"}, "requiresOpenaiAuth": true}))
-                .status,
+            account_readiness(&json!({"account": {"type": "chatgpt"}})).status,
             "ready"
-        );
-        assert_eq!(
-            account_readiness(&json!({"account": {"type": "mystery"}})).status,
-            "unsupported"
         );
     }
 
@@ -1211,7 +812,6 @@ mod tests {
         ] {
             let status = configured_model(&payload).unwrap_err();
             assert_eq!(status.status, "unsupported");
-            assert!(!status.image_input);
         }
         assert!(matches!(
             configured_model(&json!({ "config": { "model": null } })),
@@ -1227,22 +827,12 @@ mod tests {
     fn model_capability_is_gated_by_the_default_model() {
         let ready = model_readiness(
             &json!({ "data": [
-            { "isDefault": false, "inputModalities": ["text", "image"] },
-            { "isDefault": true, "inputModalities": ["text"] }
-        ] }),
+                { "isDefault": true, "inputModalities": ["text", "image"] }
+            ] }),
             None,
         );
         assert_eq!(ready.status, "ready");
-        assert!(!ready.image_input);
-
-        let image = model_readiness(
-            &json!({ "data": [
-            { "isDefault": true, "inputModalities": ["text", "image"] }
-        ] }),
-            None,
-        );
-        assert_eq!(image.status, "ready");
-        assert!(image.image_input);
+        assert!(ready.image_input);
 
         for invalid in [
             json!({}),
@@ -1250,58 +840,31 @@ mod tests {
             json!({ "data": [{ "isDefault": true, "inputModalities": ["image"] }] }),
             json!({ "data": [{ "isDefault": true, "inputModalities": "text" }] }),
         ] {
-            let value = model_readiness(&invalid, None);
-            assert_ne!(value.status, "ready");
-            assert!(!value.image_input);
+            assert_ne!(model_readiness(&invalid, None).status, "ready");
         }
-
-        let legacy = model_readiness(&json!({ "data": [{ "isDefault": true }] }), None);
-        assert_eq!(legacy.status, "ready");
-        assert!(!legacy.image_input);
-        let override_model = model_readiness(
-            &json!({ "data": [
-                { "model": "default", "isDefault": true, "inputModalities": ["text", "image"] },
-                { "model": "custom", "isDefault": false, "hidden": true, "inputModalities": ["text"] }
-            ] }),
-            Some("custom"),
-        );
-        assert_eq!(override_model.status, "ready");
-        assert!(!override_model.image_input);
-        let unknown = model_readiness(
-            &json!({ "data": [
-                { "model": "default", "isDefault": true, "inputModalities": ["text", "image"] }
-            ] }),
-            Some("not-listed"),
-        );
-        assert_eq!(unknown.status, "unsupported");
-        assert!(!unknown.image_input);
     }
 
     #[test]
     fn model_catalog_exposes_selection_and_thinking_capabilities() {
         let ready = model_readiness(
-            &json!({ "data": [
-                {
-                    "id": "gpt-5-codex",
-                    "model": "gpt-5-codex",
-                    "displayName": "GPT-5 Codex",
-                    "isDefault": true,
-                    "inputModalities": ["text", "image"],
-                    "supportedReasoningEfforts": [
-                        { "reasoningEffort": "medium" },
-                        { "reasoningEffort": "high" }
-                    ],
-                    "defaultReasoningEffort": "medium"
-                }
-            ] }),
+            &json!({ "data": [{
+                "id": "gpt-5-codex",
+                "model": "gpt-5-codex",
+                "displayName": "GPT-5 Codex",
+                "isDefault": true,
+                "inputModalities": ["text", "image"],
+                "supportedReasoningEfforts": [
+                    { "reasoningEffort": "medium" },
+                    { "reasoningEffort": "high" }
+                ],
+                "defaultReasoningEffort": "medium"
+            }] }),
             None,
         );
         assert_eq!(ready.model.as_deref(), Some("gpt-5-codex"));
         assert_eq!(ready.thinking_effort.as_deref(), Some("medium"));
         assert_eq!(ready.thinking_efforts, ["medium", "high"]);
         assert_eq!(ready.models.len(), 1);
-        assert_eq!(ready.models[0].display_name, "GPT-5 Codex");
-        assert!(ready.models[0].image_input);
     }
 
     #[test]
@@ -1320,7 +883,6 @@ mod tests {
                         "inputTokens": 120,
                         "cachedInputTokens": 40,
                         "outputTokens": 80,
-                        "reasoningOutputTokens": 20,
                         "totalTokens": 200
                     },
                     "modelContextWindow": 4000
@@ -1331,7 +893,6 @@ mod tests {
         assert_eq!(usage.context_tokens, Some(200));
         assert_eq!(usage.session_tokens, 200);
         assert_eq!(usage.cached_input_tokens, 40);
-        assert_eq!(usage.reasoning_output_tokens, Some(20));
         assert_eq!(usage.model_context_window, Some(4000));
     }
 
@@ -1340,9 +901,9 @@ mod tests {
             run_id,
             seq: 1,
             status: status.into(),
-            mode: "agentSession".into(),
             provider: "codex".into(),
             cwd: String::new(),
+            conversation_id: String::new(),
             thread_id: None,
             model: None,
             thinking_effort: None,
@@ -1352,20 +913,10 @@ mod tests {
                 role: "assistant".into(),
                 text: String::new(),
             }],
-            activity: None,
-            approval: None,
             capture: CaptureSnapshot::default(),
             error: None,
         });
         tx
-    }
-
-    fn command_request(id: u64, thread: &str, turn: &str) -> Value {
-        json!({
-            "id": id,
-            "method": "item/commandExecution/requestApproval",
-            "params": { "threadId": thread, "turnId": turn, "command": "npm test", "cwd": "C:/p" }
-        })
     }
 
     #[test]
@@ -1385,377 +936,29 @@ mod tests {
     }
 
     #[test]
-    fn stop_wins_race_against_completed_notification() {
-        let tx = snapshot("stopping", 7);
-        let completed = json!({
-            "method": "turn/completed",
-            "params": { "threadId": "thread", "turn": { "id": "turn", "status": "completed" } }
-        });
+    fn tool_items_fail_closed_without_ui_state() {
+        let tx = snapshot("streaming", 3);
         assert!(handle_event(
-            &completed,
-            "thread",
-            "turn",
-            7,
-            &ProviderEvents::new(tx.clone())
-        ));
-        assert_eq!(tx.borrow().status, "stopped");
-        let late = json!({
-            "method": "item/agentMessage/delta",
-            "params": { "threadId": "thread", "turnId": "turn", "delta": "late" }
-        });
-        handle_event(&late, "thread", "turn", 7, &ProviderEvents::new(tx.clone()));
-        assert!(tx.borrow().messages[0].text.is_empty());
-    }
-
-    #[test]
-    fn approval_request_for_current_turn_is_recorded_and_published() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.context("thread", "turn", 9);
-        let tx = snapshot("streaming", 9);
-        assert!(matches!(
-            approvals.parse(&command_request(1, "thread", "turn")),
-            ServerRequest::Recorded
-        ));
-        publish_approval(&approvals, &ProviderEvents::new(tx.clone()));
-        let snapshot = tx.borrow();
-        assert_eq!(snapshot.status, "approvalRequired");
-        let approval = snapshot.approval.as_ref().expect("pending approval");
-        assert_eq!(approval.kind, "command");
-        assert_eq!(approval.detail, "npm test\n(cwd: C:/p)");
-        assert_eq!(approval.run_id, 9);
-    }
-
-    #[test]
-    fn network_approval_displays_actual_destination() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.context("thread", "turn", 9);
-        let request = json!({
-            "id": 10, "method": "item/commandExecution/requestApproval",
-            "params": { "threadId": "thread", "turnId": "turn",
-                "networkApprovalContext": { "host": "api.example.org:443", "protocol": "https" },
-                "availableDecisions": ["accept", "decline"] }
-        });
-        assert!(matches!(approvals.parse(&request), ServerRequest::Recorded));
-        let info = &approvals.pending.as_ref().unwrap().approval;
-        assert_eq!(info.kind, "network");
-        assert_eq!(info.title, "Allow network access");
-        assert_eq!(info.detail, "https · api.example.org:443");
-    }
-
-    #[test]
-    fn ambiguous_or_expanded_approval_is_declined() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.context("thread", "turn", 9);
-        let mut request = command_request(1, "thread", "turn");
-        request["params"]["command"] = Value::Null;
-        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
-        request["params"]["command"] = json!("curl example.org");
-        request["params"]["additionalPermissions"] = json!({"network": {"enabled": true}});
-        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
-        request["params"]["additionalPermissions"] = Value::Null;
-        request["params"]["availableDecisions"] = json!(["decline", "acceptForSession"]);
-        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
-        request["params"]["availableDecisions"] = Value::Null;
-        request["params"]["networkApprovalContext"] = json!({"host": "", "protocol": "https"});
-        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
-        assert!(approvals.pending.is_none());
-    }
-
-    #[test]
-    fn prior_turn_file_paths_are_not_reused_on_followup() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.context("thread", "old", 9);
-        let event = json!({
-            "method": "item/started",
-            "params": { "threadId": "thread", "turnId": "old",
-                "item": { "id": "same", "type": "fileChange",
-                    "changes": [{ "path": "secret.txt" }] } }
-        });
-        approvals.note_item(&event);
-        assert_eq!(approvals.file_change_items.len(), 1);
-        approvals.prepare_turn("thread", 10);
-        assert!(approvals.file_change_items.is_empty());
-        approvals.note_item(&event);
-        assert!(approvals.file_change_items.is_empty());
-        let request = json!({
-            "id": 31, "method": "item/fileChange/requestApproval",
-            "params": { "threadId": "thread", "turnId": "new", "itemId": "same" }
-        });
-        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
-    }
-
-    #[test]
-    fn file_change_approval_requires_item_paths_and_no_session_grant() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.context("thread", "turn", 9);
-        let mut request = json!({
-            "id": 11, "method": "item/fileChange/requestApproval",
-            "params": { "threadId": "thread", "turnId": "turn", "itemId": "item1" }
-        });
-        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
-        approvals.note_item(&json!({
-            "method": "item/started",
-            "params": { "threadId": "thread", "turnId": "turn",
-                "item": { "id": "item1", "type": "fileChange",
-                    "changes": [{ "path": "src/a.rs" }, { "path": "src/b.rs" }] } }
-        }));
-        request["params"]["grantRoot"] = json!("C:/repo");
-        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
-        request["params"]["grantRoot"] = Value::Null;
-        assert!(matches!(approvals.parse(&request), ServerRequest::Recorded));
-        let pending = &approvals.pending.as_ref().unwrap().approval;
-        assert_eq!(pending.kind, "fileChange");
-        assert_eq!(pending.detail, "Modify files:\nsrc/a.rs\nsrc/b.rs");
-    }
-
-    #[test]
-    fn approval_before_turn_id_is_known_is_still_recorded() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.thread = Some("thread".into());
-        assert!(matches!(
-            approvals.parse(&command_request(1, "thread", "turn")),
-            ServerRequest::Recorded
-        ));
-    }
-
-    #[test]
-    fn approval_during_turn_start_is_published() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.thread = Some("thread".into());
-        let tx = snapshot("streaming", 9);
-        assert!(matches!(
-            approvals.parse(&command_request(1, "thread", "turn")),
-            ServerRequest::Recorded
-        ));
-        publish_approval(&approvals, &ProviderEvents::new(tx.clone()));
-        assert_eq!(
-            tx.borrow().status,
-            "approvalRequired",
-            "an approval raised before turn/start returns must reach the UI"
-        );
-    }
-
-    #[test]
-    fn quick_ask_rejects_non_approval_server_requests_with_an_error() {
-        let mut approvals = Approvals::for_mode(InteractionMode::QuickAsk, 9);
-        approvals.thread = Some("thread".into());
-        let request = json!({
-            "id": 3,
-            "method": "item/tool/requestUserInput",
-            "params": { "threadId": "thread", "turnId": "turn" }
-        });
-        assert!(matches!(approvals.parse(&request), ServerRequest::Unknown));
-    }
-
-    #[test]
-    fn activity_clears_when_the_answer_streams_after_a_tool() {
-        let tx = snapshot("streaming", 3);
-        handle_item_started(
             &json!({
                 "method": "item/started",
                 "params": { "threadId": "thread", "turnId": "turn",
                     "item": { "type": "commandExecution", "command": "cargo test" } }
             }),
-            3,
-            &ProviderEvents::new(tx.clone()),
-        );
-        assert!(tx.borrow().activity.is_some());
-        handle_event(
-            &json!({
-                "method": "item/agentMessage/delta",
-                "params": { "threadId": "thread", "turnId": "turn", "delta": "Here is the answer" }
-            }),
             "thread",
             "turn",
             3,
             &ProviderEvents::new(tx.clone()),
-        );
-        assert!(
-            tx.borrow().activity.is_none(),
-            "tool activity must clear once the answer text streams"
-        );
-    }
-
-    #[test]
-    fn quick_ask_never_records_or_shows_an_approval() {
-        let mut approvals = Approvals::for_mode(InteractionMode::QuickAsk, 9);
-        approvals.context("thread", "turn", 9);
-        let request = command_request(1, "thread", "turn");
-        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
-        assert!(approvals.pending.is_none());
-        let tx = snapshot("streaming", 9);
-        publish_approval(&approvals, &ProviderEvents::new(tx.clone()));
-        assert_eq!(tx.borrow().status, "streaming");
-        assert!(tx.borrow().approval.is_none());
+        ));
+        assert_eq!(tx.borrow().status, "failed");
         assert_eq!(
-            Approvals::decline(&request),
-            json!({ "id": 1, "result": { "decision": "decline" } })
+            tx.borrow().error.as_deref(),
+            Some("Codex attempted an unsupported tool action.")
         );
     }
 
     #[test]
-    fn mismatched_or_second_approval_fails_closed() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.context("thread", "turn", 9);
-        assert!(matches!(
-            approvals.parse(&command_request(1, "other", "turn")),
-            ServerRequest::Decline
-        ));
-        assert!(matches!(
-            approvals.parse(&command_request(2, "thread", "other")),
-            ServerRequest::Decline
-        ));
-
-        assert!(matches!(
-            approvals.parse(&command_request(3, "thread", "turn")),
-            ServerRequest::Recorded
-        ));
-        assert!(matches!(
-            approvals.parse(&command_request(4, "thread", "turn")),
-            ServerRequest::Decline
-        ));
-    }
-
-    #[test]
-    fn unsupported_permissions_approval_is_declined() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.context("thread", "turn", 9);
-        let request = json!({
-            "id": 7,
-            "method": "item/permissions/requestApproval",
-            "params": { "threadId": "thread", "turnId": "turn" }
-        });
-        assert!(matches!(approvals.parse(&request), ServerRequest::Decline));
-        assert_eq!(
-            Approvals::decline(&request),
-            json!({ "id": 7, "result": { "decision": "decline" } })
-        );
-    }
-
-    #[test]
-    fn approval_identifiers_never_alias_between_runs_or_new_processes() {
-        let mut first = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        first.context("thread-one", "turn", 9);
-        assert!(matches!(
-            first.parse(&command_request(1, "thread-one", "turn")),
-            ServerRequest::Recorded
-        ));
-        let old_id = first.pending.as_ref().unwrap().approval.approval_id.clone();
-
-        let mut second = Approvals::for_mode(InteractionMode::AgentSession, 10);
-        second.context("thread-two", "turn", 10);
-        assert!(matches!(
-            second.parse(&command_request(2, "thread-two", "turn")),
-            ServerRequest::Recorded
-        ));
-        let new_id = second
-            .pending
-            .as_ref()
-            .unwrap()
-            .approval
-            .approval_id
-            .clone();
-        assert_ne!(old_id, new_id);
-        assert!(
-            second
-                .decide(&old_id, ApprovalDecision::AllowOnce)
-                .is_none()
-        );
-        assert_eq!(
-            second.pending.as_ref().unwrap().approval.approval_id,
-            new_id
-        );
-    }
-
-    #[test]
-    fn decision_encodes_exact_provider_verb_and_rejects_stale_ids() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.context("thread", "turn", 9);
-        approvals.parse(&command_request(1, "thread", "turn"));
-
-        assert!(
-            approvals
-                .decide("appr-9", ApprovalDecision::AllowOnce)
-                .is_none()
-        );
-        let approval_id = approvals
-            .pending
-            .as_ref()
-            .unwrap()
-            .approval
-            .approval_id
-            .clone();
-        let accept = approvals
-            .decide(&approval_id, ApprovalDecision::AllowOnce)
-            .unwrap();
-        assert_eq!(
-            accept,
-            json!({ "id": 1, "result": { "decision": "accept" } })
-        );
-
-        assert!(
-            approvals
-                .decide(&approval_id, ApprovalDecision::Deny)
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn deny_maps_to_cancel() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.context("thread", "turn", 9);
-        approvals.parse(&command_request(1, "thread", "turn"));
-        let approval_id = approvals
-            .pending
-            .as_ref()
-            .unwrap()
-            .approval
-            .approval_id
-            .clone();
-        let reply = approvals
-            .decide(&approval_id, ApprovalDecision::Deny)
-            .unwrap();
-        assert_eq!(
-            reply,
-            json!({ "id": 1, "result": { "decision": "cancel" } })
-        );
-    }
-
-    #[test]
-    fn tool_activity_comes_only_from_real_items() {
-        let tx = snapshot("streaming", 3);
-        handle_item_started(
-            &json!({
-                "method": "item/started",
-                "params": { "threadId": "thread", "turnId": "turn",
-                    "item": { "type": "commandExecution", "command": "cargo test" } }
-            }),
-            3,
-            &ProviderEvents::new(tx.clone()),
-        );
-        assert_eq!(tx.borrow().activity.as_ref().unwrap().summary, "cargo test");
-
-        handle_item_started(
-            &json!({ "method": "item/started", "params": { "item": { "type": "agentMessage" } } }),
-            3,
-            &ProviderEvents::new(tx.clone()),
-        );
-        assert!(tx.borrow().activity.is_some());
-    }
-
-    #[test]
-    fn interrupted_turn_is_stopped_and_clears_approval() {
-        let tx = snapshot("approvalRequired", 7);
-        mutate(&tx, |s| {
-            s.approval = Some(PendingApproval {
-                approval_id: "appr-1".into(),
-                run_id: 7,
-                kind: "command".into(),
-                title: "Run command".into(),
-                detail: "x".into(),
-                reason: None,
-            })
-        });
+    fn interrupted_turn_is_stopped() {
+        let tx = snapshot("streaming", 7);
         let interrupted = json!({
             "method": "turn/completed",
             "params": { "threadId": "thread", "turn": { "id": "turn", "status": "interrupted" } }
@@ -1768,137 +971,5 @@ mod tests {
             &ProviderEvents::new(tx.clone())
         ));
         assert_eq!(tx.borrow().status, "stopped");
-        assert!(tx.borrow().approval.is_none());
-    }
-    #[test]
-    fn followup_approval_before_ack_is_bound_to_new_run() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 4);
-        approvals.context("thread", "previous-turn", 4);
-        let updates = snapshot("starting", 5);
-
-        approvals.prepare_turn("thread", 5);
-        assert_eq!(approvals.turn, None);
-        assert_eq!(approvals.previous_turn.as_deref(), Some("previous-turn"));
-        assert_eq!(approvals.run_id, 5);
-        assert!(matches!(
-            approvals.parse(&command_request(11, "thread", "previous-turn")),
-            ServerRequest::Decline
-        ));
-        assert!(matches!(
-            approvals.parse(&command_request(12, "thread", "next-turn")),
-            ServerRequest::Recorded
-        ));
-
-        publish_approval(&approvals, &ProviderEvents::new(updates.clone()));
-        let snap = updates.borrow();
-        assert_eq!(snap.status, "approvalRequired");
-        let approval = snap
-            .approval
-            .as_ref()
-            .expect("follow-up approval is visible");
-        assert_eq!(approval.run_id, 5);
-        let approval_id = approval.approval_id.clone();
-        drop(snap);
-
-        let action = classify_startup_control(
-            Some(Control::Decide {
-                approval_id,
-                decision: ApprovalDecision::AllowOnce,
-            }),
-            &mut approvals,
-            &ProviderEvents::new(updates.clone()),
-        )
-        .expect("decision must remain available before the ack");
-        let StartupControl::Reply(reply, _) = action else {
-            panic!("follow-up approval must not terminate the session");
-        };
-        assert_eq!(
-            reply,
-            json!({ "id": 12, "result": { "decision": "accept" } })
-        );
-
-        approvals.context("thread", "next-turn", 5);
-        assert!(matches!(
-            approvals.parse(&command_request(13, "thread", "previous-turn")),
-            ServerRequest::Decline
-        ));
-    }
-
-    #[test]
-    fn expired_close_ack_is_not_a_live_reset_request() {
-        let (finished, receiver) = tokio::sync::oneshot::channel::<()>();
-        assert!(!finished.is_closed());
-        drop(receiver);
-        assert!(finished.is_closed());
-    }
-
-    #[test]
-    fn startup_approval_decision_is_not_stop() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.thread = Some("thread".into());
-        assert!(matches!(
-            approvals.parse(&command_request(1, "thread", "turn")),
-            ServerRequest::Recorded
-        ));
-        let tx = snapshot("approvalRequired", 9);
-        publish_approval(&approvals, &ProviderEvents::new(tx.clone()));
-        let approval_id = approvals
-            .pending
-            .as_ref()
-            .unwrap()
-            .approval
-            .approval_id
-            .clone();
-        let action = classify_startup_control(
-            Some(Control::Decide {
-                approval_id,
-                decision: ApprovalDecision::AllowOnce,
-            }),
-            &mut approvals,
-            &ProviderEvents::new(tx.clone()),
-        )
-        .unwrap();
-        let StartupControl::Reply(reply, approval_id) = action else {
-            panic!("an approval must reply to Codex without stopping startup");
-        };
-        assert_eq!(
-            reply,
-            json!({ "id": 1, "result": { "decision": "accept" } })
-        );
-        assert!(approvals.pending.is_none());
-        assert_eq!(approval_id, "appr-9-1");
-        assert_eq!(tx.borrow().status, "approvalRequired");
-        assert!(matches!(
-            classify_startup_control(
-                Some(Control::Stop),
-                &mut approvals,
-                &ProviderEvents::new(tx.clone())
-            )
-            .unwrap(),
-            StartupControl::Stop
-        ));
-    }
-
-    #[test]
-    fn stale_startup_approval_does_not_stop_or_resolve_current_request() {
-        let mut approvals = Approvals::for_mode(InteractionMode::AgentSession, 9);
-        approvals.thread = Some("thread".into());
-        assert!(matches!(
-            approvals.parse(&command_request(1, "thread", "turn")),
-            ServerRequest::Recorded
-        ));
-        let tx = snapshot("approvalRequired", 9);
-        let action = classify_startup_control(
-            Some(Control::Decide {
-                approval_id: "stale".into(),
-                decision: ApprovalDecision::Deny,
-            }),
-            &mut approvals,
-            &ProviderEvents::new(tx.clone()),
-        )
-        .unwrap();
-        assert!(matches!(action, StartupControl::Continue));
-        assert!(approvals.pending.is_some());
-        assert_eq!(tx.borrow().status, "approvalRequired");
     }
 }

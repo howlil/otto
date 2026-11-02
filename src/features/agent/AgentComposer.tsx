@@ -11,7 +11,6 @@ export function AgentComposer({
   busy,
   captureBusy,
   capturePhase,
-  approvalPending,
   canSend,
   stopping,
   onCapture,
@@ -26,7 +25,6 @@ export function AgentComposer({
   busy: boolean;
   captureBusy: boolean;
   capturePhase: CapturePhase;
-  approvalPending: boolean;
   canSend: boolean;
   stopping: boolean;
   onCapture: () => void;
@@ -67,7 +65,7 @@ export function AgentComposer({
           placeholder={`Ask ${provider === "pi" ? "Pi" : provider === "agy" ? "Agy" : "Codex"}…`}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          className="block max-h-[105px] min-h-[19px] w-full resize-none overflow-y-hidden border-0 bg-transparent px-1 text-otto-md leading-[1.5] text-otto-text outline-none shadow-none placeholder:text-otto-text-subtle [scrollbar-width:none]"
+          className="otto-scrollbar-hidden block max-h-[105px] min-h-[19px] w-full resize-none overflow-y-hidden border-0 bg-transparent px-1 text-otto-md leading-[1.5] text-otto-text outline-none shadow-none placeholder:text-otto-text-subtle"
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
@@ -93,7 +91,7 @@ export function AgentComposer({
                   ? "Retry screen capture"
                   : "Capture using the configured source"
               }
-              disabled={busy || captureBusy || approvalPending}
+              disabled={busy || captureBusy}
             />
           )}
           <span className="min-w-0 flex-1" />
@@ -115,7 +113,7 @@ export function AgentComposer({
               className="grid shrink-0 place-items-center rounded-full"
               type="submit"
               title="Send"
-              disabled={!canSend || approvalPending}
+              disabled={!canSend}
             />
           )}
         </div>

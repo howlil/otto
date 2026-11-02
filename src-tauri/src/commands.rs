@@ -1,4 +1,4 @@
-use crate::agent::{AgentRuntime, Snapshot};
+use crate::agent::{AcceptedRun, AgentRuntime, Snapshot};
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(not(windows))]
 use tauri::{LogicalSize, PhysicalPosition};
@@ -23,50 +23,58 @@ pub fn agent_snapshot(runtime: State<'_, AgentRuntime>) -> Snapshot {
     runtime.snapshot()
 }
 #[tauri::command]
+pub fn agent_history_list(
+    runtime: State<'_, AgentRuntime>,
+) -> Result<Vec<crate::agent::history::ConversationSummary>, String> {
+    runtime.history_list()
+}
+#[tauri::command]
+pub async fn agent_history_open(
+    runtime: State<'_, AgentRuntime>,
+    conversation_id: String,
+) -> Result<Snapshot, String> {
+    runtime.history_open(&conversation_id).await
+}
+#[tauri::command]
+pub fn agent_history_rename(
+    runtime: State<'_, AgentRuntime>,
+    conversation_id: String,
+    title: String,
+) -> Result<(), String> {
+    runtime.history_rename(&conversation_id, &title)
+}
+#[tauri::command]
+pub fn agent_history_delete(
+    runtime: State<'_, AgentRuntime>,
+    conversation_id: String,
+) -> Result<(), String> {
+    runtime.history_delete(&conversation_id)
+}
+#[tauri::command]
 pub fn agent_codex_installed(runtime: State<'_, AgentRuntime>) -> bool {
     runtime.codex_installed()
 }
 #[tauri::command]
 pub async fn agent_codex_readiness(
     runtime: State<'_, AgentRuntime>,
-    cwd: Option<String>,
 ) -> Result<crate::agent::ProviderReadiness, String> {
-    Ok(runtime.codex_readiness(cwd.as_deref()).await)
+    Ok(runtime.codex_readiness(None).await)
 }
 #[tauri::command]
 pub async fn agent_provider_readiness(
     runtime: State<'_, AgentRuntime>,
     provider: String,
-    cwd: Option<String>,
     model: Option<String>,
     request_id: u64,
 ) -> Result<crate::agent::ProviderReadiness, String> {
     runtime
-        .probe_provider_readiness(request_id, &provider, cwd.as_deref(), model.as_deref())
+        .probe_provider_readiness(request_id, &provider, None, model.as_deref())
         .await
 }
 
 #[tauri::command]
 pub fn agent_cancel_provider_readiness(runtime: State<'_, AgentRuntime>, request_id: u64) {
     runtime.cancel_provider_readiness(request_id);
-}
-
-#[tauri::command]
-pub fn agent_begin_workspace_edit(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
-    runtime.begin_workspace_edit()
-}
-
-#[tauri::command]
-pub async fn agent_commit_workspace(
-    runtime: State<'_, AgentRuntime>,
-    directory: String,
-) -> Result<String, String> {
-    runtime.commit_workspace(directory).await
-}
-
-#[tauri::command]
-pub fn agent_cancel_workspace_edit(runtime: State<'_, AgentRuntime>) {
-    runtime.cancel_workspace_edit();
 }
 
 #[tauri::command]
@@ -98,31 +106,20 @@ pub fn agent_unsubscribe(runtime: State<'_, AgentRuntime>, subscription_id: u64)
 pub async fn agent_ask(
     runtime: State<'_, AgentRuntime>,
     text: String,
-    cwd: String,
-    mode: String,
     provider: String,
     model: Option<String>,
     thinking_effort: Option<String>,
-) -> Result<(), String> {
-    runtime
-        .ask(text, cwd, mode, provider, model, thinking_effort)
-        .await
+) -> Result<AcceptedRun, String> {
+    runtime.ask(text, provider, model, thinking_effort).await
 }
-#[tauri::command]
-pub async fn agent_decide_approval(
-    runtime: State<'_, AgentRuntime>,
-    approval_id: String,
-    decision: String,
-) -> Result<(), String> {
-    runtime.decide_approval(approval_id, decision).await
-}
+
 #[tauri::command]
 pub async fn agent_stop(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
     runtime.stop().await
 }
 
 #[tauri::command]
-pub async fn agent_new_session(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
+pub async fn agent_new_chat(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
     runtime.new_session().await
 }
 
@@ -202,7 +199,6 @@ fn agent_content_size(
         "agentReady"
             | "agentThinking"
             | "agentFull"
-            | "agentApproval"
             | "agentError"
             | "homeSettings"
             | "agentSettings"
@@ -211,7 +207,7 @@ fn agent_content_size(
     }
     let min_height = if matches!(
         surface,
-        "agentReady" | "agentThinking" | "agentFull" | "agentApproval" | "agentError"
+        "agentReady" | "agentThinking" | "agentFull" | "agentError"
     ) {
         170
     } else {
@@ -233,7 +229,6 @@ fn surface_size(surface: &str) -> Option<(u32, u32)> {
         "agentReady" => Some((526, 170)),
         "agentThinking" => Some((526, 236)),
         "agentFull" => Some((526, 346)),
-        "agentApproval" => Some((526, 336)),
         "agentError" => Some((526, 270)),
         "agentSettings" => Some((526, 466)),
         _ => None,
@@ -452,7 +447,6 @@ mod tests {
         assert_eq!(surface_size("home"), Some((452, 148)));
         assert_eq!(surface_size("agentReady"), Some((526, 170)));
         assert_eq!(surface_size("agentFull"), Some((526, 346)));
-        assert_eq!(surface_size("agentApproval"), Some((526, 336)));
         assert_eq!(surface_size("agentSettings"), Some((526, 466)));
         assert_eq!(surface_size("unknown"), None);
     }

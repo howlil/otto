@@ -4,7 +4,6 @@ export const agentStatusLabels: Record<AgentStatus, string> = {
   idle: "Ready",
   starting: "Thinking",
   streaming: "Responding",
-  approvalRequired: "Approval needed",
   stopping: "Stopping",
   completed: "Answer ready",
   stopped: "Stopped",
@@ -57,7 +56,6 @@ export function agentStatusColor(
   readiness: ProviderReadiness["status"],
 ): string {
   if (status === "failed") return "bg-otto-danger";
-  if (status === "approvalRequired") return "bg-otto-warn";
   if (status === "stopping" || status === "stopped" || status === "starting")
     return "bg-otto-text-tertiary";
   if (status === "idle" && readiness !== "ready")

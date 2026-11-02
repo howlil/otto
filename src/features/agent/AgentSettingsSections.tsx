@@ -1,15 +1,14 @@
-import { RadioGroup, StatusMessage, Text } from "../../shared/ui";
-import type { AgentMode, AgentProvider, ProviderReadiness } from "../../platform/tauri";
+import { StatusMessage, Text } from "../../shared/ui";
+import type { AgentProvider, ProviderReadiness } from "../../platform/tauri";
 import { ProviderChoice, type ProviderName } from "./ProviderChoice";
 
 const providers: ReadonlyArray<{
   name: ProviderName;
   command: AgentProvider;
-  detail: string;
 }> = [
-  { name: "Codex", command: "codex", detail: "OpenAI coding agent" },
-  { name: "Agy", command: "agy", detail: "Google Antigravity CLI" },
-  { name: "Pi", command: "pi", detail: "Minimal coding harness" },
+  { name: "Codex", command: "codex" },
+  { name: "Agy", command: "agy" },
+  { name: "Pi", command: "pi" },
 ];
 
 export function ProviderSettings({
@@ -43,30 +42,20 @@ export function ProviderSettings({
         </Text>
       </div>
       <fieldset
-        className="grid h-[233px] min-w-0 grid-cols-[1.15fr_1fr] grid-rows-3 gap-2 border-0 p-0"
+        className="grid min-w-0 grid-cols-3 gap-2 border-0 p-0"
         aria-labelledby="otto-provider-label"
       >
-        {providers.map(({ name, command, detail }) => (
+        {providers.map(({ name, command }) => (
           <ProviderChoice
             key={name}
             name={name}
             command={command}
-            detail={detail}
             status={provider === command ? providerStatus : "Select"}
             selected={provider === command}
             locked={locked}
             onSelect={!locked ? () => onSelect(command) : undefined}
           />
         ))}
-        <ProviderChoice
-          name="OpenCode"
-          command="opencode"
-          detail="Not supported yet"
-          status="Planned"
-          selected={false}
-          planned
-          locked={locked}
-        />
       </fieldset>
       <StatusMessage
         tone={
@@ -89,53 +78,3 @@ export function ProviderSettings({
     </section>
   );
 }
-
-export function ModeSettings({
-  mode,
-  locked,
-  agentSessionAvailable,
-  setMode,
-}: {
-  mode: AgentMode;
-  locked: boolean;
-  agentSessionAvailable: boolean;
-  setMode: (mode: AgentMode) => void;
-}) {
-  return (
-    <section className="min-w-0">
-      <div className="flex items-center justify-between gap-[10px]">
-        <Text as="span" variant="meta" className="mb-2 block text-otto-muted-strong">
-          Execution mode
-        </Text>
-        {locked && (
-          <Text
-            as="span"
-            variant="caption"
-            className="uppercase tracking-[0.03em] text-otto-text-subtle"
-          >
-            Locked
-          </Text>
-        )}
-      </div>
-      <RadioGroup
-        value={mode}
-        disabled={locked}
-        disabledReason="Start a new session to change mode or project"
-        onChange={setMode}
-        choices={[
-          { value: "quickAsk", label: "Quick Ask", help: "Follow-up supported · no file changes" },
-          {
-            value: "agentSession",
-            label: "Agent Session",
-            help: agentSessionAvailable
-              ? "Codex only · tools require approval"
-              : "Not supported by the current CLI",
-            disabled: !agentSessionAvailable,
-            disabledReason: "Agent Session is currently available only through Codex",
-          },
-        ]}
-      />
-    </section>
-  );
-}
-export { ProjectSettings } from "./ProjectSettings";

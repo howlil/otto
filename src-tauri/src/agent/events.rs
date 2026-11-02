@@ -1,5 +1,4 @@
-use super::session::{PendingApproval, ToolActivity};
-use super::{CaptureSnapshot, ChatMessage, Snapshot, UsageSnapshot};
+use super::{CaptureSnapshot, ChatMessage, RunPhase, Snapshot, UsageSnapshot};
 use tokio::sync::watch;
 
 pub enum AgentEvent {
@@ -27,18 +26,6 @@ pub enum AgentEvent {
     TextFinal {
         run_id: u64,
         text: String,
-    },
-    ActivityChanged {
-        run_id: u64,
-        activity: ToolActivity,
-    },
-    ApprovalRequested {
-        run_id: u64,
-        approval: PendingApproval,
-    },
-    ApprovalResolved {
-        run_id: u64,
-        approval_id: String,
     },
     Completed {
         run_id: u64,
@@ -77,10 +64,12 @@ impl ProviderEvents {
     }
 
     pub fn emit(&self, event: AgentEvent) {
-        self.updates.send_modify(|state| {
-            if reduce(state, event) {
+        self.updates.send_if_modified(|state| {
+            let changed = reduce(state, event);
+            if changed {
                 state.seq = state.seq.saturating_add(1);
             }
+            changed
         });
     }
 }
@@ -88,8 +77,7 @@ impl ProviderEvents {
 fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
     match event {
         AgentEvent::SessionReady { run_id, session_id }
-            if state.run_id == run_id
-                && matches!(state.status.as_str(), "starting" | "approvalRequired") =>
+            if state.run_id == run_id && state.status == RunPhase::Starting =>
         {
             state.thread_id = Some(session_id);
         }
@@ -98,26 +86,28 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
             model,
             thinking_effort,
         } if state.run_id == run_id
-            && !matches!(state.status.as_str(), "completed" | "stopped" | "failed") =>
+            && !matches!(
+                state.status,
+                RunPhase::Completed | RunPhase::Stopped | RunPhase::Failed
+            ) =>
         {
             state.model = model;
             state.thinking_effort = thinking_effort;
         }
         AgentEvent::UsageUpdated { run_id, usage }
             if state.run_id == run_id
-                && !matches!(state.status.as_str(), "completed" | "stopped" | "failed") =>
+                && !matches!(
+                    state.status,
+                    RunPhase::Completed | RunPhase::Stopped | RunPhase::Failed
+                ) =>
         {
             state.usage = Some(usage);
         }
         AgentEvent::TurnStarted { run_id, text }
-            if state.run_id == run_id
-                && matches!(state.status.as_str(), "starting" | "approvalRequired") =>
+            if state.run_id == run_id && state.status == RunPhase::Starting =>
         {
-            if state.status != "approvalRequired" {
-                state.status = "streaming".into();
-            }
+            state.status = RunPhase::Streaming;
             state.error = None;
-            state.activity = None;
             state.messages.push(ChatMessage {
                 id: format!("{run_id}:user"),
                 role: "user".into(),
@@ -133,9 +123,8 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
             }
         }
         AgentEvent::TextDelta { run_id, delta }
-            if state.run_id == run_id && state.status == "streaming" =>
+            if state.run_id == run_id && state.status == RunPhase::Streaming =>
         {
-            state.activity = None;
             if let Some(message) = state.messages.last_mut().filter(|m| m.role == "assistant")
                 && message.text.len().saturating_add(delta.len()) <= 128_000
             {
@@ -143,74 +132,18 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
             }
         }
         AgentEvent::TextFinal { run_id, text }
-            if state.run_id == run_id && state.status == "streaming" =>
+            if state.run_id == run_id && state.status == RunPhase::Streaming =>
         {
-            state.activity = None;
             if let Some(message) = state.messages.last_mut().filter(|m| m.role == "assistant") {
                 message.text = text.chars().take(128_000).collect();
             }
         }
-        AgentEvent::ActivityChanged { run_id, activity }
-            if state.run_id == run_id
-                && state.status == "streaming"
-                && state.mode == "agentSession" =>
-        {
-            state.activity = Some(activity);
-        }
-        AgentEvent::ApprovalRequested { run_id, approval }
-            if state.run_id == run_id
-                && approval.run_id == run_id
-                && state.mode == "agentSession"
-                && state
-                    .approval
-                    .as_ref()
-                    .is_none_or(|p| p.approval_id == approval.approval_id)
-                && matches!(
-                    state.status.as_str(),
-                    "starting" | "streaming" | "approvalRequired"
-                ) =>
-        {
-            state.status = "approvalRequired".into();
-            state.activity = None;
-            state.approval = Some(approval);
-        }
-        AgentEvent::ApprovalResolved {
-            run_id,
-            approval_id,
-        } if state.run_id == run_id
-            && state.status == "approvalRequired"
-            && state
-                .approval
-                .as_ref()
-                .is_some_and(|a| a.approval_id == approval_id) =>
-        {
-            state.approval = None;
-            state.status = if state.messages.last().is_some_and(|m| m.role == "assistant") {
-                "streaming"
-            } else {
-                "starting"
-            }
-            .into();
-        }
         AgentEvent::Completed { run_id }
             if state.run_id == run_id
-                && matches!(
-                    state.status.as_str(),
-                    "streaming" | "stopping" | "approvalRequired"
-                ) =>
+                && matches!(state.status, RunPhase::Streaming | RunPhase::Stopping) =>
         {
-            if state.status == "approvalRequired" {
-                state.status = "failed".into();
-                state.error = Some("Provider completed with unresolved approval.".into());
-                state.approval = None;
-                state.activity = None;
-                state.capture = CaptureSnapshot::default();
-                return true;
-            }
-            if state.status == "stopping" {
-                state.status = "stopped".into();
-                state.activity = None;
-                state.approval = None;
+            if state.status == RunPhase::Stopping {
+                state.status = RunPhase::Stopped;
                 state.capture = CaptureSnapshot::default();
                 return true;
             }
@@ -219,36 +152,36 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
                 .last()
                 .is_some_and(|m| m.role == "assistant" && !m.text.trim().is_empty())
             {
-                state.status = "completed".into();
-                state.activity = None;
+                state.status = RunPhase::Completed;
             } else {
-                state.status = "failed".into();
+                state.status = RunPhase::Failed;
                 state.error = Some("Provider finished without an answer.".into());
             }
-            state.approval = None;
             state.capture = CaptureSnapshot::default();
         }
         AgentEvent::Failed { run_id, message }
             if state.run_id == run_id
-                && !matches!(state.status.as_str(), "completed" | "stopped" | "failed") =>
+                && !matches!(
+                    state.status,
+                    RunPhase::Completed | RunPhase::Stopped | RunPhase::Failed
+                ) =>
         {
-            if state.status == "stopping" {
-                state.status = "stopped".into();
+            if state.status == RunPhase::Stopping {
+                state.status = RunPhase::Stopped;
             } else {
-                state.status = "failed".into();
+                state.status = RunPhase::Failed;
                 state.error = Some(message);
             }
-            state.activity = None;
-            state.approval = None;
             state.capture = CaptureSnapshot::default();
         }
         AgentEvent::Stopped { run_id }
             if state.run_id == run_id
-                && !matches!(state.status.as_str(), "completed" | "stopped" | "failed") =>
+                && !matches!(
+                    state.status,
+                    RunPhase::Completed | RunPhase::Stopped | RunPhase::Failed
+                ) =>
         {
-            state.status = "stopped".into();
-            state.activity = None;
-            state.approval = None;
+            state.status = RunPhase::Stopped;
             state.capture = CaptureSnapshot::default();
         }
         _ => return false,
@@ -264,17 +197,15 @@ mod tests {
         let (updates, _) = watch::channel(Snapshot {
             run_id,
             seq: 0,
-            status: "starting".into(),
-            mode: "quickAsk".into(),
+            status: RunPhase::Starting,
             provider: "pi".into(),
             cwd: String::new(),
+            conversation_id: String::new(),
             thread_id: None,
             model: None,
             thinking_effort: None,
             usage: None,
             messages: Vec::new(),
-            activity: None,
-            approval: None,
             capture: CaptureSnapshot::default(),
             error: None,
         });
@@ -313,11 +244,29 @@ mod tests {
         });
         events.emit(AgentEvent::Stopped { run_id: 7 });
         let result = updates.borrow();
-        assert_eq!(result.status, "completed");
+        assert_eq!(result.status, RunPhase::Completed);
         assert_eq!(result.thread_id.as_deref(), Some("s1"));
         assert_eq!(result.messages[1].text, "final");
         assert_eq!(result.capture.phase, "idle");
         assert_eq!(result.seq, final_seq);
+    }
+
+    #[test]
+    fn stale_events_do_not_notify_watch_subscribers() {
+        let (updates, _) = state(7);
+        let mut receiver = updates.subscribe();
+        receiver.borrow_and_update();
+        let events = ProviderEvents::new(updates.clone());
+        events.emit(AgentEvent::Failed {
+            run_id: 6,
+            message: "stale".into(),
+        });
+        assert!(!receiver.has_changed().unwrap());
+        events.emit(AgentEvent::SessionReady {
+            run_id: 7,
+            session_id: "s1".into(),
+        });
+        assert!(receiver.has_changed().unwrap());
     }
 
     #[test]
@@ -333,8 +282,7 @@ mod tests {
             delta: "late".into(),
         });
         events.emit(AgentEvent::Completed { run_id: 3 });
-        assert_eq!(updates.borrow().status, "stopped");
-        assert!(updates.borrow().messages[1].text.is_empty());
+        assert_eq!(updates.borrow().status, RunPhase::Stopped);
 
         let (updates, events) = state(4);
         events.emit(AgentEvent::TurnStarted {
@@ -342,7 +290,7 @@ mod tests {
             text: "hi".into(),
         });
         events.emit(AgentEvent::Completed { run_id: 4 });
-        assert_eq!(updates.borrow().status, "failed");
+        assert_eq!(updates.borrow().status, RunPhase::Failed);
         assert_eq!(
             updates.borrow().error.as_deref(),
             Some("Provider finished without an answer.")
@@ -360,110 +308,21 @@ mod tests {
             run_id: 2,
             text: "late".into(),
         });
-        assert_eq!(updates.borrow().status, "failed");
+        assert_eq!(updates.borrow().status, RunPhase::Failed);
         assert!(updates.borrow().messages.is_empty());
     }
 
-    fn approval(run_id: u64, id: &str) -> PendingApproval {
-        PendingApproval {
-            approval_id: id.into(),
-            run_id,
-            kind: "command".into(),
-            title: "Execute".into(),
-            detail: "cargo test".into(),
-            reason: None,
-        }
-    }
-
     #[test]
-    fn approval_before_turn_ack_stays_visible_and_resolves_to_streaming() {
-        let (updates, events) = state(13);
-        updates.send_modify(|s| s.mode = "agentSession".into());
-        events.emit(AgentEvent::ApprovalRequested {
-            run_id: 13,
-            approval: approval(13, "ok"),
+    fn unsupported_provider_events_are_not_representable_as_ui_state() {
+        let (updates, events) = state(11);
+        events.emit(AgentEvent::Failed {
+            run_id: 11,
+            message: "Provider attempted an unsupported tool action.".into(),
         });
-        assert_eq!(updates.borrow().status, "approvalRequired");
-        events.emit(AgentEvent::TurnStarted {
-            run_id: 13,
-            text: "test".into(),
-        });
-        assert_eq!(updates.borrow().status, "approvalRequired");
-        events.emit(AgentEvent::ApprovalResolved {
-            run_id: 13,
-            approval_id: "stale".into(),
-        });
-        assert_eq!(updates.borrow().status, "approvalRequired");
-        events.emit(AgentEvent::ApprovalResolved {
-            run_id: 13,
-            approval_id: "ok".into(),
-        });
-        assert_eq!(updates.borrow().status, "streaming");
-        assert!(updates.borrow().approval.is_none());
-    }
-
-    #[test]
-    fn quick_ask_and_stale_run_cannot_publish_privileged_activity() {
-        let (updates, events) = state(22);
-        events.emit(AgentEvent::ApprovalRequested {
-            run_id: 22,
-            approval: approval(22, "unsafe"),
-        });
-        events.emit(AgentEvent::ActivityChanged {
-            run_id: 22,
-            activity: ToolActivity {
-                kind: "command".into(),
-                summary: "write".into(),
-            },
-        });
-        assert!(updates.borrow().approval.is_none());
-        assert!(updates.borrow().activity.is_none());
-        updates.send_modify(|s| s.mode = "agentSession".into());
-        events.emit(AgentEvent::ApprovalRequested {
-            run_id: 21,
-            approval: approval(21, "stale"),
-        });
-        assert!(updates.borrow().approval.is_none());
-    }
-
-    #[test]
-    fn stop_race_wins_over_completion_even_with_final_answer() {
-        let (updates, events) = state(31);
-        events.emit(AgentEvent::TurnStarted {
-            run_id: 31,
-            text: "hello".into(),
-        });
-        events.emit(AgentEvent::TextFinal {
-            run_id: 31,
-            text: "answer".into(),
-        });
-        updates.send_modify(|s| s.status = "stopping".into());
-        events.emit(AgentEvent::Completed { run_id: 31 });
-        assert_eq!(updates.borrow().status, "stopped");
-        events.emit(AgentEvent::ApprovalRequested {
-            run_id: 31,
-            approval: approval(31, "late"),
-        });
-        assert!(updates.borrow().approval.is_none());
-    }
-    #[test]
-    fn unresolved_approval_cannot_be_overridden_or_complete_as_success() {
-        let (updates, events) = state(41);
-        updates.send_modify(|s| s.mode = "agentSession".into());
-        events.emit(AgentEvent::ApprovalRequested {
-            run_id: 41,
-            approval: approval(41, "first"),
-        });
-        events.emit(AgentEvent::ApprovalRequested {
-            run_id: 41,
-            approval: approval(41, "second"),
-        });
+        assert_eq!(updates.borrow().status, RunPhase::Failed);
         assert_eq!(
-            updates.borrow().approval.as_ref().unwrap().approval_id,
-            "first"
+            updates.borrow().error.as_deref(),
+            Some("Provider attempted an unsupported tool action.")
         );
-        events.emit(AgentEvent::Completed { run_id: 41 });
-        assert_eq!(updates.borrow().status, "failed");
-        assert!(updates.borrow().approval.is_none());
     }
 }

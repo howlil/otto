@@ -3,9 +3,12 @@ use std::{
     time::Duration,
 };
 use tokio::{
+    io::{AsyncRead, AsyncReadExt},
     process::{Child, Command},
     time::timeout,
 };
+
+const MAX_PROBE_OUTPUT_BYTES: usize = 1024 * 1024;
 use windows_sys::Win32::{
     Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE},
     System::{
@@ -41,6 +44,21 @@ impl Drop for ScopedHandle {
 pub struct Job(HANDLE);
 
 unsafe impl Send for Job {}
+
+async fn read_bounded_output<R: AsyncRead + Unpin>(mut reader: R) -> Result<Vec<u8>, ()> {
+    let mut output = Vec::new();
+    let mut chunk = [0_u8; 8192];
+    loop {
+        let count = reader.read(&mut chunk).await.map_err(|_| ())?;
+        if count == 0 {
+            return Ok(output);
+        }
+        if output.len().saturating_add(count) > MAX_PROBE_OUTPUT_BYTES {
+            return Err(());
+        }
+        output.extend_from_slice(&chunk[..count]);
+    }
+}
 
 impl Job {
     fn attach(pid: u32) -> Result<Self, ()> {
@@ -131,9 +149,54 @@ impl Job {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let (child, job) = Self::spawn(command)?;
-        let result = timeout(deadline, child.wait_with_output()).await;
+        let mut child = child;
+        let stdout = child.stdout.take().ok_or(())?;
+        let stderr = child.stderr.take().ok_or(())?;
+        let mut stdout_task = tokio::spawn(read_bounded_output(stdout));
+        let mut stderr_task = tokio::spawn(read_bounded_output(stderr));
+        let result = timeout(deadline, async {
+            let mut status_future = Box::pin(child.wait());
+            let mut child_status = None;
+            let mut stdout_result = None;
+            let mut stderr_result = None;
+            loop {
+                tokio::select! {
+                    result = &mut stdout_task, if stdout_result.is_none() => {
+                        stdout_result = Some(result.map_err(|_| ()).and_then(|value| value));
+                    }
+                    result = &mut stderr_task, if stderr_result.is_none() => {
+                        stderr_result = Some(result.map_err(|_| ()).and_then(|value| value));
+                    }
+                    result = &mut status_future, if child_status.is_none() => {
+                        child_status = Some(result.map_err(|_| ()));
+                    }
+                }
+                if stdout_result.as_ref().is_some_and(Result::is_err)
+                    || stderr_result.as_ref().is_some_and(Result::is_err)
+                {
+                    return Err(());
+                }
+                if child_status.as_ref().is_some_and(Result::is_ok)
+                    && stdout_result.as_ref().is_some_and(Result::is_ok)
+                    && stderr_result.as_ref().is_some_and(Result::is_ok)
+                {
+                    return Ok(Output {
+                        status: child_status.take().unwrap().unwrap(),
+                        stdout: stdout_result.take().unwrap().unwrap(),
+                        stderr: stderr_result.take().unwrap().unwrap(),
+                    });
+                }
+            }
+        })
+        .await;
         job.terminate();
-        result.map_err(|_| ())?.map_err(|_| ())
+        if let Ok(Ok(output)) = result {
+            return Ok(output);
+        }
+        stdout_task.abort();
+        stderr_task.abort();
+        let _ = child.wait().await;
+        Err(())
     }
 
     #[cfg(test)]

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 type TransitionKind = "page" | "tab" | "compact";
-type Direction = "forward" | "back";
+type Direction = "forward" | "back" | "center";
 type Frame = { key: string; node: ReactNode };
 
 export function TransitionContent({
@@ -50,16 +50,20 @@ export function TransitionContent({
       ? "otto-tab-enter"
       : kind === "compact"
         ? "otto-compact-enter"
-        : direction === "back"
-          ? "otto-page-back-enter"
-          : "otto-page-forward-enter";
+        : direction === "center"
+          ? "otto-page-center-enter"
+          : direction === "back"
+            ? "otto-page-back-enter"
+            : "otto-page-forward-enter";
   const exit = isTab
     ? "otto-tab-exit"
     : kind === "compact"
       ? "otto-compact-exit"
-      : direction === "back"
-        ? "otto-page-back-exit"
-        : "otto-page-forward-exit";
+      : direction === "center"
+        ? "otto-page-center-exit"
+        : direction === "back"
+          ? "otto-page-back-exit"
+          : "otto-page-forward-exit";
 
   return (
     <div className={`relative min-w-0 ${className}`}>

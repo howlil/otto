@@ -58,12 +58,7 @@ export function AgentCapsule({
         </Text>
       </span>
       <VisuallyHidden>Open Agent</VisuallyHidden>
-      {snapshot.status === "approvalRequired" ? (
-        <span className="text-otto-warn" role="status">
-          <Icon name="alert" size={14} strokeWidth={1.9} />
-          <VisuallyHidden>Approval needed</VisuallyHidden>
-        </span>
-      ) : error || installed === false || snapshot.status === "failed" ? (
+      {error || installed === false || snapshot.status === "failed" ? (
         <span className="text-otto-danger" role="status">
           <Icon name="unavailable" size={14} strokeWidth={1.9} />
           <VisuallyHidden>{error || readiness.message}</VisuallyHidden>

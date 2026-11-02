@@ -7,18 +7,12 @@ import { useTranscriptViewport } from "./useTranscriptViewport";
 
 export function AgentTranscript({
   agent,
-  denied,
-  approvalPending,
-  onDenied,
   onConfigureCapture,
   onCapture,
   captureActionError,
   onMeasured,
 }: {
   agent: AgentTranscriptModel;
-  denied: boolean;
-  approvalPending: boolean;
-  onDenied: () => void;
   onConfigureCapture: () => void;
   onCapture: () => void;
   captureActionError: string | null;
@@ -35,7 +29,6 @@ export function AgentTranscript({
     busy,
     send,
     stop,
-    decide,
     refreshProvider,
     retryConnection,
     clearError,
@@ -47,7 +40,6 @@ export function AgentTranscript({
   });
 
   const canSend = !busy && !captureBusy && readiness.status === "ready" && draft.trim().length > 0;
-  const approval = snapshot.approval;
   const issueTitle =
     errorKind === "connection"
       ? "Otto connection unavailable"
@@ -62,7 +54,7 @@ export function AgentTranscript({
   return (
     <>
       <div
-        className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[18px] pb-[9px] pt-[7px] [overscroll-behavior:contain] [scrollbar-width:none]"
+        className="otto-scrollbar-hidden min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[18px] pb-[9px] pt-[7px] [overscroll-behavior:contain]"
         ref={feed}
         role="log"
         onScroll={onFeedScroll}
@@ -70,11 +62,6 @@ export function AgentTranscript({
         <div className="flex min-w-0 flex-col gap-[11px]">
           <TranscriptMessages snapshot={snapshot} busy={busy} />
           <TranscriptOutcome
-            approval={approval}
-            approvalPending={approvalPending}
-            denied={denied}
-            onDenied={onDenied}
-            decide={decide}
             snapshot={snapshot}
             issue={issue}
             issueTitle={issueTitle}
@@ -118,7 +105,6 @@ export function AgentTranscript({
         busy={busy}
         captureBusy={captureBusy}
         capturePhase={snapshot.capture.phase}
-        approvalPending={approvalPending}
         canSend={canSend}
         stopping={snapshot.status === "stopping"}
         onCapture={onCapture}

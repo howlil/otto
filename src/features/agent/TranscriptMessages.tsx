@@ -39,15 +39,6 @@ export function TranscriptMessages({ snapshot, busy }: { snapshot: AgentSnapshot
           </Text>
         </div>
       )}
-      {busy && snapshot.activity && (
-        <Text
-          as="div"
-          variant="code"
-          className="rounded-otto-control border border-otto-raised-deep bg-otto-control px-[10px] py-[9px] text-otto-icon-muted [overflow-wrap:anywhere]"
-        >
-          {snapshot.activity.kind === "fileChange" ? "Write" : "Run"} · {snapshot.activity.summary}
-        </Text>
-      )}
     </>
   );
 }
@@ -55,8 +46,5 @@ export function TranscriptMessages({ snapshot, busy }: { snapshot: AgentSnapshot
 function activityLabel(snapshot: AgentSnapshot): string {
   if (snapshot.status === "starting") return "Reading context";
   if (snapshot.status === "stopping") return "Stopping request";
-  if (snapshot.status === "approvalRequired") return "Waiting for your approval";
-  if (snapshot.activity)
-    return snapshot.activity.kind === "fileChange" ? "Changing files" : "Inspecting workspace";
   return "Writing response";
 }

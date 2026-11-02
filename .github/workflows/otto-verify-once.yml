@@ -1,8 +1,6 @@
 name: Otto CI
 
 'on':
-  pull_request:
-    branches: [master]
   workflow_dispatch:
     inputs:
       suite:

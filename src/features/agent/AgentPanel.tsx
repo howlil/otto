@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { AgentSettings } from "./AgentSettings";
-import { AgentHeader } from "./AgentHeader";
+import { AgentHeader, type AgentHeaderView } from "./AgentHeader";
 import { AgentTranscript } from "./AgentTranscript";
+import { History } from "./History";
 import type { AgentPanelModel } from "./view-model";
 import { TransitionContent } from "../../shared/ui";
 
@@ -28,35 +29,20 @@ export function AgentPanel({
   onMeasured,
   reducedMotion,
 }: Props) {
-  const {
-    snapshot,
-    readiness,
-    cwd,
-    setCwd,
-    beginWorkspaceEdit,
-    commitWorkspace,
-    cancelWorkspaceEdit,
-    mode,
-    setMode,
-    provider,
-    setProvider,
-    locked,
-    busy,
-    captureBusy,
-    newSession,
-  } = agent;
-  const [denied, setDenied] = useState(false);
+  const { snapshot, readiness, provider, setProvider, locked, busy, captureBusy, newSession } =
+    agent;
   const [captureSettingsEntry, setCaptureSettingsEntry] = useState(false);
   const [captureActionError, setCaptureActionError] = useState<string | null>(null);
-  const approval = snapshot.approval;
-  const approvalPending = snapshot.status === "approvalRequired" && Boolean(approval);
-  const project =
-    (snapshot.threadId ? snapshot.cwd : cwd || snapshot.cwd).split(/[\\/]/).filter(Boolean).pop() ||
-    "Workspace";
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const view: AgentHeaderView = settings ? "settings" : historyOpen ? "history" : "chat";
 
   useEffect(() => {
-    if (snapshot.status === "starting") setDenied(false);
-  }, [snapshot.status]);
+    if (settings) setHistoryOpen(false);
+  }, [settings]);
+
+  useEffect(() => {
+    if (historyOpen) void agent.history.refresh();
+  }, [historyOpen, agent.history.refresh]);
 
   useEffect(() => {
     if (settings || !captureSettingsEntry) return;
@@ -75,32 +61,42 @@ export function AgentPanel({
       data-capture-phase={snapshot.capture.phase}
     >
       <AgentHeader
-        settings={settings}
-        project={project}
-        mode={snapshot.threadId ? snapshot.mode : mode}
+        view={view}
         provider={snapshot.threadId ? snapshot.provider : provider}
+        model={agent.model}
+        thinkingEffort={agent.thinkingEffort}
         status={snapshot.status}
-        hasThread={snapshot.threadId !== null}
+        hasThread={snapshot.threadId !== null || snapshot.messages.length > 0}
         resetBusy={busy || captureBusy}
         capturePhase={snapshot.capture.phase}
         readiness={readiness.status}
-        activity={Boolean(snapshot.activity)}
         eventMotion={eventMotion}
+        onBack={() => {
+          if (settings) onSettingsBack();
+          else setHistoryOpen(false);
+        }}
         onSettings={() => {
           setCaptureSettingsEntry(false);
           onSettings();
         }}
-        onSettingsBack={onSettingsBack}
+        onHistory={() => setHistoryOpen(true)}
         onNewSession={() => void newSession()}
         onHome={onBack}
       />
       <TransitionContent
-        transitionKey={settings ? "agent-settings" : "agent-transcript"}
-        direction={settings ? "forward" : "back"}
+        transitionKey={`agent-${view}`}
+        direction={view === "chat" ? "back" : "forward"}
         reducedMotion={reducedMotion}
         className="min-h-0 flex-1"
       >
-        {settings ? (
+        {view === "history" ? (
+          <History
+            history={agent.history}
+            busy={busy || captureBusy}
+            onDone={() => setHistoryOpen(false)}
+            onMeasured={onMeasured}
+          />
+        ) : settings ? (
           <AgentSettings
             readiness={readiness}
             snapshot={snapshot}
@@ -113,16 +109,8 @@ export function AgentPanel({
             capture={agent.capture}
             focusCaptureShortcut={captureSettingsEntry}
             runStatus={snapshot.status}
-            approvalPending={approvalPending}
             onRetry={() => void agent.refreshProvider()}
-            mode={mode}
-            setMode={setMode}
             locked={locked}
-            cwd={cwd}
-            setCwd={setCwd}
-            beginWorkspaceEdit={beginWorkspaceEdit}
-            commitWorkspace={commitWorkspace}
-            cancelWorkspaceEdit={cancelWorkspaceEdit}
             busy={busy || captureBusy}
             error={agent.error}
             onDone={onSettingsBack}
@@ -132,9 +120,6 @@ export function AgentPanel({
         ) : (
           <AgentTranscript
             agent={agent}
-            denied={denied}
-            approvalPending={approvalPending}
-            onDenied={() => setDenied(true)}
             captureActionError={captureActionError}
             onMeasured={onMeasured}
             onCapture={() => {

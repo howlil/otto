@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CaptureShortcutModel } from "./view-model";
 import type {
-  AgentMode,
   AgentProvider,
   AgentSnapshot,
   AgentStatus,
@@ -20,16 +19,8 @@ export type AgentSettingsProps = {
   thinkingEffort: string | null;
   setThinkingEffort: (effort: string | null) => void;
   runStatus: AgentStatus;
-  approvalPending: boolean;
   onRetry: () => void;
-  mode: AgentMode;
-  setMode: (mode: AgentMode) => void;
   locked: boolean;
-  cwd: string;
-  setCwd: (cwd: string) => void;
-  beginWorkspaceEdit: () => void;
-  commitWorkspace: (cwd: string) => void;
-  cancelWorkspaceEdit: () => void;
   busy: boolean;
   error: string | null;
   onDone: () => void;

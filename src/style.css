@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
 @theme static {
   --color-otto-surface: #151515;
@@ -84,15 +85,14 @@
   --color-otto-slider-outline: #aaaeb7;
   --color-otto-slider-border: #515359;
   --color-otto-slider-thumb: #d7d9de;
-  --color-otto-approval-outline: #68484a;
-  --color-otto-approval-warn-outline: #574936;
-  --color-otto-approval-warn-surface: #28241f;
-  --color-otto-approval-warn-foreground: #f2ddc6;
-  --color-otto-approval-reason-foreground: #c9b7a5;
-  --color-otto-approval-reason-surface: #1e1b19;
-  --color-otto-approval-caption: #d8c4ad;
-  --color-otto-approval-detail: #a3947f;
-  --color-otto-approval-action-surface: #433c34;
+  --color-otto-hljs-keyword: #c9a6de;
+  --color-otto-hljs-string: #a8c9b8;
+  --color-otto-hljs-number: #e0b978;
+  --color-otto-hljs-comment: #6f717a;
+  --color-otto-hljs-function: #9fbcd8;
+  --color-otto-hljs-attr: #d3d5db;
+  --color-otto-hljs-tag: #d89197;
+  --color-otto-hljs-deleted: #d89197;
   --color-otto-danger-copy: #f0d5d6;
   --color-otto-danger-detail: #d1b1b3;
   --color-otto-input-hint: #d3d3d6;
@@ -240,6 +240,16 @@ body,
 * {
   box-sizing: border-box;
 }
+
+.otto-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.otto-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 button,
 input,
 textarea {
@@ -274,6 +284,32 @@ button:disabled {
   }
 }
 
+@keyframes otto-page-center-enter {
+  from {
+    opacity: 0.18;
+    transform: scale(0.94);
+    transform-origin: center;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    transform-origin: center;
+  }
+}
+
+@keyframes otto-page-center-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    transform-origin: center;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+    transform-origin: center;
+  }
+}
+
 @keyframes otto-tab-enter {
   from {
     opacity: 0.2;
@@ -304,6 +340,10 @@ button:disabled {
   animation: otto-page-enter 210ms var(--ease-otto) 70ms both;
 }
 
+.otto-page-center-enter {
+  animation: otto-page-center-enter 210ms var(--ease-otto) 70ms both;
+}
+
 .otto-page-forward-exit {
   --otto-exit-x: -4px;
   animation: otto-page-exit 125ms ease-in both;
@@ -312,6 +352,10 @@ button:disabled {
 .otto-page-back-exit {
   --otto-exit-x: 4px;
   animation: otto-page-exit 125ms ease-in both;
+}
+
+.otto-page-center-exit {
+  animation: otto-page-center-exit 125ms ease-in both;
 }
 
 .otto-compact-enter {
@@ -330,11 +374,175 @@ button:disabled {
   animation: otto-tab-exit 115ms ease-in both;
 }
 
+.md-body {
+  font-size: var(--text-otto-md);
+  line-height: 1.6;
+  color: var(--color-otto-text-soft-white);
+  overflow-wrap: anywhere;
+}
+.md-body > *:first-child {
+  margin-top: 0;
+}
+.md-body > *:last-child {
+  margin-bottom: 0;
+}
+.md-body p,
+.md-body blockquote {
+  margin: 4px 0;
+}
+.md-body strong {
+  color: var(--color-otto-text);
+}
+.md-body hr {
+  border: none;
+  border-top: 1px solid var(--color-otto-line);
+  margin: 8px 0;
+}
+.md-body ul {
+  margin: 4px 0;
+  padding-left: 18px;
+  list-style: disc outside;
+}
+.md-body ol {
+  margin: 4px 0;
+  padding-left: 18px;
+  list-style: decimal outside;
+}
+.md-body li {
+  margin: 2px 0;
+}
+.md-h {
+  color: var(--color-otto-text);
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 8px 0 4px;
+}
+h1.md-h {
+  font-size: var(--text-otto-xl);
+}
+h2.md-h {
+  font-size: var(--text-otto-lg);
+}
+h3.md-h,
+h4.md-h {
+  font-size: var(--text-otto-md);
+}
+.md-link {
+  color: var(--color-otto-text-bright);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--color-otto-line-hover);
+}
+.md-link:hover {
+  color: var(--color-otto-hover-text);
+}
+.md-image {
+  color: var(--color-otto-text-tertiary);
+}
+.md-inline-code {
+  font-family: var(--font-otto-mono);
+  font-size: var(--text-otto-sm);
+  background: var(--color-otto-raised-soft);
+  border: 1px solid var(--color-otto-line);
+  border-radius: 5px;
+  padding: 1px 4px;
+}
+.md-task {
+  accent-color: var(--color-otto-ok);
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.md-table-scroll {
+  overflow-x: auto;
+  margin: 6px 0;
+}
+.md-table {
+  border-collapse: collapse;
+  font-size: var(--text-otto-sm);
+}
+.md-table th,
+.md-table td {
+  border: 1px solid var(--color-otto-line);
+  padding: 4px 8px;
+  text-align: left;
+}
+.md-table th {
+  background: var(--color-otto-raised-soft);
+  color: var(--color-otto-text);
+  font-weight: 600;
+}
+.md-body blockquote {
+  padding-left: 10px;
+  border-left: 2px solid var(--color-otto-line-strong);
+  color: var(--color-otto-text-secondary);
+}
+.hljs {
+  color: var(--color-otto-text-soft-white);
+  background: transparent;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-doctag {
+  color: var(--color-otto-hljs-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-template-variable,
+.hljs-quote {
+  color: var(--color-otto-hljs-string);
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-meta .hljs-keyword {
+  color: var(--color-otto-hljs-number);
+}
+.hljs-comment {
+  color: var(--color-otto-hljs-comment);
+  font-style: italic;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-built_in {
+  color: var(--color-otto-hljs-function);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-tag,
+.hljs-params,
+.hljs-type,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--color-otto-hljs-attr);
+}
+.hljs-name,
+.hljs-tag {
+  color: var(--color-otto-hljs-tag);
+}
+.hljs-literal,
+.hljs-selection {
+  color: var(--color-otto-hljs-number);
+}
+.hljs-deletion {
+  color: var(--color-otto-hljs-deleted);
+}
+.katex {
+  font-size: 1em;
+}
+.katex-display {
+  margin: 4px 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .otto-page-forward-enter,
   .otto-page-back-enter,
+  .otto-page-center-enter,
   .otto-page-forward-exit,
   .otto-page-back-exit,
+  .otto-page-center-exit,
   .otto-compact-enter,
   .otto-compact-exit,
   .otto-tab-enter,

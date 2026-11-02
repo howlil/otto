@@ -79,7 +79,7 @@ export function GlobalSettings({
             </button>
           ))}
         </nav>
-        <div className="min-w-0 overflow-y-auto px-[18px] pb-5 pt-4 text-otto-text [scrollbar-color:var(--color-otto-scrollbar-track)_transparent] [scrollbar-width:thin] [&>h2]:m-0 [&>h2]:mb-[3px] [&>p]:m-0 [&>p]:mb-4">
+        <div className="otto-scrollbar-hidden min-w-0 overflow-y-auto px-[18px] pb-5 pt-4 text-otto-text [&>h2]:m-0 [&>h2]:mb-[3px] [&>p]:m-0 [&>p]:mb-4">
           <TransitionContent transitionKey={tab} kind="tab" reducedMotion={reducedMotion}>
             {tab === "general" && (
               <GeneralSettings

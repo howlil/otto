@@ -6,7 +6,6 @@ export function resolveAgentSurface(
   installed: boolean | null,
   error: string | null,
 ): NotchSurface {
-  if (snapshot.status === "approvalRequired") return "agentApproval";
   if (installed === false || snapshot.status === "failed" || error) return "agentError";
   if (snapshot.status === "starting") return "agentThinking";
   if (snapshot.status === "streaming" || snapshot.status === "stopping") return "agentFull";
@@ -25,7 +24,6 @@ export function compactLabel(
   if (readiness === "authRequired") return "Sign in required";
   if (installed === false) return "Unavailable";
   if (snapshot.status === "completed") return "Answer ready";
-  if (snapshot.status === "approvalRequired") return "Approval needed";
   return snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex";
 }
 
@@ -35,16 +33,17 @@ export function compactDetail(
   readiness: ProviderReadiness,
   error?: string | null,
 ): string {
-  const project = snapshot.cwd.split(/[\\/]/).filter(Boolean).pop() || "Local CLI";
+  const provider =
+    snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex";
   if (captureIsWorking(snapshot.capture.phase)) {
-    return `${project} · ${capturePhaseLabel(snapshot.capture.phase)}`;
+    return `${provider} · ${capturePhaseLabel(snapshot.capture.phase)}`;
   }
   if (snapshot.capture.phase === "failed") {
-    return `${project} · Retry or open settings`;
+    return `${provider} · Retry or open settings`;
   }
-  if (error) return `${project} · Connection issue`;
-  if (installed === false) return `${project} · ${readiness.message}`;
-  if (readiness.status === "checking") return `${project} · Open Agent to check`;
-  if (snapshot.status === "idle") return `${project} · Ready`;
-  return `${project} · ${agentStatusLabel(snapshot.status)}`;
+  if (error) return `${provider} · Connection issue`;
+  if (installed === false) return `${provider} · ${readiness.message}`;
+  if (readiness.status === "checking") return `${provider} · Open Agent to check`;
+  if (snapshot.status === "idle") return `${provider} · Ready`;
+  return `${provider} · ${agentStatusLabel(snapshot.status)}`;
 }

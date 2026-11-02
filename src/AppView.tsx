@@ -103,7 +103,7 @@ function ShellContent({
           !expanded ? (isAgent ? "compact-agent" : "compact-home") : isAgent ? "agent" : page
         }
         kind={expanded ? "page" : "compact"}
-        direction={!expanded || page === "home" ? "back" : "forward"}
+        direction={!expanded ? "center" : page === "home" ? "back" : "forward"}
         reducedMotion={shell.reducedMotion}
         className="h-full w-full"
       >

@@ -3,12 +3,10 @@ import { useCaptureSource } from "./useCaptureSource";
 import { clearAcceptedDraft, restoreRejectedDraft, type SubmittedDraft } from "./draft-state";
 import { captureIsWorking } from "./status";
 import { ReadinessProbeController } from "./readiness-probe";
+import { useAgentHistory } from "./useAgentHistory";
 import {
   askAgent,
   captureAgentNow,
-  beginAgentWorkspaceEdit,
-  commitAgentWorkspace,
-  cancelAgentWorkspaceEdit,
   getAgentReadiness,
   cancelAgentReadiness,
   getCaptureTargetTitle,
@@ -16,12 +14,10 @@ import {
   selectAgentRuntimeOptions,
   configureCaptureShortcut,
   nativeAvailable,
-  decideAgentApproval,
   getAgentSnapshot,
-  newAgentSession,
+  newAgentChat,
   stopCodex,
   subscribeAgent,
-  type AgentMode,
   type AgentProvider,
   type AgentSnapshot,
   type AgentSubscription,
@@ -60,9 +56,7 @@ const initial: AgentSnapshot = {
   runId: 0,
   seq: 0,
   status: "idle",
-  mode: "quickAsk",
   provider: "codex",
-  cwd: "~",
   threadId: null,
   model: null,
   thinkingEffort: null,
@@ -78,19 +72,13 @@ const checking: ProviderReadiness = {
   recovery: "",
   imageInput: false,
   imageTransport: false,
-  agentSession: false,
   model: null,
   models: [],
   thinkingEffort: null,
   thinkingEfforts: [],
 };
 
-function useProviderReadiness(
-  cwd: string,
-  provider: AgentProvider,
-  model: string | null,
-  active: boolean,
-) {
+function useProviderReadiness(provider: AgentProvider, model: string | null, active: boolean) {
   const [readiness, setReadiness] = useState<ProviderReadiness>(checking);
   const controller = useRef<ReadinessProbeController | null>(null);
 
@@ -108,9 +96,9 @@ function useProviderReadiness(
       recovery: "Retry the connection.",
     };
     const probe = new ReadinessProbeController({
-      read: ({ cwd, provider, model }, requestId) =>
+      read: ({ provider, model }, requestId) =>
         nativeAvailable
-          ? getAgentReadiness(provider, requestId, cwd || undefined, model)
+          ? getAgentReadiness(provider, requestId, model)
           : Promise.resolve(unavailable),
       cancel: (requestId) =>
         nativeAvailable ? cancelAgentReadiness(requestId) : Promise.resolve(),
@@ -126,8 +114,8 @@ function useProviderReadiness(
   }, []);
 
   useEffect(() => {
-    controller.current?.update(active ? { cwd, provider, model } : null);
-  }, [active, cwd, provider, model]);
+    controller.current?.update(active ? { provider, model } : null);
+  }, [active, provider, model]);
 
   const refreshProvider = useCallback(async () => {
     await controller.current?.refresh();
@@ -234,11 +222,9 @@ function useAgentSubmission(
 
 function useAgentRequestActions({
   busy,
-  cwd,
   draft,
   draftEpoch,
   runId,
-  mode,
   provider,
   model,
   thinkingEffort,
@@ -249,11 +235,9 @@ function useAgentRequestActions({
   setRequestError,
 }: {
   busy: boolean;
-  cwd: string;
   draft: string;
   draftEpoch: React.RefObject<number>;
   runId: number;
-  mode: AgentMode;
   provider: AgentProvider;
   model: string | null;
   thinkingEffort: string | null;
@@ -274,7 +258,7 @@ function useAgentRequestActions({
     };
     submitted.current = request;
     try {
-      await askAgent(question, cwd, mode, provider, { model, thinkingEffort });
+      await askAgent(question, provider, { model, thinkingEffort });
       setDraft((current) => clearAcceptedDraft(current, draftEpoch.current, request));
     } catch (reason) {
       if (submitted.current === request) submitted.current = null;
@@ -285,11 +269,9 @@ function useAgentRequestActions({
   }, [
     busy,
     clearError,
-    cwd,
     draft,
     draftEpoch,
     runId,
-    mode,
     model,
     thinkingEffort,
     provider,
@@ -308,27 +290,12 @@ function useAgentRequestActions({
     }
   }, [clearError, setRequestError]);
 
-  const decide = useCallback(
-    async (approvalId: string, decision: "allowOnce" | "deny") => {
-      clearError();
-      try {
-        await decideAgentApproval(approvalId, decision);
-        return true;
-      } catch (reason) {
-        setRequestError(reason);
-        return false;
-      }
-    },
-    [clearError, setRequestError],
-  );
-
-  return { send, stop, decide };
+  return { send, stop };
 }
 
-function useNewAgentSession({
+function useNewAgentChat({
   busy,
   clearError,
-  setMode,
   setModelValue,
   setThinkingEffortValue,
   setRequestError,
@@ -336,7 +303,6 @@ function useNewAgentSession({
 }: {
   busy: boolean;
   clearError: () => void;
-  setMode: React.Dispatch<React.SetStateAction<AgentMode>>;
   setModelValue: React.Dispatch<React.SetStateAction<string | null>>;
   setThinkingEffortValue: React.Dispatch<React.SetStateAction<string | null>>;
   setRequestError: (reason: unknown) => void;
@@ -346,9 +312,8 @@ function useNewAgentSession({
     if (busy) return false;
     clearError();
     try {
-      await newAgentSession();
+      await newAgentChat();
       submitted.current = null;
-      setMode("quickAsk");
       setModelValue(null);
       setThinkingEffortValue(null);
       return true;
@@ -356,15 +321,7 @@ function useNewAgentSession({
       setRequestError(reason);
       return false;
     }
-  }, [
-    busy,
-    clearError,
-    setMode,
-    setModelValue,
-    setRequestError,
-    setThinkingEffortValue,
-    submitted,
-  ]);
+  }, [busy, clearError, setModelValue, setRequestError, setThinkingEffortValue, submitted]);
 }
 
 function useCaptureShortcut() {
@@ -457,26 +414,17 @@ export function useAgent(readinessActive: boolean) {
     draftEpoch.current += 1;
     setDraft(value);
   }, []);
-  const [cwd, setCwd] = useState("~");
-  const [mode, setMode] = useState<AgentMode>("quickAsk");
   const [provider, setProvider] = useState<AgentProvider>("codex");
   const [model, setModelValue] = useState<string | null>(null);
   const [thinkingEffort, setThinkingEffortValue] = useState<string | null>(null);
   const changingProvider = useRef(false);
   const changingRuntime = useRef(false);
-  const workspaceBegin = useRef<Promise<void> | null>(null);
   const [runtimeSelectionPending, setRuntimeSelectionPending] = useState(false);
   const busy =
-    ["starting", "streaming", "stopping", "approvalRequired"].includes(snapshot.status) ||
-    runtimeSelectionPending;
+    ["starting", "streaming", "stopping"].includes(snapshot.status) || runtimeSelectionPending;
   const captureBusy = captureIsWorking(snapshot.capture.phase);
-  const locked = busy || captureBusy || snapshot.threadId !== null;
-  const { readiness, refreshProvider } = useProviderReadiness(
-    cwd,
-    provider,
-    model,
-    readinessActive,
-  );
+  const locked = busy || captureBusy;
+  const { readiness, refreshProvider } = useProviderReadiness(provider, model, readinessActive);
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
   useEffect(() => {
     if (readiness.status !== "ready" || (model && readiness.model !== model)) return;
@@ -498,15 +446,14 @@ export function useAgent(readinessActive: boolean) {
   const acceptSnapshot = useCallback(
     (next: AgentSnapshot) => {
       receive(next);
-      setCwd((old) => old || next.cwd || "");
       setProvider(next.provider);
-      setMode(next.threadId ? next.mode : "quickAsk");
       setModelValue((current) => next.model ?? current);
       setThinkingEffortValue((current) => next.thinkingEffort ?? current);
     },
     [receive],
   );
   const connection = useAgentConnection(receive, acceptSnapshot);
+  const history = useAgentHistory({ onOpened: acceptSnapshot });
   const confirmRuntimeSelection = useCallback(
     async (nextModel: string | null, nextEffort: string | null) => {
       if (changingRuntime.current || busy || captureBusy) return false;
@@ -528,42 +475,6 @@ export function useAgent(readinessActive: boolean) {
     },
     [busy, captureBusy, provider, connection.clearError, connection.setRequestError],
   );
-  const beginWorkspaceEdit = useCallback(() => {
-    if (!nativeAvailable) return;
-    const started = beginAgentWorkspaceEdit();
-    workspaceBegin.current = started;
-    void started.catch(connection.setRequestError);
-  }, [connection.setRequestError]);
-  const commitWorkspace = useCallback(
-    async (directory: string) => {
-      if (!nativeAvailable) return;
-      try {
-        await workspaceBegin.current;
-        const confirmed = await commitAgentWorkspace(directory);
-        setCwd(confirmed);
-        connection.clearError();
-      } catch (error) {
-        connection.setRequestError(error);
-      } finally {
-        workspaceBegin.current = null;
-      }
-    },
-    [connection.clearError, connection.setRequestError],
-  );
-  const cancelWorkspaceEdit = useCallback(() => {
-    setCwd(snapshot.cwd);
-    if (!nativeAvailable) return;
-    const started = workspaceBegin.current;
-    workspaceBegin.current = null;
-    void (async () => {
-      try {
-        await started;
-        await cancelAgentWorkspaceEdit();
-      } catch (error) {
-        connection.setRequestError(error);
-      }
-    })();
-  }, [snapshot.cwd, connection.setRequestError]);
   const selectModel = useCallback(
     async (next: string | null) => {
       const selected = readiness.models.find((option) => option.id === next);
@@ -588,7 +499,6 @@ export function useAgent(readinessActive: boolean) {
       try {
         if (nativeAvailable) await selectAgentProvider(next);
         setProvider(next);
-        setMode("quickAsk");
         setModelValue(null);
         setThinkingEffortValue(null);
         connection.clearError();
@@ -603,11 +513,9 @@ export function useAgent(readinessActive: boolean) {
   const submitted = useAgentSubmission(snapshot, setDraft, draftEpoch);
   const actions = useAgentRequestActions({
     busy,
-    cwd,
     draft,
     draftEpoch,
     runId: snapshot.runId,
-    mode,
     provider,
     model,
     thinkingEffort,
@@ -617,10 +525,9 @@ export function useAgent(readinessActive: boolean) {
     clearError: connection.clearError,
     setRequestError: connection.setRequestError,
   });
-  const newSession = useNewAgentSession({
+  const newSession = useNewAgentChat({
     busy,
     clearError: connection.clearError,
-    setMode,
     setModelValue,
     setThinkingEffortValue,
     setRequestError: connection.setRequestError,
@@ -633,15 +540,9 @@ export function useAgent(readinessActive: boolean) {
     readiness,
     capture,
     captureNow: captureAgentNow,
+    history,
     draft,
     setDraft: editDraft,
-    cwd,
-    setCwd,
-    beginWorkspaceEdit,
-    commitWorkspace,
-    cancelWorkspaceEdit,
-    mode,
-    setMode,
     provider,
     model,
     thinkingEffort,

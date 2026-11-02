@@ -1,7 +1,6 @@
 import type { AgentProvider, ProviderReadiness } from "../../platform/tauri";
 
 export type ReadinessSelection = {
-  cwd: string;
   provider: AgentProvider;
   model: string | null;
 };
@@ -30,9 +29,8 @@ const defaultScheduler: Scheduler = (run, delay) => {
   return () => clearTimeout(timer);
 };
 const same = (a: ReadinessSelection, b: ReadinessSelection) =>
-  a.cwd === b.cwd && a.provider === b.provider && a.model === b.model;
+  a.provider === b.provider && a.model === b.model;
 const cacheMatches = (cache: Cache, next: ReadinessSelection) =>
-  cache.selection.cwd === next.cwd &&
   cache.selection.provider === next.provider &&
   (same(cache.selection, next) ||
     (cache.selection.model === null && next.model === cache.result.model));

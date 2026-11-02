@@ -2,7 +2,7 @@ use super::job::Job;
 use crate::agent::events::{AgentEvent, ProviderEvents};
 #[cfg(test)]
 use crate::agent::{CaptureSnapshot, ChatMessage, Snapshot};
-use crate::agent::{Control, ProviderReadiness, UsageSnapshot};
+use crate::agent::{Control, ProviderReadiness, RunPhase, UsageSnapshot};
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -19,8 +19,8 @@ use tokio::{
     time::timeout,
 };
 
-const AGENT_NAME: &str = "otto-quick-ask";
-const AGENT_DEFINITION: &str = "---\nname: otto-quick-ask\ndescription: Tool-free text answers from Otto.\nmainAgent: true\nsubagent: false\ntools: []\ncommandExecutionPolicy: \"off\"\ninheritMcp: false\ninheritCustomizations: false\n---\nAnswer the user's question without executing tools or modifying any files.\n";
+const AGENT_NAME: &str = "otto-chat";
+const AGENT_DEFINITION: &str = "---\nname: otto-chat\ndescription: Tool-free text answers from Otto.\nmainAgent: true\nsubagent: false\ntools: []\ncommandExecutionPolicy: \"off\"\ninheritMcp: false\ninheritCustomizations: false\n---\nAnswer the user's question without executing tools or modifying any files.\n";
 
 pub fn executable() -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
@@ -226,7 +226,7 @@ fn safe_init(frame: &Value) -> Result<String, String> {
         .iter()
         .any(|tool| tool.as_str() != Some("send_message"))
     {
-        return Err("Agy exposed tools outside Otto's Quick Ask policy.".into());
+        return Err("Agy exposed tools outside Otto's chat policy.".into());
     }
     let Some(session) = frame["conversation_id"]
         .as_str()
@@ -421,16 +421,17 @@ fn result_confirms_prompt(frame: &Value) -> bool {
     frame["event"] == "result" && frame["result"]["status"] == "SUCCESS"
 }
 
-fn begin(events: &ProviderEvents, id: u64, text: &str) {
+fn begin(events: &ProviderEvents, id: u64, display_text: &str) {
     events.emit(AgentEvent::TurnStarted {
         run_id: id,
-        text: text.to_owned(),
+        text: display_text.to_owned(),
     });
 }
 
 fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
     let snapshot = events.snapshot();
-    if snapshot.run_id != id || !matches!(snapshot.status.as_str(), "starting" | "streaming") {
+    if snapshot.run_id != id || !matches!(snapshot.status, RunPhase::Starting | RunPhase::Streaming)
+    {
         return false;
     }
     if frame["event"] == "step_update" {
@@ -442,7 +443,7 @@ fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
         if step["step_type"] == "agent_response"
             && let Some(delta) = step["text_delta"].as_str()
         {
-            if snapshot.status == "starting" {
+            if snapshot.status == RunPhase::Starting {
                 events.fail(
                     id,
                     "Agy returned output before the request was acknowledged.",
@@ -484,6 +485,7 @@ fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
 pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, initial: Control) {
     let Control::Ask {
         text,
+        display_text,
         cwd,
         run_id,
         capture: None,
@@ -492,7 +494,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
     else {
         events.fail(
             events.snapshot().run_id,
-            "Agy only supports tool-free text Quick Ask.",
+            "Agy only supports tool-free text chat.",
         );
         return;
     };
@@ -531,7 +533,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         _ => {
             events.fail(
                 run_id,
-                "Agy startup did not confirm tool-free capabilities.",
+                "Agy startup did not confirm chat-only capabilities.",
             );
             rpc.terminate().await;
             return;
@@ -547,7 +549,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         return;
     }
     let mut active = Some(run_id);
-    let mut pending_text = text;
+    let mut pending_display_text = display_text;
     let mut acknowledged = false;
     loop {
         tokio::select! {
@@ -565,7 +567,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     let _ = finished.send(());
                     break;
                 }
-                Some(Control::Ask {text, cwd, run_id, capture: None, ..}) if active.is_none() => {
+                Some(Control::Ask {text, display_text, cwd, run_id, capture: None, ..}) if active.is_none() => {
                     if cwd.as_path() != Path::new(&events.snapshot().cwd) {
                         events.fail(run_id, "Agy context changed. Start a new session.");
                         continue;
@@ -576,7 +578,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                         break;
                     }
                     active = Some(run_id);
-                    pending_text = text;
+                    pending_display_text = display_text;
                     acknowledged = false;
                 }
                 None => { rpc.terminate().await; break; }
@@ -590,13 +592,13 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     {
                         if !acknowledged {
                             acknowledged = true;
-                            begin(&events, id, &pending_text);
+                            begin(&events, id, &pending_display_text);
                         }
                         continue;
                     }
                     if result_confirms_prompt(&value) && !acknowledged {
                         acknowledged = true;
-                        begin(&events, id, &pending_text);
+                        begin(&events, id, &pending_display_text);
                     }
                     if value["event"] == "step_update"
                         && value["step_update"]["step_type"] == "agent_response"
@@ -607,7 +609,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                         break;
                     }
                     if observe(&value, id, &events) {
-                        if events.snapshot().status == "failed" {
+                        if events.snapshot().status == RunPhase::Failed {
                             rpc.terminate().await;
                             break;
                         }
@@ -625,12 +627,9 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         }
     }
     let snapshot = events.snapshot();
-    if matches!(
-        snapshot.status.as_str(),
-        "starting" | "streaming" | "approvalRequired"
-    ) {
+    if matches!(snapshot.status, RunPhase::Starting | RunPhase::Streaming) {
         events.fail(snapshot.run_id, "Agy terminated before completion.");
-    } else if snapshot.status == "stopping" {
+    } else if snapshot.status == RunPhase::Stopping {
         events.stopped(snapshot.run_id);
     }
 }
@@ -739,12 +738,12 @@ mod tests {
 
     #[test]
     fn tool_permissions_are_checked_before_any_prompt() {
-        let safe = json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-quick-ask","tools":["send_message"]}});
+        let safe = json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":["send_message"]}});
         assert_eq!(safe_init(&safe).unwrap(), "conversation-1");
         let documented = json!({"event":"init","conversation_id":"conversation-1","init":{"cwd":"C:\\work","tools":["send_message"],"permission_mode":"request-review"}});
         assert_eq!(safe_init(&documented).unwrap(), "conversation-1");
         assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"tools":["send_message", "run_command"]}})).is_err());
-        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-quick-ask","tools":["write_to_file"]}})).is_err());
+        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":["write_to_file"]}})).is_err());
         assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"default","tools":[]}})).is_err());
         assert!(
             safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{}}))
@@ -892,16 +891,14 @@ mod tests {
             run_id: 9,
             seq: 0,
             status: "starting".into(),
-            mode: "quickAsk".into(),
             provider: "agy".into(),
             cwd: String::new(),
+            conversation_id: String::new(),
             thread_id: None,
             model: None,
             thinking_effort: None,
             usage: None,
             messages: vec![],
-            activity: None,
-            approval: None,
             capture: CaptureSnapshot::default(),
             error: None,
         });
@@ -921,9 +918,9 @@ mod tests {
             run_id: 7,
             seq: 0,
             status: "streaming".into(),
-            mode: "quickAsk".into(),
             provider: "agy".into(),
             cwd: String::new(),
+            conversation_id: String::new(),
             thread_id: None,
             model: None,
             thinking_effort: None,
@@ -933,8 +930,6 @@ mod tests {
                 role: "assistant".into(),
                 text: String::new(),
             }],
-            activity: None,
-            approval: None,
             capture: CaptureSnapshot::default(),
             error: None,
         });
@@ -950,9 +945,9 @@ mod tests {
             run_id: 8,
             seq: 0,
             status: "streaming".into(),
-            mode: "quickAsk".into(),
             provider: "agy".into(),
             cwd: String::new(),
+            conversation_id: String::new(),
             thread_id: None,
             model: None,
             thinking_effort: None,
@@ -962,8 +957,6 @@ mod tests {
                 role: "assistant".into(),
                 text: String::new(),
             }],
-            activity: None,
-            approval: None,
             capture: CaptureSnapshot::default(),
             error: None,
         });

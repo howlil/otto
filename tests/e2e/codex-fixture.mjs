@@ -35,7 +35,7 @@ function onFrame(frame) {
   }
   if (method === 'thread/start') {
     if (params.sandbox !== 'read-only' || params.approvalPolicy !== 'never') {
-      return send({ id, error: { code: -32001, message: 'Quick Ask must be read-only' } });
+      return send({ id, error: { code: -32001, message: 'Chat requests must be read-only' } });
     }
     return send({ id, result: {
       thread: { id: thread }, sandbox: { type: 'readOnly' }, approvalPolicy: 'never',

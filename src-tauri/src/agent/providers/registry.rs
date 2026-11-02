@@ -1,14 +1,29 @@
 use crate::agent::events::ProviderEvents;
-use crate::agent::policy::InteractionMode;
 use crate::agent::{Control, ProviderReadiness, Snapshot};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::sync::{mpsc, watch};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ProviderId {
     Codex,
     Pi,
     Agy,
+}
+
+#[cfg(test)]
+impl From<&str> for ProviderId {
+    fn from(value: &str) -> Self {
+        Self::parse(value).unwrap()
+    }
+}
+
+#[cfg(test)]
+impl PartialEq<&str> for ProviderId {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
 }
 
 impl ProviderId {
@@ -29,20 +44,13 @@ impl ProviderId {
         }
     }
 
-    pub fn agent_session(self) -> bool {
-        matches!(self, Self::Codex)
-    }
-
     pub fn image_transport(self) -> bool {
         matches!(self, Self::Codex | Self::Pi)
     }
 
-    pub fn validate(self, mode: InteractionMode, has_image: bool) -> Result<(), String> {
-        if mode == InteractionMode::AgentSession && !self.agent_session() {
-            return Err("This provider supports tool-free Quick Ask only.".into());
-        }
+    pub fn validate(self, has_image: bool) -> Result<(), String> {
         if has_image && !self.image_transport() {
-            return Err("Agy headless streaming accepts text only.".into());
+            return Err("Agy chat accepts text only.".into());
         }
         Ok(())
     }
@@ -61,7 +69,6 @@ impl ProviderId {
                 "Run Otto on Windows.",
             ),
         };
-        ready.agent_session = self.agent_session();
         ready.image_transport = self.image_transport();
         ready
     }
@@ -71,12 +78,9 @@ impl ProviderId {
         controls: mpsc::Receiver<Control>,
         updates: watch::Sender<Snapshot>,
         initial: Control,
-        mode: InteractionMode,
     ) {
         match self {
-            Self::Codex => {
-                super::codex::run(controls, ProviderEvents::new(updates), initial, mode).await
-            }
+            Self::Codex => super::codex::run(controls, ProviderEvents::new(updates), initial).await,
             #[cfg(windows)]
             Self::Pi => super::pi::run(controls, ProviderEvents::new(updates), initial).await,
             #[cfg(windows)]
@@ -100,37 +104,10 @@ mod tests {
         assert!(ProviderId::parse("Codex").is_none());
         for id in ["codex", "pi", "agy"] {
             assert_eq!(ProviderId::parse(id).unwrap().as_str(), id);
-            assert!(
-                ProviderId::parse(id)
-                    .unwrap()
-                    .validate(InteractionMode::QuickAsk, false)
-                    .is_ok()
-            );
+            assert!(ProviderId::parse(id).unwrap().validate(false).is_ok());
         }
-        assert!(
-            ProviderId::Pi
-                .validate(InteractionMode::AgentSession, false)
-                .is_err()
-        );
-        assert!(
-            ProviderId::Agy
-                .validate(InteractionMode::AgentSession, false)
-                .is_err()
-        );
-        assert!(
-            ProviderId::Agy
-                .validate(InteractionMode::QuickAsk, true)
-                .is_err()
-        );
-        assert!(
-            ProviderId::Pi
-                .validate(InteractionMode::QuickAsk, true)
-                .is_ok()
-        );
-        assert!(
-            ProviderId::Codex
-                .validate(InteractionMode::AgentSession, false)
-                .is_ok()
-        );
+        assert!(ProviderId::Agy.validate(true).is_err());
+        assert!(ProviderId::Pi.validate(true).is_ok());
+        assert!(ProviderId::Codex.validate(false).is_ok());
     }
 }

@@ -35,8 +35,6 @@ function motionCue(status: string): string | null {
       return "otto-completed";
     case "failed":
       return "otto-failed";
-    case "approvalRequired":
-      return "otto-nudge";
     default:
       return null;
   }

@@ -1,12 +1,16 @@
 use super::job::Job;
+use super::{BoundedLineError, read_bounded_line};
 use crate::agent::events::{AgentEvent, ProviderEvents};
 #[cfg(test)]
 use crate::agent::{CaptureSnapshot, ChatMessage, Snapshot};
-use crate::agent::{CapturedImage, Control, ModelOption, ProviderReadiness, UsageSnapshot};
+use crate::agent::{
+    CapturedImage, Control, ModelOption, ProviderReadiness, RunPhase, UsageSnapshot,
+};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
     future::Future,
+    io::Cursor,
     path::{Path, PathBuf},
     process::Stdio,
     sync::atomic::Ordering,
@@ -15,11 +19,13 @@ use std::{
 #[cfg(test)]
 use tokio::sync::watch;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
+    io::{AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
     sync::mpsc,
     time::timeout,
 };
+
+const MAX_RPC_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
 
 pub fn executable() -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
@@ -53,7 +59,7 @@ struct Rpc {
     job: Job,
     child: Child,
     stdin: ChildStdin,
-    stdout: Lines<BufReader<ChildStdout>>,
+    stdout: BufReader<ChildStdout>,
     next_id: u64,
 }
 
@@ -76,7 +82,7 @@ impl Rpc {
             job,
             child,
             stdin,
-            stdout: BufReader::new(stdout).lines(),
+            stdout: BufReader::new(stdout),
             next_id: 0,
         })
     }
@@ -95,15 +101,14 @@ impl Rpc {
     }
 
     async fn read(&mut self) -> Result<Value, String> {
-        let line = self
-            .stdout
-            .next_line()
+        let line = read_bounded_line(&mut self.stdout, MAX_RPC_MESSAGE_BYTES)
             .await
-            .map_err(|_| "Pi stream failed.")?
+            .map_err(|error| match error {
+                BoundedLineError::TooLarge => "Pi RPC message too large.",
+                BoundedLineError::InvalidUtf8 => "Pi returned invalid text.",
+                BoundedLineError::Read => "Pi stream failed.",
+            })?
             .ok_or("Pi disconnected.")?;
-        if line.len() > 1_000_000 {
-            return Err("Pi RPC message too large.".into());
-        }
         serde_json::from_str(&line).map_err(|_| "Pi returned invalid RPC data.".into())
     }
 
@@ -409,20 +414,95 @@ pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderR
 }
 
 const MAX_CAPTURE_BYTES: u64 = 24 * 1024 * 1024;
+const MAX_CAPTURE_EDGE: u32 = 1920;
+const MAX_ENCODED_CAPTURE_BYTES: usize = 4 * 1024 * 1024;
 const PNG_MAGIC: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 fn encode_png_capture(path: &Path) -> Result<String, String> {
-    let length = std::fs::metadata(path)
-        .map_err(|_| "Captured image is unavailable.".to_string())?
-        .len();
-    if length == 0 || length > MAX_CAPTURE_BYTES {
+    let bytes = std::fs::read(path).map_err(|_| "Cannot read captured image.".to_string())?;
+    if bytes.is_empty() || bytes.len() as u64 > MAX_CAPTURE_BYTES {
         return Err("Captured image exceeds Pi's supported size limit.".into());
     }
-    let bytes = std::fs::read(path).map_err(|_| "Cannot read captured image.".to_string())?;
-    if !bytes.starts_with(&PNG_MAGIC) || bytes.len() as u64 > MAX_CAPTURE_BYTES {
+    if !bytes.starts_with(&PNG_MAGIC) {
         return Err("Captured image is not a valid supported PNG.".into());
     }
-    Ok(STANDARD.encode(bytes))
+    let payload = if bytes.len() <= MAX_ENCODED_CAPTURE_BYTES && png_is_within_edge(&bytes)? {
+        bytes
+    } else {
+        normalize_png_capture(&bytes)?
+    };
+    if payload.len() > MAX_ENCODED_CAPTURE_BYTES {
+        return Err("Captured image could not be reduced to Pi's supported size.".into());
+    }
+    Ok(STANDARD.encode(payload))
+}
+
+fn png_is_within_edge(bytes: &[u8]) -> Result<bool, String> {
+    let decoder = png::Decoder::new(Cursor::new(bytes));
+    let reader = decoder
+        .read_info()
+        .map_err(|_| "Captured image is not a valid supported PNG.".to_string())?;
+    Ok(reader.info().width <= MAX_CAPTURE_EDGE && reader.info().height <= MAX_CAPTURE_EDGE)
+}
+
+fn normalize_png_capture(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let decoder = png::Decoder::new(Cursor::new(bytes));
+    let mut reader = decoder
+        .read_info()
+        .map_err(|_| "Captured image is not a valid supported PNG.".to_string())?;
+    let info = reader.info();
+    if info.color_type != png::ColorType::Rgba || info.bit_depth != png::BitDepth::Eight {
+        return Err("Captured image is not a supported RGBA PNG.".into());
+    }
+    let buffer_size = reader
+        .output_buffer_size()
+        .ok_or("Captured image exceeds the supported decoded size.")?;
+    let mut decoded = vec![0; buffer_size];
+    let frame = reader
+        .next_frame(&mut decoded)
+        .map_err(|_| "Captured image could not be decoded.".to_string())?;
+    let source = &decoded[..frame.buffer_size()];
+    let mut scale = (MAX_CAPTURE_EDGE as f64 / frame.width.max(frame.height) as f64).min(1.0);
+    for _ in 0..6 {
+        let width = (frame.width as f64 * scale).round().max(1.0) as u32;
+        let height = (frame.height as f64 * scale).round().max(1.0) as u32;
+        let resized = resize_rgba(source, frame.width, frame.height, width, height);
+        let mut output = Vec::new();
+        let mut encoder = png::Encoder::new(&mut output, width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_compression(png::Compression::Balanced);
+        encoder
+            .write_header()
+            .and_then(|mut writer| writer.write_image_data(&resized))
+            .map_err(|_| "Captured image could not be encoded.".to_string())?;
+        if output.len() <= MAX_ENCODED_CAPTURE_BYTES {
+            return Ok(output);
+        }
+        scale *= 0.8;
+    }
+    Err("Captured image could not be reduced to Pi's supported size.".into())
+}
+
+fn resize_rgba(
+    source: &[u8],
+    source_width: u32,
+    source_height: u32,
+    width: u32,
+    height: u32,
+) -> Vec<u8> {
+    let mut resized = vec![0; width as usize * height as usize * 4];
+    for y in 0..height {
+        let source_y = (y * source_height / height) as usize;
+        for x in 0..width {
+            let source_x = (x * source_width / width) as usize;
+            let source_index = (source_y * source_width as usize + source_x) * 4;
+            let target_index = (y as usize * width as usize + x as usize) * 4;
+            resized[target_index..target_index + 4]
+                .copy_from_slice(&source[source_index..source_index + 4]);
+        }
+    }
+    resized
 }
 
 async fn prompt_command(
@@ -454,16 +534,16 @@ fn accepted_prompt(frame: &Value, run_id: u64) -> Result<bool, String> {
     Ok(true)
 }
 
-fn begin(text: &str, run_id: u64, events: &ProviderEvents) {
+fn begin(display_text: &str, run_id: u64, events: &ProviderEvents) {
     events.emit(AgentEvent::TurnStarted {
         run_id,
-        text: text.to_owned(),
+        text: display_text.to_owned(),
     });
 }
 
 fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
     let snapshot = events.snapshot();
-    if snapshot.run_id != id || snapshot.status != "streaming" {
+    if snapshot.run_id != id || snapshot.status != RunPhase::Streaming {
         return false;
     }
     match frame["type"].as_str() {
@@ -543,6 +623,7 @@ where
 pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, initial: Control) {
     let Control::Ask {
         text,
+        display_text,
         cwd,
         run_id,
         model,
@@ -550,7 +631,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         capture,
     } = initial
     else {
-        events.fail(events.snapshot().run_id, "Pi only supports text Quick Ask.");
+        events.fail(events.snapshot().run_id, "Pi only supports text chat.");
         return;
     };
     let mut rpc = match Rpc::launch(&cwd) {
@@ -625,7 +706,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         rpc.terminate().await;
         return;
     }
-    let mut pending_text = text;
+    let mut pending_display_text = display_text;
     let mut active = Some(run_id);
     let mut acknowledged = false;
     let mut settled: Option<Value> = None;
@@ -647,7 +728,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     let _ = finished.send(());
                     break;
                 }
-                Some(Control::Ask {text, cwd, run_id, model, thinking_effort, capture}) if active.is_none() => {
+                Some(Control::Ask {text, display_text, cwd, run_id, model, thinking_effort, capture}) if active.is_none() => {
                     if cwd.as_path() != Path::new(&events.snapshot().cwd) {
                         events.fail(run_id, "Pi context changed. Start a new session.");
                         continue;
@@ -714,7 +795,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                         break;
                     }
                     active_capture = capture;
-                    pending_text = text;
+                    pending_display_text = display_text;
                     active = Some(run_id);
                     acknowledged = false;
                     settled = None;
@@ -734,7 +815,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                                 break;
                             }
                             acknowledged = true;
-                            begin(&pending_text, id, &events);
+                            begin(&pending_display_text, id, &events);
                             for event in buffered.drain(..) {
                                 observe(&event, id, &events);
                             }
@@ -802,12 +883,9 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         }
     }
     let snapshot = events.snapshot();
-    if matches!(
-        snapshot.status.as_str(),
-        "starting" | "streaming" | "approvalRequired"
-    ) {
+    if matches!(snapshot.status, RunPhase::Starting | RunPhase::Streaming) {
         events.fail(snapshot.run_id, "Pi exited before completing the answer.");
-    } else if snapshot.status == "stopping" {
+    } else if snapshot.status == RunPhase::Stopping {
         events.stopped(snapshot.run_id);
     }
 }
@@ -822,7 +900,7 @@ mod tests {
             seq: 0,
             status: "streaming".into(),
             provider: "pi".into(),
-            mode: "quickAsk".into(),
+            conversation_id: String::new(),
             cwd: String::new(),
             thread_id: None,
             model: None,
@@ -833,8 +911,6 @@ mod tests {
                 role: "assistant".into(),
                 text: String::new(),
             }],
-            activity: None,
-            approval: None,
             capture: CaptureSnapshot::default(),
             error: None,
         });
@@ -906,7 +982,7 @@ mod tests {
     }
 
     #[test]
-    fn pi_quick_ask_disables_all_model_tools_and_extension_execution() {
+    fn pi_chat_disables_all_model_tools_and_extension_execution() {
         for flag in [
             "--no-tools",
             "--no-extensions",

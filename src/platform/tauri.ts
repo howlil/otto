@@ -4,13 +4,11 @@ export type AgentStatus =
   | "idle"
   | "starting"
   | "streaming"
-  | "approvalRequired"
   | "stopping"
   | "completed"
   | "stopped"
   | "failed";
 
-export type AgentMode = "quickAsk" | "agentSession";
 export type AgentProvider = "codex" | "pi" | "agy";
 export type CaptureSource = "window" | "fullScreen";
 export type CapturePhase =
@@ -46,44 +44,37 @@ export type AgentUsage = {
   modelContextWindow: number | null;
 };
 
+export type AgentConversationSummary = {
+  id: string;
+  title: string;
+  provider: AgentProvider;
+  updatedAt: number;
+  messageCount: number;
+  interrupted: boolean;
+};
+
 export type ProviderReadiness = {
   status: "checking" | "ready" | "authRequired" | "missing" | "unsupported" | "unavailable";
   message: string;
   recovery: string;
   imageInput: boolean;
   imageTransport: boolean;
-  agentSession: boolean;
   model: string | null;
   models: AgentModelOption[];
   thinkingEffort: string | null;
   thinkingEfforts: string[];
 };
 
-export type AgentApproval = {
-  approvalId: string;
-  runId: number;
-  kind: "command" | "fileChange" | "network";
-  title: string;
-  detail: string;
-  reason: string | null;
-};
-
-export type AgentActivity = { kind: "command" | "fileChange"; summary: string };
-
 export type AgentSnapshot = {
   runId: number;
   seq: number;
   status: AgentStatus;
-  mode: AgentMode;
   provider: AgentProvider;
-  cwd: string;
   threadId: string | null;
   model: string | null;
   thinkingEffort: string | null;
   usage: AgentUsage | null;
   messages: Array<{ id: string; role: "user" | "assistant"; text: string }>;
-  activity?: AgentActivity;
-  approval?: AgentApproval;
   capture: AgentCapture;
   error: string | null;
 };
@@ -95,7 +86,6 @@ export type NotchSurface =
   | "agentCompact"
   | "agentReady"
   | "agentThinking"
-  | "agentApproval"
   | "agentFull"
   | "agentError"
   | "agentSettings";
@@ -109,19 +99,30 @@ export async function getOverlayProtectionStatus(): Promise<boolean> {
 export async function getAgentSnapshot(): Promise<AgentSnapshot> {
   return invoke<AgentSnapshot>("agent_snapshot");
 }
+export async function listAgentHistory(): Promise<AgentConversationSummary[]> {
+  return invoke<AgentConversationSummary[]>("agent_history_list");
+}
+export async function openAgentHistory(id: string): Promise<AgentSnapshot> {
+  return invoke<AgentSnapshot>("agent_history_open", { conversationId: id });
+}
+export async function renameAgentHistory(id: string, title: string): Promise<void> {
+  await invoke("agent_history_rename", { conversationId: id, title });
+}
+export async function deleteAgentHistory(id: string): Promise<void> {
+  await invoke("agent_history_delete", { conversationId: id });
+}
 export async function codexInstalled(): Promise<boolean> {
   return invoke<boolean>("agent_codex_installed");
 }
-export async function getCodexReadiness(cwd?: string): Promise<ProviderReadiness> {
-  return invoke<ProviderReadiness>("agent_codex_readiness", { cwd });
+export async function getCodexReadiness(): Promise<ProviderReadiness> {
+  return invoke<ProviderReadiness>("agent_codex_readiness");
 }
 export async function getAgentReadiness(
   provider: AgentProvider,
   requestId: number,
-  cwd?: string,
   model: string | null = null,
 ): Promise<ProviderReadiness> {
-  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, cwd, model, requestId });
+  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, model, requestId });
 }
 export async function cancelAgentReadiness(requestId: number): Promise<void> {
   await invoke("agent_cancel_provider_readiness", { requestId });
@@ -146,18 +147,6 @@ export async function selectAgentProvider(provider: AgentProvider): Promise<void
   await invoke("agent_select_provider", { provider });
 }
 
-export async function beginAgentWorkspaceEdit(): Promise<void> {
-  await invoke("agent_begin_workspace_edit");
-}
-
-export async function commitAgentWorkspace(directory: string): Promise<string> {
-  return invoke<string>("agent_commit_workspace", { directory });
-}
-
-export async function cancelAgentWorkspaceEdit(): Promise<void> {
-  await invoke("agent_cancel_workspace_edit");
-}
-
 export async function selectAgentRuntimeOptions(
   model: string | null,
   thinkingEffort: string | null,
@@ -167,18 +156,10 @@ export async function selectAgentRuntimeOptions(
 
 export async function askAgent(
   text: string,
-  cwd: string,
-  mode: AgentMode,
   provider: AgentProvider,
   options: { model: string | null; thinkingEffort: string | null },
 ): Promise<void> {
-  await invoke("agent_ask", { text, cwd, mode, provider, ...options });
-}
-export async function decideAgentApproval(
-  approvalId: string,
-  decision: "allowOnce" | "deny",
-): Promise<void> {
-  await invoke("agent_decide_approval", { approvalId, decision });
+  await invoke("agent_ask", { text, provider, ...options });
 }
 export async function configureCaptureShortcut(shortcut: string): Promise<void> {
   await invoke("agent_configure_capture_shortcut", { shortcut });
@@ -200,8 +181,8 @@ export async function getCaptureTargetTitle(): Promise<string> {
 export async function stopCodex(): Promise<void> {
   await invoke("agent_stop");
 }
-export async function newAgentSession(): Promise<void> {
-  await invoke("agent_new_session");
+export async function newAgentChat(): Promise<void> {
+  await invoke("agent_new_chat");
 }
 
 export async function onNotchFocusChanged(

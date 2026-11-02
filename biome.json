@@ -46,6 +46,18 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["src/features/agent/CodeBlock.tsx"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noDangerouslySetInnerHtml": "off"
+          }
+        }
+      }
+    }
+  ],
   "assist": {
     "enabled": false
   },

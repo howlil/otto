@@ -26,7 +26,7 @@ export function AgentErrorNotice({
   return (
     <StatusMessage
       tone="error"
-      className="rounded-[11px] border border-otto-approval-outline bg-otto-field-deep p-3 [&>div>p]:my-2 [&>div>p]:text-otto-danger-detail [&>div>strong]:text-otto-danger-copy"
+      className="rounded-[11px] border border-otto-danger bg-otto-field-deep p-3 [&>div>p]:my-2 [&>div>p]:text-otto-danger-detail [&>div>strong]:text-otto-danger-copy"
       title={issueTitle}
       action={action}
     >

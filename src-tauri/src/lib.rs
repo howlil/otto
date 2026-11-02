@@ -21,21 +21,21 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::overlay_protection_status,
             commands::agent_snapshot,
+            commands::agent_history_list,
+            commands::agent_history_open,
+            commands::agent_history_rename,
+            commands::agent_history_delete,
             commands::agent_codex_installed,
             commands::agent_codex_readiness,
             commands::agent_provider_readiness,
             commands::agent_cancel_provider_readiness,
             commands::agent_select_provider,
-            commands::agent_begin_workspace_edit,
-            commands::agent_commit_workspace,
-            commands::agent_cancel_workspace_edit,
             commands::agent_select_runtime_options,
             commands::agent_subscribe,
             commands::agent_unsubscribe,
             commands::agent_ask,
-            commands::agent_decide_approval,
             commands::agent_stop,
-            commands::agent_new_session,
+            commands::agent_new_chat,
             commands::agent_configure_capture_shortcut,
             commands::agent_configure_capture_source,
             commands::agent_capture_target_title,
@@ -47,7 +47,10 @@ pub fn run() {
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
             let agent = match app.path().app_local_data_dir() {
-                Ok(path) => agent::AgentRuntime::persistent(path.join("agent-active.marker")),
+                Ok(path) => agent::AgentRuntime::persistent_with_history(
+                    path.join("agent-active.marker"),
+                    path.join("conversations.json"),
+                ),
                 Err(_) => agent::AgentRuntime::new(),
             };
             agent.start_recovery_observer();

@@ -1,5 +1,5 @@
 import type {
-  AgentMode,
+  AgentConversationSummary,
   AgentProvider,
   AgentSnapshot,
   CaptureSource,
@@ -17,7 +17,6 @@ export type AgentTranscriptModel = {
   captureBusy: boolean;
   send: () => Promise<void>;
   stop: () => Promise<void>;
-  decide: (approvalId: string, decision: "allowOnce" | "deny") => Promise<boolean>;
   refreshProvider: () => Promise<void>;
   retryConnection: () => Promise<void>;
   clearError: () => void;
@@ -41,16 +40,22 @@ export type CaptureShortcutModel = {
   saveShortcut: () => Promise<void>;
 };
 
+export type AgentHistoryModel = {
+  conversations: AgentConversationSummary[];
+  query: string;
+  setQuery: (query: string) => void;
+  pending: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+  open: (id: string) => Promise<boolean>;
+  rename: (id: string, title: string) => Promise<boolean>;
+  remove: (id: string) => Promise<boolean>;
+};
+
 export type AgentPanelModel = AgentTranscriptModel & {
   capture: CaptureShortcutModel;
   captureNow: () => Promise<void>;
-  cwd: string;
-  setCwd: (cwd: string) => void;
-  beginWorkspaceEdit: () => void;
-  commitWorkspace: (cwd: string) => void;
-  cancelWorkspaceEdit: () => void;
-  mode: AgentMode;
-  setMode: (mode: AgentMode) => void;
+  history: AgentHistoryModel;
   provider: AgentProvider;
   model: string | null;
   setModel: (model: string | null) => void;

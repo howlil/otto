@@ -4,7 +4,7 @@ import { ReadinessProbeController } from "../src/features/agent/readiness-probe.
 const checking = { status: "checking", message: "Checking" };
 const ready = { status: "ready", model: "m1" };
 const failed = { status: "unavailable" };
-const original = { cwd: "C:/work", provider: "codex", model: null };
+const original = { provider: "codex", model: null };
 
 function harness(read = async () => ready) {
   const tasks = [];

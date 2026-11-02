@@ -6,11 +6,15 @@ import {
   CircleAlert,
   Copy,
   Folder,
+  History,
+  Pencil,
   Plus,
+  Search,
   Send,
   Settings,
   Square,
   Terminal,
+  Trash2,
   TriangleAlert,
   X,
   type LucideProps,
@@ -31,6 +35,10 @@ const icons = {
   unavailable: CircleAlert,
   terminal: Terminal,
   plus: Plus,
+  history: History,
+  rename: Pencil,
+  delete: Trash2,
+  search: Search,
 } as const;
 
 export type IconName = keyof typeof icons;
