@@ -1,102 +1,71 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteAgentHistory,
   listAgentHistory,
   nativeAvailable,
   openAgentHistory,
   renameAgentHistory,
-  type AgentConversationSummary,
   type AgentSnapshot,
 } from "../../platform/tauri";
-import { normalizeTitle } from "./history-model";
+import { AgentHistoryController, type HistoryList } from "./agent-history";
 
 export function useAgentHistory({ onOpened }: { onOpened: (snapshot: AgentSnapshot) => void }) {
-  const [conversations, setConversations] = useState<AgentConversationSummary[]>([]);
+  const [history, setHistory] = useState<HistoryList>({
+    items: [],
+    loading: false,
+    error: null,
+  });
   const [query, setQuery] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const busy = useRef(false);
+  const controller = useRef<AgentHistoryController | null>(null);
+  const onOpenedRef = useRef(onOpened);
+  onOpenedRef.current = onOpened;
 
-  const begin = useCallback(() => {
-    if (!nativeAvailable || busy.current) return false;
-    busy.current = true;
-    setPending(true);
-    return true;
-  }, []);
-  const finish = useCallback(() => {
-    busy.current = false;
-    setPending(false);
+  useEffect(() => {
+    if (!nativeAvailable) return;
+    const owner = new AgentHistoryController({
+      list: listAgentHistory,
+      open: openAgentHistory,
+      rename: renameAgentHistory,
+      delete: deleteAgentHistory,
+      publish: setHistory,
+    });
+    controller.current = owner;
+    return () => {
+      owner.dispose();
+      if (controller.current === owner) controller.current = null;
+    };
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!begin()) return;
-    try {
-      setConversations(await listAgentHistory());
-      setError(null);
-    } catch (reason) {
-      setError(String(reason));
-    } finally {
-      finish();
-    }
-  }, [begin, finish]);
+    await controller.current?.refresh();
+  }, []);
 
-  const open = useCallback(
-    async (id: string) => {
-      if (!begin()) return false;
-      try {
-        onOpened(await openAgentHistory(id));
-        setError(null);
-        return true;
-      } catch (reason) {
-        setError(String(reason));
-        return false;
-      } finally {
-        finish();
-      }
-    },
-    [begin, finish, onOpened],
-  );
+  const open = useCallback(async (id: string) => {
+    const owner = controller.current;
+    if (!owner) return false;
+    const result = await owner.open(id);
+    if (result.state !== "ok" || controller.current !== owner) return false;
+    onOpenedRef.current(result.snapshot);
+    return true;
+  }, []);
 
-  const rename = useCallback(
-    async (id: string, rawTitle: string) => {
-      const title = normalizeTitle(rawTitle);
-      if (!title || !begin()) return false;
-      try {
-        await renameAgentHistory(id, title);
-        setConversations((current) =>
-          current.map((conversation) =>
-            conversation.id === id ? { ...conversation, title } : conversation,
-          ),
-        );
-        setError(null);
-        return true;
-      } catch (reason) {
-        setError(String(reason));
-        return false;
-      } finally {
-        finish();
-      }
-    },
-    [begin, finish],
-  );
+  const rename = useCallback(async (id: string, title: string) => {
+    return (await controller.current?.rename(id, title))?.ok ?? false;
+  }, []);
 
-  const remove = useCallback(
-    async (id: string) => {
-      if (!begin()) return false;
-      try {
-        await deleteAgentHistory(id);
-        setConversations((current) => current.filter((conversation) => conversation.id !== id));
-        setError(null);
-        return true;
-      } catch (reason) {
-        setError(String(reason));
-        return false;
-      } finally {
-        finish();
-      }
-    },
-    [begin, finish],
-  );
+  const remove = useCallback(async (id: string) => {
+    return (await controller.current?.delete(id))?.ok ?? false;
+  }, []);
 
-  return { conversations, query, setQuery, pending, error, refresh, open, rename, remove };
+  return {
+    conversations: history.items,
+    query,
+    setQuery,
+    pending: history.loading,
+    error: history.error,
+    refresh,
+    open,
+    rename,
+    remove,
+  };
 }

@@ -1,4 +1,5 @@
 import type { AgentConversationSummary, AgentSnapshot } from "../../platform/tauri";
+import { normalizeTitle } from "./history-model";
 
 export type HistoryList = {
   items: AgentConversationSummary[];
@@ -15,9 +16,6 @@ export type OpenHistoryOutcome =
 export type RenameOutcome = { ok: true } | { ok: false; error: string };
 export type DeleteOutcome = { ok: true } | { ok: false; reason: string };
 
-export const HISTORY_TITLE_LIMIT = 120;
-const HISTORY_UNAVAILABLE = "Conversation history is unavailable.";
-
 const reasonMessage = (reason: unknown) =>
   reason instanceof Error ? reason.message : String(reason);
 
@@ -26,99 +24,114 @@ type AgentHistoryDependencies = {
   open: (id: string) => Promise<AgentSnapshot>;
   rename: (id: string, title: string) => Promise<void>;
   delete: (id: string) => Promise<void>;
-  newChat: () => Promise<void>;
-  activeId: () => string;
-  isLocked: () => boolean;
   publish: (state: HistoryList) => void;
 };
 
 export class AgentHistoryController {
   private state: HistoryList = { items: [], loading: false, error: null };
-  private listEpoch = 0;
-  private openEpoch = 0;
+  private busy = false;
   private disposed = false;
-  private readonly deps: AgentHistoryDependencies;
 
-  constructor(deps: AgentHistoryDependencies) {
-    this.deps = deps;
-  }
+  constructor(private readonly deps: AgentHistoryDependencies) {}
 
   snapshot(): HistoryList {
     return this.state;
   }
 
-  private publish(state: HistoryList) {
+  private publish(next: HistoryList) {
     if (this.disposed) return;
-    this.state = state;
-    this.deps.publish(state);
+    this.state = next;
+    this.deps.publish(next);
+  }
+
+  private begin(): boolean {
+    if (this.disposed || this.busy) return false;
+    this.busy = true;
+    this.publish({ ...this.state, loading: true, error: null });
+    return true;
+  }
+
+  private finish() {
+    this.busy = false;
+    this.publish({ ...this.state, loading: false });
+  }
+
+  private fail(reason: unknown) {
+    this.publish({ ...this.state, error: reasonMessage(reason) });
   }
 
   async refresh(): Promise<void> {
-    const epoch = ++this.listEpoch;
-    this.publish({ ...structuredClone(this.state), loading: true, error: null });
+    if (!this.begin()) return;
     try {
       const items = await this.deps.list();
-      if (epoch === this.listEpoch) {
-        this.publish({ items, loading: false, error: null });
-      }
-    } catch {
-      if (epoch === this.listEpoch) {
-        this.publish({
-          ...structuredClone(this.state),
-          items: this.state.items,
-          loading: false,
-          error: HISTORY_UNAVAILABLE,
-        });
-      }
+      this.publish({ ...this.state, items, error: null });
+    } catch (reason) {
+      this.fail(reason);
+    } finally {
+      this.finish();
     }
   }
 
   async open(id: string): Promise<OpenHistoryOutcome> {
-    if (this.disposed || this.deps.isLocked()) return { state: "locked" };
-    const epoch = ++this.openEpoch;
+    if (!this.begin()) return { state: "locked" };
     try {
       const snapshot = await this.deps.open(id);
-      if (epoch !== this.openEpoch) return { state: "stale" };
-      void this.refresh();
+      if (this.disposed) return { state: "stale" };
       return { state: "ok", snapshot };
     } catch (reason) {
-      if (epoch !== this.openEpoch) return { state: "stale" };
+      if (this.disposed) return { state: "stale" };
+      this.fail(reason);
       return { state: "error", reason: reasonMessage(reason) };
+    } finally {
+      this.finish();
     }
   }
 
-  async rename(id: string, title: string): Promise<RenameOutcome> {
-    const normalized = title.trim().slice(0, HISTORY_TITLE_LIMIT);
-    if (!normalized) return { ok: false, error: "Conversation title is required." };
-    try {
-      await this.deps.rename(id, normalized);
-    } catch (reason) {
-      return { ok: false, error: reasonMessage(reason) };
+  async rename(id: string, rawTitle: string): Promise<RenameOutcome> {
+    const title = normalizeTitle(rawTitle);
+    if (!title) {
+      const error = "Conversation title is required.";
+      this.fail(error);
+      return { ok: false, error };
     }
-    await this.refresh();
-    return { ok: true };
+    if (!this.begin()) return { ok: false, error: "History is busy." };
+    try {
+      await this.deps.rename(id, title);
+      if (this.disposed) return { ok: false, error: "History is unavailable." };
+      this.publish({
+        ...this.state,
+        items: this.state.items.map((item) =>
+          item.id === id ? { ...item, title } : item,
+        ),
+      });
+      return { ok: true };
+    } catch (reason) {
+      this.fail(reason);
+      return { ok: false, error: reasonMessage(reason) };
+    } finally {
+      this.finish();
+    }
   }
 
   async delete(id: string): Promise<DeleteOutcome> {
+    if (!this.begin()) return { ok: false, reason: "History is busy." };
     try {
       await this.deps.delete(id);
+      if (this.disposed) return { ok: false, reason: "History is unavailable." };
+      this.publish({
+        ...this.state,
+        items: this.state.items.filter((item) => item.id !== id),
+      });
+      return { ok: true };
     } catch (reason) {
+      this.fail(reason);
       return { ok: false, reason: reasonMessage(reason) };
+    } finally {
+      this.finish();
     }
-    if (this.deps.activeId() === id) {
-      try {
-        await this.deps.newChat();
-      } catch (reason) {
-        return { ok: false, reason: String(reason) };
-      }
-    }
-    await this.refresh();
-    return { ok: true };
   }
 
   dispose() {
     this.disposed = true;
-    this.listEpoch += 1;
-    this.openEpoch += 1;
   }
 }
