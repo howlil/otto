@@ -420,11 +420,7 @@ impl AgentRuntime {
             .conversation.id
             .lock()
             .map_err(|_| AgentError::internal("Conversation history is unavailable."))?;
-        *self.selected_runtime.lock().unwrap() = if record
-            .provider
-            .capabilities()
-            .pending_model_selection
-        {
+        let pending = if record.provider.capabilities().pending_model_selection {
             ModelSelection {
                 model: record.model.clone(),
                 thinking_effort: record.thinking_effort.clone(),
@@ -432,6 +428,7 @@ impl AgentRuntime {
         } else {
             ModelSelection::default()
         };
+        *self.selected_runtime.lock().unwrap() = pending;
         *active_id = record.id.clone();
         mutate(&self.updates, |state| {
             state.conversation_id = record.id.clone();
