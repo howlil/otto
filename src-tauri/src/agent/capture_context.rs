@@ -10,7 +10,10 @@ where
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         let runtime = handle.state::<AgentRuntime>();
-        if let Err(reason) = runtime.capture_hotkey(request_id, reservation, capture).await {
+        if let Err(reason) = runtime
+            .capture_hotkey(request_id, reservation, capture)
+            .await
+        {
             runtime.capture_error_for(request_id, &reason);
         }
     });

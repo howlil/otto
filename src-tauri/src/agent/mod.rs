@@ -360,7 +360,10 @@ impl AgentRuntime {
                 "Previous agent request may have been interrupted. No answer was restored. Ask again to start a new session.".into()
             }),
         });
-        let conversation = Arc::new(conversation::ConversationOwner::new(history, conversation_id));
+        let conversation = Arc::new(conversation::ConversationOwner::new(
+            history,
+            conversation_id,
+        ));
         Self {
             updates,
             control: Mutex::new(None),
@@ -422,7 +425,8 @@ impl AgentRuntime {
         self.new_session_locked(&mut guard, Duration::from_secs(5))
             .await?;
         let mut active_id = self
-            .conversation.id
+            .conversation
+            .id
             .lock()
             .map_err(|_| AgentError::internal("Conversation history is unavailable."))?;
         let pending = if record.provider.capabilities().pending_model_selection {
@@ -460,7 +464,10 @@ impl AgentRuntime {
     }
 
     pub fn history_rename(&self, id: &str, title: &str) -> Result<(), String> {
-        self.conversation.history.rename(id, title).map_err(String::from)
+        self.conversation
+            .history
+            .rename(id, title)
+            .map_err(String::from)
     }
 
     pub async fn history_delete(&self, id: &str) -> Result<(), String> {
@@ -588,8 +595,7 @@ impl AgentRuntime {
             close_owned_transport(sender, close_timeout).await?;
         }
         let latest = self.snapshot();
-        if latest.capture.request_id != current.capture.request_id
-            || latest.capture.phase != "idle"
+        if latest.capture.request_id != current.capture.request_id || latest.capture.phase != "idle"
         {
             *guard = None;
             mutate(&self.updates, |state| state.thread_id = None);
@@ -599,7 +605,8 @@ impl AgentRuntime {
         }
 
         let id_guard = self
-            .conversation.id
+            .conversation
+            .id
             .lock()
             .map_err(|_| "Conversation history is unavailable.".to_string())?;
         let id = id_guard.clone();
@@ -613,23 +620,23 @@ impl AgentRuntime {
         switched.error = None;
         if let Some(record) =
             history::record_from_snapshot(&id, &switched, current.status != RunPhase::Completed)
+            && let Err(error) = self.conversation.history.upsert(record)
         {
-            if let Err(error) = self.conversation.history.upsert(record) {
-                *guard = None;
-                mutate(&self.updates, |state| {
-                    state.thread_id = None;
-                    state.error = Some(
-                        "Conversation history could not be saved. The previous provider session was closed."
-                            .into(),
-                    );
-                });
-                return Err(String::from(error));
-            }
+            *guard = None;
+            mutate(&self.updates, |state| {
+                state.thread_id = None;
+                state.error = Some(
+                    "Conversation history could not be saved. The previous provider session was closed."
+                        .into(),
+                );
+            });
+            return Err(String::from(error));
         }
 
         *guard = None;
         *self.selected_runtime.lock().unwrap() = ModelSelection::default();
-        self.next_run_id.fetch_max(current.run_id, Ordering::Relaxed);
+        self.next_run_id
+            .fetch_max(current.run_id, Ordering::Relaxed);
         let next_run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
         let marker_failed = self
             .recovery
@@ -1580,14 +1587,20 @@ mod tests {
         assert!(after.usage.is_none());
         assert!(after.run_id > before.run_id);
         assert!(runtime.control.lock().await.is_none());
-        let saved = runtime.conversation.history.open(&after.conversation_id).unwrap();
+        let saved = runtime
+            .conversation
+            .history
+            .open(&after.conversation_id)
+            .unwrap();
         assert_eq!(saved.provider, ProviderId::Pi);
         assert_eq!(saved.messages[1].text, "Ownership controls lifetime.");
         let raw = std::fs::read_to_string(history_path).unwrap();
         assert!(!raw.contains("native-codex-thread"));
         assert!(!raw.contains("cwd"));
-        assert!(contextual_prompt(&after.messages, "What about borrowing?")
-            .contains("Otto: Ownership controls lifetime."));
+        assert!(
+            contextual_prompt(&after.messages, "What about borrowing?")
+                .contains("Otto: Ownership controls lifetime.")
+        );
         let restarted = AgentRuntime::persistent_with_history(
             root.join("marker2"),
             root.join("conversations.json"),
@@ -1684,7 +1697,13 @@ mod tests {
         assert_eq!(after.messages[0].text, "Original question");
         assert!(after.thread_id.is_none());
         assert!(runtime.control.lock().await.is_none());
-        assert!(after.error.as_deref().unwrap().contains("could not be saved"));
+        assert!(
+            after
+                .error
+                .as_deref()
+                .unwrap()
+                .contains("could not be saved")
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -1848,7 +1867,16 @@ mod tests {
         );
         runtime.persist_prompt(7, "Original question").unwrap();
         let id = runtime.snapshot().conversation_id;
-        assert_eq!(runtime.conversation.history.open(&id).unwrap().messages.len(), 1);
+        assert_eq!(
+            runtime
+                .conversation
+                .history
+                .open(&id)
+                .unwrap()
+                .messages
+                .len(),
+            1
+        );
         mutate(&runtime.updates, |state| {
             state.run_id = 7;
             state.status = RunPhase::Completed;
@@ -2394,7 +2422,10 @@ mod tests {
 
         let after = runtime.snapshot();
         assert_ne!(after.conversation_id, deleted);
-        assert_eq!(after.conversation_id, *runtime.conversation.id.lock().unwrap());
+        assert_eq!(
+            after.conversation_id,
+            *runtime.conversation.id.lock().unwrap()
+        );
         assert_eq!(after.status, RunPhase::Idle);
         assert!(after.messages.is_empty());
         assert!(after.thread_id.is_none());
@@ -2488,15 +2519,26 @@ mod tests {
             root.join("marker"),
             root.join("conversations.json"),
         );
-        runtime.persist_prompt(5, "Keep active conversation").unwrap();
+        runtime
+            .persist_prompt(5, "Keep active conversation")
+            .unwrap();
         let before = runtime.snapshot();
         let missing = "not-a-saved-conversation";
         assert!(runtime.history_delete(missing).await.is_err());
         let after = runtime.snapshot();
         assert_eq!(after.conversation_id, before.conversation_id);
         assert_eq!(after.run_id, before.run_id);
-        assert_eq!(runtime.conversation.id.lock().unwrap().as_str(), before.conversation_id);
-        assert!(runtime.conversation.history.open(&before.conversation_id).is_ok());
+        assert_eq!(
+            runtime.conversation.id.lock().unwrap().as_str(),
+            before.conversation_id
+        );
+        assert!(
+            runtime
+                .conversation
+                .history
+                .open(&before.conversation_id)
+                .is_ok()
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -2918,10 +2960,12 @@ mod tests {
             .expect("Agy should be selectable before the session");
         let (tx, _rx) = mpsc::channel(1);
         *runtime.control.lock().await = Some(tx);
-        assert!(runtime
-            .select_provider_with_timeout("pi".into(), Duration::from_millis(10))
-            .await
-            .is_err());
+        assert!(
+            runtime
+                .select_provider_with_timeout("pi".into(), Duration::from_millis(10))
+                .await
+                .is_err()
+        );
         assert_eq!(runtime.snapshot().provider, "agy");
     }
 
@@ -3091,9 +3135,14 @@ mod tests {
         assert_eq!(current.run_id, initial.run_id);
         assert_eq!(current.capture.request_id, 3);
         assert_eq!(current.capture.phase, "preparing");
-        assert_eq!(*runtime.conversation.id.lock().unwrap(), initial.conversation_id);
+        assert_eq!(
+            *runtime.conversation.id.lock().unwrap(),
+            initial.conversation_id
+        );
 
-        mutate(&runtime.updates, |state| state.capture.phase = "failed".into());
+        mutate(&runtime.updates, |state| {
+            state.capture.phase = "failed".into()
+        });
         runtime.new_session().await.unwrap();
         assert_ne!(runtime.snapshot().conversation_id, initial.conversation_id);
     }

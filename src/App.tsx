@@ -6,6 +6,7 @@ import {
   resolveAgentSurface,
   useAgent,
 } from "./features/agent";
+import { shouldPresentOsEvent, useOsEvents } from "./features/os-events";
 import { resolveSurface, useAppUpdate, useNotchShell } from "./features/shell";
 import {
   isContentResize,
@@ -40,8 +41,11 @@ function motionCue(status: string): string | null {
   }
 }
 
+const ACTIVE_RUN = new Set(["starting", "streaming", "stopping"]);
+
 export default function App() {
-  const shell = useNotchShell();
+  const osEvents = useOsEvents();
+  const shell = useNotchShell({ hoverEnabled: !osEvents.event });
   const agent = useAgent(shell.expanded && shell.isAgent);
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
@@ -54,11 +58,18 @@ export default function App() {
     [page],
   );
 
+  const runActive = ACTIVE_RUN.has(agent.snapshot.status);
+  const osEventVisible = shouldPresentOsEvent(expanded, runActive, osEvents.event);
+  useEffect(() => {
+    if (osEvents.event && !osEventVisible) osEvents.dismiss();
+  }, [osEvents.event, osEvents.dismiss, osEventVisible]);
+
   const surface = resolveSurface({
     expanded,
     isAgent,
     page,
     agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
+    osEvent: osEventVisible,
   });
   const agentHomeCopy = agentHomeSubtitle(agent.snapshot, agent.readiness, agent.error);
   const artProps = {
@@ -112,6 +123,8 @@ export default function App() {
       artProps={artProps}
       onContentMeasured={onContentMeasured}
       appUpdate={appUpdate}
+      osEvent={osEventVisible ? osEvents.event : null}
+      onDismissOsEvent={osEvents.dismiss}
     />
   );
 }

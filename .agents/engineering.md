@@ -1,7 +1,7 @@
 # Engineering — Otto
 
 ## System
-Windows-first Tauri 2 modular monolith: React presentation (K1) → narrow Tauri controller (K2) → Otto Rust core (K3) ← CLI/persistence adapters (K4); Windows platform adapters (K5) implement native effects. Core owns state, contracts and permissions. Existing code implements Assistant-only provider streaming/capture; Coding Mode and provider-neutral history are design targets, NOT shipped. Native signed-in/OS capture acceptance remains unverified; Music/Focus are UI placeholders.
+Windows-first Tauri 2 modular monolith: React presentation (K1) → narrow Tauri controller (K2) → Otto Rust core (K3) ← CLI/persistence adapters (K4); Windows platform adapters (K5) implement native effects. Core owns state, contracts and permissions. Existing code implements Assistant-only provider streaming/capture plus the transient compact OS-event capsule; Coding Mode and provider-neutral history are design targets, NOT shipped. Native signed-in/OS capture and OS-event fidelity still need Windows acceptance; Music/Focus are UI placeholders.
 
 ## Structure
 Current K1 is feature-first: `src/App.tsx` composes the Shell and Agent hooks, `AppView.tsx` routes surfaces, `features/{shell,agent,home}` owns UI behavior, `platform/tauri.ts` owns native transport and IPC DTOs, and `shared/ui` owns genuinely reusable controls. Music/Focus are Home placeholders; do not pre-create feature folders.
@@ -30,6 +30,8 @@ src/
       Agent*.tsx, Transcript*.tsx, History*.tsx
     home/
       index.ts, HomeSurface.tsx, HomeCard.tsx
+    os-events/
+      index.ts, useOsEvents.ts, OsEventCapsule.tsx, view-model.ts
   platform/
     tauri.ts                 sole Tauri command/event transport boundary
   shared/ui/                stateless reusable controls, no feature imports
@@ -56,6 +58,7 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - R7 (B9,B11,B13,X7,X9,X12): own mode and runtime capability admission, scoped authorizations and pre-effect approval policy; Assistant tool-free, Coding verified tool scope/approval or deny.
 - R8 (B3,B14,X10,X13): own Otto conversation identity, transcript and history independent of runtime; distinguish actual native resume from saved-context reconstruction.
 - R9 (B4,B13,X2,X6): prepare text/image/workspace context with explicit capture consent; OS implementation belongs to K5, not AI lifecycle.
+- R10 (B15,X14,X15,X16): own OS event normalization, coalescing, priority, expiry and truth rules; K5 observers only report confirmed state and never own presentation or policy.
 
 ## State
 - S1: selected page and exclusive Compact/Preview/Pinned mode | owner Shell hook (R1/React) | background updates cannot select a new page or take keyboard focus; hover timers may request Preview but never pin without explicit activation. Stored clickOutside controls only pinned blur collapse (inverse Keep Expanded UI), not Preview or Escape. Shell preferences have one React writer and validated localStorage mirror; native bounds are owned by S2.
@@ -65,6 +68,7 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - S9: Otto conversation ID/transcript/history | owner R8 (Rust) | bounded versioned JSON, single writer, atomic replace/corruption recovery; provenance per run; expand/migrate/contract compatibility; limited reconstruction must not claim native resume.
 - S10: provider-native session/child process | owner K4 adapter | ephemeral, owned per runtime, cancelled/closed on Stop/exit, never portable conversation authority.
 - S11: selected mode and scoped permissions | owner R7 (Rust) | Assistant denies model tools; Coding default deny unless scope and pre-effect authorization verified.
+- S12: current OS event, per-class last value and expiry | owner R10 (Rust) | single active event; UI is a read-only projection; no history or persistence; observers publish only confirmed changes, never an initial snapshot.
 - S5: target window, capture request and image lifetime | owner R3 (Rust) | explicit invocation provenance, still-valid non-Otto target, no send on ambiguity/denial; sensitive images are ephemeral with Drop cleanup on finish/error/cancel. After a crash, startup may delete only named capture files aged >=24h when the owning PID is confirmed exited; unknown/active PIDs and unrelated files are preserved. Best effort, not secure erasure.
 - S6: media observation | owner R4 (Rust cache; OS is source of truth) | no fabricated lyrics/sessions; ephemeral, no permanent media history.
 - S7: focus/break duration, timer deadline and paused state | owner R5 | deadline is authority and remaining time derived; settings retention only if preference storage is explicitly introduced.
@@ -75,6 +79,7 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - K1 -> K2: typed Tauri command `submit/stop/provider_status` (names illustrative until implemented), input validation and bounded payload; immediate outcome = accepted run_id or recoverable error. Rendering the UI cannot authorize OS side effects.
 - K2 -> K3: validated mode/run request → R7 pre-dispatch admission; Assistant is tool-free; Coding tool effects need proven scope and pre-effect approval, otherwise fail closed; UI choice alone cannot authorize effects.
 - K3 <-> K4: core-owned normalized request/events (`run_id`, seq, text/tool/usage/terminal), readiness/capabilities and cancellation; adapter owns native protocol/session and rejects unsupported features. No universal ANSI parsing or silent runtime fallback.
+- K3 -> K1 OS events: typed `os_events_subscribe`/`os_events_unsubscribe` returning confirmed `OsEventView` values over an ordered channel; K1 owns Compact-only suppression and never treats rendering as authorization.
 - K3 -> K1: ordered Tauri channel for run output and terminal outcome; separate low-frequency notifications may use events. Sequence/run_id guards ignore late, duplicate or stale output; Stop is idempotent for that run. UI collapse neither stops nor detaches the run owner.
 - K3 -> process boundary: K4 launches executable with argument array (no shell interpolation), owned tree lifetime, bounded untrusted I/O and cleanup; Assistant has no workspace selector, Coding has explicit verified scope. Windows suspended-start Job Object constrains lifetime, NOT filesystem permissions.
 - K3 -> K5: core-owned context/capture port carries validated explicit user intent; Windows returns capture result or recoverable error, cleans ephemeral resources, and must not directly call AgentRuntime (existing D6).
@@ -96,6 +101,7 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - Media (B5,X3): R4 observes OS session -> K1 shows state/absence -> supported playback action -> observe new state; lyrics unavailable remains explicit.
 - Timer (B6): configure -> R5 records deadline -> derived remaining time -> pause/resume/reset -> quiet update via R1.
 - Shell (B1,B2,B7,B10,X5): R6 positions/requests capture protection -> R1 renders -> hover preview no focus theft -> user activation controls focus/expanded state -> background updates do not select a new view; unsupported capture exclusion is disclosed.
+- OS events (B15,X14,X15,X16,Q7): K5 observer reports a confirmed change -> R10 normalizes, sanitizes and applies priority/dedupe/expiry -> ordered subscription channel -> K1 renders only while Compact and no run is active -> auto-dismiss restores the previous Compact surface; dropped while Expanded or during a run.
 
 ## Guarantees
 - G1 (B4,Q5,C6) [H]: without an explicit user capture action, no image is captured/submitted; SLI unauthorized capture/send invocations = 0 per invocation trace at R3 boundary (no image logging).
@@ -112,6 +118,8 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - G11 (J1,Q6) [M]: user can obtain, persist, reopen, and reuse an answer without launching another app; SLI successful ask -> history reopen -> follow-up -> return-to-origin journey on a Windows walkthrough; success threshold not yet set (A7).
 - G13 (B14,X13,C8) [H]: runtime/model switch never changes persisted Otto conversation identity or claims fake native resume; SLI false native-continuity claims = 0 at R8/UI history projection.
 - G14 (B13,X12,C7) [H]: unapproved/out-of-scope Coding side effects = 0 at proven pre-effect runtime/OS enforcement; unsupported enforcement disables the action.
+- G15 (B15,Q4,Q7) [M]: OS events never change the active page/feature or take keyboard focus; SLI unsolicited focus or active-view changes = 0 at R1/R10; idle cost measured with G5 and no polling beyond the documented brightness interval and battery reconcile.
+- G16 (B15,X14,X16) [M]: a rendered OS event matches the last confirmed native observation; SLI fabricated or unverified state renders = 0 at the R10 publish boundary, and sanitized native text never reaches logs.
 
 ## Challenge
 | H flow | Failure / threat | Blast radius | Containment | Detection signal | Recovery |
@@ -123,6 +131,7 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 | G8 unsafe event | adapter accidentally continues after tool/approval event | filesystem/tool side effects | reject every unsafe event and terminate run | R7 rejection vs provider continuation | block action, terminate child, notify user |
 | G13 portable history | native session lost or incorrectly claimed after provider switch | conversation trust | R8 transcript + labeled reconstruction | R8 provenance and UI | reopen saved messages, disclose lost context |
 | G14 Coding effects | tool acts before approval or outside scope | local files | deny if runtime/OS scope or pre-effect grant unverified | enforcement trace | reject and terminate request |
+| G15/G16 OS events | false connect/charge state, focus theft, notification storm | misleading status, interrupted work | confirmed-read-only observers, hub dedupe/TTL, Compact-only suppression | R10 publish vs native observation; focus/view transitions | emit nothing, expire event, restore prior Compact surface |
 
 ## Decisions
 - DEC1 [one-way]: owner chose Tauri 2 + React/Vite/Tailwind + Rust/Bun over native Slint for faster UI iteration. Trade-off: WebView2 process/memory and window composition behavior; revisit only if representative Q1/Q2 measurements show a material problem.
@@ -144,6 +153,8 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - DEC18 [two-way] (B4,G1): Windows capture/hotkeys report intent/results through core-owned context port instead of depending on AgentRuntime; preserve explicit consent, target validation and cleanup.
 - DEC15 [one-way] (P14,X11,K1,G5): Answer text renders through `react-markdown` without `rehype-raw`, so provider HTML is escaped, never executed; link/image URL schemes outside http(s)/mailto are dropped. Code fences are highlighted by highlight.js and injected as `innerHTML` only from source escaped by `src/features/agent/markdown-highlight.ts` (unlabelled fences stay plain, no auto-detection, so streaming never re-guesses a grammar); that single sink is the only `security/noDangerouslySetInnerHtml` override in `biome.json`, and `tests/message-markdown.test.mjs` must keep the escaping and no-remote-fetch regression green. Markdown images render as inert links: Otto never fetches a URL named by provider text, so model output cannot trigger network egress. The markdown/KaTeX/highlight bundle stays eager until Q1 measures the cost.
 - DEC15 [one-way] (P14,G1/G7): chat answers render through `MessageContent` with `react-markdown` + `remark-gfm` + `remark-breaks` + `remark-math`/`rehype-katex` and a curated `highlight.js` language set; no `rehype-raw`, so provider HTML/script/blocked URI schemes stay inert. Copy on a code block uses the exact fenced source text. Dependencies enter only through `bun.lock` pinning. Math degrades to safe spans instead of failing the run.
+- DEC19 [two-way] (B15,G15,G16,Q7): OS events use push-based observers where Windows offers them (Core Audio callbacks, WLAN ACM notifications, power broadcast, audio endpoint notifications) and one documented 2-second brightness poll because Windows exposes no brightness-change notification. DDC/CI is read-only and primary-monitor only; external monitors without a readable brightness stay silent. No WMI subscription, no event history, no persistence. `windows` 0.62 is a direct dependency because it already exists in the lockfile through Tauri; `windows-sys` remains for existing adapters.
+- DEC20 [two-way] (B15,S12,G16): the event hub owns dedupe, priority and expiry; K1 owns presentation eligibility (Compact only, no active run). Suppressed events are dropped rather than queued so a stale capsule can never appear after the user finishes reading.
 
 ## Fitness
 - F1: Tauri imports and native event wiring exist only in `src/platform/`; render-only feature TSX has no runtime platform imports (type-only snapshot imports allowed) | signal: TypeScript import scan | tool: `scripts/frontend-rules.mjs` | pass: zero boundary violations | cadence: PR | mode: enforce; exceptions -> D#.
@@ -153,6 +164,7 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - F5: icons are a vetted dependency and accessible names are rendered text | signal: `lucide-react` in `package.json`/lockfile, `shared/ui` as the only icon source, no `aria-label` | tool: `scripts/frontend-rules.mjs` R6/R7 | pass: 0 `aria-label`, 0 inline `<svg>` outside `shared/ui` | cadence: PR | mode: enforce; exceptions -> D#.
 - F6 [enforced]: Rust core modules outside `agent/providers/` may not import concrete Codex/Pi/Agy or `windows/` implementation modules; `scripts/rust-boundaries.mjs` runs in `bun run check` at PR gate; static import-boundary proof, not runtime process isolation.
 - F7 [enforced]: `windows/` may not import `AgentRuntime`, conversation persistence, or invoke core capture lifecycle methods; `scripts/rust-boundaries.mjs` runs in `bun run check`, while the `agent/capture_context.rs` adapter owns capture dispatch and error projection.
+- F8 [enforced]: `os_events/` may not import `windows/`, provider adapters or Tauri window types; `windows/` observers may implement the core observer port but may not own hub policy, dedupe, priority or expiry | signal: Rust import scan | tool: `scripts/rust-boundaries.mjs` | pass: zero violations | cadence: PR | mode: enforce; exceptions -> D#.
 - `bun run check` runs Biome and then the ratchet, so F1–F4 are executed at PR cadence and are proof when it exits 0. Baseline lives in `.agents/frontend-budget.json`; regenerate it only after a real reduction with `bun run lint:frontend -- --write-baseline`.
 - F1/F2 enforce import direction today; TSX-size ratchet does **not** cover large `.ts` hooks or validate behavioral ownership. Do not claim these checks prove SRP, runtime lifecycle, or React state correctness.
 
@@ -163,6 +175,7 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - D4 (F1/P14): `src/features/agent/CodeBlock.tsx` renders highlight.js HTML through `dangerouslySetInnerHTML` with a scoped Biome `noDangerouslySetInnerHtml` override in `biome.json`. Only `CodeBlock.tsx` may keep this override; it must render highlight.js output over markdown source that react-markdown already sanitized (no `rehype-raw`). Removing the override depends on a structured-token renderer.
 - D5 (B3,B14,G13): R8 `agent/conversation.rs` owns conversation ID/history and transcript operations (start turn, append delta, final text and run-specific answer); R2 `events.rs` owns event ordering and terminal transitions, delegating message updates to R8. Restore validates the chosen record before rotating, flushes/reloads a currently active record before reset, and uses a prevalidated record after closing native transport; no fallible history read occurs after clearing active Snapshot. Active history delete closes transport and deletes the stored record before rotating while holding the R8 conversation-ID mutex across delete and Snapshot rotation (ID lock before history-store writer), preventing observer resurrection; failed deletion keeps transcript and conversation ID, invalidating only the closed native thread. Writes reject stale IDs; new-session ID plus Snapshot handoff is serialized. Snapshot remains a read projection; native cross-provider resume is unsupported.
 - D6 (B4,G1): Windows capture now supplies explicit OS capture results through `agent/capture_context.rs`; core owns `begin_capture`, provider admission, asynchronous submission, and failure projection. Windows retains target selection, hotkey registration, native capture file lifetime and cleanup. Native Windows proof is still pending.
+- D7 (B15,G16): peripheral events come from Core Audio audio-endpoint add/remove and are labeled as an audio device; no friendly name is resolved yet, and Bluetooth mouse/keyboard connection changes need a WinRT AEP `DeviceWatcher`. Brightness is a read-only 2-second poll of the primary physical monitor through `GetMonitorBrightness`; laptops whose panel driver does not answer DDC/CI stay silent instead of showing an estimated level. Windows event fidelity (volume callback during default-device changes, WLAN notification codes, battery broadcast plus 60-second reconcile) still needs representative native acceptance.
 
 ## Verification
 - **Critical-proof contract (P#/X#/G#):** changed core state/policy, authorization/approval, provider lifecycle/Stop, concurrent ordering, capture consent/target, and restart/recovery must have behavior-based automated proof. Prefer unit tests for core decisions; use real boundary integration where a unit test cannot prove the invariant. Reuse existing tests if they genuinely fail for the defect; no test-count or coverage quotas.
@@ -178,6 +191,7 @@ Rust target (incremental): K3 `agent/` groups conversation, execution, policy, c
 - PF8 (P9,G6,B11,Q3) [important]: Agent header shows the selected model/thinking effort and claims tools-disabled only from verified readiness; chat-only admission itself remains PF1 | Bun render unit (`tests/agent-header.test.mjs`) | `iter/pr`.
 - PF6 (P7,G5/G12) [important]: idle no-probe, cache/reopen, selection invalidation and cancel races; completed Agy follow-up without repeat readiness and invalid-state rejection | Bun controller unit + Rust runtime state/control unit at `iter/pr`; real CLI auth/follow-up and process cleanup at Windows `release`.
 - PF8 (P14,G1/G7) [important]: markdown heading/list/link/quote/table/task list render, fenced code highlight + per-block copy of source text, inline/block math, escaped/inert HTML and script, empty/unknown-language/unterminated fence and partial-stream inputs | Bun SSR contract tests `tests/message-markdown.test.mjs` | `iter/pr`.
+- PF9 (P17,G15/G16) [important]: suppression while Expanded or during a run, priority/dedupe/TTL, no initial or failed-read state, sanitized device names, and no fabricated battery/connection state | Rust `os_events` unit tests + Bun `tests/os-event-view.test.mjs` + surface routing | `iter/pr`; native event fidelity at `release`.
 - `merge`: review actual changed invariants and exact-SHA proof; never call unverified boundaries green.
 - `release`: once per release candidate, NSIS startup, genuine Windows CLI/capture/session recovery and process cleanup; one exploratory acceptance pass. Live provider authentication and OS semantics are not proven by mocked unit tests.
 ## Release

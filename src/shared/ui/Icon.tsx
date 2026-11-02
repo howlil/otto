@@ -1,4 +1,8 @@
 import {
+  Battery,
+  BatteryCharging,
+  BatteryLow,
+  Bluetooth,
   Camera,
   Check,
   CircleCheck,
@@ -12,10 +16,14 @@ import {
   Search,
   Send,
   Settings,
+  Sun,
   Square,
   Terminal,
   Trash2,
   TriangleAlert,
+  Volume2,
+  Headphones,
+  Wifi,
   X,
   type LucideProps,
 } from "lucide-react";
@@ -39,6 +47,14 @@ const icons = {
   rename: Pencil,
   delete: Trash2,
   search: Search,
+  volume: Volume2,
+  brightness: Sun,
+  wifi: Wifi,
+  bluetooth: Bluetooth,
+  headphones: Headphones,
+  battery: Battery,
+  batteryCharging: BatteryCharging,
+  batteryLow: BatteryLow,
 } as const;
 
 export type IconName = keyof typeof icons;

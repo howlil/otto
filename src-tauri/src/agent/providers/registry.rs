@@ -1,8 +1,6 @@
 use crate::agent::events::ProviderEvents;
 use crate::agent::runtime::{ProviderId, RuntimeCapabilities, SessionReuse};
 use crate::agent::{Control, ModelSelection, ProviderReadiness, RunPhase};
-#[cfg(test)]
-use crate::agent::Snapshot;
 use std::path::PathBuf;
 use tokio::sync::mpsc;
 
@@ -51,10 +49,7 @@ impl ProviderId {
         }
     }
 
-    pub(in crate::agent) fn can_reuse_without_probe(
-        self,
-        session: &SessionReuse<'_>,
-    ) -> bool {
+    pub(in crate::agent) fn can_reuse_without_probe(self, session: &SessionReuse<'_>) -> bool {
         self.capabilities().completed_followup_without_probe
             && session.provider == self
             && session.status == RunPhase::Completed

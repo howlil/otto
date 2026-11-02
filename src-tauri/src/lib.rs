@@ -1,5 +1,6 @@
 mod agent;
 mod commands;
+mod os_events;
 #[cfg(windows)]
 mod windows;
 
@@ -42,6 +43,8 @@ pub fn run() {
             commands::agent_capture_target_title,
             commands::agent_capture_now,
             commands::notch_set_surface,
+            commands::os_events_subscribe,
+            commands::os_events_unsubscribe,
         ])
         .setup(|app| {
             #[cfg(windows)]
@@ -56,6 +59,12 @@ pub fn run() {
             };
             agent.start_recovery_observer();
             app.manage(agent);
+            let os_events = std::sync::Arc::new(os_events::OsEventRuntime::new());
+            app.manage(os_events.clone());
+            #[cfg(windows)]
+            app.manage(windows::observers::start_all(os_events));
+            #[cfg(not(windows))]
+            let _ = os_events;
             #[cfg(windows)]
             app.manage(windows::capture::start_hotkey(app.handle().clone()));
             if let Some(window) = app.get_webview_window("main") {

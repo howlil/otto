@@ -4,6 +4,7 @@ import { join, relative, resolve, sep } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const sourceRoot = join(root, "src-tauri", "src");
 const coreRoot = join(sourceRoot, "agent");
+const osEventsRoot = join(sourceRoot, "os_events");
 const windowsRoot = join(sourceRoot, "windows");
 
 function rustFiles(folder) {
@@ -26,6 +27,30 @@ for (const path of rustFiles(coreRoot)) {
   }
 }
 
+for (const path of rustFiles(osEventsRoot)) {
+  const source = readFileSync(path, "utf8");
+  const forbidden = [
+    /\b(?:crate|super)::windows::\b/,
+    /\b(?:crate::agent::|super::)?providers::(?:codex|pi|agy)::/,
+    /\bWebviewWindow\b/,
+  ];
+  if (forbidden.some((pattern) => pattern.test(source))) {
+    failures.push(`F8: ${relative(root, path)} imports a native adapter or window type`);
+  }
+}
+
+for (const path of rustFiles(join(windowsRoot, "observers"))) {
+  const source = readFileSync(path, "utf8");
+  const forbidden = [
+    /crate::os_events::Hub\b/,
+    /crate::os_events::policy\b/,
+    /\bobserve_now\s*\(/,
+  ];
+  if (forbidden.some((pattern) => pattern.test(source))) {
+    failures.push(`F8: ${relative(root, path)} owns hub policy instead of reporting observations`);
+  }
+}
+
 for (const path of rustFiles(windowsRoot)) {
   const source = readFileSync(path, "utf8");
   const forbidden = [
@@ -44,4 +69,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(failure);
   process.exit(1);
 }
-console.log("Rust boundaries F6/F7 pass.");
+console.log("Rust boundaries F6/F7/F8 pass.");

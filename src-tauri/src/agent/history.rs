@@ -282,12 +282,9 @@ pub fn record_from_snapshot(
 ) -> Option<ConversationRecord> {
     let mut messages = snapshot.messages.clone();
     if interrupted
-        && messages
-            .last()
-            .is_some_and(|message| {
-                message.role == "assistant"
-                    && message.id == format!("{}:assistant", snapshot.run_id)
-            })
+        && messages.last().is_some_and(|message| {
+            message.role == "assistant" && message.id == format!("{}:assistant", snapshot.run_id)
+        })
     {
         messages.pop();
     }
@@ -513,10 +510,12 @@ mod tests {
         assert_eq!(record.messages.len(), 2);
         assert_eq!(record.messages[0].text, "Previous complete answer.");
         assert_eq!(record.messages[1].text, "Follow-up question.");
-        assert!(!record
-            .messages
-            .iter()
-            .any(|message| message.text == "Incomplete output."));
+        assert!(
+            !record
+                .messages
+                .iter()
+                .any(|message| message.text == "Incomplete output.")
+        );
     }
 
     #[test]

@@ -1,4 +1,6 @@
 use crate::agent::{AcceptedRun, AgentRuntime, Snapshot};
+use crate::os_events::{OsEventRuntime, OsEventView};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(not(windows))]
 use tauri::{LogicalSize, PhysicalPosition};
@@ -38,6 +40,19 @@ pub fn overlay_set_capture_protection(
 #[derive(Default)]
 pub struct NotchMotion {
     epoch: AtomicU64,
+}
+
+#[tauri::command]
+pub fn os_events_subscribe(
+    runtime: State<'_, Arc<OsEventRuntime>>,
+    on_event: Channel<OsEventView>,
+) -> u64 {
+    runtime.subscribe(on_event)
+}
+
+#[tauri::command]
+pub fn os_events_unsubscribe(runtime: State<'_, Arc<OsEventRuntime>>, subscription_id: u64) {
+    runtime.unsubscribe(subscription_id);
 }
 
 #[tauri::command]
@@ -253,6 +268,7 @@ fn surface_size(surface: &str) -> Option<(u32, u32)> {
         "agentFull" => Some((526, 346)),
         "agentError" => Some((526, 270)),
         "agentSettings" => Some((526, 466)),
+        "osEvent" => Some((234, 52)),
         _ => None,
     }
 }

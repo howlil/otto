@@ -114,8 +114,8 @@ export function AgentSettingsDetails({
               {props.snapshot.messages.length > 0 && props.snapshot.threadId === null && (
                 <StatusMessage tone="info">
                   Previous messages remain in Otto history. The next provider receives only a
-                  bounded text transcript; its original native session and hidden context cannot
-                  be transferred.
+                  bounded text transcript; its original native session and hidden context cannot be
+                  transferred.
                 </StatusMessage>
               )}
               <ModelUsageSettings

@@ -6,6 +6,7 @@ const request = {
   isAgent: false,
   page: "home",
   agentSurface: "agentFull",
+  osEvent: false,
 };
 
 describe("Otto shell surface ownership", () => {
@@ -15,6 +16,17 @@ describe("Otto shell surface ownership", () => {
 
   test("Agent compact uses its own capsule instead of Home eyes", () => {
     expect(resolveSurface({ ...request, page: "agent", isAgent: true })).toBe("agentCompact");
+  });
+
+  test("a transient OS event replaces the compact capsule, never an expanded surface", () => {
+    expect(resolveSurface({ ...request, osEvent: true })).toBe("osEvent");
+    expect(resolveSurface({ ...request, page: "agent", isAgent: true, osEvent: true })).toBe(
+      "osEvent",
+    );
+    expect(resolveSurface({ ...request, expanded: true, osEvent: true })).toBe("home");
+    expect(
+      resolveSurface({ ...request, expanded: true, page: "agent", isAgent: true, osEvent: true }),
+    ).toBe("agentFull");
   });
 
   test("expanded settings and conversation resolve to their own native bounds", () => {

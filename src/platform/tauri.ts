@@ -88,7 +88,33 @@ export type NotchSurface =
   | "agentThinking"
   | "agentFull"
   | "agentError"
-  | "agentSettings";
+  | "agentSettings"
+  | "osEvent";
+
+export type OsEventView =
+  | { class: "volume"; id: number; percent: number; muted: boolean }
+  | { class: "brightness"; id: number; percent: number }
+  | { class: "wifi"; id: number; connected: boolean }
+  | {
+      class: "bluetooth";
+      id: number;
+      connected: boolean;
+      kind: "audio" | "input" | "unknown";
+      name: string | null;
+    }
+  | {
+      class: "battery";
+      id: number;
+      plugged: boolean;
+      charging: boolean;
+      percent: number | null;
+      low: boolean;
+      critical: boolean;
+    };
+
+export type OsEventSubscription = {
+  unsubscribe: () => Promise<void>;
+};
 
 export const nativeAvailable = isTauri();
 
@@ -147,6 +173,18 @@ export async function subscribeAgent(
     unsubscribe: () => invoke("agent_unsubscribe", { subscriptionId }),
   };
 }
+export async function subscribeOsEvents(
+  onEvent: (event: OsEventView) => void,
+): Promise<OsEventSubscription> {
+  if (!nativeAvailable) return { unsubscribe: async () => {} };
+  const channel = new Channel<OsEventView>();
+  channel.onmessage = onEvent;
+  const subscriptionId = await invoke<number>("os_events_subscribe", { onEvent: channel });
+  return {
+    unsubscribe: () => invoke("os_events_unsubscribe", { subscriptionId }),
+  };
+}
+
 export async function selectAgentProvider(provider: AgentProvider): Promise<void> {
   await invoke("agent_select_provider", { provider });
 }

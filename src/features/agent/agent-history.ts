@@ -101,9 +101,7 @@ export class AgentHistoryController {
       if (this.disposed) return { ok: false, error: "History is unavailable." };
       this.publish({
         ...this.state,
-        items: this.state.items.map((item) =>
-          item.id === id ? { ...item, title } : item,
-        ),
+        items: this.state.items.map((item) => (item.id === id ? { ...item, title } : item)),
       });
       return { ok: true };
     } catch (reason) {

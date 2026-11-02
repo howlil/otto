@@ -110,7 +110,9 @@ fn set_affinity(hwnd: HWND, enabled: bool) -> io::Result<()> {
         return Err(io::Error::last_os_error());
     }
     if read_affinity(hwnd)? != requested {
-        return Err(io::Error::other("Window capture affinity was not retained."));
+        return Err(io::Error::other(
+            "Window capture affinity was not retained.",
+        ));
     }
     Ok(())
 }
@@ -211,7 +213,10 @@ mod tests {
     fn capture_protection_toggle_uses_exact_windows_affinity_values() {
         assert_eq!(requested_capture_affinity(true), EXCLUDE_FROM_CAPTURE);
         assert_eq!(requested_capture_affinity(false), NO_CAPTURE_RESTRICTION);
-        assert_ne!(requested_capture_affinity(true), requested_capture_affinity(false));
+        assert_ne!(
+            requested_capture_affinity(true),
+            requested_capture_affinity(false)
+        );
     }
 
     #[test]

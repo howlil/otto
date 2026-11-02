@@ -131,6 +131,17 @@
   --animate-otto-nudge: otto-nudge 0.42s var(--ease-otto);
   --animate-otto-shake: otto-shake 0.35s ease-out;
 
+  @keyframes otto-event-meter {
+    from {
+      transform: scaleY(0.25);
+      opacity: 0.4;
+    }
+    to {
+      transform: scaleY(1);
+      opacity: 1;
+    }
+  }
+
   @keyframes otto-blink {
     0%,
     94%,
@@ -549,4 +560,9 @@ h4.md-h {
   .otto-tab-exit {
     animation: none !important;
   }
+}
+
+.event-meter i {
+  animation: otto-event-meter 260ms var(--ease-otto) both;
+  transform-origin: bottom;
 }

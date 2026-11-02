@@ -31,7 +31,9 @@ fn belongs_to_run(message: &ChatMessage, run_id: u64) -> bool {
 }
 
 fn current_answer(messages: &mut [ChatMessage], run_id: u64) -> Option<&mut ChatMessage> {
-    messages.last_mut().filter(|message| belongs_to_run(message, run_id))
+    messages
+        .last_mut()
+        .filter(|message| belongs_to_run(message, run_id))
 }
 
 pub(super) fn append_delta(messages: &mut [ChatMessage], run_id: u64, delta: &str) -> bool {
@@ -86,7 +88,9 @@ impl ConversationOwner {
             .lock()
             .map_err(|_| AgentError::internal("Conversation history is unavailable."))?;
         if snapshot.conversation_id != *id {
-            return Err(AgentError::internal("Conversation identity is no longer current."));
+            return Err(AgentError::internal(
+                "Conversation identity is no longer current.",
+            ));
         }
         if let Some(record) = history::record_from_snapshot(&id, snapshot, interrupted) {
             self.history.upsert(record)?;

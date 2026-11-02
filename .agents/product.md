@@ -25,6 +25,7 @@ Alternate context path: B2 → B4 user-triggered screen capture → B3 answer. S
 - B12: Streaming answers render Markdown, code and math safely, support copying, and never execute model-supplied HTML.
 - B13: Coding Mode explicitly selects workspace and runtime; inspecting, editing and testing are allowed only after capability/scope validation, with approval before effects where required. Unsupported isolation/approval disables affected actions.
 - B14: Otto-owned conversation and history survive runtime/model switching between turns; when a native session cannot resume, reconstruct only bounded saved transcript context and label the limitation.
+- B15: Otto may surface a transient Compact-only OS event capsule for volume, display brightness, Wi-Fi, Bluetooth/peripheral and battery/power changes. It shows only confirmed OS state, never expands, is not a navigation destination, and never takes focus or changes the active feature. It auto-dismisses to the previous Compact presentation. Events observed while Otto is Expanded or an AI run is active are dropped, not queued. Observation runs only while the app runs, is never persisted, and can be disabled.
 
 Material breaks:
 - X1 (B3,B11): CLI absent, incompatible, or fails → explain, preserve draft/session context, offer setup, retry, or provider switch.
@@ -40,6 +41,9 @@ Material breaks:
 - X11 (B12): Unsafe provider HTML, links or partial Markdown → inert rendering; no model-supplied script execution.
 - X12 (B13): No verified Coding scope/approval enforcement → deny action, preserve draft/conversation and explain recovery.
 - X13 (B14): Switch cannot recover exact native provider context → show bounded transcript reconstruction, never claim exact native resume.
+- X14 (B15): An OS event observer is unavailable, blocked or unsupported → no capsule; "Disconnected/Off" is never rendered from a failed read.
+- X15 (B15,B10,Q4): An OS event arrives while Otto is Expanded or an AI run is active → drop it silently; no deferred stale capsule, no focus or active-feature change.
+- X16 (B15): Untrusted native text (device or profile name) is sanitized or omitted; it is never executed or logged.
 
 
 ## Constraints
@@ -57,6 +61,7 @@ Material breaks:
 - Q4: Background activity must not unexpectedly change active view or keyboard focus.
 - Q5: Screen content must not be submitted without an explicit user capture action; the user can identify the intended capture target.
 - Q6: User can obtain an answer and return to the original task without opening a separate AI interface.
+- Q7: OS event observation adds no idle polling beyond the documented brightness interval and battery reconcile interval; measured with the Q1 harness.
 
 ## Scope
 - Agent scope: Assistant (current) uses installed CLIs for streaming chat, reasoning, model/thinking selection, safe Markdown, screenshot analysis, local history, Stop and collapse/reopen; Coding (future target, NOT implemented by this documentation PR) adds explicit workspace, authorized inspect/edit/test, tool activity and pre-effect approval. Codex/Pi image input remains capability-gated; Agy headless is text-only until verified otherwise.
@@ -81,6 +86,7 @@ Material breaks:
 - P14 (B12,X11): Given active messages, formatted Markdown, code, and math remain readable during streaming without executing HTML; code and answer copy operate on those same messages.
 - P15 (B13,X7,X12,C7): Coding runs scoped inspect/edit/test only under verifiable grants; denied, unsupported or cancelled effects never execute; recovery is visible.
 - P16 (B14,X13,C8): Switching a runtime/model after a turn preserves Otto conversation/history and either reconstructs bounded saved context or reports native resume unavailable, without fabricating continuity.
+- P17 (B15,X14,X15,X16,Q7): Given real Windows events, each class renders only confirmed state; no capsule appears while Otto is pinned or an AI run is active; event observation stays within the measured idle baseline.
 
 ## Assumptions
 - A1 [non-blocking]: Codex is the initial supported provider; specific capabilities of Pi and Agy will be checked against installed versions.
@@ -89,3 +95,4 @@ Material breaks:
 - A4 [non-blocking]: Current Assistant is tool-free; no existing CLI is presumed safe for Coding until actual workspace/approval/isolation semantics satisfy C7/P15.
 - A5 [non-blocking]: Otto owns local text conversation history; provider thread IDs, credentials, and screenshots are not persisted. Reopen reconstructs context from the local transcript.
 - A6 [non-blocking]: Coding is a future target, not implemented. Cross-runtime continuation now closes the old provider transport and retains Otto text history; native runtime, release and persistence integration remain unverified until Windows CI/acceptance. First Coding adapter must pass C7/P15 before activation.
+- A7 [non-blocking]: OS Events shows Wi-Fi and Bluetooth connection state without SSID, MAC address or serial numbers; device names are shown only for peripherals that report one. The event capsule defaults ON and has one master toggle; per-class toggles wait for observed noise.

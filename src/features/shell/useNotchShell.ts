@@ -23,7 +23,9 @@ import { shouldCollapseOnBlur } from "./surface";
 
 type ShellMode = "compact" | "preview" | "pinned";
 
-export function useNotchShell() {
+export function useNotchShell(options: { hoverEnabled?: boolean } = {}) {
+  const hoverEnabled = useRef(options.hoverEnabled ?? true);
+  hoverEnabled.current = options.hoverEnabled ?? true;
   const [page, setPage] = useState<Page>("home");
   const [mode, setMode] = useState<ShellMode>("compact");
   const expanded = mode !== "compact";
@@ -147,6 +149,7 @@ export function useNotchShell() {
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   const handleEnter = (event: PointerEvent<HTMLElement>) => {
+    if (!hoverEnabled.current) return;
     if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
     if (leaveTimer.current) {
       clearTimeout(leaveTimer.current);
