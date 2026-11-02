@@ -2299,6 +2299,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn queued_delete_cannot_interleave_with_history_restore() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-history-serialized-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = Arc::new(AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            root.join("conversations.json"),
+        ));
+        runtime
+            .conversation
+            .history
+            .upsert(history::ConversationRecord {
+                id: "saved".into(),
+                title: "Saved chat".into(),
+                provider: ProviderId::Codex,
+                model: None,
+                thinking_effort: None,
+                messages: vec![ChatMessage {
+                    id: "1:user".into(),
+                    role: "user".into(),
+                    text: "Saved question".into(),
+                }],
+                created_at: 1,
+                updated_at: 1,
+                interrupted: false,
+            })
+            .unwrap();
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+
+        let opening = {
+            let runtime = Arc::clone(&runtime);
+            tokio::spawn(async move { runtime.history_open("saved").await })
+        };
+        let requested = timeout(Duration::from_secs(5), receiver.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let Control::Close { finished, .. } = requested else {
+            panic!("opening history must close the native session");
+        };
+        let deleting = {
+            let runtime = Arc::clone(&runtime);
+            tokio::spawn(async move { runtime.history_delete("saved").await })
+        };
+        tokio::task::yield_now().await;
+        assert!(runtime.control.try_lock().is_err());
+        finished.send(()).unwrap();
+
+        let opened = timeout(Duration::from_secs(5), opening)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(opened.conversation_id, "saved");
+        timeout(Duration::from_secs(5), deleting)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_ne!(runtime.snapshot().conversation_id, "saved");
+        assert!(runtime.conversation.history.open("saved").is_err());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
     async fn active_history_deletion_rejects_running_turn() {
         let root = std::env::temp_dir().join(format!(
             "otto-delete-running-{}-{}",
