@@ -412,7 +412,9 @@ impl AgentRuntime {
                 RunPhase::Starting | RunPhase::Streaming | RunPhase::Stopping
             ) || !matches!(current.capture.phase.as_str(), "idle" | "failed")
             {
-                return Err("Finish or Stop the current request or capture before opening history.".into());
+                return Err(
+                    "Finish or Stop the current request or capture before opening history.".into(),
+                );
             }
             self.persist_current_snapshot(current.status != RunPhase::Completed)?;
             record = self.conversation.history.open(id)?;
@@ -1844,6 +1846,49 @@ mod tests {
             "Latest completed answer"
         );
         assert!(reopened.thread_id.is_none());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn corrupt_history_open_cannot_clear_the_active_transcript() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-history-corrupt-open-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            root.join("conversations.json"),
+        );
+        mutate(&runtime.updates, |state| {
+            state.run_id = 6;
+            state.status = RunPhase::Completed;
+            state.messages = vec![
+                ChatMessage {
+                    id: "6:user".into(),
+                    role: "user".into(),
+                    text: "Keep this question".into(),
+                },
+                ChatMessage {
+                    id: "6:assistant".into(),
+                    role: "assistant".into(),
+                    text: "Keep this answer".into(),
+                },
+            ];
+        });
+        runtime.persist_current_snapshot(false).unwrap();
+        let before = runtime.snapshot();
+        std::fs::write(root.join("conversations.json"), b"not valid JSON").unwrap();
+
+        assert!(runtime.history_open(&before.conversation_id).await.is_err());
+        let after = runtime.snapshot();
+        assert_eq!(after.conversation_id, before.conversation_id);
+        assert_eq!(after.run_id, before.run_id);
+        assert_eq!(after.messages.len(), before.messages.len());
+        assert_eq!(after.messages[1].text, "Keep this answer");
         let _ = std::fs::remove_dir_all(root);
     }
 
