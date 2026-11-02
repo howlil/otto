@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { defaults, mergePreferences, readPreferences } from "../src/features/shell/preferences.ts";
+import {
+  confirmedCapturePreference,
+  defaults,
+  mergePreferences,
+  readPreferences,
+} from "../src/features/shell/preferences.ts";
 
 function readSaved(raw) {
   const original = globalThis.localStorage;
@@ -34,6 +39,12 @@ describe("Shell preferences compatibility", () => {
     expect(merged.hideFromCapture).toBe(false);
     expect(merged.clickOutside).toBe(false);
     expect(mergePreferences(defaults, { hideFromCapture: false }).hideFromCapture).toBe(true);
+  });
+  test("only an observed native state can reconcile stored capture settings", () => {
+    const disabled = { ...defaults, hideFromCapture: false };
+    expect(confirmedCapturePreference(disabled, true).hideFromCapture).toBe(true);
+    expect(confirmedCapturePreference(defaults, false).hideFromCapture).toBe(false);
+    expect(confirmedCapturePreference(disabled, null)).toBe(disabled);
   });
   test("invalid and corrupt values cannot silently disable protection", () => {
     expect(readSaved("not-json")).toEqual(defaults);

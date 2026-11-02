@@ -83,3 +83,10 @@ export function readPreferences(): Preferences {
 export function mergePreferences(current: Preferences, patch: Partial<Preferences>): Preferences {
   return { ...current, ...patch, hideFromCapture: current.hideFromCapture };
 }
+
+export function confirmedCapturePreference(
+  current: Preferences,
+  confirmed: boolean | null,
+): Preferences {
+  return confirmed === null ? current : { ...current, hideFromCapture: confirmed };
+}

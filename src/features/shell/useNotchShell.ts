@@ -12,7 +12,13 @@ import {
   onNotchFocusChanged,
   setOverlayCaptureProtection,
 } from "../../platform/tauri";
-import { mergePreferences, readPreferences, type Page, type Preferences } from "./preferences";
+import {
+  confirmedCapturePreference,
+  mergePreferences,
+  readPreferences,
+  type Page,
+  type Preferences,
+} from "./preferences";
 import { shouldCollapseOnBlur } from "./surface";
 
 type ShellMode = "compact" | "preview" | "pinned";
@@ -83,11 +89,13 @@ export function useNotchShell() {
       const actual = await setOverlayCaptureProtection(enabled);
       if (actual !== enabled) throw new Error("Windows did not apply the requested protection.");
       setCaptureProtected(actual);
-      setPrefs((current) => ({ ...current, hideFromCapture: actual }));
+      setPrefs((current) => confirmedCapturePreference(current, actual));
     } catch (error) {
       setCaptureProtectionError(error instanceof Error ? error.message : String(error));
       try {
-        setCaptureProtected(await getOverlayProtectionStatus());
+        const confirmed = await getOverlayProtectionStatus();
+        setCaptureProtected(confirmed);
+        setPrefs((current) => confirmedCapturePreference(current, confirmed));
       } catch {
         setCaptureProtected(null);
       }
