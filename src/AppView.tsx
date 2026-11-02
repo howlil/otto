@@ -121,7 +121,6 @@ function ShellContent({
           ) : null
         ) : page === "home" ? (
           <HomeSurface
-            notice={shell.notice}
             homeGear={shell.homeGear}
             agentSubtitle={agentHomeCopy}
             artProps={artProps}

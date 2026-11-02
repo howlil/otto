@@ -2,7 +2,7 @@ import type { RefObject } from "react";
 import agentArt from "../../assets/agent-art.svg";
 import focusArt from "../../assets/focus-art.svg";
 import musicArt from "../../assets/music-art.svg";
-import { IconButton, Text } from "../../shared/ui";
+import { IconButton } from "../../shared/ui";
 import { HomeCard } from "./HomeCard";
 
 type ArtProps = {
@@ -11,7 +11,6 @@ type ArtProps = {
 };
 
 export function HomeSurface({
-  notice,
   homeGear,
   agentSubtitle,
   artProps,
@@ -19,7 +18,6 @@ export function HomeSurface({
   onOpenAgent,
   motionClass = "",
 }: {
-  notice: string;
   homeGear: RefObject<HTMLButtonElement | null>;
   agentSubtitle: string;
   artProps: ArtProps;
@@ -32,20 +30,12 @@ export function HomeSurface({
       className={`flex h-full w-full flex-col gap-2 px-[17px] pb-[17px] pt-3 ${motionClass}`}
     >
       <header className="flex h-[34px] shrink-0 items-center gap-[9px] pl-[37px]">
-        <Text
-          as="span"
-          variant="status"
-          className="ml-auto max-w-[188px] truncate text-otto-label-muted"
-          role="status"
-        >
-          {notice}
-        </Text>
         <IconButton
           icon="settings"
           label="Open Otto settings"
           variant="quiet"
           ref={homeGear}
-          className="shrink-0"
+          className="ml-auto shrink-0"
           onClick={onOpenSettings}
         />
       </header>

@@ -23,7 +23,6 @@ export function useNotchShell() {
   const expanded = mode !== "compact";
   const pinned = mode === "pinned";
   const [prefs, setPrefs] = useState<Preferences>(readPreferences);
-  const [notice, setNotice] = useState("");
   const [captureProtected, setCaptureProtected] = useState<boolean | null>(null);
   const [captureProtectionPending, setCaptureProtectionPending] = useState(nativeAvailable);
   const [captureProtectionError, setCaptureProtectionError] = useState<string | null>(null);
@@ -62,7 +61,7 @@ export function useNotchShell() {
       clearTimers();
       setPage(next);
       setMode(pin ? "pinned" : "preview");
-      setNotice("");
+
     },
     [clearTimers],
   );
@@ -149,7 +148,7 @@ export function useNotchShell() {
         morphUntil.current =
           performance.now() + (reducedMotion ? 0 : prefs.motion === "gentle" ? 300 : 420);
         setMode("preview");
-        setNotice("");
+
       }, prefs.hoverDelay);
     }
   };
@@ -189,8 +188,6 @@ export function useNotchShell() {
     pin,
     prefs,
     change,
-    notice,
-    setNotice,
     captureProtected,
     captureProtectionSupported: nativeAvailable,
     captureProtectionPending,
