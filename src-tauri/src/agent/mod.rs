@@ -1154,6 +1154,9 @@ impl AgentRuntime {
         ) {
             return Err("Stop the current request before starting a new session.".into());
         }
+        if !matches!(current.capture.phase.as_str(), "idle" | "failed") {
+            return Err("Finish screen capture before starting a new session.".into());
+        }
 
         if let Some(sender) = guard.as_ref().filter(|sender| !sender.is_closed()) {
             close_owned_transport(sender, close_timeout).await?;
@@ -2614,6 +2617,27 @@ mod tests {
         assert!(!claimed.swap(true, Ordering::SeqCst));
 
         assert!(claimed.swap(true, Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn new_session_does_not_reset_an_active_capture() {
+        let runtime = AgentRuntime::new();
+        let initial = runtime.snapshot();
+        mutate(&runtime.updates, |state| {
+            state.capture.request_id = 3;
+            state.capture.phase = "preparing".into();
+        });
+        assert!(runtime.new_session().await.is_err());
+        let current = runtime.snapshot();
+        assert_eq!(current.conversation_id, initial.conversation_id);
+        assert_eq!(current.run_id, initial.run_id);
+        assert_eq!(current.capture.request_id, 3);
+        assert_eq!(current.capture.phase, "preparing");
+        assert_eq!(*runtime.conversation.id.lock().unwrap(), initial.conversation_id);
+
+        mutate(&runtime.updates, |state| state.capture.phase = "failed".into());
+        runtime.new_session().await.unwrap();
+        assert_ne!(runtime.snapshot().conversation_id, initial.conversation_id);
     }
 
     #[tokio::test]
