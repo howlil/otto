@@ -40,24 +40,23 @@ function harness({ initialItems = ["1", "2"], broken = false, locked = false } =
       if (gate) await gate;
       if (broken) throw new Error("history file unreadable");
       return items
-        .map((id) => summary(id))
+        .map((item) => (typeof item === "string" ? summary(item) : item))
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .map((item) => structuredClone(item));
     },
     open: (id) => {
       calls.open.push(id);
-      return new Promise((resolve, reject) => {
-        const settle = (payload) =>
-          id === "broken-open"
-            ? reject(new Error("record missing"))
-            : resolve(snapshotFor(id));
-        deferred.push([id, settle]);
+      if (id === "broken-open") return Promise.reject(new Error("record missing"));
+      return new Promise((resolve) => {
+        deferred.push([id, () => resolve(snapshotFor(id))]);
       });
     },
     rename: async (id, title) => {
       calls.rename.push([id, title]);
       if (id === "broken-open") throw new Error("record missing");
-      items = items.map((item) => (item === id ? { ...summary(id), title } : item));
+      items = items.map((item) =>
+        item === id ? { ...summary(id), title, updatedAt: 10_000 } : item,
+      );
     },
     delete: async (id) => {
       calls.delete.push(id);
@@ -75,9 +74,12 @@ function harness({ initialItems = ["1", "2"], broken = false, locked = false } =
     for (let index = 0; index < turns; index += 1) await Promise.resolve();
   };
   const release = (id = "") => {
-    for (const [openId, settle] of deferred.splice(0)) {
-      if (!id || openId === id) settle(snapshotFor(openId));
+    const kept = [];
+    for (const entry of deferred.splice(0)) {
+      if (!id || entry[0] === id) entry[1]();
+      else kept.push(entry);
     }
+    deferred.push(...kept);
   };
   const deferFirstList = () => {
     listGate = new Promise((resolve) => {
@@ -161,8 +163,9 @@ describe("Agent history open", () => {
   test("a stale resolved open never reaches caller state or publishes again", async () => {
     const h = harness();
     const stale = h.controller.open("1");
+    const freshPromise = h.controller.open("2");
     h.release("2");
-    const fresh = await h.controller.open("2");
+    const fresh = await freshPromise;
     expect(fresh).toEqual({ state: "ok", snapshot: snapshotFor("2") });
     const publishedBefore = h.published.length;
     h.release("1");

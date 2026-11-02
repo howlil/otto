@@ -18,6 +18,9 @@ export type DeleteOutcome = { ok: true } | { ok: false; reason: string };
 export const HISTORY_TITLE_LIMIT = 120;
 const HISTORY_UNAVAILABLE = "Conversation history is unavailable.";
 
+const reasonMessage = (reason: unknown) =>
+  reason instanceof Error ? reason.message : String(reason);
+
 type AgentHistoryDependencies = {
   list: () => Promise<AgentConversationSummary[]>;
   open: (id: string) => Promise<AgentSnapshot>;
@@ -80,7 +83,7 @@ export class AgentHistoryController {
       return { state: "ok", snapshot };
     } catch (reason) {
       if (epoch !== this.openEpoch) return { state: "stale" };
-      return { state: "error", reason: String(reason) };
+      return { state: "error", reason: reasonMessage(reason) };
     }
   }
 
@@ -90,7 +93,7 @@ export class AgentHistoryController {
     try {
       await this.deps.rename(id, normalized);
     } catch (reason) {
-      return { ok: false, error: String(reason) };
+      return { ok: false, error: reasonMessage(reason) };
     }
     await this.refresh();
     return { ok: true };
@@ -100,7 +103,7 @@ export class AgentHistoryController {
     try {
       await this.deps.delete(id);
     } catch (reason) {
-      return { ok: false, reason: String(reason) };
+      return { ok: false, reason: reasonMessage(reason) };
     }
     if (this.deps.activeId() === id) {
       try {
