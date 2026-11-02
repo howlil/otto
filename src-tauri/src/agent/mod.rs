@@ -475,12 +475,19 @@ impl AgentRuntime {
         if let Some(sender) = guard.as_ref().filter(|sender| !sender.is_closed()) {
             close_owned_transport(sender, Duration::from_secs(5)).await?;
         }
+        let mut active_id = self
+            .conversation
+            .id
+            .lock()
+            .map_err(|_| "Conversation history is unavailable.")?;
         if let Err(error) = self.conversation.history.delete(id) {
             *guard = None;
+            drop(active_id);
             mutate(&self.updates, |state| state.thread_id = None);
             return Err(String::from(error));
         }
-        self.rotate_session_locked(&mut guard, &current)
+        self.rotate_session_locked(&mut guard, &current, &mut active_id);
+        Ok(())
     }
 
     fn persist_prompt(&self, run_id: u64, text: &str) -> Result<(), AgentError> {
@@ -1191,14 +1198,21 @@ impl AgentRuntime {
             close_owned_transport(sender, close_timeout).await?;
         }
         self.persist_current_snapshot(current.status != RunPhase::Completed)?;
-        self.rotate_session_locked(guard, &current)
+        let mut active_id = self
+            .conversation
+            .id
+            .lock()
+            .map_err(|_| "Conversation history is unavailable.")?;
+        self.rotate_session_locked(guard, &current, &mut active_id);
+        Ok(())
     }
 
     fn rotate_session_locked(
         &self,
         guard: &mut MutexGuard<'_, Option<mpsc::Sender<Control>>>,
         current: &Snapshot,
-    ) -> Result<(), String> {
+        active_id: &mut String,
+    ) {
         **guard = None;
         *self.selected_runtime.lock().unwrap() = ModelSelection::default();
         let clear_failed = self
@@ -1209,12 +1223,7 @@ impl AgentRuntime {
             .fetch_max(current.run_id, Ordering::Relaxed);
         let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
         let next_conversation = history::new_id();
-        let mut id = self
-            .conversation
-            .id
-            .lock()
-            .map_err(|_| "Conversation history is unavailable.")?;
-        *id = next_conversation.clone();
+        *active_id = next_conversation.clone();
         mutate(&self.updates, |s| {
             s.run_id = run_id;
             s.status = RunPhase::Idle;
@@ -1228,8 +1237,6 @@ impl AgentRuntime {
             s.capture = CaptureSnapshot::default();
             s.error = clear_failed.then(|| MARKER_CLEAR_NOTICE.into());
         });
-        drop(id);
-        Ok(())
     }
 
     pub async fn stop(&self) -> Result<(), String> {
