@@ -296,6 +296,7 @@ pub struct AgentRuntime {
     history: Arc<history::HistoryStore>,
     conversation_id: Arc<StdMutex<String>>,
     selected_runtime: StdMutex<ModelSelection>,
+    next_runtime_selection_id: AtomicU64,
     readiness_probes: StdMutex<readiness_probe::ReadinessProbeState>,
     active_run_readiness: StdMutex<Option<oneshot::Sender<()>>>,
     next_run_id: AtomicU64,
@@ -364,6 +365,7 @@ impl AgentRuntime {
             history,
             conversation_id,
             selected_runtime: StdMutex::new(ModelSelection::default()),
+            next_runtime_selection_id: AtomicU64::new(0),
             readiness_probes: StdMutex::new(readiness_probe::ReadinessProbeState::default()),
             active_run_readiness: StdMutex::new(None),
             next_run_id: AtomicU64::new(0),
@@ -578,6 +580,10 @@ impl AgentRuntime {
                 "Finish the current request or capture before changing the Pi model.".into(),
             );
         }
+        let selection_id = self
+            .next_runtime_selection_id
+            .fetch_add(1, Ordering::Relaxed)
+            + 1;
         drop(guard);
         let readiness = self
             .provider_readiness_for(
@@ -588,7 +594,12 @@ impl AgentRuntime {
             .await;
         let _guard = self.control.lock().await;
         let latest = self.snapshot();
-        if !runtime_selection_still_current(&current, &latest) {
+        if !runtime_selection_still_current(
+            &current,
+            &latest,
+            selection_id,
+            self.next_runtime_selection_id.load(Ordering::Relaxed),
+        ) {
             return Err("Runtime selection changed while readiness was checked. Retry.".into());
         }
         if readiness.status != "ready" {
@@ -1240,8 +1251,14 @@ fn persist_terminal_outcome(
     }
 }
 
-fn runtime_selection_still_current(previous: &Snapshot, latest: &Snapshot) -> bool {
-    latest.run_id == previous.run_id
+fn runtime_selection_still_current(
+    previous: &Snapshot,
+    latest: &Snapshot,
+    selection_id: u64,
+    newest_selection_id: u64,
+) -> bool {
+    selection_id == newest_selection_id
+        && latest.run_id == previous.run_id
         && latest.provider == previous.provider
         && latest.conversation_id == previous.conversation_id
         && latest.cwd == previous.cwd
@@ -1842,7 +1859,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_model_selection_rejects_capture_started_during_readiness() {
+    fn model_selection_rejects_capture_conversation_and_superseded_requests() {
         let runtime = AgentRuntime::new();
         let mut previous = runtime.snapshot();
         previous.provider = ProviderId::Pi;
@@ -1850,13 +1867,14 @@ mod tests {
         let mut current = previous.clone();
         current.capture.request_id = previous.capture.request_id + 1;
         current.capture.phase = "preparing".into();
-        assert!(!runtime_selection_still_current(&previous, &current));
+        assert!(!runtime_selection_still_current(&previous, &current, 1, 1));
         current.capture.phase = "idle".into();
-        assert!(!runtime_selection_still_current(&previous, &current));
-        assert!(runtime_selection_still_current(&previous, &previous));
+        assert!(!runtime_selection_still_current(&previous, &current, 1, 1));
+        assert!(runtime_selection_still_current(&previous, &previous, 1, 1));
         let mut reopened = previous.clone();
         reopened.conversation_id = "another-conversation".into();
-        assert!(!runtime_selection_still_current(&previous, &reopened));
+        assert!(!runtime_selection_still_current(&previous, &reopened, 1, 1));
+        assert!(!runtime_selection_still_current(&previous, &previous, 1, 2));
     }
 
     #[tokio::test]
