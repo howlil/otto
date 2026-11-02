@@ -11,6 +11,7 @@ use windows_sys::Win32::{
 };
 
 const EXCLUDE_FROM_CAPTURE: u32 = 0x11;
+const NO_CAPTURE_RESTRICTION: u32 = 0;
 
 fn overlay_window_style(current: isize) -> isize {
     (current | WS_EX_TOOLWINDOW as isize) & !(WS_EX_APPWINDOW as isize)
@@ -92,21 +93,45 @@ fn read_affinity(hwnd: HWND) -> io::Result<u32> {
     Ok(affinity)
 }
 
-fn apply_capture_exclusion(hwnd: HWND) -> io::Result<()> {
-    if read_affinity(hwnd).is_ok_and(|value| value == EXCLUDE_FROM_CAPTURE) {
+fn requested_capture_affinity(enabled: bool) -> u32 {
+    if enabled {
+        EXCLUDE_FROM_CAPTURE
+    } else {
+        NO_CAPTURE_RESTRICTION
+    }
+}
+
+fn set_affinity(hwnd: HWND, enabled: bool) -> io::Result<()> {
+    let requested = requested_capture_affinity(enabled);
+    if read_affinity(hwnd).is_ok_and(|current| current == requested) {
         return Ok(());
     }
-
-    if unsafe { SetWindowDisplayAffinity(hwnd, EXCLUDE_FROM_CAPTURE) } == 0 {
+    if unsafe { SetWindowDisplayAffinity(hwnd, requested) } == 0 {
         return Err(io::Error::last_os_error());
     }
-
-    if read_affinity(hwnd)? != EXCLUDE_FROM_CAPTURE {
-        return Err(io::Error::other(
-            "Capture exclusion affinity was not retained.",
-        ));
+    if read_affinity(hwnd)? != requested {
+        return Err(io::Error::other("Window capture affinity was not retained."));
     }
     Ok(())
+}
+
+fn apply_capture_exclusion(hwnd: HWND) -> io::Result<()> {
+    set_affinity(hwnd, true)
+}
+
+pub fn capture_protection_status(window: &WebviewWindow) -> io::Result<bool> {
+    let hwnd = window.hwnd().map_err(io::Error::other)?.0 as _;
+    match read_affinity(hwnd)? {
+        EXCLUDE_FROM_CAPTURE => Ok(true),
+        NO_CAPTURE_RESTRICTION => Ok(false),
+        _ => Err(io::Error::other("Unexpected window capture affinity.")),
+    }
+}
+
+pub fn set_capture_protection(window: &WebviewWindow, enabled: bool) -> io::Result<bool> {
+    let hwnd = window.hwnd().map_err(io::Error::other)?.0 as _;
+    set_affinity(hwnd, enabled)?;
+    capture_protection_status(window)
 }
 
 fn clear_picker_title(window: &WebviewWindow, hwnd: HWND) -> io::Result<()> {
@@ -180,6 +205,13 @@ mod tests {
         assert_eq!(window["contentProtected"], true);
         assert_eq!(window["alwaysOnTop"], true);
         assert_eq!(window["skipTaskbar"], true);
+    }
+
+    #[test]
+    fn capture_protection_toggle_uses_exact_windows_affinity_values() {
+        assert_eq!(requested_capture_affinity(true), EXCLUDE_FROM_CAPTURE);
+        assert_eq!(requested_capture_affinity(false), NO_CAPTURE_RESTRICTION);
+        assert_ne!(requested_capture_affinity(true), requested_capture_affinity(false));
     }
 
     #[test]

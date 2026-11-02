@@ -20,6 +20,7 @@ pub fn run() {
         .manage(commands::NotchMotion::default())
         .invoke_handler(tauri::generate_handler![
             commands::overlay_protection_status,
+            commands::overlay_set_capture_protection,
             commands::agent_snapshot,
             commands::agent_history_list,
             commands::agent_history_open,
@@ -57,17 +58,12 @@ pub fn run() {
             app.manage(agent);
             #[cfg(windows)]
             app.manage(windows::capture::start_hotkey(app.handle().clone()));
-            let mut protection_available = false;
             if let Some(window) = app.get_webview_window("main") {
                 #[cfg(windows)]
                 {
-                    protection_available = match windows::overlay::configure(&window) {
-                        Ok(()) => true,
-                        Err(error) => {
-                            eprintln!("Otto capture protection unavailable: {error}");
-                            false
-                        }
-                    };
+                    if let Err(error) = windows::overlay::configure(&window) {
+                        eprintln!("Otto capture protection unavailable: {error}");
+                    }
                 }
                 if let Some(monitor) = window.current_monitor()? {
                     let size = window.outer_size()?;
@@ -79,9 +75,6 @@ pub fn run() {
                     ))?;
                 }
             }
-            app.manage(commands::OverlayProtection {
-                available: protection_available,
-            });
             Ok(())
         })
         .run(tauri::generate_context!())
