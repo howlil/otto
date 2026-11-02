@@ -44,7 +44,7 @@ jobs:
     name: Windows Rust and native E2E
     if: ${{ github.event.repository.private == false }}
     needs: frontend
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4

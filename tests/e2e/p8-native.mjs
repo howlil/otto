@@ -12,16 +12,22 @@ const gate = join(temp, 'stream');
 const port = Number(process.env.OTTO_E2E_PORT || 4540);
 let server;
 let session;
+let driverOutput = '';
+let driverError = null;
+
+function collectDriverOutput(chunk) {
+  driverOutput = (driverOutput + String(chunk)).slice(-6000);
+}
 
 function available(name) {
   return spawnSync('where.exe', [name], { encoding: 'utf8' }).status === 0;
 }
-async function call(method, path, data) {
+async function call(method, path, data, timeout = 10000) {
   const response = await fetch('http://127.0.0.1:' + port + path, {
     method,
     headers: { 'content-type': 'application/json' },
     body: data === undefined ? undefined : JSON.stringify(data),
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(timeout),
   });
   const payload = await response.json();
   if (!response.ok || payload.value?.error)
@@ -70,25 +76,36 @@ async function snapshot() {
 async function start() {
   server = spawn('tauri-driver', ['--port', String(port), '--native-port', String(port + 1)], {
     windowsHide: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
       PATH: join(root, 'tests/e2e/bin') + delimiter + process.env.PATH,
       OTTO_E2E_GATE: gate,
     },
   });
-  server.on('error', (error) => { console.error('tauri-driver:', error.message); });
-  await until('tauri-driver', async () => {
-    if (server.exitCode !== null) throw new Error('tauri-driver exited');
-    try { return (await call('GET', '/status'))?.ready; } catch { return false; }
-  });
-  const created = await call('POST', '/session', {
-    capabilities: { alwaysMatch: {
-      browserName: 'wry', 'tauri:options': { application: app },
-    } },
-  });
-  session = created.sessionId;
-  assert.ok(session, 'Missing WebDriver session');
+  server.stdout.on('data', collectDriverOutput);
+  server.stderr.on('data', collectDriverOutput);
+  server.on('error', (error) => { driverError = error; });
+  try {
+    await until('tauri-driver', async () => {
+      if (driverError) throw driverError;
+      if (server.exitCode !== null) throw new Error('tauri-driver exited');
+      try { return (await call('GET', '/status'))?.ready; } catch { return false; }
+    });
+    const created = await call('POST', '/session', {
+      capabilities: { alwaysMatch: {
+        browserName: 'wry', 'tauri:options': { application: app },
+      } },
+    }, 90000);
+    session = created.sessionId;
+    assert.ok(session, 'Missing WebDriver session');
+  } catch (error) {
+    throw new Error(
+      'WebDriver session startup failed: ' + String(error) +
+      (driverOutput ? '\nDriver output (tail):\n' + driverOutput : '\nNo driver output captured.'),
+      { cause: error },
+    );
+  }
 }
 async function p8() {
   const home = '//button[contains(., "Return to Home")]';
