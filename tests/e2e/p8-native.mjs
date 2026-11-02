@@ -73,6 +73,14 @@ async function snapshot() {
   assert.ok(!result.error, String(result.error));
   return result;
 }
+async function savedConversations() {
+  const result = await call('POST', endpoint('/execute/async'), {
+    script: "const done=arguments[arguments.length-1];const api=window.__TAURI_INTERNALS__;api.invoke('agent_history_list').then(done,e=>done({error:String(e)}));",
+    args: [],
+  });
+  if (!Array.isArray(result)) throw new Error('History list failed: ' + JSON.stringify(result));
+  return result;
+}
 async function start() {
   server = spawn('tauri-driver', ['--port', String(port), '--native-port', String(port + 1)], {
     windowsHide: true,
@@ -155,6 +163,24 @@ async function p8() {
   assert.equal(done.threadId, first.threadId);
   assert.equal(done.messages.filter((m) => m.role === 'assistant').length, 1);
   assert.equal(done.messages.at(-1).text, 'OTTO_FIRST_CHUNK OTTO_FINAL_CHUNK');
+  await until('completed chat persisted in local history', async () =>
+    (await savedConversations()).some((record) => record.id === done.conversationId),
+  );
+  await click('//button[@aria-label="Conversation history"]');
+  await until('saved history row ready', async () => {
+    const id = await find('//li/button[.//span[normalize-space()="Deterministic streaming test"]]');
+    return call('GET', endpoint('/element/' + id + '/enabled'));
+  });
+  await click('//li/button[.//span[normalize-space()="Deterministic streaming test"]]');
+  const restored = await until('history restored through production UI', async () => {
+    const current = await snapshot();
+    const rendered = await ui();
+    return current.conversationId === done.conversationId &&
+      current.threadId === null &&
+      current.messages.at(-1)?.text === 'OTTO_FIRST_CHUNK OTTO_FINAL_CHUNK' &&
+      rendered.transcript.includes('OTTO_FINAL_CHUNK') && current;
+  });
+  assert.notEqual(restored.runId, done.runId);
 }
 try {
   assert.ok(existsSync(app), 'Build the debug Tauri binary first: ' + app);
