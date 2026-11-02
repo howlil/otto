@@ -3,7 +3,7 @@ use super::{BoundedLineError, read_bounded_line};
 use crate::agent::ChatMessage;
 use crate::agent::events::{AgentEvent, ProviderEvents};
 use crate::agent::policy;
-use crate::agent::providers::registry::ProviderId;
+use crate::agent::runtime::ProviderId;
 use crate::agent::{
     CaptureSnapshot, Control, ModelOption, ProviderReadiness, RunPhase, Snapshot, UsageSnapshot,
 };

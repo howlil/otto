@@ -7,8 +7,9 @@ mod policy;
 mod providers;
 mod readiness_probe;
 mod recovery;
+mod runtime;
 use error::AgentError;
-use providers::registry::ProviderId;
+use runtime::{ProviderId, SessionReuse};
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
@@ -576,8 +577,6 @@ impl AgentRuntime {
                 "Finish the current request or capture before changing the Pi model.".into(),
             );
         }
-        let provider = current.provider;
-        let cwd = current.cwd.clone();
         drop(guard);
         let readiness = self
             .provider_readiness_for(
@@ -588,11 +587,7 @@ impl AgentRuntime {
             .await;
         let _guard = self.control.lock().await;
         let latest = self.snapshot();
-        if latest.run_id != current.run_id
-            || latest.provider != provider
-            || latest.cwd != cwd
-            || latest.status != current.status
-        {
+        if !runtime_selection_still_current(&current, &latest) {
             return Err("Runtime selection changed while readiness was checked. Retry.".into());
         }
         if readiness.status != "ready" {
@@ -607,9 +602,13 @@ impl AgentRuntime {
     }
 
     fn capture_runtime_options(&self, state: &Snapshot) -> ModelSelection {
+        let previous = ModelSelection {
+            model: state.model.clone(),
+            thinking_effort: state.thinking_effort.clone(),
+        };
         state
             .provider
-            .options_for_capture(state, &self.selected_runtime.lock().unwrap())
+            .options_for_capture(&previous, &self.selected_runtime.lock().unwrap())
     }
 
     pub async fn probe_provider_readiness(
@@ -921,13 +920,13 @@ impl AgentRuntime {
         let provider_has_context =
             guard.as_ref().is_some_and(|sender| !sender.is_closed()) && current.thread_id.is_some();
         let reusable_followup = guard.as_ref().is_some_and(|sender| !sender.is_closed())
-            && selected.can_reuse_without_probe(
+            && selected.can_reuse_without_probe(&SessionReuse::for_turn(
                 &current,
                 &cwd,
                 model.as_deref(),
                 thinking_effort.as_deref(),
                 capture.is_some(),
-            );
+            ));
         let provider_text = if provider_has_context {
             text.clone()
         } else {
@@ -1243,6 +1242,15 @@ fn persist_terminal_outcome(
             }
         });
     }
+}
+
+fn runtime_selection_still_current(previous: &Snapshot, latest: &Snapshot) -> bool {
+    latest.run_id == previous.run_id
+        && latest.provider == previous.provider
+        && latest.cwd == previous.cwd
+        && latest.status == previous.status
+        && latest.capture.request_id == previous.capture.request_id
+        && latest.capture.phase == "idle"
 }
 
 fn validate_runtime_options(
@@ -1834,6 +1842,21 @@ mod tests {
         };
         runtime.new_session().await.unwrap();
         assert!(runtime.selected_runtime.lock().unwrap().model.is_none());
+    }
+
+    #[test]
+    fn pending_model_selection_rejects_capture_started_during_readiness() {
+        let runtime = AgentRuntime::new();
+        let mut previous = runtime.snapshot();
+        previous.provider = ProviderId::Pi;
+        previous.capture.phase = "idle".into();
+        let mut current = previous.clone();
+        current.capture.request_id = previous.capture.request_id + 1;
+        current.capture.phase = "preparing".into();
+        assert!(!runtime_selection_still_current(&previous, &current));
+        current.capture.phase = "idle".into();
+        assert!(!runtime_selection_still_current(&previous, &current));
+        assert!(runtime_selection_still_current(&previous, &previous));
     }
 
     #[tokio::test]

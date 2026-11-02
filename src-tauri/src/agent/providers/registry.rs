@@ -1,37 +1,9 @@
 use crate::agent::events::ProviderEvents;
+use crate::agent::runtime::{ProviderId, RuntimeCapabilities, SessionReuse};
 use crate::agent::{Control, ModelSelection, ProviderReadiness, RunPhase, Snapshot};
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::sync::{mpsc, watch};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ProviderId {
-    Codex,
-    Pi,
-    Agy,
-}
-
-#[cfg(test)]
-impl From<&str> for ProviderId {
-    fn from(value: &str) -> Self {
-        Self::parse(value).unwrap()
-    }
-}
-
-#[cfg(test)]
-impl PartialEq<&str> for ProviderId {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::agent) struct RuntimeCapabilities {
-    pub image_transport: bool,
-    pub pending_model_selection: bool,
-    pub completed_followup_without_probe: bool,
-}
 
 impl ProviderId {
     pub(in crate::agent) fn capabilities(self) -> RuntimeCapabilities {
@@ -68,56 +40,34 @@ impl ProviderId {
 
     pub(in crate::agent) fn options_for_capture(
         self,
-        snapshot: &Snapshot,
+        previous: &ModelSelection,
         pending: &ModelSelection,
     ) -> ModelSelection {
         if self.capabilities().pending_model_selection {
             pending.clone()
         } else {
-            ModelSelection {
-                model: snapshot.model.clone(),
-                thinking_effort: snapshot.thinking_effort.clone(),
-            }
+            previous.clone()
         }
     }
 
     pub(in crate::agent) fn can_reuse_without_probe(
         self,
-        snapshot: &Snapshot,
-        cwd: &Path,
-        model: Option<&str>,
-        thinking_effort: Option<&str>,
-        has_capture: bool,
+        session: &SessionReuse<'_>,
     ) -> bool {
         self.capabilities().completed_followup_without_probe
-            && snapshot.provider == self
-            && snapshot.status == RunPhase::Completed
-            && snapshot.thread_id.is_some()
-            && Path::new(&snapshot.cwd) == cwd
-            && model.is_none()
-            && thinking_effort.is_none()
-            && !has_capture
+            && session.provider == self
+            && session.status == RunPhase::Completed
+            && session.thread_id.is_some()
+            && session.current_cwd == session.requested_cwd
+            && session.model.is_none()
+            && session.thinking_effort.is_none()
+            && !session.has_capture
     }
 
     pub(in crate::agent) fn capture_unavailable_reason(self) -> Option<&'static str> {
-        (!self.image_transport())
-            .then_some("Agy headless streaming accepts text only. Select Codex or Pi.")
-    }
-
-    pub fn parse(value: &str) -> Option<Self> {
-        match value {
-            "codex" => Some(Self::Codex),
-            "pi" => Some(Self::Pi),
-            "agy" => Some(Self::Agy),
-            _ => None,
-        }
-    }
-
-    pub fn as_str(self) -> &'static str {
         match self {
-            Self::Codex => "codex",
-            Self::Pi => "pi",
-            Self::Agy => "agy",
+            Self::Agy => Some("Agy headless streaming accepts text only. Select Codex or Pi."),
+            Self::Codex | Self::Pi => None,
         }
     }
 
@@ -209,18 +159,19 @@ mod tests {
 
     #[test]
     fn pending_model_selection_is_used_only_when_adapter_requires_it() {
-        let mut snapshot = crate::agent::AgentRuntime::new().snapshot();
-        snapshot.model = Some("previous".into());
-        snapshot.thinking_effort = Some("off".into());
+        let previous = ModelSelection {
+            model: Some("previous".into()),
+            thinking_effort: Some("off".into()),
+        };
         let pending = ModelSelection {
             model: Some("new".into()),
             thinking_effort: Some("high".into()),
         };
-        let chosen_pi = ProviderId::Pi.options_for_capture(&snapshot, &pending);
+        let chosen_pi = ProviderId::Pi.options_for_capture(&previous, &pending);
         assert_eq!(chosen_pi.model.as_deref(), Some("new"));
         assert_eq!(chosen_pi.thinking_effort.as_deref(), Some("high"));
         for provider in [ProviderId::Codex, ProviderId::Agy] {
-            let chosen = provider.options_for_capture(&snapshot, &pending);
+            let chosen = provider.options_for_capture(&previous, &pending);
             assert_eq!(chosen.model.as_deref(), Some("previous"));
             assert_eq!(chosen.thinking_effort.as_deref(), Some("off"));
         }
@@ -234,45 +185,28 @@ mod tests {
         snapshot.status = RunPhase::Completed;
         snapshot.thread_id = Some("agy-conversation".into());
         snapshot.cwd = cwd.to_string_lossy().into_owned();
-        let eligible = |snapshot: &Snapshot| {
-            snapshot.provider.can_reuse_without_probe(snapshot, &cwd, None, None, false)
+
+        let eligible = |snapshot: &Snapshot, path: &std::path::Path,
+                        model: Option<&str>, effort: Option<&str>, capture: bool| {
+            snapshot.provider.can_reuse_without_probe(&SessionReuse::for_turn(
+                snapshot, path, model, effort, capture,
+            ))
         };
-        assert!(eligible(&snapshot));
-        assert!(!snapshot.provider.can_reuse_without_probe(
-            &snapshot,
-            &cwd,
-            Some("other"),
-            None,
-            false,
-        ));
-        assert!(!snapshot.provider.can_reuse_without_probe(
-            &snapshot,
-            &cwd,
-            None,
-            Some("high"),
-            false,
-        ));
-        assert!(!snapshot.provider.can_reuse_without_probe(
-            &snapshot, &cwd, None, None, true,
-        ));
-        assert!(!snapshot.provider.can_reuse_without_probe(
-            &snapshot,
-            &cwd.join("other"),
-            None,
-            None,
-            false,
-        ));
+        assert!(eligible(&snapshot, &cwd, None, None, false));
+        assert!(!eligible(&snapshot, &cwd, Some("other"), None, false));
+        assert!(!eligible(&snapshot, &cwd, None, Some("high"), false));
+        assert!(!eligible(&snapshot, &cwd, None, None, true));
+        assert!(!eligible(&snapshot, &cwd.join("other"), None, None, false));
         snapshot.thread_id = None;
-        assert!(!eligible(&snapshot));
+        assert!(!eligible(&snapshot, &cwd, None, None, false));
         snapshot.thread_id = Some("agy-conversation".into());
         snapshot.status = RunPhase::Failed;
-        assert!(!eligible(&snapshot));
+        assert!(!eligible(&snapshot, &cwd, None, None, false));
         snapshot.status = RunPhase::Completed;
         snapshot.provider = ProviderId::Pi;
-        assert!(!eligible(&snapshot));
+        assert!(!eligible(&snapshot, &cwd, None, None, false));
         snapshot.provider = ProviderId::Agy;
-        assert!(!ProviderId::Codex.can_reuse_without_probe(
-            &snapshot, &cwd, None, None, false,
-        ));
+        let context = SessionReuse::for_turn(&snapshot, &cwd, None, None, false);
+        assert!(!ProviderId::Codex.can_reuse_without_probe(&context));
     }
 }
