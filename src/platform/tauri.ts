@@ -154,12 +154,14 @@ export async function selectAgentRuntimeOptions(
   await invoke("agent_select_runtime_options", { model, thinkingEffort });
 }
 
+export type AcceptedAgentRun = { runId: number };
+
 export async function askAgent(
   text: string,
   provider: AgentProvider,
   options: { model: string | null; thinkingEffort: string | null },
-): Promise<void> {
-  await invoke("agent_ask", { text, provider, ...options });
+): Promise<AcceptedAgentRun> {
+  return invoke<AcceptedAgentRun>("agent_ask", { text, provider, ...options });
 }
 export async function configureCaptureShortcut(shortcut: string): Promise<void> {
   await invoke("agent_configure_capture_shortcut", { shortcut });

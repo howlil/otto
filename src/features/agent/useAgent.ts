@@ -199,10 +199,18 @@ function useAgentSubmission(
   draftEpoch: React.RefObject<number>,
 ) {
   const submitted = useRef<SubmittedDraft | null>(null);
+  const [acknowledgedRun, setAcknowledgedRun] = useState<number | null>(null);
+  const markAccepted = useCallback((request: SubmittedDraft, runId: number) => {
+    if (submitted.current !== request) return false;
+    request.acceptedRunId = runId;
+    setAcknowledgedRun(runId);
+    return true;
+  }, []);
 
   useEffect(() => {
     const pending = submitted.current;
-    if (snapshot.status === "failed" && pending && snapshot.runId > pending.previousRunId) {
+    if (!pending || pending.acceptedRunId !== snapshot.runId) return;
+    if (snapshot.status === "failed") {
       const accepted = snapshot.messages.some(
         (message) =>
           message.id === `${snapshot.runId}:user` && message.text === pending.text.trim(),
@@ -215,35 +223,35 @@ function useAgentSubmission(
     if (snapshot.status === "completed" || snapshot.status === "stopped") {
       submitted.current = null;
     }
-  }, [draftEpoch, setDraft, snapshot.messages, snapshot.runId, snapshot.status]);
+  }, [acknowledgedRun, draftEpoch, setDraft, snapshot.messages, snapshot.runId, snapshot.status]);
 
-  return submitted;
+  return { submitted, markAccepted };
 }
 
 function useAgentRequestActions({
   busy,
   draft,
   draftEpoch,
-  runId,
   provider,
   model,
   thinkingEffort,
   refreshProvider,
   setDraft,
   submitted,
+  markAccepted,
   clearError,
   setRequestError,
 }: {
   busy: boolean;
   draft: string;
   draftEpoch: React.RefObject<number>;
-  runId: number;
   provider: AgentProvider;
   model: string | null;
   thinkingEffort: string | null;
   refreshProvider: () => Promise<void>;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   submitted: { current: SubmittedDraft | null };
+  markAccepted: (request: SubmittedDraft, runId: number) => boolean;
   clearError: () => void;
   setRequestError: (reason: unknown) => void;
 }) {
@@ -254,28 +262,29 @@ function useAgentRequestActions({
     const request: SubmittedDraft = {
       text: draft,
       epoch: draftEpoch.current,
-      previousRunId: runId,
+      acceptedRunId: null,
     };
     submitted.current = request;
     try {
-      await askAgent(question, provider, { model, thinkingEffort });
+      const accepted = await askAgent(question, provider, { model, thinkingEffort });
+      if (!markAccepted(request, accepted.runId)) return;
       setDraft((current) => clearAcceptedDraft(current, draftEpoch.current, request));
     } catch (reason) {
-      if (submitted.current === request) submitted.current = null;
+      if (submitted.current !== request) return;
+      submitted.current = null;
       setRequestError(reason);
       void refreshProvider();
-      return;
     }
   }, [
     busy,
     clearError,
     draft,
     draftEpoch,
-    runId,
     model,
     thinkingEffort,
     provider,
     refreshProvider,
+    markAccepted,
     setDraft,
     setRequestError,
     submitted,
@@ -453,7 +462,15 @@ export function useAgent(readinessActive: boolean) {
     [receive],
   );
   const connection = useAgentConnection(receive, acceptSnapshot);
-  const history = useAgentHistory({ onOpened: acceptSnapshot });
+  const { submitted, markAccepted } = useAgentSubmission(snapshot, setDraft, draftEpoch);
+  const onHistoryOpened = useCallback(
+    (next: AgentSnapshot) => {
+      submitted.current = null;
+      acceptSnapshot(next);
+    },
+    [acceptSnapshot, submitted],
+  );
+  const history = useAgentHistory({ onOpened: onHistoryOpened });
   const confirmRuntimeSelection = useCallback(
     async (nextModel: string | null, nextEffort: string | null) => {
       if (changingRuntime.current || busy || captureBusy) return false;
@@ -510,18 +527,17 @@ export function useAgent(readinessActive: boolean) {
     },
     [locked, provider, connection.clearError, connection.setRequestError],
   );
-  const submitted = useAgentSubmission(snapshot, setDraft, draftEpoch);
   const actions = useAgentRequestActions({
     busy,
     draft,
     draftEpoch,
-    runId: snapshot.runId,
     provider,
     model,
     thinkingEffort,
     refreshProvider,
     setDraft,
     submitted,
+    markAccepted,
     clearError: connection.clearError,
     setRequestError: connection.setRequestError,
   });
