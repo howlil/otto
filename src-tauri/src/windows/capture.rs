@@ -1,4 +1,4 @@
-use crate::agent::{AgentRuntime, CapturedImage};
+use crate::agent::{CapturedImage, capture_context};
 use std::{
     fs::{self, OpenOptions},
     io::BufWriter,
@@ -10,7 +10,6 @@ use std::{
     },
     time::{Duration, SystemTime},
 };
-use tauri::Manager;
 use windows_sys::Win32::{
     Foundation::{CloseHandle, ERROR_INVALID_PARAMETER, GetLastError, HWND, RECT},
     Graphics::Gdi::{
@@ -527,22 +526,10 @@ fn dispatch_capture(
     hook_available: bool,
 ) -> Result<(), String> {
     let intent = capture_intent(source, hook_available, select_capture_target)?;
-    let runtime = app.state::<AgentRuntime>();
-    let (request_id, reservation) = runtime.begin_capture()?;
-    let handle = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let runtime = handle.state::<AgentRuntime>();
-        if let Err(reason) = runtime
-            .capture_hotkey(request_id, reservation, move || match intent {
-                CaptureIntent::Window(window) => capture_foreground(window),
-                CaptureIntent::FullScreen => capture_full_screen(),
-            })
-            .await
-        {
-            runtime.capture_error_for(request_id, &reason);
-        }
-    });
-    Ok(())
+    capture_context::dispatch(app, move || match intent {
+        CaptureIntent::Window(window) => capture_foreground(window),
+        CaptureIntent::FullScreen => capture_full_screen(),
+    })
 }
 
 fn run_hotkeys(
@@ -570,7 +557,8 @@ fn run_hotkeys(
         )
     };
     if hook.is_null() {
-        app.state::<AgentRuntime>().capture_error(
+        capture_context::report_error(
+            &app,
             "Windows focus tracking is unavailable. Window capture cannot be started.",
         );
     }
@@ -613,7 +601,8 @@ fn run_hotkeys(
                                 "Shortcut unavailable. The previous shortcut was kept when possible.".into(),
                             ));
                             if restored.is_none() {
-                                app.state::<AgentRuntime>().capture_error(
+                                capture_context::report_error(
+                                    &app,
                                     "Capture shortcut is unavailable. Choose another in Agent settings.",
                                 );
                             }
@@ -627,7 +616,7 @@ fn run_hotkeys(
             && armed.load(Ordering::SeqCst)
             && let Err(reason) = dispatch_capture(&app, source, !hook.is_null())
         {
-            app.state::<AgentRuntime>().capture_error(&reason);
+            capture_context::report_error(&app, &reason);
         }
     }
     if registered.is_some() {

@@ -1,3 +1,5 @@
+#[cfg(windows)]
+pub(crate) mod capture_context;
 mod error;
 mod events;
 pub(crate) mod history;
