@@ -8,10 +8,12 @@ import {
 } from "react";
 import {
   getOverlayProtectionStatus,
+  setOverlayCaptureProtection,
   nativeAvailable,
   onNotchFocusChanged,
 } from "../../platform/tauri";
 import { readPreferences, type Page, type Preferences } from "./preferences";
+import { shouldCollapseOnBlur } from "./surface";
 
 type ShellMode = "compact" | "preview" | "pinned";
 
@@ -23,6 +25,10 @@ export function useNotchShell() {
   const [prefs, setPrefs] = useState<Preferences>(readPreferences);
   const [notice, setNotice] = useState("");
   const [captureProtected, setCaptureProtected] = useState<boolean | null>(null);
+  const [captureProtectionPending, setCaptureProtectionPending] = useState(nativeAvailable);
+  const [captureProtectionError, setCaptureProtectionError] = useState<string | null>(null);
+  const initialCapturePreference = useRef(prefs.hideFromCapture);
+  const captureRequestActive = useRef(false);
   const [eventMotion, setEventMotion] = useState("");
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,6 +74,33 @@ export function useNotchShell() {
   );
   const back = useCallback(() => setPage("home"), []);
 
+  const setCaptureProtection = useCallback(async (enabled: boolean) => {
+    if (!nativeAvailable || captureRequestActive.current) return;
+    captureRequestActive.current = true;
+    setCaptureProtectionPending(true);
+    setCaptureProtectionError(null);
+    try {
+      const actual = await setOverlayCaptureProtection(enabled);
+      if (actual !== enabled) throw new Error("Windows did not apply the requested protection.");
+      setCaptureProtected(actual);
+      setPrefs((current) => ({ ...current, hideFromCapture: actual }));
+    } catch (error) {
+      setCaptureProtectionError(error instanceof Error ? error.message : String(error));
+      try {
+        setCaptureProtected(await getOverlayProtectionStatus());
+      } catch {
+        setCaptureProtected(null);
+      }
+    } finally {
+      captureRequestActive.current = false;
+      setCaptureProtectionPending(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (nativeAvailable) void setCaptureProtection(initialCapturePreference.current);
+  }, [setCaptureProtection]);
+
   useEffect(() => {
     try {
       localStorage.setItem("otto.preferences.v1", JSON.stringify(prefs));
@@ -86,7 +119,7 @@ export function useNotchShell() {
     let unlisten: (() => void) | undefined;
     let active = true;
     void onNotchFocusChanged((focused) => {
-      if (!focused && prefs.clickOutside && pinned) collapse();
+      if (!focused && shouldCollapseOnBlur(mode, prefs.clickOutside)) collapse();
     })
       .then((stop) => {
         if (active) unlisten = stop;
@@ -97,21 +130,7 @@ export function useNotchShell() {
       active = false;
       unlisten?.();
     };
-  }, [prefs.clickOutside, pinned, collapse]);
-  useEffect(() => {
-    if (!nativeAvailable || page !== "global-settings") return;
-    let active = true;
-    void getOverlayProtectionStatus()
-      .then((available) => {
-        if (active) setCaptureProtected(available);
-      })
-      .catch(() => {
-        if (active) setCaptureProtected(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [page]);
+  }, [mode, prefs.clickOutside, collapse]);
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   const handleEnter = (event: PointerEvent<HTMLElement>) => {
@@ -171,6 +190,9 @@ export function useNotchShell() {
     notice,
     setNotice,
     captureProtected,
+    captureProtectionPending,
+    captureProtectionError,
+    setCaptureProtection,
     eventMotion,
     setEventMotion,
     reducedMotion,

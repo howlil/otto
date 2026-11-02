@@ -1,4 +1,5 @@
-import { Button, SegmentedControl, Text } from "../../shared/ui";
+import { Button, SegmentedControl, Text, Toggle } from "../../shared/ui";
+import { nativeAvailable } from "../../platform/tauri";
 import { defaults, type Preferences } from "./preferences";
 import { UpdateSettings } from "./UpdateSettings";
 import type { AppUpdateState } from "./useAppUpdate";
@@ -8,6 +9,9 @@ export function GeneralSettings({
   change,
   update,
   captureProtected,
+  captureProtectionPending,
+  captureProtectionError,
+  onCaptureProtectionChange,
 }: {
   prefs: Preferences;
   change: (patch: Partial<Preferences>) => void;
@@ -17,6 +21,9 @@ export function GeneralSettings({
     installUpdate: () => Promise<void>;
   };
   captureProtected: boolean | null;
+  captureProtectionPending: boolean;
+  captureProtectionError: string | null;
+  onCaptureProtectionChange: (enabled: boolean) => Promise<void>;
 }) {
   return (
     <>
@@ -55,16 +62,37 @@ export function GeneralSettings({
         variant="quiet"
         size="link"
         className="justify-start"
-        onClick={() => change(defaults)}
+        disabled={captureProtectionPending}
+        onClick={() => {
+          change({ ...defaults, hideFromCapture: prefs.hideFromCapture });
+          if (nativeAvailable) void onCaptureProtectionChange(defaults.hideFromCapture);
+        }}
       >
         Restore defaults
       </Button>
-      <UpdateSettings update={update} />
-      {captureProtected === false ? (
-        <Text as="p" variant="caption" className="mt-3 text-otto-text-secondary">
-          Screen capture protection is unavailable. Some recorders may show Otto.
+      <div className="mt-3 border-t border-otto-line-soft pt-2">
+        <Toggle
+          title="Hide Otto from screen capture"
+          help="Best effort: some recorders may still show Otto."
+          checked={captureProtected ?? prefs.hideFromCapture}
+          disabled={!nativeAvailable || captureProtectionPending}
+          onChange={(enabled) => void onCaptureProtectionChange(enabled)}
+        />
+        <Text as="p" variant="caption" className="mt-2 text-otto-text-tertiary" role="status">
+          {!nativeAvailable
+            ? "Requires Otto for Windows."
+            : captureProtectionPending
+              ? "Applying Windows capture setting…"
+              : captureProtectionError
+                ? captureProtectionError
+                : captureProtected === true
+                  ? "Capture exclusion is enabled for supported Windows recorders."
+                  : captureProtected === false
+                    ? "Capture exclusion is off. Otto may appear in recordings."
+                    : "Windows capture state is unavailable."}
         </Text>
-      ) : null}
+      </div>
+      <UpdateSettings update={update} />
     </>
   );
 }

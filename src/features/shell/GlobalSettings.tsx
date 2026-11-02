@@ -20,6 +20,9 @@ export function GlobalSettings({
   update,
   reducedMotion,
   captureProtected,
+  captureProtectionPending,
+  captureProtectionError,
+  setCaptureProtection,
   motionClass = "",
 }: {
   prefs: Preferences;
@@ -34,6 +37,9 @@ export function GlobalSettings({
   motionClass?: string;
   reducedMotion: boolean;
   captureProtected: boolean | null;
+  captureProtectionPending: boolean;
+  captureProtectionError: string | null;
+  setCaptureProtection: (enabled: boolean) => Promise<void>;
 }) {
   const [tab, setTab] = useState<SettingsTab>("general");
   const back = useRef<HTMLButtonElement>(null);
@@ -87,6 +93,9 @@ export function GlobalSettings({
                 change={change}
                 update={update}
                 captureProtected={captureProtected}
+                captureProtectionPending={captureProtectionPending}
+                captureProtectionError={captureProtectionError}
+                onCaptureProtectionChange={setCaptureProtection}
               />
             )}
             {tab === "interaction" && (
@@ -116,9 +125,10 @@ export function GlobalSettings({
                   onChange={(leaveDelay) => change({ leaveDelay })}
                 />
                 <Toggle
-                  title="Close when returning to desktop"
-                  checked={prefs.clickOutside}
-                  onChange={(clickOutside) => change({ clickOutside })}
+                  title="Keep expanded when switching apps"
+                  help="Pinned panels stay open until you close them."
+                  checked={!prefs.clickOutside}
+                  onChange={(keepExpanded) => change({ clickOutside: !keepExpanded })}
                 />
                 <div className="mb-[14px]">
                   <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">

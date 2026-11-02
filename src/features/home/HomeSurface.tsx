@@ -17,7 +17,6 @@ export function HomeSurface({
   artProps,
   onOpenSettings,
   onOpenAgent,
-  onNotice,
   motionClass = "",
 }: {
   notice: string;
@@ -26,7 +25,6 @@ export function HomeSurface({
   artProps: ArtProps;
   onOpenSettings: () => void;
   onOpenAgent: () => void;
-  onNotice: (message: string) => void;
   motionClass?: string;
 }) {
   return (
@@ -62,19 +60,19 @@ export function HomeSurface({
         />
         <HomeCard
           name="Music"
-          subtitle="Playback"
+          subtitle="Coming soon"
+          disabled
           artwork={musicArt}
           {...artProps}
           entryMotion="motion-safe:animate-otto-home-choice-2 motion-reduce:animate-none"
-          onClick={() => onNotice("Music is not available yet.")}
         />
         <HomeCard
           name="Focus"
-          subtitle="Pomodoro"
+          subtitle="Coming soon"
+          disabled
           artwork={focusArt}
           {...artProps}
           entryMotion="motion-safe:animate-otto-home-choice-3 motion-reduce:animate-none"
-          onClick={() => onNotice("Focus is not available yet.")}
         />
       </main>
     </section>

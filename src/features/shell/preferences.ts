@@ -12,6 +12,7 @@ export type Preferences = {
   hoverDelay: number;
   leaveDelay: number;
   clickOutside: boolean;
+  hideFromCapture: boolean;
   motion: Motion;
   tilt: number;
   gradient: number;
@@ -26,6 +27,7 @@ export const defaults: Preferences = {
   hoverDelay: 150,
   leaveDelay: 340,
   clickOutside: true,
+  hideFromCapture: true,
   motion: "fluid",
   tilt: 43,
   gradient: 80,

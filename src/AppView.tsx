@@ -127,7 +127,6 @@ function ShellContent({
             artProps={artProps}
             onOpenSettings={() => shell.open("global-settings")}
             onOpenAgent={() => shell.open("agent")}
-            onNotice={shell.setNotice}
             motionClass={nudgeMotion}
           />
         ) : page === "global-settings" ? (
@@ -139,6 +138,9 @@ function ShellContent({
             update={appUpdate}
             reducedMotion={shell.reducedMotion}
             captureProtected={shell.captureProtected}
+            captureProtectionPending={shell.captureProtectionPending}
+            captureProtectionError={shell.captureProtectionError}
+            setCaptureProtection={shell.setCaptureProtection}
             motionClass={nudgeMotion}
           />
         ) : (
