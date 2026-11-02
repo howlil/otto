@@ -43,13 +43,14 @@ jobs:
   windows:
     name: Windows Rust and native E2E
     if: ${{ github.event.repository.private == false }}
-    needs: frontend
     runs-on: windows-2022
     timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        if: ${{ inputs.suite == 'full' }}
       - uses: actions/setup-node@v4
+        if: ${{ inputs.suite == 'full' }}
         with:
           node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
@@ -58,10 +59,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          cache-on-failure: true
       - name: Rust format
         run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
-      - name: Cargo compile check
-        run: cargo check --manifest-path src-tauri/Cargo.toml --locked
       - name: Cargo tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - name: Clippy
