@@ -848,19 +848,23 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                                         rpc.request(json!({"type":"get_session_stats"}))
                                     ) => result.ok().and_then(Result::ok),
                                     control = controls.recv() => {
-                                        match control {
-                                            Some(Control::Stop) => events.stopped(id),
-                                            Some(Control::Close { claimed, finished }) => {
+                                        let close_ack = match control {
+                                            Some(Control::Close { claimed, finished })
                                                 if !finished.is_closed()
-                                                    && !claimed.swap(true, Ordering::SeqCst)
-                                                {
-                                                    let _ = finished.send(());
-                                                }
+                                                    && !claimed.swap(true, Ordering::SeqCst) =>
+                                            {
                                                 events.stopped(id);
+                                                Some(finished)
                                             }
-                                            _ => events.stopped(id),
-                                        }
+                                            _ => {
+                                                events.stopped(id);
+                                                None
+                                            }
+                                        };
                                         rpc.terminate().await;
+                                        if let Some(finished) = close_ack {
+                                            let _ = finished.send(());
+                                        }
                                         break;
                                     }
                                 };
