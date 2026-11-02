@@ -12,7 +12,7 @@ import {
   onNotchFocusChanged,
   setOverlayCaptureProtection,
 } from "../../platform/tauri";
-import { readPreferences, type Page, type Preferences } from "./preferences";
+import { mergePreferences, readPreferences, type Page, type Preferences } from "./preferences";
 import { shouldCollapseOnBlur } from "./surface";
 
 type ShellMode = "compact" | "preview" | "pinned";
@@ -69,7 +69,7 @@ export function useNotchShell() {
     setMode((current) => (current === "preview" ? "pinned" : current));
   }, [clearTimers]);
   const change = useCallback(
-    (patch: Partial<Preferences>) => setPrefs((old) => ({ ...old, ...patch })),
+    (patch: Partial<Preferences>) => setPrefs((old) => mergePreferences(old, patch)),
     [],
   );
   const back = useCallback(() => setPage("home"), []);

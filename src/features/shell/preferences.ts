@@ -79,3 +79,7 @@ export function readPreferences(): Preferences {
     return { ...defaults };
   }
 }
+
+export function mergePreferences(current: Preferences, patch: Partial<Preferences>): Preferences {
+  return { ...current, ...patch, hideFromCapture: current.hideFromCapture };
+}

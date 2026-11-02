@@ -65,7 +65,7 @@ export function GeneralSettings({
         className="justify-start"
         disabled={captureProtectionPending}
         onClick={() => {
-          change({ ...defaults, hideFromCapture: prefs.hideFromCapture });
+          change(defaults);
           if (captureProtectionSupported) void onCaptureProtectionChange(defaults.hideFromCapture);
         }}
       >
