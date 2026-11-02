@@ -8,9 +8,9 @@ import {
 } from "react";
 import {
   getOverlayProtectionStatus,
-  setOverlayCaptureProtection,
   nativeAvailable,
   onNotchFocusChanged,
+  setOverlayCaptureProtection,
 } from "../../platform/tauri";
 import { readPreferences, type Page, type Preferences } from "./preferences";
 import { shouldCollapseOnBlur } from "./surface";
@@ -61,7 +61,6 @@ export function useNotchShell() {
       clearTimers();
       setPage(next);
       setMode(pin ? "pinned" : "preview");
-
     },
     [clearTimers],
   );
@@ -120,7 +119,9 @@ export function useNotchShell() {
     let unlisten: (() => void) | undefined;
     let active = true;
     void onNotchFocusChanged((focused) => {
-      if (!focused && shouldCollapseOnBlur(focusPolicy.current.mode, focusPolicy.current.clickOutside)) collapse();
+      if (!focused && shouldCollapseOnBlur(focusPolicy.current.mode, focusPolicy.current.clickOutside)) {
+        collapse();
+      }
     })
       .then((stop) => {
         if (active) unlisten = stop;
@@ -148,7 +149,6 @@ export function useNotchShell() {
         morphUntil.current =
           performance.now() + (reducedMotion ? 0 : prefs.motion === "gentle" ? 300 : 420);
         setMode("preview");
-
       }, prefs.hoverDelay);
     }
   };
