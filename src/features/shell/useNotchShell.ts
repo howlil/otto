@@ -119,7 +119,10 @@ export function useNotchShell() {
     let unlisten: (() => void) | undefined;
     let active = true;
     void onNotchFocusChanged((focused) => {
-      if (!focused && shouldCollapseOnBlur(focusPolicy.current.mode, focusPolicy.current.clickOutside)) {
+      if (
+        !focused &&
+        shouldCollapseOnBlur(focusPolicy.current.mode, focusPolicy.current.clickOutside)
+      ) {
         collapse();
       }
     })
