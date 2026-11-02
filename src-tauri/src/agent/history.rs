@@ -122,6 +122,7 @@ impl HistoryStore {
         {
             let mut record = record;
             record.created_at = existing.created_at;
+            record.title = existing.title.clone();
             *existing = record;
         } else {
             data.conversations.push(record);
@@ -283,7 +284,10 @@ pub fn record_from_snapshot(
     if interrupted
         && messages
             .last()
-            .is_some_and(|message| message.role == "assistant")
+            .is_some_and(|message| {
+                message.role == "assistant"
+                    && message.id == format!("{}:assistant", snapshot.run_id)
+            })
     {
         messages.pop();
     }
@@ -433,6 +437,86 @@ mod tests {
         store.delete("one").unwrap();
         assert!(store.list().unwrap().is_empty());
         let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn upsert_keeps_user_renamed_title_when_provider_and_transcript_change() {
+        let path = temp_path("rename-preserve").join("history.json");
+        let store = HistoryStore::file(path.clone());
+        store.upsert(record("portable")).unwrap();
+        store.rename("portable", "My Rust notes").unwrap();
+
+        let mut next = record("portable");
+        next.title = "Explain Rust".into();
+        next.provider = ProviderId::Pi;
+        next.messages.push(ChatMessage {
+            id: "2:user".into(),
+            role: "user".into(),
+            text: "What is borrowing?".into(),
+        });
+        store.upsert(next).unwrap();
+
+        let reopened = HistoryStore::file(path.clone()).open("portable").unwrap();
+        assert_eq!(reopened.title, "My Rust notes");
+        assert_eq!(reopened.provider, ProviderId::Pi);
+        assert_eq!(reopened.messages.len(), 2);
+        assert_eq!(reopened.created_at, 1);
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn interrupted_new_run_keeps_last_completed_answer() {
+        let mut snapshot = crate::agent::AgentRuntime::new().snapshot();
+        snapshot.run_id = 8;
+        snapshot.messages = vec![
+            ChatMessage {
+                id: "7:user".into(),
+                role: "user".into(),
+                text: "Explain ownership.".into(),
+            },
+            ChatMessage {
+                id: "7:assistant".into(),
+                role: "assistant".into(),
+                text: "Ownership controls cleanup.".into(),
+            },
+        ];
+
+        let record = record_from_snapshot("existing-chat", &snapshot, true).unwrap();
+        assert_eq!(record.messages.len(), 2);
+        assert_eq!(record.messages[1].text, "Ownership controls cleanup.");
+        assert!(record.interrupted);
+    }
+
+    #[test]
+    fn interrupted_active_run_drops_only_its_incomplete_answer() {
+        let mut snapshot = crate::agent::AgentRuntime::new().snapshot();
+        snapshot.run_id = 8;
+        snapshot.messages = vec![
+            ChatMessage {
+                id: "7:assistant".into(),
+                role: "assistant".into(),
+                text: "Previous complete answer.".into(),
+            },
+            ChatMessage {
+                id: "8:user".into(),
+                role: "user".into(),
+                text: "Follow-up question.".into(),
+            },
+            ChatMessage {
+                id: "8:assistant".into(),
+                role: "assistant".into(),
+                text: "Incomplete output.".into(),
+            },
+        ];
+
+        let record = record_from_snapshot("existing-chat", &snapshot, true).unwrap();
+        assert_eq!(record.messages.len(), 2);
+        assert_eq!(record.messages[0].text, "Previous complete answer.");
+        assert_eq!(record.messages[1].text, "Follow-up question.");
+        assert!(!record
+            .messages
+            .iter()
+            .any(|message| message.text == "Incomplete output."));
     }
 
     #[test]
