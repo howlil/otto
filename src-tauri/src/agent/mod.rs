@@ -540,24 +540,71 @@ impl AgentRuntime {
     }
 
     pub async fn select_provider(&self, provider: String) -> Result<(), String> {
+        self.select_provider_with_timeout(provider, Duration::from_secs(5))
+            .await
+    }
+
+    async fn select_provider_with_timeout(
+        &self,
+        provider: String,
+        close_timeout: Duration,
+    ) -> Result<(), String> {
         let provider = ProviderId::parse(&provider).ok_or("Unknown provider.")?;
-        let guard = self.control.lock().await;
+        let mut guard = self.control.lock().await;
         let current = self.snapshot();
         if matches!(
             current.status,
             RunPhase::Starting | RunPhase::Streaming | RunPhase::Stopping
-        ) || current.thread_id.is_some()
-            || guard.as_ref().is_some_and(|sender| !sender.is_closed())
+        ) || current.capture.phase != "idle"
         {
-            return Err("Start a new session before changing the provider.".into());
+            return Err("Finish or Stop the current answer or capture before changing provider.".into());
         }
-        if current.provider != provider {
-            *self.selected_runtime.lock().unwrap() = ModelSelection::default();
-            mutate(&self.updates, |state| {
+        if current.provider == provider {
+            return Ok(());
+        }
+        if let Some(sender) = guard.as_ref().filter(|sender| !sender.is_closed()) {
+            close_owned_transport(sender, close_timeout).await?;
+        }
+
+        let id = self
+            .conversation_id
+            .lock()
+            .map_err(|_| "Conversation history is unavailable.".to_string())?
+            .clone();
+        let mut switched = current.clone();
+        switched.conversation_id = id.clone();
+        switched.provider = provider;
+        switched.thread_id = None;
+        switched.model = None;
+        switched.thinking_effort = None;
+        switched.usage = None;
+        switched.error = None;
+        if let Some(record) =
+            history::record_from_snapshot(&id, &switched, current.status != RunPhase::Completed)
+        {
+            self.history.upsert(record).map_err(String::from)?;
+        }
+
+        *guard = None;
+        *self.selected_runtime.lock().unwrap() = ModelSelection::default();
+        self.next_run_id.fetch_max(current.run_id, Ordering::Relaxed);
+        let next_run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
+        let marker_failed = self
+            .recovery
+            .as_ref()
+            .is_some_and(|marker| marker.clear_if(current.run_id).is_err());
+        mutate(&self.updates, |state| {
+            if state.run_id == current.run_id {
+                state.run_id = next_run_id;
+                state.conversation_id = id;
                 state.provider = provider;
-                state.error = None;
-            });
-        }
+                state.thread_id = None;
+                state.model = None;
+                state.thinking_effort = None;
+                state.usage = None;
+                state.error = marker_failed.then(|| MARKER_CLEAR_NOTICE.into());
+            }
+        });
         Ok(())
     }
 
@@ -923,6 +970,9 @@ impl AgentRuntime {
                 "Select the provider in Agent Settings before requesting an answer.".into(),
             );
         }
+        if current.status == RunPhase::Completed {
+            self.persist_current_snapshot(false).map_err(String::from)?;
+        }
 
         let provider_has_context =
             guard.as_ref().is_some_and(|sender| !sender.is_closed()) && current.thread_id.is_some();
@@ -1099,30 +1149,8 @@ impl AgentRuntime {
             return Err("Stop the current request before starting a new session.".into());
         }
 
-        if let Some(sender) = guard.as_ref()
-            && !sender.is_closed()
-        {
-            let (finished, mut closed) = oneshot::channel();
-
-            let claimed = Arc::new(AtomicBool::new(false));
-            sender
-                .try_send(Control::Close {
-                    claimed: Arc::clone(&claimed),
-                    finished,
-                })
-                .map_err(|_| "Agent provider is busy. Try again.".to_string())?;
-            match timeout(close_timeout, &mut closed).await {
-                Ok(Ok(())) => {}
-                Ok(Err(_)) => {
-                    return Err("Agent closed unexpectedly; session was not reset.".into());
-                }
-                Err(_) if !claimed.swap(true, Ordering::SeqCst) => {
-                    return Err("Agent did not accept session close; session was not reset.".into());
-                }
-                Err(_) => {
-                    return Err("Agent is still closing; session was not reset.".into());
-                }
-            }
+        if let Some(sender) = guard.as_ref().filter(|sender| !sender.is_closed()) {
+            close_owned_transport(sender, close_timeout).await?;
         }
         self.persist_current_snapshot(current.status != RunPhase::Completed)?;
         *guard = None;
@@ -1193,6 +1221,28 @@ impl AgentRuntime {
     }
 }
 
+async fn close_owned_transport(
+    sender: &mpsc::Sender<Control>,
+    close_timeout: Duration,
+) -> Result<(), String> {
+    let (finished, mut closed) = oneshot::channel();
+    let claimed = Arc::new(AtomicBool::new(false));
+    sender
+        .try_send(Control::Close {
+            claimed: Arc::clone(&claimed),
+            finished,
+        })
+        .map_err(|_| "Agent provider is busy. Try again.".to_string())?;
+    match timeout(close_timeout, &mut closed).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(_)) => Err("Agent closed unexpectedly; session was not reset.".into()),
+        Err(_) if !claimed.swap(true, Ordering::SeqCst) => {
+            Err("Agent did not accept session close; session was not reset.".into())
+        }
+        Err(_) => Err("Agent is still closing; session was not reset.".into()),
+    }
+}
+
 const MARKER_CLEAR_NOTICE: &str =
     "Recovery marker could not be cleared; a restart may report an interrupted request.";
 
@@ -1214,7 +1264,8 @@ fn persist_terminal_outcome(
     if !matches!(
         snapshot.status,
         RunPhase::Completed | RunPhase::Failed | RunPhase::Stopped
-    ) {
+    ) || updates.borrow().run_id != snapshot.run_id
+    {
         return;
     }
     let interrupted = snapshot.status != RunPhase::Completed;
@@ -1391,6 +1442,139 @@ mod tests {
         assert!(snapshot.thread_id.is_none());
         assert!(snapshot.error.as_deref().unwrap().contains("interrupted"));
         assert!(!marker_path.exists());
+    }
+
+    #[tokio::test]
+    async fn switching_completed_provider_keeps_conversation_and_closes_native_transport() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-provider-switch-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let history_path = root.join("conversations.json");
+        let runtime = AgentRuntime::persistent_with_history(root.join("marker"), history_path.clone());
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+        mutate(&runtime.updates, |state| {
+            state.status = RunPhase::Completed;
+            state.run_id = 7;
+            state.thread_id = Some("native-codex-thread".into());
+            state.model = Some("old-model".into());
+            state.messages = vec![
+                ChatMessage { id: "7:user".into(), role: "user".into(), text: "Explain ownership".into() },
+                ChatMessage { id: "7:assistant".into(), role: "assistant".into(), text: "Ownership controls lifetime.".into() },
+            ];
+        });
+        let before = runtime.snapshot();
+        let worker = tokio::spawn(async move {
+            let Some(Control::Close { claimed, finished }) = receiver.recv().await else {
+                panic!("native transport must be closed before provider changes");
+            };
+            assert!(!claimed.swap(true, Ordering::SeqCst));
+            finished.send(()).unwrap();
+        });
+        runtime.select_provider("pi".into()).await.unwrap();
+        worker.await.unwrap();
+        let after = runtime.snapshot();
+        assert_eq!(after.conversation_id, before.conversation_id);
+        assert_eq!(after.messages.len(), 2);
+        assert_eq!(after.provider, ProviderId::Pi);
+        assert!(after.thread_id.is_none());
+        assert!(after.model.is_none());
+        assert!(after.usage.is_none());
+        assert!(after.run_id > before.run_id);
+        assert!(runtime.control.lock().await.is_none());
+        let saved = runtime.history.open(&after.conversation_id).unwrap();
+        assert_eq!(saved.provider, ProviderId::Pi);
+        assert_eq!(saved.messages[1].text, "Ownership controls lifetime.");
+        let raw = std::fs::read_to_string(history_path).unwrap();
+        assert!(!raw.contains("native-codex-thread"));
+        assert!(!raw.contains("cwd"));
+        assert!(contextual_prompt(&after.messages, "What about borrowing?")
+            .contains("Otto: Ownership controls lifetime."));
+        let restarted = AgentRuntime::persistent_with_history(
+            root.join("marker2"),
+            root.join("conversations.json"),
+        );
+        let reopened = restarted.history_open(&after.conversation_id).await.unwrap();
+        assert_eq!(reopened.provider, ProviderId::Pi);
+        assert!(reopened.thread_id.is_none());
+        assert_eq!(reopened.messages.len(), 2);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn switching_provider_rejects_active_turn_and_capture() {
+        let runtime = AgentRuntime::new();
+        for status in [RunPhase::Starting, RunPhase::Streaming, RunPhase::Stopping] {
+            mutate(&runtime.updates, |state| state.status = status);
+            assert!(runtime.select_provider("pi".into()).await.is_err());
+            assert_eq!(runtime.snapshot().provider, ProviderId::Codex);
+        }
+        mutate(&runtime.updates, |state| {
+            state.status = RunPhase::Completed;
+            state.capture.phase = "preparing".into();
+        });
+        assert!(runtime.select_provider("pi".into()).await.is_err());
+        assert_eq!(runtime.snapshot().provider, ProviderId::Codex);
+    }
+
+    #[tokio::test]
+    async fn failed_provider_close_does_not_discard_current_session() {
+        let runtime = AgentRuntime::new();
+        let (sender, receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+        mutate(&runtime.updates, |state| {
+            state.status = RunPhase::Completed;
+            state.thread_id = Some("still-owned".into());
+        });
+        let before = runtime.snapshot();
+        let result = runtime
+            .select_provider_with_timeout("pi".into(), Duration::from_millis(10))
+            .await;
+        assert!(result.is_err());
+        let after = runtime.snapshot();
+        assert_eq!(after.provider, before.provider);
+        assert_eq!(after.conversation_id, before.conversation_id);
+        assert_eq!(after.thread_id, before.thread_id);
+        assert_eq!(after.run_id, before.run_id);
+        drop(receiver);
+    }
+
+    #[test]
+    fn stale_terminal_observer_does_not_overwrite_new_provider_history() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-stale-switch-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = AgentRuntime::persistent_with_history(
+            root.join("marker"), root.join("conversations.json"),
+        );
+        runtime.recovery.as_ref().unwrap().mark(3).unwrap();
+        let mut old = runtime.snapshot();
+        old.run_id = 3;
+        old.status = RunPhase::Completed;
+        old.messages = vec![ChatMessage {
+            id: "3:user".into(), role: "user".into(), text: "old".into(),
+        }];
+        mutate(&runtime.updates, |state| state.run_id = 4);
+        persist_terminal_outcome(
+            &runtime.history,
+            runtime.recovery.as_ref().unwrap(),
+            &runtime.conversation_id,
+            &runtime.updates,
+            &old,
+        );
+        assert!(runtime.history.list().unwrap().is_empty());
+        assert_eq!(std::fs::read_to_string(root.join("marker")).unwrap(), "3");
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[tokio::test]
@@ -1598,6 +1782,7 @@ mod tests {
             root.join("conversations.json"),
         );
         runtime.recovery.as_ref().unwrap().mark(3).unwrap();
+        mutate(&runtime.updates, |state| state.run_id = 3);
 
         persist_terminal_outcome(
             &runtime.history,

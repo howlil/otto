@@ -111,6 +111,13 @@ export function AgentSettingsDetails({
                 locked={props.locked}
                 onRetry={props.onRetry}
               />
+              {props.snapshot.messages.length > 0 && props.snapshot.threadId === null && (
+                <StatusMessage tone="info">
+                  Previous messages remain in Otto history. The next provider receives only a
+                  bounded text transcript; its original native session and hidden context cannot
+                  be transferred.
+                </StatusMessage>
+              )}
               <ModelUsageSettings
                 readiness={props.readiness}
                 snapshot={props.snapshot}

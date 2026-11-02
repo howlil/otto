@@ -88,4 +88,4 @@ Material breaks:
 - A3 [non-blocking]: Screenshot defaults to the last focused external window; full-screen capture requires an explicit alternative selection. Revisit when implementing B4 if source selection is inadequate.
 - A4 [non-blocking]: Current Assistant is tool-free; no existing CLI is presumed safe for Coding until actual workspace/approval/isolation semantics satisfy C7/P15.
 - A5 [non-blocking]: Otto owns local text conversation history; provider thread IDs, credentials, and screenshots are not persisted. Reopen reconstructs context from the local transcript.
-- A6 [non-blocking]: Coding and cross-runtime continuation are design targets, not implemented/native-runtime-verified in this PR; first coding adapter must pass C7/P15 before activation.
+- A6 [non-blocking]: Coding is a future target, not implemented. Cross-runtime continuation now closes the old provider transport and retains Otto text history; native runtime, release and persistence integration remain unverified until Windows CI/acceptance. First Coding adapter must pass C7/P15 before activation.
