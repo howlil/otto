@@ -27,14 +27,14 @@ impl PartialEq<&str> for ProviderId {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RuntimeCapabilities {
+pub(in crate::agent) struct RuntimeCapabilities {
     pub image_transport: bool,
     pub pending_model_selection: bool,
     pub completed_followup_without_probe: bool,
 }
 
 impl ProviderId {
-    pub fn capabilities(self) -> RuntimeCapabilities {
+    pub(in crate::agent) fn capabilities(self) -> RuntimeCapabilities {
         match self {
             Self::Codex => RuntimeCapabilities {
                 image_transport: true,
@@ -54,7 +54,7 @@ impl ProviderId {
         }
     }
 
-    pub fn is_installed(self) -> bool {
+    pub(in crate::agent) fn is_installed(self) -> bool {
         match self {
             Self::Codex => super::codex::executable().is_some(),
             #[cfg(windows)]
@@ -66,7 +66,7 @@ impl ProviderId {
         }
     }
 
-    pub fn options_for_capture(
+    pub(in crate::agent) fn options_for_capture(
         self,
         snapshot: &Snapshot,
         pending: &ModelSelection,
@@ -81,7 +81,7 @@ impl ProviderId {
         }
     }
 
-    pub fn can_reuse_without_probe(
+    pub(in crate::agent) fn can_reuse_without_probe(
         self,
         snapshot: &Snapshot,
         cwd: &Path,
@@ -99,7 +99,7 @@ impl ProviderId {
             && !has_capture
     }
 
-    pub fn capture_unavailable_reason(self) -> Option<&'static str> {
+    pub(in crate::agent) fn capture_unavailable_reason(self) -> Option<&'static str> {
         (!self.image_transport())
             .then_some("Agy headless streaming accepts text only. Select Codex or Pi.")
     }
@@ -238,10 +238,30 @@ mod tests {
             snapshot.provider.can_reuse_without_probe(snapshot, &cwd, None, None, false)
         };
         assert!(eligible(&snapshot));
-        assert!(!snapshot.provider.can_reuse_without_probe(&snapshot, &cwd, Some("other"), None, false));
-        assert!(!snapshot.provider.can_reuse_without_probe(&snapshot, &cwd, None, Some("high"), false));
-        assert!(!snapshot.provider.can_reuse_without_probe(&snapshot, &cwd, None, None, true));
-        assert!(!snapshot.provider.can_reuse_without_probe(&snapshot, &cwd.join("other"), None, None, false));
+        assert!(!snapshot.provider.can_reuse_without_probe(
+            &snapshot,
+            &cwd,
+            Some("other"),
+            None,
+            false,
+        ));
+        assert!(!snapshot.provider.can_reuse_without_probe(
+            &snapshot,
+            &cwd,
+            None,
+            Some("high"),
+            false,
+        ));
+        assert!(!snapshot.provider.can_reuse_without_probe(
+            &snapshot, &cwd, None, None, true,
+        ));
+        assert!(!snapshot.provider.can_reuse_without_probe(
+            &snapshot,
+            &cwd.join("other"),
+            None,
+            None,
+            false,
+        ));
         snapshot.thread_id = None;
         assert!(!eligible(&snapshot));
         snapshot.thread_id = Some("agy-conversation".into());
@@ -251,6 +271,8 @@ mod tests {
         snapshot.provider = ProviderId::Pi;
         assert!(!eligible(&snapshot));
         snapshot.provider = ProviderId::Agy;
-        assert!(!ProviderId::Codex.can_reuse_without_probe(&snapshot, &cwd, None, None, false));
+        assert!(!ProviderId::Codex.can_reuse_without_probe(
+            &snapshot, &cwd, None, None, false,
+        ));
     }
 }

@@ -607,10 +607,9 @@ impl AgentRuntime {
     }
 
     fn capture_runtime_options(&self, state: &Snapshot) -> ModelSelection {
-        state.provider.options_for_capture(
-            state,
-            &self.selected_runtime.lock().unwrap(),
-        )
+        state
+            .provider
+            .options_for_capture(state, &self.selected_runtime.lock().unwrap())
     }
 
     pub async fn probe_provider_readiness(
