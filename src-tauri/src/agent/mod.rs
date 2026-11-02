@@ -466,11 +466,21 @@ impl AgentRuntime {
     pub async fn history_delete(&self, id: &str) -> Result<(), String> {
         let mut guard = self.control.lock().await;
         self.conversation.history.open(id)?;
-        if self.snapshot().conversation_id == id.trim() {
-            self.new_session_locked(&mut guard, Duration::from_secs(5))
-                .await?;
+        let current = self.snapshot();
+        if current.conversation_id != id.trim() {
+            return self.conversation.history.delete(id).map_err(String::from);
         }
-        self.conversation.history.delete(id).map_err(String::from)
+
+        ensure_session_can_reset(&current)?;
+        if let Some(sender) = guard.as_ref().filter(|sender| !sender.is_closed()) {
+            close_owned_transport(sender, Duration::from_secs(5)).await?;
+        }
+        if let Err(error) = self.conversation.history.delete(id) {
+            *guard = None;
+            mutate(&self.updates, |state| state.thread_id = None);
+            return Err(String::from(error));
+        }
+        self.rotate_session_locked(&mut guard, &current)
     }
 
     fn persist_prompt(&self, run_id: u64, text: &str) -> Result<(), AgentError> {
@@ -1176,20 +1186,19 @@ impl AgentRuntime {
         close_timeout: Duration,
     ) -> Result<(), String> {
         let current = self.snapshot();
-        if matches!(
-            current.status,
-            RunPhase::Starting | RunPhase::Streaming | RunPhase::Stopping
-        ) {
-            return Err("Stop the current request before starting a new session.".into());
-        }
-        if !matches!(current.capture.phase.as_str(), "idle" | "failed") {
-            return Err("Finish screen capture before starting a new session.".into());
-        }
-
+        ensure_session_can_reset(&current)?;
         if let Some(sender) = guard.as_ref().filter(|sender| !sender.is_closed()) {
             close_owned_transport(sender, close_timeout).await?;
         }
         self.persist_current_snapshot(current.status != RunPhase::Completed)?;
+        self.rotate_session_locked(guard, &current)
+    }
+
+    fn rotate_session_locked(
+        &self,
+        guard: &mut MutexGuard<'_, Option<mpsc::Sender<Control>>>,
+        current: &Snapshot,
+    ) -> Result<(), String> {
         **guard = None;
         *self.selected_runtime.lock().unwrap() = ModelSelection::default();
         let clear_failed = self
@@ -1284,6 +1293,19 @@ async fn close_owned_transport(
         }
         Err(_) => Err("Agent is still closing; session was not reset.".into()),
     }
+}
+
+fn ensure_session_can_reset(current: &Snapshot) -> Result<(), String> {
+    if matches!(
+        current.status,
+        RunPhase::Starting | RunPhase::Streaming | RunPhase::Stopping
+    ) {
+        return Err("Stop the current request before starting a new session.".into());
+    }
+    if !matches!(current.capture.phase.as_str(), "idle" | "failed") {
+        return Err("Finish screen capture before starting a new session.".into());
+    }
+    Ok(())
 }
 
 const MARKER_CLEAR_NOTICE: &str =
@@ -2376,6 +2398,72 @@ mod tests {
         let items = runtime.conversation.history.list().unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, after.conversation_id);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn failed_active_history_delete_preserves_chat_after_native_close() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-delete-write-failure-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = Arc::new(AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            root.join("conversations.json"),
+        ));
+        mutate(&runtime.updates, |state| {
+            state.status = RunPhase::Completed;
+            state.run_id = 9;
+            state.thread_id = Some("native-thread".into());
+            state.messages = vec![
+                ChatMessage {
+                    id: "9:user".into(),
+                    role: "user".into(),
+                    text: "Keep question".into(),
+                },
+                ChatMessage {
+                    id: "9:assistant".into(),
+                    role: "assistant".into(),
+                    text: "Keep answer".into(),
+                },
+            ];
+        });
+        runtime.persist_current_snapshot(false).unwrap();
+        let before = runtime.snapshot();
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+
+        let deleting = {
+            let runtime = Arc::clone(&runtime);
+            let id = before.conversation_id.clone();
+            tokio::spawn(async move { runtime.history_delete(&id).await })
+        };
+        let request = timeout(Duration::from_secs(5), receiver.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let Control::Close { finished, .. } = request else {
+            panic!("active delete must close the native session");
+        };
+        std::fs::write(root.join("conversations.json"), b"not valid JSON").unwrap();
+        finished.send(()).unwrap();
+
+        let outcome = timeout(Duration::from_secs(5), deleting)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(outcome.is_err());
+        let after = runtime.snapshot();
+        assert_eq!(after.conversation_id, before.conversation_id);
+        assert_eq!(after.messages.len(), before.messages.len());
+        assert_eq!(after.messages[1].text, "Keep answer");
+        assert!(after.thread_id.is_none());
+        assert_eq!(after.status, RunPhase::Completed);
+        assert!(runtime.control.lock().await.is_none());
         let _ = std::fs::remove_dir_all(root);
     }
 
