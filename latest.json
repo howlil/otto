@@ -1,0 +1,11 @@
+{
+  "version": "0.3.0",
+  "notes": "Otto 0.3.0",
+  "pub_date": "2026-11-02T03:01:54.9576513Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeW91d1JMVTJGSUJvRDdMcG5EQlQ4TXNJbTZuckxNSGFoRU9Ma3VtNWw5aFJJYmt4OENYSGRyMmJRUXBzSFBhUlB6bU1MWjUrN3pSR0ExTmNuOGRqbTJtaWdmUmtOUUFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzNTg4NTE0CWZpbGU6T3R0b18wLjMuMF94NjQtc2V0dXAuZXhlCXZlcnNpb246MC4zLjAKQXhZMDhkMmNQb1Rzc1lBYk5MTXpuL0hnenF3N3NnajdRQk8zQlZPeENoVUp3bURoSUdoWkNjVkQ5MENzM3FNamRhSm81N3dEZ1Z4VEhiZC9pYzBiQVE9PQo=",
+      "url": "https://github.com/howlil/otto/releases/download/v0.3.0/Otto_0.3.0_x64-setup.exe"
+    }
+  }
+}
