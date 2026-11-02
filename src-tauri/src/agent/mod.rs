@@ -2138,7 +2138,10 @@ mod tests {
         });
         assert!(runtime.history_delete(&id).await.is_err());
         assert_eq!(runtime.snapshot().conversation_id, id);
-        assert_eq!(runtime.conversation.history.open(&id).unwrap().messages[0].text, "Still running");
+        assert_eq!(
+            runtime.conversation.history.open(&id).unwrap().messages[0].text,
+            "Still running"
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
