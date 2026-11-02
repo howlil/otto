@@ -1,4 +1,4 @@
-use super::{CaptureSnapshot, ChatMessage, RunPhase, Snapshot, UsageSnapshot};
+use super::{CaptureSnapshot, RunPhase, Snapshot, UsageSnapshot, conversation};
 use tokio::sync::watch;
 
 pub enum AgentEvent {
@@ -108,35 +108,17 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
         {
             state.status = RunPhase::Streaming;
             state.error = None;
-            state.messages.push(ChatMessage {
-                id: format!("{run_id}:user"),
-                role: "user".into(),
-                text,
-            });
-            state.messages.push(ChatMessage {
-                id: format!("{run_id}:assistant"),
-                role: "assistant".into(),
-                text: String::new(),
-            });
-            if state.messages.len() > 24 {
-                state.messages.drain(0..2);
-            }
+            conversation::start_turn(&mut state.messages, run_id, text);
         }
         AgentEvent::TextDelta { run_id, delta }
             if state.run_id == run_id && state.status == RunPhase::Streaming =>
         {
-            if let Some(message) = state.messages.last_mut().filter(|m| m.role == "assistant")
-                && message.text.len().saturating_add(delta.len()) <= 128_000
-            {
-                message.text.push_str(&delta);
-            }
+            return conversation::append_delta(&mut state.messages, run_id, &delta);
         }
         AgentEvent::TextFinal { run_id, text }
             if state.run_id == run_id && state.status == RunPhase::Streaming =>
         {
-            if let Some(message) = state.messages.last_mut().filter(|m| m.role == "assistant") {
-                message.text = text.chars().take(128_000).collect();
-            }
+            return conversation::set_final(&mut state.messages, run_id, &text);
         }
         AgentEvent::Completed { run_id }
             if state.run_id == run_id
@@ -147,11 +129,7 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
                 state.capture = CaptureSnapshot::default();
                 return true;
             }
-            if state
-                .messages
-                .last()
-                .is_some_and(|m| m.role == "assistant" && !m.text.trim().is_empty())
-            {
+            if conversation::has_answer(&state.messages, run_id) {
                 state.status = RunPhase::Completed;
             } else {
                 state.status = RunPhase::Failed;
@@ -310,6 +288,42 @@ mod tests {
         });
         assert_eq!(updates.borrow().status, RunPhase::Failed);
         assert!(updates.borrow().messages.is_empty());
+    }
+
+    #[test]
+    fn unrelated_or_oversized_text_events_do_not_modify_transcript_or_sequence() {
+        let (updates, events) = state(8);
+        updates.send_modify(|state| {
+            state.status = RunPhase::Streaming;
+            state.messages = vec![super::super::ChatMessage {
+                id: "7:assistant".into(),
+                role: "assistant".into(),
+                text: "Previous answer".into(),
+            }];
+        });
+        let sequence = updates.borrow().seq;
+        events.emit(AgentEvent::TextDelta {
+            run_id: 8,
+            delta: "wrong turn".into(),
+        });
+        events.emit(AgentEvent::TextFinal {
+            run_id: 8,
+            text: "wrong final".into(),
+        });
+        assert_eq!(updates.borrow().messages[0].text, "Previous answer");
+        assert_eq!(updates.borrow().seq, sequence);
+
+        updates.send_modify(|state| {
+            state.messages[0].id = "8:assistant".into();
+        });
+        events.emit(AgentEvent::TextDelta {
+            run_id: 8,
+            delta: "x".repeat(128_001),
+        });
+        assert_eq!(updates.borrow().messages[0].text, "Previous answer");
+        assert_eq!(updates.borrow().seq, sequence);
+        events.emit(AgentEvent::Completed { run_id: 8 });
+        assert_eq!(updates.borrow().status, RunPhase::Completed);
     }
 
     #[test]

@@ -1,6 +1,62 @@
 use super::error::AgentError;
-use super::{Snapshot, history};
+use super::{ChatMessage, Snapshot, history};
 use std::sync::{Arc, Mutex};
+
+const MAX_TRANSCRIPT_MESSAGES: usize = 24;
+const MAX_ASSISTANT_TEXT: usize = 128_000;
+
+pub(super) fn start_turn(messages: &mut Vec<ChatMessage>, run_id: u64, text: String) {
+    messages.push(ChatMessage {
+        id: format!("{run_id}:user"),
+        role: "user".into(),
+        text,
+    });
+    messages.push(ChatMessage {
+        id: format!("{run_id}:assistant"),
+        role: "assistant".into(),
+        text: String::new(),
+    });
+    if messages.len() > MAX_TRANSCRIPT_MESSAGES {
+        messages.drain(..messages.len() - MAX_TRANSCRIPT_MESSAGES);
+    }
+}
+
+fn current_answer<'a>(messages: &'a mut [ChatMessage], run_id: u64) -> Option<&'a mut ChatMessage> {
+    messages.last_mut().filter(|message| {
+        message.id == format!("{run_id}:assistant") && message.role == "assistant"
+    })
+}
+
+pub(super) fn append_delta(messages: &mut [ChatMessage], run_id: u64, delta: &str) -> bool {
+    let Some(answer) = current_answer(messages, run_id) else {
+        return false;
+    };
+    if delta.is_empty() || answer.text.len().saturating_add(delta.len()) > MAX_ASSISTANT_TEXT {
+        return false;
+    }
+    answer.text.push_str(delta);
+    true
+}
+
+pub(super) fn set_final(messages: &mut [ChatMessage], run_id: u64, text: &str) -> bool {
+    let Some(answer) = current_answer(messages, run_id) else {
+        return false;
+    };
+    let final_text: String = text.chars().take(MAX_ASSISTANT_TEXT).collect();
+    if answer.text == final_text {
+        return false;
+    }
+    answer.text = final_text;
+    true
+}
+
+pub(super) fn has_answer(messages: &[ChatMessage], run_id: u64) -> bool {
+    messages.last().is_some_and(|answer| {
+        answer.id == format!("{run_id}:assistant")
+            && answer.role == "assistant"
+            && !answer.text.trim().is_empty()
+    })
+}
 
 pub(super) struct ConversationOwner {
     pub(super) history: Arc<history::HistoryStore>,
@@ -37,6 +93,27 @@ impl ConversationOwner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transcript_updates_only_the_matching_run_and_bounds_history() {
+        let mut messages = (0..24)
+            .map(|id| ChatMessage {
+                id: format!("{id}:user"),
+                role: "user".into(),
+                text: format!("older {id}"),
+            })
+            .collect::<Vec<_>>();
+        start_turn(&mut messages, 25, "new question".into());
+        assert_eq!(messages.len(), 24);
+        assert_eq!(messages.first().unwrap().id, "2:user");
+        assert!(!append_delta(&mut messages, 24, "wrong run"));
+        assert!(append_delta(&mut messages, 25, "part"));
+        assert!(set_final(&mut messages, 25, "complete"));
+        assert!(!set_final(&mut messages, 25, "complete"));
+        assert!(has_answer(&messages, 25));
+        assert!(!has_answer(&messages, 24));
+        assert_eq!(messages.last().unwrap().text, "complete");
+    }
 
     #[test]
     fn stale_conversation_cannot_write_under_new_identity() {
