@@ -313,17 +313,28 @@ mod tests {
         assert_eq!(updates.borrow().messages[0].text, "Previous answer");
         assert_eq!(updates.borrow().seq, sequence);
 
-        updates.send_modify(|state| {
-            state.messages[0].id = "8:assistant".into();
+        events.emit(AgentEvent::Completed { run_id: 8 });
+        assert_eq!(updates.borrow().status, RunPhase::Failed);
+
+        let (updates, events) = state(9);
+        events.emit(AgentEvent::TurnStarted {
+            run_id: 9,
+            text: "Question".into(),
         });
+        let sequence = updates.borrow().seq;
         events.emit(AgentEvent::TextDelta {
-            run_id: 8,
+            run_id: 9,
             delta: "x".repeat(128_001),
         });
-        assert_eq!(updates.borrow().messages[0].text, "Previous answer");
+        assert_eq!(updates.borrow().messages[1].text, "");
         assert_eq!(updates.borrow().seq, sequence);
-        events.emit(AgentEvent::Completed { run_id: 8 });
+        events.emit(AgentEvent::TextFinal {
+            run_id: 9,
+            text: "Valid final".into(),
+        });
+        events.emit(AgentEvent::Completed { run_id: 9 });
         assert_eq!(updates.borrow().status, RunPhase::Completed);
+        assert_eq!(updates.borrow().messages[1].text, "Valid final");
     }
 
     #[test]
