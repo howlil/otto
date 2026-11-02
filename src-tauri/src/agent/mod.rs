@@ -1384,25 +1384,33 @@ fn contextual_prompt(messages: &[ChatMessage], text: &str) -> String {
     if messages.is_empty() {
         return text.to_owned();
     }
-    let mut context = String::from("Previous Otto conversation:\n");
-    for message in messages.iter().rev().take(12).rev() {
+    let header = "Previous Otto conversation:\n";
+    let question_header = "\nNew user question:\n";
+    let mut remaining = 48_000usize.saturating_sub(
+        header
+            .len()
+            .saturating_add(question_header.len())
+            .saturating_add(text.len()),
+    );
+    let mut selected = Vec::new();
+    for message in messages.iter().rev().take(12) {
         let role = if message.role == "user" {
             "User"
         } else {
             "Otto"
         };
         let entry = format!("{role}: {}\n", message.text);
-        if context
-            .len()
-            .saturating_add(entry.len())
-            .saturating_add(text.len())
-            > 48_000
-        {
+        if entry.len() > remaining {
             break;
         }
+        remaining -= entry.len();
+        selected.push(entry);
+    }
+    let mut context = String::from(header);
+    for entry in selected.into_iter().rev() {
         context.push_str(&entry);
     }
-    context.push_str("\nNew user question:\n");
+    context.push_str(question_header);
     context.push_str(text);
     context
 }
@@ -1948,6 +1956,35 @@ mod tests {
         assert!(prompt.contains("User: What is ownership?"));
         assert!(prompt.contains("Otto: Ownership controls cleanup."));
         assert!(prompt.ends_with("New user question:\nHow does borrowing relate?"));
+    }
+
+    #[test]
+    fn reconstructed_context_keeps_newest_messages_within_byte_budget() {
+        let messages = vec![
+            ChatMessage {
+                id: "1:user".into(),
+                role: "user".into(),
+                text: "ancient".repeat(10_000),
+            },
+            ChatMessage {
+                id: "2:user".into(),
+                role: "user".into(),
+                text: "Latest question".into(),
+            },
+            ChatMessage {
+                id: "2:assistant".into(),
+                role: "assistant".into(),
+                text: "Latest answer".into(),
+            },
+        ];
+
+        let prompt = contextual_prompt(&messages, "Follow-up");
+        assert!(prompt.contains("User: Latest question"));
+        assert!(prompt.contains("Otto: Latest answer"));
+        assert!(!prompt.contains("ancient"));
+        assert!(prompt.find("Latest question").unwrap() < prompt.find("Latest answer").unwrap());
+        assert!(prompt.len() <= 48_000);
+        assert!(prompt.ends_with("New user question:\nFollow-up"));
     }
 
     #[tokio::test]
