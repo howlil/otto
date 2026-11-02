@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveSurface } from "../src/features/shell/surface.ts";
+import { resolveSurface, shouldCollapseOnBlur } from "../src/features/shell/surface.ts";
 
 const request = {
   expanded: false,
@@ -21,5 +21,17 @@ describe("Otto shell surface ownership", () => {
     expect(resolveSurface({ ...request, expanded: true, page: "global-settings" })).toBe("homeSettings");
     expect(resolveSurface({ ...request, expanded: true, page: "agent-settings", isAgent: true })).toBe("agentSettings");
     expect(resolveSurface({ ...request, expanded: true, page: "agent", isAgent: true })).toBe("agentFull");
+  });
+});
+
+describe("expanded focus policy", () => {
+  test("pinned expanded closes on blur with the default preference", () => {
+    expect(shouldCollapseOnBlur("pinned", true)).toBe(true);
+  });
+  test("Keep Expanded prevents blur collapse, without pinning a hover preview", () => {
+    expect(shouldCollapseOnBlur("pinned", false)).toBe(false);
+    expect(shouldCollapseOnBlur("preview", true)).toBe(false);
+    expect(shouldCollapseOnBlur("preview", false)).toBe(false);
+    expect(shouldCollapseOnBlur("compact", true)).toBe(false);
   });
 });

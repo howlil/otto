@@ -1186,6 +1186,7 @@ function GlobalSettings({prefs,setPrefs,tab,setTab,onBack,onPlacementChange}){
  const choice=(key,items)=>el("div",{className:"gs-pills"},items.map(([value,title])=>el("button",{type:"button",key:value,className:prefs[key]===value?"selected":"",onClick:()=>put(key,value),"aria-pressed":prefs[key]===value},title)));
  const unit=(label,control)=>el("div",{className:"gs-unit"},el("span",{className:"gs-label"},label),control);
  const toggle=(key,title)=>el("label",{className:"gs-switchrow"},el("strong",null,title),el("input",{type:"checkbox",checked:!!prefs[key],onChange:e=>put(key,e.target.checked)}),el("i",{"aria-hidden":"true"}));
+ const inverseToggle=(key,title)=>el("label",{className:"gs-switchrow"},el("strong",null,title),el("input",{type:"checkbox",checked:!prefs[key],onChange:e=>put(key,!e.target.checked)}),el("i",{"aria-hidden":"true"}));
  const slider=(key,title,min,max,step,suffix,disabled)=>el("div",{className:"gs-unit gs-range"},el("div",{className:"gs-rangehead"},el("label",{htmlFor:"gs-"+key},title),el("output",{htmlFor:"gs-"+key},prefs[key]+suffix)),el("input",{id:"gs-"+key,type:"range",min,max,step,value:prefs[key],disabled:!!disabled,onChange:e=>put(key,Number(e.target.value))}));
  const views={
   General:el(React.Fragment,null,
@@ -1194,13 +1195,14 @@ function GlobalSettings({prefs,setPrefs,tab,setTab,onBack,onPlacementChange}){
    unit("Idle response",choice("reactive",[["Quiet","Quiet"],["Alive","Alive"]])),
    el("button",{type:"button",className:"gs-reset",onClick:()=>{setPrefs({...defaultGlobalPrefs});onPlacementChange("floating")}},"Restore defaults"),
    el("div",{className:"gs-update"},el("strong",null,"Software update"),el("span",null,"Checks automatically after launch.")),
-   el("div",{className:"gs-update"},el("strong",null,"Capture protection"),el("span",null,"Native protection is checked in the installed app."))),
+   toggle("hideFromCapture","Hide Otto from screen capture"),
+   el("div",{className:"gs-update"},el("strong",null,"Capture protection"),el("span",null,"Preview only. The Windows app applies this setting; not all recorders respect it."))),
   Interaction:el(React.Fragment,null,
    el("h2",null,"Interaction & motion"),
    toggle("hoverExpand","Expand on hover"),
    slider("hoverDelay","Hover intent",0,450,50," ms",!prefs.hoverExpand),
    slider("leaveDelay","Leave delay",150,850,50," ms",!prefs.hoverExpand),
-   toggle("clickOutside","Click outside to close"),
+   inverseToggle("clickOutside","Keep expanded when switching apps"),
    unit("Motion profile",choice("motion",[["Fluid","Smooth"],["Subtle","Subtle"],["Reduced","Reduced"]])),
    slider("tilt","Artwork tilt",0,55,1,"°",false),
    slider("gradient","Gradient strength",0,100,5,"%",false)),
@@ -1217,7 +1219,7 @@ function GlobalSettings({prefs,setPrefs,tab,setTab,onBack,onPlacementChange}){
       ["General","Interaction","Placement"].map(x=>el("button",{type:"button",key:x,className:"gs-navitem"+(tab===x?" active":""),onClick:()=>setTab(x),"aria-current":tab===x?"page":undefined},x))),
      el("div",{className:"gs-views"},el("section",{className:"gs-view",key:tab},views[tab]))));
 }
-const defaultGlobalPrefs={expression:"Calm",reactive:"Quiet",hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,motion:"Fluid",tilt:43,gradient:80,topOffset:20};
+const defaultGlobalPrefs={expression:"Calm",reactive:"Quiet",hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,hideFromCapture:true,motion:"Fluid",tilt:43,gradient:80,topOffset:20};
 
 function PrototypeTransition({id,panel,reduce}){
  const latest=useRef({id,panel});

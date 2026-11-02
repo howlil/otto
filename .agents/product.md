@@ -12,7 +12,7 @@ Primary journey (Assistant, existing): B1 idle → B2 invoke → B11 runtime rea
 Alternate context path: B2 → B4 user-triggered screen capture → B3 answer. Supporting modes: B5 music and B6 timer; B7 placement applies to all surfaces.
 
 - B1: Otto allows only one host instance per Windows login session, then defaults to an eyes-only Compact idle capsule. Duplicate launches exit without creating another window, capturing focus, or resetting the active chat conversation. Other ambient information may be explicitly selected later.
-- B2: Every module has Compact and Expanded presentations. Hover morphs Compact into a non-focusing Expanded preview; explicit click/keyboard activation pins it for interaction. Expanded Home provides the module entry points, with an operable keyboard alternative to any gesture; dismiss/Escape returns to Compact.
+- B2: Every module has Compact and Expanded presentations. Hover morphs Compact into a non-focusing Expanded preview; explicit click/keyboard activation pins it for interaction. Expanded Home provides the module entry points, with an operable keyboard alternative to any gesture; dismiss/Escape returns to Compact. Saved Keep Expanded governs pinned auto-collapse on desktop blur, not transient hover previews.
 - B3: User chooses an installed Codex, Pi or Agy runtime and supported model/thinking, asks and follows up with streaming output and Stop; the selected runtime does not own Otto conversation identity.
 - B4: An explicit camera action or configured hotkey intentionally captures the last focused non-Otto window without flash/selection UI, sends that image to a selected CLI with image support, and shows the analysis; full-screen capture is an explicit alternative.
 - B5: Music Compact shows circular artwork, song/artist, and playback-linked activity spectrum; Expanded adds playback details/actions. The spectrum stops when playback stops; lyrics appear only when a source provides them.
@@ -31,7 +31,7 @@ Material breaks:
 - X2 (B4): Capture permission unavailable or provider cannot take images → no upload/submission; show a recoverable reason.
 - X3 (B5): No media session/lyrics source → show an accurate empty or unavailable state, not invented content.
 - X4 (B3,B8): User explicitly stops or exits during a run → terminate owned work; no late response becomes current; collapse alone never triggers cancellation.
-- X5 (B1,B7): OS/recorder ignores pixel exclusion or lists tool windows as shareable sources → never promise universal invisibility, process hiding, or picker exclusion; retain usable UI and communicate limitations.
+- X5 (B1,B7): User-configurable best-effort Windows capture exclusion defaults ON; a change requires native readback before the local preference is persisted. Recorders may still capture or list Otto. Never promise universal invisibility, process hiding or picker exclusion; failed settings preserve the reported native state and offer retry.
 - X6 (B4): Last focused external window no longer exists or is ambiguous → do not silently capture a different target; offer user-controlled retry/selection.
 - X7 (B9,B13): Assistant tool/approval requests fail closed; Coding actions without verified scope or approval are denied before effects, not auto-approved or silently continued.
 - X8 (B4): Capture hotkey conflicts with another shortcut or cannot register → show conflict and allow reassignment; never silently capture.
