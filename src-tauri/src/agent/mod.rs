@@ -403,19 +403,22 @@ impl AgentRuntime {
     }
 
     pub async fn history_open(&self, id: &str) -> Result<Snapshot, String> {
-        self.conversation.history.open(id)?;
         let mut guard = self.control.lock().await;
+        let current = self.snapshot();
+        let mut record = self.conversation.history.open(id)?;
+        if current.conversation_id == record.id {
+            if matches!(
+                current.status,
+                RunPhase::Starting | RunPhase::Streaming | RunPhase::Stopping
+            ) || !matches!(current.capture.phase.as_str(), "idle" | "failed")
+            {
+                return Err("Finish or Stop the current request or capture before opening history.".into());
+            }
+            self.persist_current_snapshot(current.status != RunPhase::Completed)?;
+            record = self.conversation.history.open(id)?;
+        }
         self.new_session_locked(&mut guard, Duration::from_secs(5))
             .await?;
-        let current = self.snapshot();
-        if matches!(
-            current.status,
-            RunPhase::Starting | RunPhase::Streaming | RunPhase::Stopping
-        ) || guard.as_ref().is_some_and(|sender| !sender.is_closed())
-        {
-            return Err("Stop the current request before opening a saved conversation.".into());
-        }
-        let record = self.conversation.history.open(id)?;
         let mut active_id = self
             .conversation.id
             .lock()
@@ -1841,6 +1844,65 @@ mod tests {
             "Latest completed answer"
         );
         assert!(reopened.thread_id.is_none());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn history_removal_during_native_close_keeps_prevalidated_transcript() {
+        let root = std::env::temp_dir().join(format!(
+            "otto-restore-file-race-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = Arc::new(AgentRuntime::persistent_with_history(
+            root.join("marker"),
+            root.join("conversations.json"),
+        ));
+        runtime
+            .conversation
+            .history
+            .upsert(history::ConversationRecord {
+                id: "saved".into(),
+                title: "Saved".into(),
+                provider: ProviderId::Codex,
+                model: None,
+                thinking_effort: None,
+                messages: vec![ChatMessage {
+                    id: "1:user".into(),
+                    role: "user".into(),
+                    text: "Keep the saved question".into(),
+                }],
+                created_at: 1,
+                updated_at: 1,
+                interrupted: false,
+            })
+            .unwrap();
+        let (sender, mut receiver) = mpsc::channel(2);
+        *runtime.control.lock().await = Some(sender);
+        let opening = {
+            let runtime = Arc::clone(&runtime);
+            tokio::spawn(async move { runtime.history_open("saved").await })
+        };
+        let request = timeout(Duration::from_secs(5), receiver.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let Control::Close { finished, .. } = request else {
+            panic!("restoring history must close the native session");
+        };
+        std::fs::remove_file(root.join("conversations.json")).unwrap();
+        finished.send(()).unwrap();
+        let restored = timeout(Duration::from_secs(5), opening)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored.conversation_id, "saved");
+        assert_eq!(restored.messages[0].text, "Keep the saved question");
+        assert_eq!(runtime.snapshot().conversation_id, "saved");
         let _ = std::fs::remove_dir_all(root);
     }
 
