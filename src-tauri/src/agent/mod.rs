@@ -420,6 +420,18 @@ impl AgentRuntime {
             .conversation.id
             .lock()
             .map_err(|_| AgentError::internal("Conversation history is unavailable."))?;
+        *self.selected_runtime.lock().unwrap() = if record
+            .provider
+            .capabilities()
+            .pending_model_selection
+        {
+            ModelSelection {
+                model: record.model.clone(),
+                thinking_effort: record.thinking_effort.clone(),
+            }
+        } else {
+            ModelSelection::default()
+        };
         *active_id = record.id.clone();
         mutate(&self.updates, |state| {
             state.conversation_id = record.id.clone();
@@ -2119,6 +2131,37 @@ mod tests {
         assert_eq!(snapshot.provider, ProviderId::Codex);
         assert_eq!(runtime.conversation.id.lock().unwrap().as_str(), "saved");
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn restored_pi_history_uses_saved_model_for_capture_selection() {
+        let runtime = AgentRuntime::new();
+        runtime
+            .conversation
+            .history
+            .upsert(history::ConversationRecord {
+                id: "saved-pi".into(),
+                title: "Pi history".into(),
+                provider: ProviderId::Pi,
+                model: Some("saved-model".into()),
+                thinking_effort: Some("high".into()),
+                messages: vec![ChatMessage {
+                    id: "1:user".into(),
+                    role: "user".into(),
+                    text: "Explain the screenshot".into(),
+                }],
+                created_at: 1,
+                updated_at: 1,
+                interrupted: false,
+            })
+            .unwrap();
+
+        let reopened = runtime.history_open("saved-pi").await.unwrap();
+        assert_eq!(reopened.provider, ProviderId::Pi);
+        assert!(reopened.thread_id.is_none());
+        let capture = runtime.capture_runtime_options(&reopened);
+        assert_eq!(capture.model.as_deref(), Some("saved-model"));
+        assert_eq!(capture.thinking_effort.as_deref(), Some("high"));
     }
 
     #[tokio::test]
