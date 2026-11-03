@@ -118,3 +118,7 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
         timeout-minutes: 10
         run: bun run test:e2e:native
+      - name: Native OS event capsule
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
+        timeout-minutes: 10
+        run: bun run test:e2e:os-events

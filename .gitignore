@@ -7,3 +7,4 @@ src-tauri/gen/schemas/
 .env.*
 !.env.example
 *.log
+tests/e2e/bin/msedgedriver.exe

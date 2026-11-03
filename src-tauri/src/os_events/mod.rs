@@ -1,6 +1,8 @@
 mod model;
 mod policy;
 
+#[cfg(test)]
+pub use model::OsEventClass;
 pub use model::{EventSink, Observation, OsEventView, PeripheralKind};
 pub use policy::Hub;
 

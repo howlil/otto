@@ -4,6 +4,9 @@ pub mod devices;
 pub mod volume;
 pub mod wifi;
 
+#[cfg(test)]
+mod acceptance;
+
 use crate::os_events::EventSink;
 use std::{
     sync::{

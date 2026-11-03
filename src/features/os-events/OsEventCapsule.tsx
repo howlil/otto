@@ -23,6 +23,8 @@ export function OsEventCapsule({ event }: { event: OsEventView }) {
   return (
     <div
       role="status"
+      data-os-event={event.class}
+      data-surface="os-event"
       className="flex h-full w-full items-center gap-[11px] overflow-hidden px-[13px] text-otto-text"
     >
       <Icon name={view.icon} size={19} />
