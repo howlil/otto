@@ -17,6 +17,8 @@ pub enum OsEventClass {
 #[serde(rename_all = "camelCase")]
 pub enum PeripheralKind {
     Audio,
+    Input,
+    Unknown,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

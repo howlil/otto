@@ -1,6 +1,6 @@
 pub mod battery;
+pub mod bluetooth;
 pub mod brightness;
-pub mod devices;
 pub mod volume;
 pub mod wifi;
 
@@ -95,7 +95,7 @@ pub fn start_all(sink: Arc<dyn EventSink>) -> Observers {
     if let Some(observer) = wifi::start(sink.clone()) {
         observers.push(observer);
     }
-    if let Some(observer) = devices::start(sink) {
+    if let Some(observer) = bluetooth::start(sink) {
         observers.push(observer);
     }
     Observers { observers }

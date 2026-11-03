@@ -68,12 +68,23 @@ fn native_volume_and_brightness_reach_the_event_sink() {
     let probe = signal("probe", &[]).expect("signal probe failed");
     let sink = Arc::new(Recorder::default());
     let observers = start_all(sink.clone());
-    std::thread::sleep(Duration::from_millis(1_000));
+    std::thread::sleep(Duration::from_secs(3));
+    let initial_peripherals = sink
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|observation| matches!(observation, Observation::Peripheral { .. }))
+        .count();
+    assert_eq!(
+        initial_peripherals, 0,
+        "initial Bluetooth enumeration emitted a peripheral event"
+    );
 
     if !probe["audio"].as_bool().unwrap_or(false) {
         eprintln!("skip: no active audio endpoint");
     }
-    if probe["brightness"].as_bool().unwrap_or(false) == false {
+    if !probe["brightness"].as_bool().unwrap_or(false) {
         eprintln!("skip: no brightness source");
     }
     if probe["audio"].as_bool().unwrap_or(false) {
