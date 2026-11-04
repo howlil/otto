@@ -251,6 +251,7 @@ async function p8() {
     heldForeground,
     'a background completion must not take keyboard focus',
   );
+  await click('//button[contains(., "Open Otto")]');
   await click(agent);
   await until('completed answer visible', async () => {
     const x = await ui();
