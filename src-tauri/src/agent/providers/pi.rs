@@ -1,4 +1,5 @@
 use super::job::Job;
+use super::transport::JsonlProcess;
 use super::{BoundedLineError, read_bounded_line};
 use crate::agent::events::{AgentEvent, ProviderEvents};
 #[cfg(test)]
@@ -18,14 +19,10 @@ use std::{
 };
 #[cfg(test)]
 use tokio::sync::watch;
-use tokio::{
-    io::{AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, ChildStdout, Command},
-    sync::mpsc,
-    time::timeout,
-};
+use tokio::{process::Command, sync::mpsc, time::timeout};
 
 const MAX_RPC_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
+const TURN_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 
 pub fn executable() -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
@@ -56,52 +53,34 @@ fn launch_args() -> &'static [&'static str] {
 }
 
 struct Rpc {
-    job: Job,
-    child: Child,
-    stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
+    process: JsonlProcess,
     next_id: u64,
 }
 
 impl Rpc {
     fn launch(cwd: &Path) -> Result<Self, String> {
         let binary = executable().ok_or("Pi CLI was not found in PATH.")?;
-        let mut command = Command::new(binary);
-        command
-            .args(launch_args())
-            .current_dir(cwd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .kill_on_drop(true);
-        let (mut child, job) =
-            Job::spawn(command).map_err(|_| "Cannot start isolated Pi RPC mode.")?;
-        let stdin = child.stdin.take().ok_or("Pi stdin unavailable.")?;
-        let stdout = child.stdout.take().ok_or("Pi stdout unavailable.")?;
+        let (process, _) = JsonlProcess::launch(
+            "Pi",
+            &binary,
+            launch_args(),
+            cwd,
+            false,
+            "Cannot start isolated Pi RPC mode.",
+        )?;
         Ok(Self {
-            job,
-            child,
-            stdin,
-            stdout: BufReader::new(stdout),
+            process,
             next_id: 0,
         })
     }
 
     async fn send(&mut self, value: Value) -> Result<(), String> {
-        let mut payload = serde_json::to_vec(&value).map_err(|_| "Invalid Pi request.")?;
-        payload.push(b'\n');
-        self.stdin
-            .write_all(&payload)
-            .await
-            .map_err(|_| "Pi disconnected.")?;
-        self.stdin
-            .flush()
-            .await
-            .map_err(|_| "Pi disconnected.".to_string())
+        let payload = serde_json::to_vec(&value).map_err(|_| "Invalid Pi request.")?;
+        self.process.send_line(payload, "Pi disconnected.").await
     }
 
     async fn read(&mut self) -> Result<Value, String> {
-        let line = read_bounded_line(&mut self.stdout, MAX_RPC_MESSAGE_BYTES)
+        let line = read_bounded_line(self.process.reader(), MAX_RPC_MESSAGE_BYTES)
             .await
             .map_err(|error| match error {
                 BoundedLineError::TooLarge => "Pi RPC message too large.",
@@ -110,6 +89,12 @@ impl Rpc {
             })?
             .ok_or("Pi disconnected.")?;
         serde_json::from_str(&line).map_err(|_| "Pi returned invalid RPC data.".into())
+    }
+
+    async fn read_turn(&mut self) -> Result<Value, String> {
+        timeout(TURN_IDLE_TIMEOUT, self.read())
+            .await
+            .map_err(|_| "Pi stopped responding during the answer.".to_string())?
     }
 
     async fn request(&mut self, mut command: Value) -> Result<Value, String> {
@@ -204,9 +189,7 @@ impl Rpc {
     }
 
     async fn terminate(&mut self) {
-        self.job.terminate();
-        let _ = timeout(Duration::from_secs(3), self.child.wait()).await;
-        let _ = self.child.start_kill();
+        self.process.terminate_tree().await;
     }
 }
 
@@ -406,6 +389,7 @@ pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderR
         ),
     };
     readiness.image_input = readiness.status == "ready" && image_input;
+    readiness.tool_free_admission = readiness.status == "ready";
     readiness.model = Some(model);
     readiness.models = models;
     readiness.thinking_effort = thinking;
@@ -804,7 +788,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                 None => { rpc.terminate().await; break; }
                 _ => {}
             },
-            frame = rpc.read() => match frame {
+            frame = rpc.read_turn() => match frame {
                 Ok(value) => {
                     let Some(id) = active else { continue; };
                     match accepted_prompt(&value, id) {

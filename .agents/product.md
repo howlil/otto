@@ -44,6 +44,7 @@ Material breaks:
 - X14 (B15): An OS event observer is unavailable, blocked or unsupported → no capsule; "Disconnected/Off" is never rendered from a failed read.
 - X15 (B15,B10,Q4): An OS event arrives while Otto is Expanded or an AI run is active → drop it silently; no deferred stale capsule, no focus or active-feature change.
 - X16 (B15): Untrusted native text (device or profile name) is sanitized or omitted; it is never executed or logged.
+- X17 (B7,Q4): Attached placement cannot be applied or its native hit region is rejected → keep the reported placement, never paint an unconfirmed silhouette, and offer retry or the other placement.
 
 
 ## Constraints
@@ -87,6 +88,7 @@ Material breaks:
 - P15 (B13,X7,X12,C7): Coding runs scoped inspect/edit/test only under verifiable grants; denied, unsupported or cancelled effects never execute; recovery is visible.
 - P16 (B14,X13,C8): Switching a runtime/model after a turn preserves Otto conversation/history and either reconstructs bounded saved context or reports native resume unavailable, without fabricating continuity.
 - P17 (B15,X14,X15,X16,Q7): Given real Windows events, each class renders only confirmed state; no capsule appears while Otto is pinned or an AI run is active; event observation stays within the measured idle baseline.
+- P18 (B7,X17,Q4): Given either placement, the notch keeps the same content and actions; attached sits flush to the monitor top edge with curved shoulders outside the native hit region, floating respects the top offset, and a rejected placement preserves the reported state with recovery. Pointer pass-through of the shoulder corners requires representative Windows acceptance.
 
 ## Assumptions
 - A1 [non-blocking]: Codex is the initial supported provider; specific capabilities of Pi and Agy will be checked against installed versions.

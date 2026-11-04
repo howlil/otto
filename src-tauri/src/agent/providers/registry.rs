@@ -80,11 +80,11 @@ impl ProviderId {
 
     pub async fn readiness(self, cwd: &PathBuf, model: Option<&str>) -> ProviderReadiness {
         let mut ready = match self {
-            Self::Codex => super::codex::readiness(cwd).await,
+            Self::Codex => super::codex::readiness(cwd, model).await,
             #[cfg(windows)]
             Self::Pi => super::pi::readiness(cwd, model).await,
             #[cfg(windows)]
-            Self::Agy => super::agy::readiness(cwd).await,
+            Self::Agy => super::agy::readiness(cwd, model).await,
             #[cfg(not(windows))]
             Self::Pi | Self::Agy => ProviderReadiness::new(
                 "unsupported",
@@ -93,6 +93,14 @@ impl ProviderId {
             ),
         };
         ready.image_transport = self.image_transport();
+        if let Some(model) = model
+            && let Some(selected) = ready.models.iter().find(|option| option.id == model)
+        {
+            ready.model = Some(selected.id.clone());
+            ready.image_input = selected.image_input;
+            ready.thinking_effort = selected.default_thinking_effort.clone();
+            ready.thinking_efforts = selected.thinking_efforts.clone();
+        }
         ready
     }
 

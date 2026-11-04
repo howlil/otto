@@ -1,39 +1,19 @@
-import { Button, SegmentedControl, Text } from "../../shared/ui";
-import { defaults, type Preferences } from "./preferences";
-import { SystemSettings } from "./SystemSettings";
-import { UpdateSettings } from "./UpdateSettings";
-import type { AppUpdateState } from "./useAppUpdate";
+import { Button, Range, SegmentedControl, SettingsSection, Text } from "../../shared/ui";
+import type { Preferences } from "./preferences";
 
 export function GeneralSettings({
   prefs,
   change,
-  update,
-  captureProtected,
-  captureProtectionSupported,
+  onRestoreDefaults,
   captureProtectionPending,
-  captureProtectionError,
-  onCaptureProtectionChange,
-  osEventsError,
 }: {
   prefs: Preferences;
   change: (patch: Partial<Preferences>) => void;
-  update: {
-    state: AppUpdateState;
-    checkForUpdate: () => Promise<void>;
-    installUpdate: () => Promise<void>;
-  };
-  captureProtected: boolean | null;
-  captureProtectionSupported: boolean;
+  onRestoreDefaults: () => void;
   captureProtectionPending: boolean;
-  captureProtectionError: string | null;
-  onCaptureProtectionChange: (enabled: boolean) => Promise<void>;
-  osEventsError: string | null;
 }) {
   return (
-    <>
-      <Text as="h2" variant="heading" className="m-0 mb-[3px]">
-        General
-      </Text>
+    <SettingsSection title="Appearance">
       <div className="mb-[14px]">
         <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
           Idle expression
@@ -67,24 +47,33 @@ export function GeneralSettings({
         size="link"
         className="justify-start"
         disabled={captureProtectionPending}
-        onClick={() => {
-          change(defaults);
-          if (captureProtectionSupported) void onCaptureProtectionChange(defaults.hideFromCapture);
-        }}
+        onClick={onRestoreDefaults}
       >
         Restore defaults
       </Button>
-      <SystemSettings
-        prefs={prefs}
-        change={change}
-        captureProtected={captureProtected}
-        captureProtectionSupported={captureProtectionSupported}
-        captureProtectionPending={captureProtectionPending}
-        captureProtectionError={captureProtectionError}
-        onCaptureProtectionChange={onCaptureProtectionChange}
-        osEventsError={osEventsError}
-      />
-      <UpdateSettings update={update} />
-    </>
+      <details className="mt-3 border-t border-otto-line-soft pt-2">
+        <summary className="cursor-pointer list-none text-otto-sm text-otto-text-secondary">
+          Artwork tuning
+        </summary>
+        <div className="pt-1">
+          <Range
+            label="Artwork tilt"
+            value={prefs.tilt}
+            min={0}
+            max={65}
+            unit="°"
+            onChange={(tilt) => change({ tilt })}
+          />
+          <Range
+            label="Tonal gradient"
+            value={prefs.gradient}
+            min={0}
+            max={100}
+            unit="%"
+            onChange={(gradient) => change({ gradient })}
+          />
+        </div>
+      </details>
+    </SettingsSection>
   );
 }

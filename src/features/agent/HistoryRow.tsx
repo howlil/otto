@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { Button, IconButton, Text } from "../../shared/ui";
+import { Button, IconButton, Text, TextField } from "../../shared/ui";
 import type { AgentConversationSummary } from "../../platform/tauri";
 import { conversationDetail } from "./history-model";
 
@@ -34,7 +34,7 @@ export function HistoryRow(props: HistoryRowProps) {
             Conversation title
           </Text>
         </label>
-        <input
+        <TextField
           id={RENAME_FIELD}
           ref={props.renameRef}
           value={props.titleDraft}
@@ -51,7 +51,7 @@ export function HistoryRow(props: HistoryRowProps) {
             }
           }}
           spellCheck={false}
-          className="h-[29px] w-full rounded-otto-control border border-otto-line-mid bg-otto-field-deep px-2 text-otto-sm text-otto-knob outline-none"
+          density="compact"
         />
       </li>
     );

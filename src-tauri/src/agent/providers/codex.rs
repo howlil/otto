@@ -1,4 +1,5 @@
-use super::{BoundedLineError, read_bounded_line};
+use super::transport::JsonlProcess;
+use super::{BoundedLineError, authentication_required, read_bounded_line};
 #[cfg(test)]
 use crate::agent::ChatMessage;
 use crate::agent::events::{AgentEvent, ProviderEvents};
@@ -8,10 +9,13 @@ use crate::agent::{
     CaptureSnapshot, Control, ModelOption, ProviderReadiness, RunPhase, Snapshot, UsageSnapshot,
 };
 use serde_json::{Value, json};
-use std::{path::PathBuf, process::Stdio, sync::atomic::Ordering, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    sync::atomic::Ordering,
+    time::Duration,
+};
 use tokio::{
-    io::{AsyncBufRead, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, ChildStdout, Command},
+    io::AsyncBufRead,
     sync::{mpsc, watch},
     time::timeout,
 };
@@ -60,6 +64,10 @@ fn account_readiness(value: &Value) -> ProviderReadiness {
             "Update Codex, then Retry.",
         ),
     }
+}
+
+fn account_read_request() -> Value {
+    json!({ "refreshToken": false })
 }
 
 fn model_id(value: &Value) -> Option<&str> {
@@ -150,6 +158,7 @@ fn model_readiness(value: &Value, configured: Option<&str>) -> ProviderReadiness
     let selected_option = model_option(model);
     let mut ready = ProviderReadiness::new("ready", "Codex is ready for text requests.", "");
     ready.image_input = modalities.is_some_and(|items| items.iter().any(|v| v == "image"));
+    ready.tool_free_admission = true;
     ready.model = model_id(model).map(str::to_owned);
     ready.models = models;
     ready.thinking_effort = selected_option
@@ -180,7 +189,7 @@ fn configured_model(value: &Value) -> Result<Option<&str>, Box<ProviderReadiness
     }
 }
 
-pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
+pub async fn readiness(cwd: &Path, requested_model: Option<&str>) -> ProviderReadiness {
     if executable().is_none() {
         return ProviderReadiness::new(
             "missing",
@@ -218,9 +227,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         .await?;
         rpc.send(json!({ "method": "initialized", "params": {} }))
             .await?;
-        let (account, _) = rpc
-            .request("account/read", json!({ "refreshToken": true }))
-            .await?;
+        let (account, _) = rpc.request("account/read", account_read_request()).await?;
         let authentication = account_readiness(&account);
         if authentication.status != "ready" {
             return Ok::<ProviderReadiness, String>(authentication);
@@ -232,9 +239,12 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
                 json!({ "cwd": cwd.to_string_lossy(), "includeLayers": false }),
             )
             .await?;
-        let selected = match configured_model(&config) {
-            Ok(model) => model,
-            Err(status) => return Ok(*status),
+        let selected = match requested_model {
+            Some(model) => Some(model),
+            None => match configured_model(&config) {
+                Ok(model) => model,
+                Err(status) => return Ok(*status),
+            },
         };
         let (models, _) = rpc
             .request("model/list", json!({ "limit": 100, "includeHidden": true }))
@@ -259,11 +269,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
 }
 
 struct Rpc {
-    #[cfg(windows)]
-    job: super::job::Job,
-    child: Child,
-    stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
+    process: JsonlProcess,
     next_id: u64,
 }
 
@@ -288,47 +294,35 @@ async fn read_frame<R: AsyncBufRead + Unpin>(
 }
 
 impl Rpc {
-    fn launch(cwd: &PathBuf) -> Result<Self, String> {
+    fn launch(cwd: &Path) -> Result<Self, String> {
         let binary = executable().ok_or("Codex CLI is not installed.")?;
-        let mut cmd = Command::new(binary);
-        cmd.args(["app-server", "--stdio"])
-            .current_dir(cwd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .kill_on_drop(true);
         #[cfg(windows)]
-        let (mut child, job) = super::job::Job::spawn(cmd)
-            .map_err(|_| "Cannot start isolated Codex CLI on Windows.")?;
+        let start_error = "Cannot start isolated Codex CLI on Windows.";
         #[cfg(not(windows))]
-        let mut child = cmd.spawn().map_err(|_| "Cannot start Codex CLI.")?;
-        let stdin = child.stdin.take().ok_or("Codex stdin unavailable.")?;
-        let stdout = child.stdout.take().ok_or("Codex stdout unavailable.")?;
+        let start_error = "Cannot start Codex CLI.";
+        let (process, _) = JsonlProcess::launch(
+            "Codex",
+            &binary,
+            ["app-server", "--stdio"],
+            cwd,
+            false,
+            start_error,
+        )?;
         Ok(Self {
-            #[cfg(windows)]
-            job,
-            child,
-            stdin,
-            stdout: BufReader::new(stdout),
+            process,
             next_id: 0,
         })
     }
 
     async fn send(&mut self, value: Value) -> Result<(), String> {
-        let mut json = serde_json::to_vec(&value).map_err(|_| "Cannot encode Codex request.")?;
-        json.push(b'\n');
-        self.stdin
-            .write_all(&json)
+        let payload = serde_json::to_vec(&value).map_err(|_| "Cannot encode Codex request.")?;
+        self.process
+            .send_line(payload, "Codex connection closed.")
             .await
-            .map_err(|_| "Codex connection closed.")?;
-        self.stdin
-            .flush()
-            .await
-            .map_err(|_| "Codex connection closed.".to_string())
     }
 
     async fn read(&mut self) -> Result<Value, String> {
-        read_frame(&mut self.stdout, Duration::from_secs(45)).await
+        read_frame(self.process.reader(), Duration::from_secs(45)).await
     }
 
     async fn request(
@@ -429,10 +423,7 @@ impl Rpc {
     }
 
     async fn terminate(&mut self) {
-        #[cfg(windows)]
-        self.job.terminate();
-        let _ = self.child.kill().await;
-        let _ = self.child.wait().await;
+        self.process.kill_now().await;
     }
 }
 
@@ -455,9 +446,15 @@ fn handle_delta(value: &Value, run_id: u64, updates: &ProviderEvents) {
     }
 }
 
+fn is_supported_chat_item(value: &Value) -> bool {
+    matches!(
+        value["type"].as_str(),
+        Some("userMessage" | "agentMessage" | "reasoning")
+    )
+}
+
 fn handle_item_started(value: &Value, run_id: u64, updates: &ProviderEvents) -> bool {
-    let kind = value["params"]["item"]["type"].as_str();
-    if !matches!(kind, Some("agentMessage" | "reasoning")) {
+    if !is_supported_chat_item(&value["params"]["item"]) {
         updates.fail(run_id, "Codex attempted an unsupported tool action.");
         return true;
     }
@@ -466,7 +463,7 @@ fn handle_item_started(value: &Value, run_id: u64, updates: &ProviderEvents) -> 
 
 fn handle_item_completed(value: &Value, run_id: u64, updates: &ProviderEvents) -> bool {
     let item = &value["params"]["item"];
-    if !matches!(item["type"].as_str(), Some("agentMessage" | "reasoning")) {
+    if !is_supported_chat_item(item) {
         updates.fail(run_id, "Codex attempted an unsupported tool action.");
         return true;
     }
@@ -496,11 +493,23 @@ fn usage_snapshot(value: &Value) -> Option<UsageSnapshot> {
     })
 }
 
+fn turn_failure_message(value: &Value) -> &'static str {
+    let detail = value["params"]["turn"]["error"]["message"]
+        .as_str()
+        .or_else(|| value["params"]["error"]["message"].as_str())
+        .unwrap_or_default();
+    if authentication_required(detail) {
+        "Codex authentication expired. Sign in to Codex, then Retry."
+    } else {
+        "Codex turn did not complete."
+    }
+}
+
 fn handle_turn_completed(value: &Value, run_id: u64, updates: &ProviderEvents) {
     match value["params"]["turn"]["status"].as_str() {
         Some("completed") => updates.emit(AgentEvent::Completed { run_id }),
         Some("interrupted") => updates.stopped(run_id),
-        _ => updates.fail(run_id, "Codex turn did not complete."),
+        _ => updates.fail(run_id, turn_failure_message(value)),
     }
 }
 
@@ -722,7 +731,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, updates: ProviderEvents,
                 None => { rpc.terminate().await; break; }
                 _ => {}
             },
-            line = read_bounded_line(&mut rpc.stdout, MAX_RPC_FRAME_BYTES) => {
+            line = read_bounded_line(rpc.process.reader(), MAX_RPC_FRAME_BYTES) => {
                 match line {
                     Ok(Some(line)) => {
                         let Ok(msg) = serde_json::from_str::<Value>(&line) else {
@@ -771,6 +780,12 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, updates: ProviderEvents,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::BufReader;
+
+    #[test]
+    fn account_read_uses_cached_auth_without_blocking_readiness_on_refresh() {
+        assert_eq!(account_read_request(), json!({ "refreshToken": false }));
+    }
 
     #[tokio::test]
     async fn ordinary_rpc_read_has_an_idle_timeout() {
@@ -842,6 +857,23 @@ mod tests {
         ] {
             assert_ne!(model_readiness(&invalid, None).status, "ready");
         }
+    }
+
+    #[test]
+    fn model_capability_is_gated_by_the_requested_model() {
+        let ready = model_readiness(
+            &json!({
+                "data": [
+                    { "id": "text", "isDefault": true, "inputModalities": ["text"] },
+                    { "id": "vision", "inputModalities": ["text", "image"] }
+                ]
+            }),
+            Some("vision"),
+        );
+        assert_eq!(ready.status, "ready");
+        assert_eq!(ready.model.as_deref(), Some("vision"));
+        assert!(ready.image_input);
+        assert!(ready.tool_free_admission);
     }
 
     #[test]
@@ -936,6 +968,36 @@ mod tests {
     }
 
     #[test]
+    fn user_message_items_are_chat_events_not_tool_actions() {
+        let tx = snapshot("streaming", 4);
+        let updates = ProviderEvents::new(tx.clone());
+        assert!(!handle_event(
+            &json!({
+                "method": "item/started",
+                "params": { "threadId": "thread", "turnId": "turn",
+                    "item": { "type": "userMessage", "content": [] } }
+            }),
+            "thread",
+            "turn",
+            4,
+            &updates,
+        ));
+        assert!(!handle_event(
+            &json!({
+                "method": "item/completed",
+                "params": { "threadId": "thread", "turnId": "turn",
+                    "item": { "type": "userMessage", "content": [] } }
+            }),
+            "thread",
+            "turn",
+            4,
+            &updates,
+        ));
+        assert_eq!(tx.borrow().status, "streaming");
+        assert!(tx.borrow().error.is_none());
+    }
+
+    #[test]
     fn tool_items_fail_closed_without_ui_state() {
         let tx = snapshot("streaming", 3);
         assert!(handle_event(
@@ -953,6 +1015,50 @@ mod tests {
         assert_eq!(
             tx.borrow().error.as_deref(),
             Some("Codex attempted an unsupported tool action.")
+        );
+    }
+
+    #[test]
+    fn expired_auth_turn_reports_sign_in_instead_of_generic_failure() {
+        let tx = snapshot("streaming", 9);
+        let failed = json!({
+            "method": "turn/completed",
+            "params": { "threadId": "thread", "turn": { "id": "turn", "status": "failed",
+                "error": { "message": "401 Unauthorized: token expired, please log in again" } } }
+        });
+        assert!(handle_event(
+            &failed,
+            "thread",
+            "turn",
+            9,
+            &ProviderEvents::new(tx.clone())
+        ));
+        assert_eq!(tx.borrow().status, "failed");
+        let error = tx.borrow().error.clone().unwrap_or_default();
+        assert!(
+            error.contains("Sign in"),
+            "auth expiry must offer sign-in recovery, got {error:?}"
+        );
+    }
+
+    #[test]
+    fn turn_failure_without_auth_detail_stays_generic() {
+        let tx = snapshot("streaming", 11);
+        let failed = json!({
+            "method": "turn/completed",
+            "params": { "threadId": "thread", "turn": { "id": "turn", "status": "failed" } }
+        });
+        assert!(handle_event(
+            &failed,
+            "thread",
+            "turn",
+            11,
+            &ProviderEvents::new(tx.clone())
+        ));
+        assert_eq!(tx.borrow().status, "failed");
+        assert_eq!(
+            tx.borrow().error.as_deref(),
+            Some("Codex turn did not complete.")
         );
     }
 

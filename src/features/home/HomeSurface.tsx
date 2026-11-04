@@ -26,10 +26,8 @@ export function HomeSurface({
   motionClass?: string;
 }) {
   return (
-    <section
-      className={`flex h-full w-full flex-col gap-2 px-[17px] pb-[17px] pt-3 ${motionClass}`}
-    >
-      <header className="flex h-[34px] shrink-0 items-center gap-[9px] pl-[37px]">
+    <section className={`flex h-full w-full flex-col gap-2 px-[17px] py-[15px] ${motionClass}`}>
+      <header className="flex h-[34px] shrink-0 items-center gap-[9px]">
         <IconButton
           icon="settings"
           label="Open Otto settings"
@@ -39,7 +37,7 @@ export function HomeSurface({
           onClick={onOpenSettings}
         />
       </header>
-      <main className="grid min-h-0 flex-1 grid-cols-3 gap-[9px]">
+      <main className="grid min-h-0 flex-1 grid-cols-3 gap-2">
         <HomeCard
           name="Agent"
           subtitle={agentSubtitle}

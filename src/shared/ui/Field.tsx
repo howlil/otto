@@ -1,4 +1,4 @@
-import type { ComponentPropsWithRef, ComponentPropsWithoutRef } from "react";
+import { ActiveIndicatorGroup } from "./ActiveIndicatorGroup";
 import { Text } from "./Text";
 
 export type Choice<T extends string> = {
@@ -76,12 +76,22 @@ export function ChoiceGroup<T extends string>({
     );
   }
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <ActiveIndicatorGroup
+      activeKey={value}
+      className="flex flex-wrap gap-1.5"
+      indicatorClassName="rounded-otto-chip border border-otto-line-focused bg-otto-selected-hover"
+    >
       {choices.map((choice) => (
         <button
           type="button"
           key={choice.value}
-          className={`min-h-7 rounded-otto-chip border px-2.5 py-[7px] text-otto-xs ${value === choice.value ? "border-otto-line-focused bg-otto-selected-hover text-otto-invert-line" : "border-otto-line-mid bg-otto-field-deep text-otto-text-secondary hover:bg-otto-control-hover"}`}
+          data-active-key={choice.value}
+          className={[
+            "relative z-[1] min-h-7 rounded-otto-chip border px-2.5 py-[7px] text-otto-xs transition-colors duration-[var(--otto-selection-duration)] ease-otto",
+            value === choice.value
+              ? "border-transparent bg-transparent text-otto-invert-line"
+              : "border-otto-line-mid bg-otto-field-deep text-otto-text-secondary hover:bg-otto-control-hover",
+          ].join(" ")}
           aria-pressed={value === choice.value}
           disabled={disabled || choice.disabled}
           title={choiceDisabledReason(choice, disabled, disabledReason)}
@@ -90,7 +100,7 @@ export function ChoiceGroup<T extends string>({
           {choice.label}
         </button>
       ))}
-    </div>
+    </ActiveIndicatorGroup>
   );
 }
 
@@ -100,95 +110,4 @@ export function SegmentedControl<T extends string>(props: ChoiceGroupProps<T>) {
 
 export function RadioGroup<T extends string>(props: ChoiceGroupProps<T>) {
   return <ChoiceGroup {...props} presentation="row" />;
-}
-
-export function TextField(props: ComponentPropsWithoutRef<"input">) {
-  return <input {...props} />;
-}
-
-export function TextArea(props: ComponentPropsWithRef<"textarea">) {
-  return <textarea {...props} />;
-}
-
-export function Range({
-  label,
-  value,
-  min,
-  max,
-  unit,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  unit: string;
-  onChange: (value: number) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="my-[13px] block">
-      <Text
-        as="span"
-        variant="meta"
-        className="flex justify-between gap-2 text-otto-settings-label"
-      >
-        {label}
-        <Text as="output" variant="meta" className="text-otto-label-muted">
-          {value}
-          {unit}
-        </Text>
-      </Text>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1.5 block h-[17px] w-full cursor-pointer accent-otto-input-selected"
-      />
-    </label>
-  );
-}
-
-export function Toggle({
-  title,
-  help,
-  checked,
-  onChange,
-  disabled,
-}: {
-  title: string;
-  help?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="flex min-h-[51px] cursor-pointer items-center justify-between gap-[10px] border-b border-otto-control-deep py-[9px]">
-      <span>
-        <Text as="strong" variant="label" className="block">
-          {title}
-        </Text>
-        {help && (
-          <Text as="small" variant="meta" className="mt-1 block text-otto-label-muted">
-            {help}
-          </Text>
-        )}
-      </span>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        className="sr-only peer"
-      />
-      <i
-        className="relative h-[18px] w-[30px] flex-none rounded-full border border-otto-switch-border bg-otto-switch-track transition-colors duration-200 after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-otto-icon-muted after:transition-transform after:duration-200 after:content-[''] peer-checked:bg-otto-switch-enabled peer-checked:after:translate-x-3 peer-checked:after:bg-otto-knob"
-        aria-hidden="true"
-      />
-    </label>
-  );
 }

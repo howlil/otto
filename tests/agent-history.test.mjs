@@ -32,7 +32,7 @@ const deferred = () => {
   return { promise, resolve };
 };
 function harness() {
-  const calls = { open: [], rename: [], delete: [], list: 0 };
+  const calls = { open: [], rename: [], delete: [], deleteAll: 0, list: 0 };
   let items = [entry("1"), entry("2")];
   let opening;
   let failList = false;
@@ -58,6 +58,11 @@ function harness() {
       calls.delete.push(id);
       if (failDelete) throw new Error("Deletion failed");
       items = items.filter((item) => item.id !== id);
+    },
+    deleteAll: async () => {
+      calls.deleteAll++;
+      if (failDelete) throw new Error("Deletion failed");
+      items = [];
     },
     publish: (value) => published.push(structuredClone(value)),
   });
@@ -152,6 +157,22 @@ describe("Production history controller", () => {
     expect(h.calls.delete).toEqual(["1"]);
   });
 
+  test("delete all clears visible rows only after backend acceptance", async () => {
+    const h = harness();
+    await h.owner.refresh();
+    expect(await h.owner.deleteAll()).toEqual({ ok: true });
+    expect(h.owner.snapshot().items).toEqual([]);
+    expect(h.calls.deleteAll).toBe(1);
+  });
+
+  test("delete all failure preserves every conversation", async () => {
+    const h = harness();
+    await h.owner.refresh();
+    h.failDelete();
+    expect(await h.owner.deleteAll()).toEqual({ ok: false, reason: "Deletion failed" });
+    expect(h.owner.snapshot().items).toHaveLength(2);
+  });
+
   test("mutation requests are rejected while open is pending", async () => {
     const h = harness();
     const opening = h.owner.open("1");
@@ -159,6 +180,8 @@ describe("Production history controller", () => {
     expect(await h.owner.delete("2")).toEqual({ ok: false, reason: "History is busy." });
     expect(h.calls.rename).toEqual([]);
     expect(h.calls.delete).toEqual([]);
+    expect(await h.owner.deleteAll()).toEqual({ ok: false, reason: "History is busy." });
+    expect(h.calls.deleteAll).toBe(0);
     h.release();
     await opening;
   });

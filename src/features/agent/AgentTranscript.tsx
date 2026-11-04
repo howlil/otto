@@ -1,5 +1,5 @@
 import { AgentComposer } from "./AgentComposer";
-import { capturePhaseLabel, providerIssue, providerIssueTitle } from "./status";
+import { providerIssue, providerIssueTitle } from "./status";
 import { TranscriptMessages } from "./TranscriptMessages";
 import { TranscriptOutcome } from "./TranscriptOutcome";
 import type { AgentTranscriptModel } from "./view-model";
@@ -40,17 +40,19 @@ export function AgentTranscript({
   });
 
   const canSend = !busy && !captureBusy && readiness.status === "ready" && draft.trim().length > 0;
+  const runFailure = snapshot.status === "failed" ? snapshot.error : null;
+  const displayedErrorKind = errorKind ?? (runFailure ? "request" : null);
   const issueTitle =
-    errorKind === "connection"
+    displayedErrorKind === "connection"
       ? "Otto connection unavailable"
-      : errorKind === "request"
+      : displayedErrorKind === "request"
         ? "Request failed"
         : providerIssueTitle(readiness);
   const captureFailure =
     snapshot.capture.phase === "failed"
       ? (snapshot.capture.error ?? "Screen capture could not be completed.")
       : null;
-  const issue = providerIssue(readiness, captureFailure ? null : error);
+  const issue = providerIssue(readiness, captureFailure ? null : error || runFailure);
   return (
     <>
       <div
@@ -65,18 +67,13 @@ export function AgentTranscript({
             snapshot={snapshot}
             issue={issue}
             issueTitle={issueTitle}
-            errorKind={errorKind}
+            errorKind={displayedErrorKind}
             retryConnection={retryConnection}
             refreshProvider={refreshProvider}
             clearError={clearError}
           />
         </div>
       </div>
-      {captureBusy && (
-        <div role="status" className="mx-[18px] mb-1 text-otto-xs text-otto-text-tertiary">
-          {capturePhaseLabel(snapshot.capture.phase)}…
-        </div>
-      )}
       {captureFailure && (
         <div role="alert" className="mx-[18px] mb-1 text-otto-xs text-otto-danger">
           {captureFailure}{" "}

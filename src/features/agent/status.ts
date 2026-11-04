@@ -7,7 +7,7 @@ export const agentStatusLabels: Record<AgentStatus, string> = {
   stopping: "Stopping",
   completed: "Answer ready",
   stopped: "Stopped",
-  failed: "Disconnected",
+  failed: "Request failed",
 };
 
 export function agentStatusLabel(

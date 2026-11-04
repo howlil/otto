@@ -166,6 +166,16 @@ impl HistoryStore {
         self.write_locked(&data)
     }
 
+    pub fn delete_all(&self) -> Result<(), AgentError> {
+        let _guard = self
+            .writer
+            .lock()
+            .map_err(|_| AgentError::internal("History store is unavailable."))?;
+        let mut data = self.read_locked()?;
+        data.conversations.clear();
+        self.write_locked(&data)
+    }
+
     fn read_locked(&self) -> Result<HistoryFile, AgentError> {
         let Some(path) = self.path.as_ref() else {
             return Ok(HistoryFile {
@@ -432,6 +442,17 @@ mod tests {
         store.rename("one", "Renamed").unwrap();
         assert_eq!(store.open("one").unwrap().title, "Renamed");
         store.delete("one").unwrap();
+        assert!(store.list().unwrap().is_empty());
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn delete_all_clears_every_saved_conversation() {
+        let path = temp_path("delete-all").join("history.json");
+        let store = HistoryStore::file(path.clone());
+        store.upsert(record("one")).unwrap();
+        store.upsert(record("two")).unwrap();
+        store.delete_all().unwrap();
         assert!(store.list().unwrap().is_empty());
         let _ = fs::remove_dir_all(path.parent().unwrap());
     }

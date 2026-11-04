@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteAgentHistory,
+  deleteAllAgentHistory,
   listAgentHistory,
   nativeAvailable,
   openAgentHistory,
   renameAgentHistory,
   type AgentSnapshot,
-} from "../../platform/tauri";
+} from "../../platform/tauri/agent";
 import { AgentHistoryController, type HistoryList } from "./agent-history";
 
 export function useAgentHistory({ onOpened }: { onOpened: (snapshot: AgentSnapshot) => void }) {
@@ -27,6 +28,7 @@ export function useAgentHistory({ onOpened }: { onOpened: (snapshot: AgentSnapsh
       open: openAgentHistory,
       rename: renameAgentHistory,
       delete: deleteAgentHistory,
+      deleteAll: deleteAllAgentHistory,
       publish: setHistory,
     });
     controller.current = owner;
@@ -57,6 +59,10 @@ export function useAgentHistory({ onOpened }: { onOpened: (snapshot: AgentSnapsh
     return (await controller.current?.delete(id))?.ok ?? false;
   }, []);
 
+  const removeAll = useCallback(async () => {
+    return (await controller.current?.deleteAll())?.ok ?? false;
+  }, []);
+
   return {
     conversations: history.items,
     query,
@@ -67,5 +73,6 @@ export function useAgentHistory({ onOpened }: { onOpened: (snapshot: AgentSnapsh
     open,
     rename,
     remove,
+    removeAll,
   };
 }

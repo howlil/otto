@@ -1,56 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useCaptureSource } from "./useCaptureSource";
-import { clearAcceptedDraft, restoreRejectedDraft, type SubmittedDraft } from "./draft-state";
+import { useCallback, useRef, useState } from "react";
 import { captureIsWorking } from "./status";
-import { ReadinessProbeController } from "./readiness-probe";
 import { useAgentHistory } from "./useAgentHistory";
+import { useCaptureShortcut } from "./useCaptureShortcut";
 import {
-  askAgent,
-  captureAgentNow,
-  getAgentReadiness,
-  cancelAgentReadiness,
-  getCaptureTargetTitle,
-  selectAgentProvider,
-  selectAgentRuntimeOptions,
-  configureCaptureShortcut,
-  nativeAvailable,
-  getAgentSnapshot,
-  newAgentChat,
-  stopCodex,
-  subscribeAgent,
-  type AgentProvider,
-  type AgentSnapshot,
-  type AgentSubscription,
-  type ProviderReadiness,
-} from "../../platform/tauri";
+  useAgentConnection,
+  useAgentRequestActions,
+  useAgentRuntimeActions,
+  useAgentSubmission,
+  useNewAgentChat,
+  useProviderReadiness,
+} from "./runtime";
+import { captureAgentNow } from "../../platform/tauri/capture";
+import type { AgentProvider, AgentSnapshot } from "../../platform/tauri/agent";
 
-export type AgentErrorKind = "connection" | "request" | null;
-type AgentChannel = AgentSubscription;
-
-async function subscribeToAgentEvents(
-  isCurrent: () => boolean,
-  receive: (next: AgentSnapshot) => void,
-): Promise<{ subscription: AgentChannel | null; error: string | null }> {
-  try {
-    const channel = await subscribeAgent((next) => {
-      if (isCurrent()) receive(next);
-    });
-    return { subscription: channel, error: null };
-  } catch {
-    return { subscription: null, error: "Cannot listen to agent events." };
-  }
-}
-
-async function readAgentSnapshot(): Promise<{
-  value: AgentSnapshot | null;
-  error: string | null;
-}> {
-  try {
-    return { value: await getAgentSnapshot(), error: null };
-  } catch {
-    return { value: null, error: "Cannot connect to the Otto desktop process." };
-  }
-}
+export type { AgentErrorKind } from "./runtime";
 
 const initial: AgentSnapshot = {
   runId: 0,
@@ -66,352 +29,6 @@ const initial: AgentSnapshot = {
   error: null,
 };
 
-const checking: ProviderReadiness = {
-  status: "checking",
-  message: "Checking provider…",
-  recovery: "",
-  imageInput: false,
-  imageTransport: false,
-  model: null,
-  models: [],
-  thinkingEffort: null,
-  thinkingEfforts: [],
-};
-
-function useProviderReadiness(provider: AgentProvider, model: string | null, active: boolean) {
-  const [readiness, setReadiness] = useState<ProviderReadiness>(checking);
-  const controller = useRef<ReadinessProbeController | null>(null);
-
-  useEffect(() => {
-    const unavailable: ProviderReadiness = {
-      ...checking,
-      status: "unavailable",
-      message: "Provider readiness requires the Otto desktop app.",
-      recovery: "Open Otto on Windows.",
-    };
-    const failed: ProviderReadiness = {
-      ...checking,
-      status: "unavailable",
-      message: "Could not check provider readiness.",
-      recovery: "Retry the connection.",
-    };
-    const probe = new ReadinessProbeController({
-      read: ({ provider, model }, requestId) =>
-        nativeAvailable
-          ? getAgentReadiness(provider, requestId, model)
-          : Promise.resolve(unavailable),
-      cancel: (requestId) =>
-        nativeAvailable ? cancelAgentReadiness(requestId) : Promise.resolve(),
-      publish: setReadiness,
-      checking,
-      failed,
-    });
-    controller.current = probe;
-    return () => {
-      probe.dispose();
-      if (controller.current === probe) controller.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    controller.current?.update(active ? { provider, model } : null);
-  }, [active, provider, model]);
-
-  const refreshProvider = useCallback(async () => {
-    await controller.current?.refresh();
-  }, []);
-
-  return { readiness, refreshProvider };
-}
-
-function useAgentConnection(
-  receive: (next: AgentSnapshot) => void,
-  acceptSnapshot: (next: AgentSnapshot) => void,
-) {
-  const [error, setError] = useState<string | null>(null);
-  const [errorKind, setErrorKind] = useState<AgentErrorKind>(null);
-  const subscription = useRef<AgentChannel | null>(null);
-  const connectionAttempt = useRef(0);
-  const mounted = useRef(false);
-
-  const clearError = useCallback(() => {
-    setError(null);
-    setErrorKind(null);
-  }, []);
-  const setRequestError = useCallback((reason: unknown) => {
-    setError(String(reason));
-    setErrorKind("request");
-  }, []);
-  const connect = useCallback(async () => {
-    const attempt = ++connectionAttempt.current;
-    clearError();
-    const isCurrent = () => mounted.current && attempt === connectionAttempt.current;
-    const previous = subscription.current;
-    subscription.current = null;
-    if (previous) await previous.unsubscribe().catch(() => undefined);
-    if (!isCurrent()) return;
-
-    const result = await subscribeToAgentEvents(isCurrent, receive);
-    if (!isCurrent()) {
-      await result.subscription?.unsubscribe().catch(() => undefined);
-      return;
-    }
-    if (result.error) {
-      setError(result.error);
-      setErrorKind("connection");
-    } else {
-      subscription.current = result.subscription;
-    }
-
-    const snapshotResult = await readAgentSnapshot();
-    if (!isCurrent()) return;
-    if (snapshotResult.error) {
-      setError(snapshotResult.error);
-      setErrorKind("connection");
-    } else if (snapshotResult.value) {
-      acceptSnapshot(snapshotResult.value);
-    }
-  }, [acceptSnapshot, clearError, receive]);
-
-  useEffect(() => {
-    if (!nativeAvailable) return;
-    mounted.current = true;
-    void connect();
-    return () => {
-      mounted.current = false;
-      connectionAttempt.current += 1;
-      const activeSubscription = subscription.current;
-      subscription.current = null;
-      void activeSubscription?.unsubscribe().catch(() => undefined);
-    };
-  }, [connect]);
-
-  const retryConnection = useCallback(async () => {
-    if (nativeAvailable) await connect();
-  }, [connect]);
-
-  return { error, errorKind, retryConnection, clearError, setRequestError };
-}
-
-function useAgentSubmission(
-  snapshot: AgentSnapshot,
-  setDraft: React.Dispatch<React.SetStateAction<string>>,
-  draftEpoch: React.RefObject<number>,
-) {
-  const submitted = useRef<SubmittedDraft | null>(null);
-  const markAccepted = useCallback((request: SubmittedDraft, runId: number) => {
-    if (submitted.current !== request) return false;
-    request.acceptedRunId = runId;
-    return true;
-  }, []);
-
-  useEffect(() => {
-    const pending = submitted.current;
-    if (!pending || pending.acceptedRunId !== snapshot.runId) return;
-    if (snapshot.status === "failed") {
-      const accepted = snapshot.messages.some(
-        (message) =>
-          message.id === `${snapshot.runId}:user` && message.text === pending.text.trim(),
-      );
-      setDraft((current) =>
-        restoreRejectedDraft(current, draftEpoch.current, pending, snapshot.runId, accepted),
-      );
-      submitted.current = null;
-    }
-    if (snapshot.status === "completed" || snapshot.status === "stopped") {
-      submitted.current = null;
-    }
-  }, [draftEpoch, setDraft, snapshot.messages, snapshot.runId, snapshot.status]);
-
-  return { submitted, markAccepted };
-}
-
-function useAgentRequestActions({
-  busy,
-  draft,
-  draftEpoch,
-  provider,
-  model,
-  thinkingEffort,
-  refreshProvider,
-  setDraft,
-  submitted,
-  markAccepted,
-  clearError,
-  setRequestError,
-}: {
-  busy: boolean;
-  draft: string;
-  draftEpoch: React.RefObject<number>;
-  provider: AgentProvider;
-  model: string | null;
-  thinkingEffort: string | null;
-  refreshProvider: () => Promise<void>;
-  setDraft: React.Dispatch<React.SetStateAction<string>>;
-  submitted: { current: SubmittedDraft | null };
-  markAccepted: (request: SubmittedDraft, runId: number) => boolean;
-  clearError: () => void;
-  setRequestError: (reason: unknown) => void;
-}) {
-  const send = useCallback(async () => {
-    const question = draft.trim();
-    if (!question || busy || submitted.current) return;
-    clearError();
-    const request: SubmittedDraft = {
-      text: draft,
-      epoch: draftEpoch.current,
-      acceptedRunId: null,
-    };
-    submitted.current = request;
-    try {
-      const accepted = await askAgent(question, provider, { model, thinkingEffort });
-      if (!markAccepted(request, accepted.runId)) return;
-      setDraft((current) => clearAcceptedDraft(current, draftEpoch.current, request));
-    } catch (reason) {
-      if (submitted.current !== request) return;
-      submitted.current = null;
-      setRequestError(reason);
-      void refreshProvider();
-    }
-  }, [
-    busy,
-    clearError,
-    draft,
-    draftEpoch,
-    model,
-    thinkingEffort,
-    provider,
-    refreshProvider,
-    markAccepted,
-    setDraft,
-    setRequestError,
-    submitted,
-  ]);
-
-  const stop = useCallback(async () => {
-    clearError();
-    try {
-      await stopCodex();
-    } catch (reason) {
-      setRequestError(reason);
-    }
-  }, [clearError, setRequestError]);
-
-  return { send, stop };
-}
-
-function useNewAgentChat({
-  busy,
-  clearError,
-  setModelValue,
-  setThinkingEffortValue,
-  setRequestError,
-  submitted,
-}: {
-  busy: boolean;
-  clearError: () => void;
-  setModelValue: React.Dispatch<React.SetStateAction<string | null>>;
-  setThinkingEffortValue: React.Dispatch<React.SetStateAction<string | null>>;
-  setRequestError: (reason: unknown) => void;
-  submitted: { current: SubmittedDraft | null };
-}) {
-  return useCallback(async () => {
-    if (busy) return false;
-    clearError();
-    try {
-      await newAgentChat();
-      submitted.current = null;
-      setModelValue(null);
-      setThinkingEffortValue(null);
-      return true;
-    } catch (reason) {
-      setRequestError(reason);
-      return false;
-    }
-  }, [busy, clearError, setModelValue, setRequestError, setThinkingEffortValue, submitted]);
-}
-
-function useCaptureShortcut() {
-  const [captureMessage, setCaptureMessage] = useState("");
-  const [targetTitle, setTargetTitle] = useState<string | null>(null);
-  const [targetWarning, setTargetWarning] = useState<string | null>(null);
-  const [targetPending, setTargetPending] = useState(false);
-  const { source, selectSource, sourceReady, sourcePending } = useCaptureSource(setCaptureMessage);
-  const [shortcut, setShortcut] = useState(() => {
-    try {
-      return localStorage.getItem("otto.capture.shortcut") || "Ctrl+Shift+O";
-    } catch {
-      return "Ctrl+Shift+O";
-    }
-  });
-  const [savingCapture, setSavingCapture] = useState(false);
-  const refreshTarget = useCallback(async () => {
-    if (!nativeAvailable) return;
-    setTargetPending(true);
-    try {
-      const title = await getCaptureTargetTitle();
-      setTargetTitle(title);
-      setTargetWarning(null);
-    } catch (cause) {
-      setTargetTitle(null);
-      setTargetWarning(String(cause));
-    } finally {
-      setTargetPending(false);
-    }
-  }, []);
-  const registeredShortcut = useRef(shortcut);
-  const registered = useRef(false);
-
-  useEffect(() => {
-    if (!nativeAvailable || !sourceReady || registered.current) return;
-    registered.current = true;
-    setSavingCapture(true);
-    void configureCaptureShortcut(registeredShortcut.current)
-      .catch((cause: unknown) => {
-        registered.current = false;
-        setCaptureMessage(String(cause));
-      })
-      .finally(() => setSavingCapture(false));
-  }, [sourceReady]);
-
-  const saveShortcut = useCallback(async () => {
-    if (!nativeAvailable || !sourceReady || sourcePending || savingCapture) return;
-    setSavingCapture(true);
-    try {
-      await configureCaptureShortcut(shortcut);
-      registeredShortcut.current = shortcut;
-      registered.current = true;
-      try {
-        localStorage.setItem("otto.capture.shortcut", shortcut);
-        setCaptureMessage("Shortcut active. Focus another app and press it to capture.");
-      } catch {
-        setCaptureMessage("Shortcut active; preference could not be saved for next launch.");
-      }
-    } catch (cause) {
-      setCaptureMessage(String(cause));
-    } finally {
-      setSavingCapture(false);
-    }
-  }, [shortcut, sourceReady, sourcePending, savingCapture]);
-
-  return {
-    source,
-    selectSource,
-    targetTitle,
-    targetWarning,
-    targetPending,
-    refreshTarget,
-    sourceReady,
-    sourcePending,
-    shortcut,
-    setShortcut,
-    captureMessage,
-    savingCapture,
-    available: nativeAvailable,
-    saveShortcut,
-  };
-}
-
 export function useAgent(readinessActive: boolean) {
   const capture = useCaptureShortcut();
   const [snapshot, setSnapshot] = useState<AgentSnapshot>(initial);
@@ -424,29 +41,10 @@ export function useAgent(readinessActive: boolean) {
   const [provider, setProvider] = useState<AgentProvider>("codex");
   const [model, setModelValue] = useState<string | null>(null);
   const [thinkingEffort, setThinkingEffortValue] = useState<string | null>(null);
-  const changingProvider = useRef(false);
-  const changingRuntime = useRef(false);
-  const [runtimeSelectionPending, setRuntimeSelectionPending] = useState(false);
-  const busy =
-    ["starting", "streaming", "stopping"].includes(snapshot.status) || runtimeSelectionPending;
+  const activeRun = ["starting", "streaming", "stopping"].includes(snapshot.status);
   const captureBusy = captureIsWorking(snapshot.capture.phase);
-  const locked = busy || captureBusy;
   const { readiness, refreshProvider } = useProviderReadiness(provider, model, readinessActive);
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
-  useEffect(() => {
-    if (readiness.status !== "ready" || (model && readiness.model !== model)) return;
-    setModelValue((current) =>
-      current && readiness.models.some((option) => option.id === current)
-        ? current
-        : readiness.model,
-    );
-    setThinkingEffortValue((current) => {
-      const selected = readiness.models.find((option) => option.id === (model ?? readiness.model));
-      return selected?.thinkingEfforts.includes(current ?? "")
-        ? current
-        : (selected?.defaultThinkingEffort ?? readiness.thinkingEffort);
-    });
-  }, [model, readiness]);
   const receive = useCallback((next: AgentSnapshot) => {
     setSnapshot((prev) => (next.seq >= prev.seq ? next : prev));
   }, []);
@@ -460,73 +58,38 @@ export function useAgent(readinessActive: boolean) {
     [receive],
   );
   const connection = useAgentConnection(receive, acceptSnapshot);
-  const { submitted, markAccepted } = useAgentSubmission(snapshot, setDraft, draftEpoch);
+  const {
+    submitted,
+    markAccepted,
+    pending: submissionPending,
+    setPending: setSubmissionPending,
+    clearPending,
+  } = useAgentSubmission(snapshot, setDraft, draftEpoch);
+  const runtime = useAgentRuntimeActions({
+    provider,
+    model,
+    readiness,
+    blocked: activeRun || submissionPending || captureBusy,
+    setProvider,
+    setModel: setModelValue,
+    setThinkingEffort: setThinkingEffortValue,
+    clearError: connection.clearError,
+    setRequestError: connection.setRequestError,
+  });
+  const busy = activeRun || runtime.pending;
+  const operationBusy = busy || submissionPending;
+  const locked = operationBusy || captureBusy;
   const onHistoryOpened = useCallback(
     (next: AgentSnapshot) => {
       submitted.current = null;
+      clearPending();
       acceptSnapshot(next);
     },
-    [acceptSnapshot, submitted],
+    [acceptSnapshot, clearPending, submitted],
   );
   const history = useAgentHistory({ onOpened: onHistoryOpened });
-  const confirmRuntimeSelection = useCallback(
-    async (nextModel: string | null, nextEffort: string | null) => {
-      if (changingRuntime.current || busy || captureBusy) return false;
-      changingRuntime.current = true;
-      setRuntimeSelectionPending(true);
-      try {
-        if (provider === "pi" && nativeAvailable) {
-          await selectAgentRuntimeOptions(nextModel, nextEffort);
-        }
-        connection.clearError();
-        return true;
-      } catch (reason) {
-        connection.setRequestError(reason);
-        return false;
-      } finally {
-        changingRuntime.current = false;
-        setRuntimeSelectionPending(false);
-      }
-    },
-    [busy, captureBusy, provider, connection.clearError, connection.setRequestError],
-  );
-  const selectModel = useCallback(
-    async (next: string | null) => {
-      const selected = readiness.models.find((option) => option.id === next);
-      const effort = selected?.defaultThinkingEffort ?? null;
-      if (!(await confirmRuntimeSelection(next, effort))) return;
-      setModelValue(next);
-      setThinkingEffortValue(effort);
-    },
-    [readiness.models, confirmRuntimeSelection],
-  );
-  const selectThinkingEffort = useCallback(
-    async (next: string | null) => {
-      if (!(await confirmRuntimeSelection(model ?? readiness.model, next))) return;
-      setThinkingEffortValue(next);
-    },
-    [model, readiness.model, confirmRuntimeSelection],
-  );
-  const selectProvider = useCallback(
-    async (next: AgentProvider) => {
-      if (locked || changingProvider.current || next === provider) return;
-      changingProvider.current = true;
-      try {
-        if (nativeAvailable) await selectAgentProvider(next);
-        setProvider(next);
-        setModelValue(null);
-        setThinkingEffortValue(null);
-        connection.clearError();
-      } catch (error) {
-        connection.setRequestError(error);
-      } finally {
-        changingProvider.current = false;
-      }
-    },
-    [locked, provider, connection.clearError, connection.setRequestError],
-  );
   const actions = useAgentRequestActions({
-    busy,
+    busy: operationBusy,
     draft,
     draftEpoch,
     provider,
@@ -536,11 +99,12 @@ export function useAgent(readinessActive: boolean) {
     setDraft,
     submitted,
     markAccepted,
+    setSubmissionPending,
     clearError: connection.clearError,
     setRequestError: connection.setRequestError,
   });
   const newSession = useNewAgentChat({
-    busy,
+    busy: operationBusy,
     clearError: connection.clearError,
     setModelValue,
     setThinkingEffortValue,
@@ -560,12 +124,12 @@ export function useAgent(readinessActive: boolean) {
     provider,
     model,
     thinkingEffort,
-    setProvider: selectProvider,
-    setModel: selectModel,
-    setThinkingEffort: selectThinkingEffort,
+    setProvider: runtime.selectProvider,
+    setModel: runtime.selectModel,
+    setThinkingEffort: runtime.selectThinkingEffort,
     locked,
     error: connection.error ?? snapshot.error,
-    busy,
+    busy: operationBusy,
     captureBusy,
     ...actions,
     newSession,

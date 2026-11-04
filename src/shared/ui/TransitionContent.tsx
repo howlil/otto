@@ -1,8 +1,20 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 type TransitionKind = "page" | "tab" | "compact";
 type Direction = "forward" | "back" | "center";
-type Frame = { key: string; node: ReactNode };
+type FrameSize = { width: number; height: number } | null | undefined;
+type Frame = { key: string; node: ReactNode; size: FrameSize };
+
+function frameStyle(size: FrameSize): CSSProperties | undefined {
+  return size ? { width: size.width, height: size.height } : undefined;
+}
 
 export function TransitionContent({
   transitionKey,
@@ -10,6 +22,7 @@ export function TransitionContent({
   direction = "forward",
   reducedMotion,
   className = "",
+  frameSize,
   children,
 }: {
   transitionKey: string;
@@ -17,9 +30,10 @@ export function TransitionContent({
   direction?: Direction;
   reducedMotion: boolean;
   className?: string;
+  frameSize?: FrameSize;
   children: ReactNode;
 }) {
-  const latest = useRef<Frame>({ key: transitionKey, node: children });
+  const latest = useRef<Frame>({ key: transitionKey, node: children, size: frameSize });
   const [retained, setRetained] = useState<Frame | null>(null);
   const switching = latest.current.key !== transitionKey;
   const outgoing = reducedMotion ? null : switching ? latest.current : retained;
@@ -30,8 +44,8 @@ export function TransitionContent({
     } else if (reducedMotion) {
       setRetained(null);
     }
-    latest.current = { key: transitionKey, node: children };
-  }, [transitionKey, children, reducedMotion]);
+    latest.current = { key: transitionKey, node: children, size: frameSize };
+  }, [transitionKey, children, frameSize, reducedMotion]);
 
   useEffect(() => {
     if (!retained) return;
@@ -72,12 +86,13 @@ export function TransitionContent({
           key={outgoing.key}
           aria-hidden="true"
           inert
-          className={`pointer-events-none absolute inset-x-0 top-0 z-10 ${layout} ${exit}`}
+          className={`pointer-events-none absolute left-0 top-0 z-10 ${layout} ${exit}`}
+          style={frameStyle(outgoing.size)}
         >
           {outgoing.node}
         </div>
       )}
-      <div key={transitionKey} className={`${layout} ${enter}`}>
+      <div key={transitionKey} className={`${layout} ${enter}`} style={frameStyle(frameSize)}>
         {children}
       </div>
     </div>

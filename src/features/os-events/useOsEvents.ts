@@ -4,7 +4,7 @@ import {
   subscribeOsEvents,
   type OsEventSubscription,
   type OsEventView,
-} from "../../platform/tauri";
+} from "../../platform/tauri/os-events";
 
 const DISPLAY_MS = 2_200;
 

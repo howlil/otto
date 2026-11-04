@@ -59,6 +59,7 @@ export type ProviderReadiness = {
   recovery: string;
   imageInput: boolean;
   imageTransport: boolean;
+  toolFreeAdmission: boolean;
   model: string | null;
   models: AgentModelOption[];
   thinkingEffort: string | null;
@@ -140,6 +141,9 @@ export async function renameAgentHistory(id: string, title: string): Promise<voi
 }
 export async function deleteAgentHistory(id: string): Promise<void> {
   await invoke("agent_history_delete", { conversationId: id });
+}
+export async function deleteAllAgentHistory(): Promise<void> {
+  await invoke("agent_history_delete_all");
 }
 export async function codexInstalled(): Promise<boolean> {
   return invoke<boolean>("agent_codex_installed");
@@ -241,13 +245,104 @@ export async function onNotchFocusChanged(
   return getCurrentWindow().onFocusChanged(({ payload }) => onFocus(payload));
 }
 
-export async function setNotchSurface(
-  surface: NotchSurface,
-  topOffset = 20,
-  animate = true,
-  contentHeight?: number,
-  contentOnly = false,
+export type NotchShape = "capsule" | "card" | "attached";
+export type NotchPlacement = "floating" | "attached";
+
+export async function setNotchHitRegion(
+  width: number,
+  height: number,
+  shape: NotchShape,
 ): Promise<void> {
-  if (nativeAvailable)
-    await invoke("notch_set_surface", { surface, topOffset, animate, contentHeight, contentOnly });
+  if (!nativeAvailable || width <= 0 || height <= 0) return;
+  await invoke("notch_set_hit_region", {
+    width: Math.round(width),
+    height: Math.round(height),
+    shape,
+  });
+}
+
+export type AppliedSurface = {
+  placement: NotchPlacement;
+  width: number;
+  height: number;
+  outerWidth: number | null;
+  outerHeight: number | null;
+  geometryConfirmed: boolean;
+};
+
+export type NotchSurfaceRequest = {
+  surface: NotchSurface;
+  shape: NotchShape;
+  topOffset?: number;
+  contentHeight?: number;
+  deferShrink?: boolean;
+};
+
+function normalizeSurface(
+  value: {
+    placement: string;
+    width: number;
+    height: number;
+    outerWidth?: number | null;
+    outerHeight?: number | null;
+    geometryConfirmed?: boolean;
+  },
+  geometryConfirmedDefault: boolean,
+): AppliedSurface {
+  return {
+    placement: value.placement === "attached" ? "attached" : "floating",
+    width: value.width,
+    height: value.height,
+    outerWidth: value.outerWidth ?? null,
+    outerHeight: value.outerHeight ?? null,
+    geometryConfirmed: value.geometryConfirmed ?? geometryConfirmedDefault,
+  };
+}
+
+export async function measureNotchSurface(
+  request: Omit<NotchSurfaceRequest, "deferShrink">,
+): Promise<AppliedSurface> {
+  const { surface, shape, topOffset = 20, contentHeight } = request;
+  if (!nativeAvailable) {
+    return {
+      placement: "floating",
+      width: 0,
+      height: 0,
+      outerWidth: null,
+      outerHeight: null,
+      geometryConfirmed: false,
+    };
+  }
+  const measured = await invoke<{
+    placement: string;
+    width: number;
+    height: number;
+    outerWidth?: number | null;
+    outerHeight?: number | null;
+    geometryConfirmed?: boolean;
+  }>("notch_measure_surface", { surface, shape, topOffset, contentHeight });
+  return normalizeSurface(measured, false);
+}
+
+export async function setNotchSurface(request: NotchSurfaceRequest): Promise<AppliedSurface> {
+  const { surface, shape, topOffset = 20, contentHeight, deferShrink = false } = request;
+  if (!nativeAvailable) {
+    return {
+      placement: "floating",
+      width: 0,
+      height: 0,
+      outerWidth: null,
+      outerHeight: null,
+      geometryConfirmed: false,
+    };
+  }
+  const applied = await invoke<{
+    placement: string;
+    width: number;
+    height: number;
+    outerWidth?: number | null;
+    outerHeight?: number | null;
+    geometryConfirmed?: boolean;
+  }>("notch_set_surface", { surface, shape, topOffset, contentHeight, deferShrink });
+  return normalizeSurface(applied, true);
 }

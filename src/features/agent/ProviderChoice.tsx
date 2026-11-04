@@ -30,7 +30,8 @@ export function ProviderChoice({
   return (
     <button
       type="button"
-      className={`group flex min-h-[82px] min-w-0 flex-col items-center justify-center gap-2 rounded-otto-card border p-2 text-center text-otto-text transition-[background,border-color] duration-200 ease-otto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-otto-input-selected ${selected ? "border-otto-line-focused bg-otto-selected" : "border-otto-line bg-otto-control hover:border-otto-line-hover hover:bg-otto-control-hover"}`}
+      data-active-key={command}
+      className={`group relative z-[1] flex min-h-[82px] min-w-0 flex-col items-center justify-center gap-2 rounded-otto-card border p-2 text-center text-otto-text transition-[background,border-color] duration-[var(--otto-selection-duration)] ease-otto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-otto-input-selected ${selected ? "border-transparent bg-transparent" : "border-otto-line bg-otto-control hover:border-otto-line-hover hover:bg-otto-control-hover"}`}
       disabled={locked || !onSelect}
       aria-pressed={selected}
       onClick={onSelect}

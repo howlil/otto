@@ -12,8 +12,12 @@ const titles: Record<AgentHeaderView, string> = {
   history: "History",
 };
 
-function capabilityLabel(readiness: ProviderReadiness["status"]): string {
-  if (readiness === "ready") return "Tools disabled";
+function capabilityLabel(
+  readiness: ProviderReadiness["status"],
+  toolFreeAdmission: boolean,
+): string {
+  if (readiness === "ready" && toolFreeAdmission) return "Tools disabled";
+  if (readiness === "ready") return "Tool policy guarded";
   if (readiness === "checking") return "Verifying";
   return "Unavailable";
 }
@@ -64,12 +68,14 @@ export function Identity({
   model,
   thinkingEffort,
   readiness,
+  toolFreeAdmission,
 }: {
   view: AgentHeaderView;
   provider: AgentProvider;
   model: string | null;
   thinkingEffort: string | null;
   readiness: ProviderReadiness["status"];
+  toolFreeAdmission: boolean;
 }) {
   return (
     <div className="min-w-0 flex-1">
@@ -86,7 +92,7 @@ export function Identity({
           variant="meta"
           className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-otto-text-tertiary"
         >
-          {`${runtimeLabel(model, thinkingEffort)} · ${capabilityLabel(readiness)}`}
+          {`${runtimeLabel(model, thinkingEffort)} · ${capabilityLabel(readiness, toolFreeAdmission)}`}
         </Text>
       )}
     </div>

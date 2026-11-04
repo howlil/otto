@@ -183,6 +183,105 @@ mod tests {
         WS_EX_LAYERED, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
     };
 
+    #[cfg(target_os = "windows")]
+    mod native_affinity {
+        use super::*;
+        use std::ptr::{null, null_mut};
+        use std::sync::atomic::{AtomicU32, Ordering};
+        use windows_sys::Win32::{
+            Foundation::{LPARAM, LRESULT, WPARAM},
+            System::LibraryLoader::GetModuleHandleW,
+            UI::WindowsAndMessaging::{
+                CreateWindowExW, DefWindowProcW, DestroyWindow, RegisterClassW, SW_SHOWNOACTIVATE,
+                ShowWindow, WNDCLASSW, WS_OVERLAPPED,
+            },
+        };
+
+        unsafe extern "system" fn test_proc(
+            hwnd: HWND,
+            message: u32,
+            wparam: WPARAM,
+            lparam: LPARAM,
+        ) -> LRESULT {
+            unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
+        }
+
+        static PROBE_CLASS: AtomicU32 = AtomicU32::new(0);
+
+        struct TestWindow(HWND);
+
+        impl Drop for TestWindow {
+            fn drop(&mut self) {
+                unsafe { DestroyWindow(self.0) };
+            }
+        }
+
+        fn create_window() -> TestWindow {
+            let class: Vec<u16> = format!(
+                "OttoAffinityProbe{}\0",
+                PROBE_CLASS.fetch_add(1, Ordering::Relaxed)
+            )
+            .encode_utf16()
+            .collect();
+            let instance = unsafe { GetModuleHandleW(null()) };
+            let class_info = WNDCLASSW {
+                style: 0,
+                lpfnWndProc: Some(test_proc),
+                cbClsExtra: 0,
+                cbWndExtra: 0,
+                hInstance: instance,
+                hIcon: null_mut(),
+                hCursor: null_mut(),
+                hbrBackground: null_mut(),
+                lpszMenuName: null(),
+                lpszClassName: class.as_ptr(),
+            };
+            assert_ne!(unsafe { RegisterClassW(&class_info) }, 0);
+            let title: Vec<u16> = "Otto affinity probe\0".encode_utf16().collect();
+            let hwnd = unsafe {
+                CreateWindowExW(
+                    0,
+                    class.as_ptr(),
+                    title.as_ptr(),
+                    WS_OVERLAPPED,
+                    0,
+                    0,
+                    64,
+                    64,
+                    null_mut(),
+                    null_mut(),
+                    instance,
+                    null(),
+                )
+            };
+            assert!(!hwnd.is_null());
+            unsafe { ShowWindow(hwnd, SW_SHOWNOACTIVATE) };
+            TestWindow(hwnd)
+        }
+
+        #[test]
+        fn capture_protection_toggle_changes_real_window_affinity() {
+            let window = create_window();
+            assert_eq!(read_affinity(window.0).unwrap(), NO_CAPTURE_RESTRICTION);
+
+            set_affinity(window.0, true).unwrap();
+            assert_eq!(read_affinity(window.0).unwrap(), EXCLUDE_FROM_CAPTURE);
+
+            set_affinity(window.0, true).unwrap();
+            assert_eq!(read_affinity(window.0).unwrap(), EXCLUDE_FROM_CAPTURE);
+
+            set_affinity(window.0, false).unwrap();
+            assert_eq!(read_affinity(window.0).unwrap(), NO_CAPTURE_RESTRICTION);
+        }
+
+        #[test]
+        fn overlay_default_application_excludes_a_window_that_started_capturable() {
+            let window = create_window();
+            apply_capture_exclusion(window.0).unwrap();
+            assert_eq!(read_affinity(window.0).unwrap(), EXCLUDE_FROM_CAPTURE);
+        }
+    }
+
     #[test]
     fn preserves_overlay_layering_topmost_and_unrelated_extended_styles() {
         let unrelated = WS_EX_TRANSPARENT as isize;

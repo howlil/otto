@@ -1,12 +1,43 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { IconButton, Text, TransitionContent } from "../../shared/ui";
-import type { Preferences, SettingsTab } from "./preferences";
+import {
+  ActiveIndicatorGroup,
+  IconButton,
+  SettingsSection,
+  Text,
+  TransitionContent,
+} from "../../shared/ui";
+import { defaults, type Preferences, type SettingsTab } from "./preferences";
 import { PlacementSettings } from "./PlacementSettings";
+import type { PlacementStatus } from "./useNotchShell";
 import { GeneralSettings } from "./GeneralSettings";
 import { InteractionSettings } from "./InteractionSettings";
+import { SystemSettings } from "./SystemSettings";
+import { UpdateSettings } from "./UpdateSettings";
 import type { AppUpdateState } from "./useAppUpdate";
 
-type GlobalSettingsProps = {
+const settingsTabs: ReadonlyArray<{ id: SettingsTab; label: string }> = [
+  { id: "appearance", label: "Appearance" },
+  { id: "interaction", label: "Interaction" },
+  { id: "system", label: "System" },
+  { id: "placement", label: "Placement" },
+];
+
+export function GlobalSettings({
+  prefs,
+  change,
+  onBack,
+  onMeasured,
+  update,
+  reducedMotion,
+  captureProtected,
+  captureProtectionSupported,
+  captureProtectionPending,
+  captureProtectionError,
+  setCaptureProtection,
+  osEventsError,
+  placement,
+  motionClass = "",
+}: {
   prefs: Preferences;
   change: (patch: Partial<Preferences>) => void;
   onBack: () => void;
@@ -24,24 +55,13 @@ type GlobalSettingsProps = {
   captureProtectionError: string | null;
   setCaptureProtection: (enabled: boolean) => Promise<void>;
   osEventsError: string | null;
-};
-
-export function GlobalSettings({
-  prefs,
-  change,
-  onBack,
-  onMeasured,
-  update,
-  reducedMotion,
-  captureProtected,
-  captureProtectionSupported,
-  captureProtectionPending,
-  captureProtectionError,
-  setCaptureProtection,
-  osEventsError,
-  motionClass = "",
-}: GlobalSettingsProps) {
-  const [tab, setTab] = useState<SettingsTab>("general");
+  placement: PlacementStatus;
+}) {
+  const [tab, setTab] = useState<SettingsTab>("appearance");
+  const restoreDefaults = () => {
+    change(defaults);
+    if (captureProtectionSupported) void setCaptureProtection(defaults.hideFromCapture);
+  };
   const back = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -73,35 +93,54 @@ export function GlobalSettings({
           <span id="otto-settings-sections" className="sr-only">
             Settings sections
           </span>
-          {(["general", "interaction", "placement"] as SettingsTab[]).map((name) => (
-            <button
-              type="button"
-              key={name}
-              className={`h-[35px] rounded-otto-control border-0 bg-transparent px-[11px] text-left text-otto-sm text-otto-label-muted hover:bg-otto-control-deep hover:text-otto-hover-text ${tab === name ? "bg-otto-control-deep text-otto-invert-line" : ""}`}
-              aria-current={tab === name ? "page" : undefined}
-              onClick={() => setTab(name)}
-            >
-              {name[0].toUpperCase() + name.slice(1)}
-            </button>
-          ))}
+          <ActiveIndicatorGroup
+            activeKey={tab}
+            className="flex flex-col items-stretch gap-1"
+            indicatorClassName="rounded-otto-control bg-otto-control-deep"
+          >
+            {settingsTabs.map(({ id, label }) => (
+              <button
+                type="button"
+                key={id}
+                data-active-key={id}
+                className={`relative z-[1] h-[35px] rounded-otto-control border-0 bg-transparent px-[11px] text-left text-otto-sm text-otto-label-muted transition-colors duration-[var(--otto-selection-duration)] ease-otto hover:bg-otto-control-hover hover:text-otto-hover-text ${tab === id ? "text-otto-invert-line" : ""}`}
+                aria-current={tab === id ? "page" : undefined}
+                onClick={() => setTab(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </ActiveIndicatorGroup>
         </nav>
         <div className="otto-scrollbar-hidden min-w-0 overflow-y-auto px-[18px] pb-5 pt-4 text-otto-text [&>h2]:m-0 [&>h2]:mb-[3px] [&>p]:m-0 [&>p]:mb-4">
           <TransitionContent transitionKey={tab} kind="tab" reducedMotion={reducedMotion}>
-            {tab === "general" && (
+            {tab === "appearance" && (
               <GeneralSettings
                 prefs={prefs}
                 change={change}
-                update={update}
-                captureProtected={captureProtected}
-                captureProtectionSupported={captureProtectionSupported}
+                onRestoreDefaults={restoreDefaults}
                 captureProtectionPending={captureProtectionPending}
-                captureProtectionError={captureProtectionError}
-                onCaptureProtectionChange={setCaptureProtection}
-                osEventsError={osEventsError}
               />
             )}
             {tab === "interaction" && <InteractionSettings prefs={prefs} change={change} />}
-            {tab === "placement" && <PlacementSettings prefs={prefs} change={change} />}
+            {tab === "system" && (
+              <SettingsSection title="System">
+                <SystemSettings
+                  prefs={prefs}
+                  change={change}
+                  captureProtected={captureProtected}
+                  captureProtectionSupported={captureProtectionSupported}
+                  captureProtectionPending={captureProtectionPending}
+                  captureProtectionError={captureProtectionError}
+                  onCaptureProtectionChange={setCaptureProtection}
+                  osEventsError={osEventsError}
+                />
+                <UpdateSettings update={update} />
+              </SettingsSection>
+            )}
+            {tab === "placement" && (
+              <PlacementSettings prefs={prefs} change={change} placement={placement} />
+            )}
           </TransitionContent>
         </div>
       </main>

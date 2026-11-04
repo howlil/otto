@@ -1,5 +1,6 @@
 mod agent;
-mod commands;
+mod ipc;
+mod notch;
 mod os_events;
 #[cfg(windows)]
 mod windows;
@@ -18,34 +19,37 @@ pub fn run() {
     };
 
     tauri::Builder::default()
-        .manage(commands::NotchMotion::default())
+        .manage(ipc::notch::NotchPlacementState::default())
         .invoke_handler(tauri::generate_handler![
-            commands::overlay_protection_status,
-            commands::overlay_set_capture_protection,
-            commands::agent_snapshot,
-            commands::agent_history_list,
-            commands::agent_history_open,
-            commands::agent_history_rename,
-            commands::agent_history_delete,
-            commands::agent_codex_installed,
-            commands::agent_codex_readiness,
-            commands::agent_provider_readiness,
-            commands::agent_cancel_provider_readiness,
-            commands::agent_select_provider,
-            commands::agent_select_runtime_options,
-            commands::agent_subscribe,
-            commands::agent_unsubscribe,
-            commands::agent_ask,
-            commands::agent_stop,
-            commands::agent_new_chat,
-            commands::agent_configure_capture_shortcut,
-            commands::agent_configure_capture_source,
-            commands::agent_capture_target_title,
-            commands::agent_capture_now,
-            commands::notch_set_surface,
-            commands::os_events_subscribe,
-            commands::os_events_unsubscribe,
-            commands::os_events_set_enabled,
+            ipc::overlay::overlay_protection_status,
+            ipc::overlay::overlay_set_capture_protection,
+            ipc::agent::agent_snapshot,
+            ipc::agent::agent_history_list,
+            ipc::agent::agent_history_open,
+            ipc::agent::agent_history_rename,
+            ipc::agent::agent_history_delete,
+            ipc::agent::agent_history_delete_all,
+            ipc::agent::agent_codex_installed,
+            ipc::agent::agent_codex_readiness,
+            ipc::agent::agent_provider_readiness,
+            ipc::agent::agent_cancel_provider_readiness,
+            ipc::agent::agent_select_provider,
+            ipc::agent::agent_select_runtime_options,
+            ipc::agent::agent_subscribe,
+            ipc::agent::agent_unsubscribe,
+            ipc::agent::agent_ask,
+            ipc::agent::agent_stop,
+            ipc::agent::agent_new_chat,
+            ipc::agent::agent_configure_capture_shortcut,
+            ipc::agent::agent_configure_capture_source,
+            ipc::agent::agent_capture_target_title,
+            ipc::agent::agent_capture_now,
+            ipc::notch::notch_measure_surface,
+            ipc::notch::notch_set_surface,
+            ipc::notch::notch_set_hit_region,
+            ipc::os_events::os_events_subscribe,
+            ipc::os_events::os_events_unsubscribe,
+            ipc::os_events::os_events_set_enabled,
         ])
         .setup(|app| {
             #[cfg(windows)]
@@ -83,6 +87,13 @@ pub fn run() {
                         origin.x + (bounds.width.saturating_sub(size.width) / 2) as i32,
                         origin.y + 20,
                     ))?;
+                }
+                window.show()?;
+                #[cfg(windows)]
+                {
+                    if let Err(error) = windows::overlay::configure(&window) {
+                        eprintln!("Otto capture protection unavailable: {error}");
+                    }
                 }
             }
             Ok(())

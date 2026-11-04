@@ -24,6 +24,7 @@ type AgentHistoryDependencies = {
   open: (id: string) => Promise<AgentSnapshot>;
   rename: (id: string, title: string) => Promise<void>;
   delete: (id: string) => Promise<void>;
+  deleteAll: () => Promise<void>;
   publish: (state: HistoryList) => void;
 };
 
@@ -121,6 +122,21 @@ export class AgentHistoryController {
         ...this.state,
         items: this.state.items.filter((item) => item.id !== id),
       });
+      return { ok: true };
+    } catch (reason) {
+      this.fail(reason);
+      return { ok: false, reason: reasonMessage(reason) };
+    } finally {
+      this.finish();
+    }
+  }
+
+  async deleteAll(): Promise<DeleteOutcome> {
+    if (!this.begin()) return { ok: false, reason: "History is busy." };
+    try {
+      await this.deps.deleteAll();
+      if (this.disposed) return { ok: false, reason: "History is unavailable." };
+      this.publish({ ...this.state, items: [] });
       return { ok: true };
     } catch (reason) {
       this.fail(reason);

@@ -1,6 +1,55 @@
-import { useLayoutEffect, useRef, type FormEvent, type Ref } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent, type Ref } from "react";
 import type { AgentProvider, CapturePhase } from "../../platform/tauri";
 import { IconButton, TextArea, VisuallyHidden } from "../../shared/ui";
+
+const PROMPT_LINE_HEIGHT = 19;
+const PROMPT_MAX_HEIGHT = 105;
+
+function usePromptSizing(draft: string) {
+  const prompt = useRef<HTMLTextAreaElement>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  useLayoutEffect(() => {
+    const area = prompt.current;
+    if (!area) return;
+    area.style.height = "0px";
+    const contentHeight = Math.min(
+      PROMPT_MAX_HEIGHT,
+      Math.max(PROMPT_LINE_HEIGHT, area.scrollHeight),
+    );
+    area.style.height = `${contentHeight}px`;
+    area.style.overflowY = area.scrollHeight > PROMPT_MAX_HEIGHT ? "auto" : "hidden";
+    setExpanded(draft.length > 0 && contentHeight > PROMPT_LINE_HEIGHT);
+  }, [draft]);
+
+  return { prompt, expanded };
+}
+
+function CaptureControl({
+  capturePhase,
+  busy,
+  captureBusy,
+  onCapture,
+}: {
+  capturePhase: CapturePhase;
+  busy: boolean;
+  captureBusy: boolean;
+  onCapture: () => void;
+}) {
+  const retry = capturePhase === "failed";
+  return (
+    <IconButton
+      id="otto-capture-setup"
+      icon="camera"
+      label={retry ? "Retry screen capture" : "Capture selected screen source"}
+      variant="round"
+      className="grid shrink-0 place-items-center rounded-full"
+      onClick={onCapture}
+      title={retry ? "Retry screen capture" : "Capture using the configured source"}
+      disabled={busy || captureBusy}
+    />
+  );
+}
 
 export function AgentComposer({
   provider,
@@ -31,20 +80,15 @@ export function AgentComposer({
   send: () => Promise<void>;
   stop: () => Promise<void>;
 }) {
-  const prompt = useRef<HTMLTextAreaElement>(null);
-
-  useLayoutEffect(() => {
-    const area = prompt.current;
-    if (!area) return;
-    if (!draft) {
-      area.style.height = "19px";
-      area.style.overflowY = "hidden";
-      return;
-    }
-    area.style.height = "0px";
-    area.style.height = `${Math.min(105, Math.max(19, area.scrollHeight))}px`;
-    area.style.overflowY = area.scrollHeight > 105 ? "auto" : "hidden";
-  }, [draft]);
+  const { prompt, expanded } = usePromptSizing(draft);
+  const captureControl = imageTransport ? (
+    <CaptureControl
+      capturePhase={capturePhase}
+      busy={busy}
+      captureBusy={captureBusy}
+      onCapture={onCapture}
+    />
+  ) : null;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -54,10 +98,11 @@ export function AgentComposer({
   return (
     <div ref={composerRef} className="relative shrink-0 px-3 pb-3 pt-[7px]">
       <form
-        className="flex min-h-[68px] flex-col rounded-[22px] border border-transparent bg-otto-control-deep px-[10px] pb-[7px] pt-[10px] transition-[border-color,background] duration-150 hover:bg-otto-control-hover focus-within:border-otto-line-hover"
+        className={`flex border border-transparent bg-otto-control-deep transition-[border-color,background] duration-150 hover:bg-otto-control-hover focus-within:border-otto-line-hover ${expanded ? "min-h-[68px] flex-col rounded-[22px] gap-0 px-[10px] pb-[10px] pt-[10px]" : "min-h-[44px] flex-row items-center gap-[5px] rounded-full p-[5px]"}`}
         onSubmit={submit}
       >
         <VisuallyHidden htmlFor="otto-prompt">Question for the selected agent</VisuallyHidden>
+        {!expanded && captureControl}
         <TextArea
           ref={prompt}
           id="otto-prompt"
@@ -65,7 +110,7 @@ export function AgentComposer({
           placeholder={`Ask ${provider === "pi" ? "Pi" : provider === "agy" ? "Agy" : "Codex"}…`}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          className="otto-scrollbar-hidden block max-h-[105px] min-h-[19px] w-full resize-none overflow-y-hidden border-0 bg-transparent px-1 text-otto-md leading-[1.5] text-otto-text outline-none shadow-none placeholder:text-otto-text-subtle"
+          className={`otto-scrollbar-hidden resize-none border-0 bg-transparent px-1 text-otto-md leading-[1.5] text-otto-text outline-none shadow-none placeholder:text-otto-text-subtle ${expanded ? "block max-h-[105px] min-h-[19px] w-full" : "min-h-[19px] min-w-0 max-h-[19px] flex-1"}`}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
@@ -73,28 +118,10 @@ export function AgentComposer({
             }
           }}
         />
-        <div className="mt-2 flex min-w-0 items-center gap-1">
-          {imageTransport && (
-            <IconButton
-              id="otto-capture-setup"
-              icon="camera"
-              label={
-                capturePhase === "failed"
-                  ? "Retry screen capture"
-                  : "Capture selected screen source"
-              }
-              variant="round"
-              className="grid shrink-0 place-items-center rounded-full"
-              onClick={onCapture}
-              title={
-                capturePhase === "failed"
-                  ? "Retry screen capture"
-                  : "Capture using the configured source"
-              }
-              disabled={busy || captureBusy}
-            />
-          )}
-          <span className="min-w-0 flex-1" />
+        <div
+          className={`flex min-w-0 items-center gap-1 ${expanded ? "mt-2 justify-between" : "shrink-0"}`}
+        >
+          {expanded && captureControl}
           {busy ? (
             <IconButton
               icon="stop"

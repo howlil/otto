@@ -1,5 +1,5 @@
 export type Page = "home" | "agent" | "global-settings" | "agent-settings";
-export type SettingsTab = "general" | "interaction" | "placement";
+export type SettingsTab = "appearance" | "interaction" | "system" | "placement";
 export type Expression = "calm" | "curious" | "sleepy" | "happy";
 export type Motion = "fluid" | "gentle" | "reduced";
 export type Placement = "floating" | "attached";
@@ -48,7 +48,7 @@ const choices: Partial<Record<keyof Preferences, readonly string[]>> = {
   reactive: ["quiet", "alive"],
   motion: ["fluid", "gentle", "reduced"],
 
-  placement: ["floating"],
+  placement: ["floating", "attached"],
 };
 
 function validPreference(key: keyof Preferences, value: unknown): boolean {
@@ -83,7 +83,21 @@ export function readPreferences(): Preferences {
 }
 
 export function mergePreferences(current: Preferences, patch: Partial<Preferences>): Preferences {
-  return { ...current, ...patch, hideFromCapture: current.hideFromCapture };
+  return {
+    ...current,
+    ...patch,
+    hideFromCapture: current.hideFromCapture,
+    placement: current.placement,
+  };
+}
+
+export function confirmedPlacementPreference(
+  current: Preferences,
+  observed: Placement | null,
+): Preferences {
+  return observed === null || observed === current.placement
+    ? current
+    : { ...current, placement: observed };
 }
 
 export function confirmedCapturePreference(

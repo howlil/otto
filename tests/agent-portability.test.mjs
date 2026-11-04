@@ -20,7 +20,7 @@ const snapshot = (messages, threadId = null) => ({
 const renderSettings = (state) =>
   renderToStaticMarkup(
     h(AgentSettingsDetails, {
-      tab: "setup",
+      tab: "assistant",
       scrollRef: null,
       readiness: {
         status: "ready",
@@ -28,6 +28,7 @@ const renderSettings = (state) =>
         recovery: "",
         imageInput: false,
         imageTransport: true,
+        toolFreeAdmission: true,
         model: null,
         models: [],
         thinkingEffort: null,
@@ -61,9 +62,9 @@ describe("portable Otto conversation disclosure", () => {
 
   test("saved transcript without native thread explains bounded reconstruction", () => {
     const markup = renderSettings(snapshot(messages));
-    expect(markup).toContain("Previous messages remain in Otto history");
+    expect(markup).toContain("History stays in Otto");
     expect(markup).toContain("bounded text transcript");
-    expect(markup).toContain("native session and hidden context cannot");
+    expect(markup).toContain("not the original session");
   });
 
   test("an active native session does not claim context was lost", () => {
@@ -74,5 +75,12 @@ describe("portable Otto conversation disclosure", () => {
   test("an empty new conversation shows no reconstruction notice", () => {
     const markup = renderSettings(snapshot([]));
     expect(markup).not.toContain("bounded text transcript");
+  });
+
+  test("ready settings keep status compact and hide unavailable context", () => {
+    const markup = renderSettings(snapshot([]));
+    expect(markup).toContain("bg-otto-ok");
+    expect(markup).toContain(">Ready</span>");
+    expect(markup).not.toContain("Context unavailable");
   });
 });

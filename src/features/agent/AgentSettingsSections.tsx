@@ -1,4 +1,4 @@
-import { StatusMessage, Text } from "../../shared/ui";
+import { ActiveIndicatorGroup, StatusMessage, Text } from "../../shared/ui";
 import type { AgentProvider, ProviderReadiness } from "../../platform/tauri";
 import { ProviderChoice, type ProviderName } from "./ProviderChoice";
 
@@ -11,6 +11,49 @@ const providers: ReadonlyArray<{
   { name: "Pi", command: "pi" },
 ];
 
+function readinessMessage(readiness: ProviderReadiness): string {
+  if (readiness.status === "ready") return "Ready";
+  if (readiness.status === "checking") return "Checking…";
+  return [readiness.message, readiness.recovery].filter(Boolean).join(" ");
+}
+
+type ProviderSettingsProps = {
+  readiness: ProviderReadiness;
+  providerStatus: string;
+  onRetry: () => void;
+  provider: AgentProvider;
+  onSelect: (provider: AgentProvider) => void;
+  locked: boolean;
+};
+
+function ProviderReadinessStatus({
+  readiness,
+  providerStatus,
+  onRetry,
+}: Pick<ProviderSettingsProps, "readiness" | "providerStatus" | "onRetry">) {
+  if (readiness.status === "ready") {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-otto-text-secondary" role="status">
+        <span className="size-1.5 rounded-full bg-otto-ok" aria-hidden="true" />
+        <Text as="span" variant="status">
+          Ready
+        </Text>
+      </div>
+    );
+  }
+
+  return (
+    <StatusMessage
+      tone={readiness.status === "checking" ? "info" : "warn"}
+      className="mt-2 rounded-otto-control border border-otto-line-mid bg-otto-field-deep px-3 py-2 text-otto-text-tertiary [&>div]:min-w-0 [&>div]:flex-1 [&>div>p]:m-0 [&>div>p]:mt-0.5"
+      title={readiness.status === "checking" ? undefined : providerStatus}
+      action={readiness.status !== "checking" ? { label: "Retry", onClick: onRetry } : undefined}
+    >
+      {readinessMessage(readiness)}
+    </StatusMessage>
+  );
+}
+
 export function ProviderSettings({
   readiness,
   providerStatus,
@@ -18,14 +61,7 @@ export function ProviderSettings({
   provider,
   onSelect,
   locked,
-}: {
-  readiness: ProviderReadiness;
-  providerStatus: string;
-  onRetry: () => void;
-  provider: AgentProvider;
-  onSelect: (provider: AgentProvider) => void;
-  locked: boolean;
-}) {
+}: ProviderSettingsProps) {
   return (
     <section className="border-b border-otto-raised-deep pb-3">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -35,46 +71,33 @@ export function ProviderSettings({
           className="text-otto-text-secondary"
           id="otto-provider-label"
         >
-          Choose your agent
-        </Text>
-        <Text as="span" variant="caption" className="text-otto-text-tertiary">
-          Local CLI
+          Provider
         </Text>
       </div>
-      <fieldset
-        className="grid min-w-0 grid-cols-3 gap-2 border-0 p-0"
-        aria-labelledby="otto-provider-label"
-      >
-        {providers.map(({ name, command }) => (
-          <ProviderChoice
-            key={name}
-            name={name}
-            command={command}
-            status={provider === command ? providerStatus : "Select"}
-            selected={provider === command}
-            locked={locked}
-            onSelect={!locked ? () => onSelect(command) : undefined}
-          />
-        ))}
+      <fieldset className="border-0 p-0" aria-labelledby="otto-provider-label">
+        <ActiveIndicatorGroup
+          activeKey={provider}
+          className="grid min-w-0 grid-cols-3 gap-2"
+          indicatorClassName="rounded-otto-card border border-otto-line-focused bg-otto-selected"
+        >
+          {providers.map(({ name, command }) => (
+            <ProviderChoice
+              key={name}
+              name={name}
+              command={command}
+              status={provider === command ? providerStatus : "Select"}
+              selected={provider === command}
+              locked={locked}
+              onSelect={!locked ? () => onSelect(command) : undefined}
+            />
+          ))}
+        </ActiveIndicatorGroup>
       </fieldset>
-      <StatusMessage
-        tone={
-          readiness.status === "ready"
-            ? "success"
-            : readiness.status === "checking"
-              ? "info"
-              : "warn"
-        }
-        className="mt-[10px] rounded-otto-control border border-otto-line-mid bg-otto-field-deep p-[10px] text-otto-text-tertiary [&>div]:min-w-0 [&>div]:flex-1 [&>div>p]:mt-0.5 [&>div>p]:m-0"
-        title={providerStatus}
-        action={
-          readiness.status !== "ready"
-            ? { label: "Retry", onClick: onRetry, disabled: readiness.status === "checking" }
-            : undefined
-        }
-      >
-        {readiness.message} {readiness.recovery}
-      </StatusMessage>
+      <ProviderReadinessStatus
+        readiness={readiness}
+        providerStatus={providerStatus}
+        onRetry={onRetry}
+      />
     </section>
   );
 }

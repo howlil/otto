@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { nativeAvailable, setOsEventsEnabled } from "../../platform/tauri";
+import { nativeAvailable, setOsEventsEnabled } from "../../platform/tauri/os-events";
 
 export function useOsEventPreference(enabled: boolean) {
   const [error, setError] = useState<string | null>(null);

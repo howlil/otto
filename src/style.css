@@ -117,17 +117,23 @@
   --radius-otto-card: 12px;
   --radius-otto-launcher: 15px;
   --radius-otto-island: 9999px;
+  --radius-otto-expanded: 27px;
+  --radius-otto-attached: 24px;
+  --otto-shoulder: 12px;
+  --otto-morph-duration: 420ms;
+  --otto-selection-duration: 180ms;
   --ease-otto: cubic-bezier(0.22, 1, 0.36, 1);
 
   --animate-otto-blink: otto-blink 9.5s ease-in-out infinite;
-  --animate-otto-bars: otto-bars 0.73s ease-in-out infinite alternate;
+  --animate-otto-bar-1: otto-bars 0.58s ease-in-out infinite alternate;
+  --animate-otto-bar-2: otto-bars 0.73s ease-in-out infinite alternate;
+  --animate-otto-bar-3: otto-bars 0.49s ease-in-out infinite alternate;
+  --animate-otto-bar-4: otto-bars 0.65s ease-in-out infinite alternate;
   --animate-otto-caret: otto-caret 0.72s step-end infinite;
   --animate-otto-done: otto-done 0.36s var(--ease-otto);
-  --animate-otto-enter: otto-enter 190ms var(--ease-otto) both;
   --animate-otto-home-choice-1: otto-home-choice 180ms var(--ease-otto) 165ms both;
   --animate-otto-home-choice-2: otto-home-choice 180ms var(--ease-otto) 190ms both;
   --animate-otto-home-choice-3: otto-home-choice 180ms var(--ease-otto) 215ms both;
-  --animate-otto-home-reveal: otto-home-reveal 180ms var(--ease-otto) 145ms both;
   --animate-otto-nudge: otto-nudge 0.42s var(--ease-otto);
   --animate-otto-shake: otto-shake 0.35s ease-out;
 
@@ -172,34 +178,12 @@
     }
   }
 
-  @keyframes otto-enter {
-    from {
-      opacity: 0.4;
-      transform: translateY(3px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
   @keyframes otto-home-choice {
     from {
       opacity: 0;
     }
     to {
       opacity: 1;
-    }
-  }
-
-  @keyframes otto-home-reveal {
-    from {
-      opacity: 0;
-      transform: translateY(3px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
     }
   }
 
@@ -250,6 +234,34 @@ body,
 }
 * {
   box-sizing: border-box;
+}
+
+.otto-shoulder-l,
+.otto-shoulder-r {
+  position: absolute;
+  top: 0;
+  z-index: 0;
+  width: var(--otto-shoulder);
+  height: var(--otto-shoulder);
+  pointer-events: none;
+}
+
+.otto-shoulder-l {
+  left: 0;
+  background: radial-gradient(
+    circle at 0 100%,
+    transparent calc(var(--otto-shoulder) - 0.5px),
+    var(--color-otto-surface) var(--otto-shoulder)
+  );
+}
+
+.otto-shoulder-r {
+  right: 0;
+  background: radial-gradient(
+    circle at 100% 100%,
+    transparent calc(var(--otto-shoulder) - 0.5px),
+    var(--color-otto-surface) var(--otto-shoulder)
+  );
 }
 
 .otto-scrollbar-hidden {
@@ -545,6 +557,14 @@ h4.md-h {
 }
 .katex-display {
   margin: 4px 0;
+}
+
+[data-reduced="true"],
+[data-reduced="true"] *,
+[data-reduced="true"] *::before,
+[data-reduced="true"] *::after {
+  animation: none;
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

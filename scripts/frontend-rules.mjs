@@ -69,6 +69,11 @@ const inlineSvgCount = [...tsFiles, ...css].reduce((n, f) => {
   return n + (read(f).match(/<svg/g)?.length ?? 0);
 }, 0);
 // violates the complexity rules; the ratchet makes sure it never gets worse.
+// R8 — a module stays a module: non-TSX source line ceiling from the budget.
+const maxTsLines = files
+  .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
+  .reduce((max, f) => Math.max(max, read(f).split(String.fromCharCode(10)).length), 0);
+
 function biomeWarnings() {
   // Windows ships a .cmd shim, which execFileSync refuses without a shell;
   // running the Node entry point directly is cross-platform and shell-free.
@@ -95,6 +100,7 @@ const actual = {
   tsxHex,
   cssHexOutsideTheme,
   maxTsxLines,
+  maxTsLines,
   featuresWithoutEntry,
   ariaLabelCount,
   inlineSvgCount,
@@ -116,6 +122,7 @@ const baseline = JSON.parse(readFileSync(BASELINE, "utf8"));
 const RISK = {
   tsxHex: "raw color literal in a component — use a token from src/style.css @theme",
   cssHexOutsideTheme: "color literal outside @theme — add a token or reuse one",
+  maxTsLines: "largest non-TSX module grew — split by owner, not by line count",
   maxTsxLines: "largest component file grew — split by responsibility, not by line count",
   featuresWithoutEntry: "a feature is missing its public entry (index.ts) — internals must not leak",
   ariaLabelCount: "aria-label used — render the name with VisuallyHidden or IconButton instead",
@@ -157,6 +164,15 @@ for (const file of tsFiles) {
         target !== `src/features/${targetFeature}` &&
         target !== `src/features/${targetFeature}/index`) {
         boundaryViolations.push(`${file}: cross-feature import bypasses public entry: ${target}`);
+      }
+    }
+    if (!feature && file.startsWith("src/") && target.startsWith("src/features/")) {
+      const targetFeature = target.split("/")[2];
+      if (
+        target !== `src/features/${targetFeature}` &&
+        target !== `src/features/${targetFeature}/index`
+      ) {
+        boundaryViolations.push(`${file}: root composition bypasses feature public entry: ${target}`);
       }
     }
     if (file.endsWith(".tsx") && file.startsWith("src/features/") &&

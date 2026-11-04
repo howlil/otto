@@ -5,5 +5,6 @@
   "featuresWithoutEntry": 0,
   "ariaLabelCount": 0,
   "inlineSvgCount": 0,
-  "biomeWarnings": 7
+  "biomeWarnings": 7,
+  "maxTsLines": 599
 }

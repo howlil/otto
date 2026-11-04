@@ -37,16 +37,18 @@ button{touch-action:manipulation}
 .mount{position:absolute;left:50%;top:0;transform:translateX(-50%);z-index:10;display:flex;justify-content:center;width:100%;pointer-events:none}
 .notch{position:relative;pointer-events:auto;background:#0e0f10;border:1px solid #34363c;border-radius:var(--rad,999px);width:var(--w,92px);height:var(--h,42px);overflow:visible;isolation:isolate;box-shadow:0 14px 39px #0007,inset 0 1px 0 #ffffff1b;transition:width 420ms var(--ease),height 420ms var(--ease),border-radius 420ms var(--ease),box-shadow 200ms ease;will-change:width,height}
 .notch.attached{border-radius:0 0 24px 24px;border-top-color:transparent}
-.notch.attached:before,.notch.attached:after{content:"";position:absolute;top:-1px;width:14px;height:14px;pointer-events:none}
-.notch.attached:before{right:100%;background:radial-gradient(circle at 0 100%,transparent 13.5px,#0e0f10 14px)}
-.notch.attached:after{left:100%;background:radial-gradient(circle at 100% 100%,transparent 13.5px,#0e0f10 14px)}
+.notch.attached:before,.notch.attached:after{content:"";position:absolute;top:-1px;width:12px;height:12px;pointer-events:none}
+.notch.attached:before{right:100%;background:radial-gradient(circle at 0 100%,transparent 11.5px,#0e0f10 12px)}
+.notch.attached:after{left:100%;background:radial-gradient(circle at 100% 100%,transparent 11.5px,#0e0f10 12px)}
 .notch-clip{width:100%;height:100%;border-radius:inherit;overflow:hidden;contain:paint}
 .notch-content{height:100%;animation:reveal 210ms var(--ease) 70ms both}
 .notch-transition{position:relative;height:100%;width:100%}
 .notch-outgoing{position:absolute;inset:0;z-index:2;pointer-events:none;animation:notch-exit 125ms ease-in both}
 @keyframes notch-exit{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-4px)}}
 @keyframes reveal{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
-.eye-pair{width:100%;height:100%;display:flex;align-items:center;justify-content:center;gap:17px;border:0;background:transparent;color:inherit}
+.eye-pair{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:inherit}
+.eye-pair .compact-eyes{width:32px;height:23px;display:flex;align-items:center;justify-content:center;gap:8px}
+.eye-pair .compact-eyes i{height:14px;width:10px;border-radius:50%;background:#f2f2f3}
 .eye{height:14px;width:10px;border-radius:50%;background:#f2f2f3;transition:height 190ms var(--ease),width 190ms var(--ease),transform 190ms var(--ease)}
 .eye-pair:hover .eye{height:12px;width:11px;transform:translateY(-1px)}
 .compact{height:100%;padding:0 11px;display:flex;align-items:center;gap:9px;border:0;background:none;color:inherit;width:100%;text-align:left}
@@ -143,7 +145,7 @@ button{touch-action:manipulation}
 @media(max-width:600px){.notch{transform:scale(.78);transform-origin:top center;flex-shrink:0}}
 @media(max-width:420px){.notch{transform:scale(.58)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}.notch{will-change:auto}}
-.motion-reduced .notch,.motion-reduced .notch-content,.motion-reduced .module-art,.motion-reduced .eye,.motion-reduced .micro-meter i{transition:none!important;animation:none!important}
+.motion-reduced .notch,.motion-reduced .notch-content,.motion-reduced .module-art,.motion-reduced .eye,.motion-reduced .micro-meter i,.motion-reduced .active-indicator{transition:none!important;animation:none!important}
 
 /* Home + Agent fidelity pass: references design/home.html and design/agent.html */
 .desktop{background:#e9ecf1;border-color:#d5dbe3}
@@ -153,9 +155,9 @@ button{touch-action:manipulation}
 .win-top{border-color:#e0e4ea}.win-top span{border-color:#c2c7ce}.win-line{background:#e0e4ea}
 .canvas-note,.corner-note{color:#9ba5b2}.canvas-note kbd{border-color:#aeb9c6;color:#8996a8}
 .notch{background:#151515;border-color:#353535;box-shadow:0 14px 28px #25344924}
-.notch.attached:before{background:radial-gradient(circle at 0 100%,transparent 13.5px,#151515 14px)}
-.notch.attached:after{background:radial-gradient(circle at 100% 100%,transparent 13.5px,#151515 14px)}
-.hf{padding:12px 17px 17px}
+.notch.attached:before{background:radial-gradient(circle at 0 100%,transparent 11.5px,#151515 12px)}
+.notch.attached:after{background:radial-gradient(circle at 100% 100%,transparent 11.5px,#151515 12px)}
+.hf{padding:15px 17px}
 .hf-head{height:34px;display:flex;gap:9px;align-items:center;flex:none}
 .hf-head strong{font-size:13px;font-weight:520;letter-spacing:-.01em}
 .hf-logo{height:34px;width:34px;display:grid;place-items:center;border:0;background:#29292c;color:#f0f0f0;border-radius:11px;flex:none}
@@ -163,8 +165,8 @@ button{touch-action:manipulation}
 .hf-eyes{width:28px;height:23px;display:flex;align-items:center;justify-content:center;gap:8px}
 .hf-eyes i{height:13px;width:6px;border-radius:6px;background:#fafafa}
 .hf-head .icon-button{width:28px;height:28px;border-radius:9px}
-.home-panels{margin-top:8px;gap:9px}
-.module{height:76px;min-height:0;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:11px 10px 11px 13px;border:1px solid #373737;border-radius:15px;background:#262626;position:relative;overflow:hidden;transition:background 160ms,border-color 160ms}
+.home-panels{margin-top:8px;gap:8px}
+.module{height:76px;min-height:0;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:12px;border:1px solid #373737;border-radius:15px;background:#262626;position:relative;overflow:hidden;transition:background 160ms,border-color 160ms}
 .module.agent-card{background:linear-gradient(118deg,#26292e 0%,#262a30 51%,#1c2128 100%)}
 .module.music-card{background:linear-gradient(118deg,#29282d 0%,#282730 51%,#1d1e29 100%)}
 .module.focus-card{background:linear-gradient(118deg,#28292c 0%,#27282c 51%,#202329 100%)}
@@ -304,15 +306,18 @@ button{touch-action:manipulation}
 
 .af-feed{-ms-overflow-style:none}
 .af-feed::-webkit-scrollbar,.af-composer textarea::-webkit-scrollbar{display:none}
-.af-composer{min-height:68px;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:10px 10px 7px;border-radius:22px}
-.af-composer textarea{display:block;flex:none;width:100%;box-sizing:border-box;height:19px;min-height:19px;max-height:105px;line-height:1.5;font-size:12px;padding:0 4px;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none}
-.af-compose-actions{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;margin-top:8px}
+.af-composer{min-height:44px;display:flex;flex-direction:row;align-items:center;gap:5px;padding:5px 7px;border-radius:999px}
+.af-composer.af-expanded{min-height:68px;flex-direction:column;align-items:stretch;gap:0;padding:10px;border-radius:22px}
+.af-composer textarea{display:block;flex:1;width:0;box-sizing:border-box;height:19px;min-height:19px;max-height:19px;line-height:1.5;font-size:12px;padding:0 4px;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none}
+.af-composer.af-expanded textarea{flex:none;width:100%;max-height:105px}
+.af-compose-actions{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;margin-top:0}
+.af-composer.af-expanded .af-compose-actions{margin-top:8px}
 .af-compose-tools{display:flex;gap:4px;align-items:center;min-width:0;flex:1}
 .af-compose-tools .icon-button{flex:none}
 
 .as-runtime-row{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#a3a4ab;font-size:10px;margin:10px 0}
 .as-runtime-row strong{color:#eeeef0;font-weight:550;text-align:right;overflow-wrap:anywhere}
-.as-grid,.as-runtime-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:10px}
+.as-grid,.as-runtime-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}
 @media(max-width:360px){.as-grid,.as-runtime-grid{grid-template-columns:1fr}}
 .as-runtime-note{font-size:9px;line-height:1.55;color:#a2a3aa;margin:10px 0}
 .as-runtime-track{height:4px;background:#404148;border-radius:6px;margin:10px 0;overflow:hidden}
@@ -329,10 +334,12 @@ button{touch-action:manipulation}
 .gs-back:hover{background:#34353a}
 .gs-meta{margin-left:auto;color:#777;font-size:11px}
 .gs-body{flex:1;min-height:0;display:grid;grid-template-columns:118px minmax(0,1fr)}
-.gs-nav{padding:13px 8px;border-right:1px solid #292b2f;display:flex;flex-direction:column;gap:4px;background:#181818}
-.gs-navitem{height:35px;text-align:left;color:#929292;border:0;background:transparent;border-radius:9px;padding:0 11px;font-size:11px;transition:background 160ms,color 160ms;cursor:pointer}
+.gs-nav{padding:13px 8px;border-right:1px solid #292b2f;background:#181818}
+.gs-nav-group{display:flex;flex-direction:column;gap:4px;position:relative}
+.gs-nav-indicator{position:absolute;left:0;top:0;z-index:0;pointer-events:none;border-radius:9px;background:#2e3033;transition:transform 180ms var(--ease),width 180ms var(--ease),height 180ms var(--ease)}
+.gs-navitem{position:relative;z-index:1;height:35px;text-align:left;color:#929292;border:0;background:transparent;border-radius:9px;padding:0 11px;font-size:11px;transition:color 180ms var(--ease);cursor:pointer}
 .gs-navitem:hover{background:#272729;color:#ececec}
-.gs-navitem.active{background:#2e3033;color:#fff}
+.gs-navitem.active{color:#fff}
 .gs-views{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;-ms-overflow-style:none;scrollbar-gutter:stable;min-width:0;min-height:0}
 .gs-view{padding:16px 18px 20px;color:#fafafa}
 .gs-view h2{font-weight:550;font-size:14px;margin:0 0 3px}
@@ -356,9 +363,16 @@ button{touch-action:manipulation}
 .gs-rangehead output{font-size:10px;color:#bfc1c8;font-variant-numeric:tabular-nums}
 .gs-range input[type=range]{display:block;width:100%;accent-color:#bbc1cc;cursor:pointer;height:15px}
 .gs-range input:disabled{opacity:.35;cursor:not-allowed}
-.gs-placement{display:flex;gap:8px;margin-bottom:18px}
-.gs-placepick{background:#242527;border:1px solid #404043;color:#ddd;border-radius:12px;padding:10px 7px;width:50%;display:flex;align-items:center;flex-direction:column;gap:8px;cursor:pointer}
-.gs-placepick.selected{border-color:#b8babe;background:#313235;color:#fff}
+.gs-advanced{margin-top:12px;border-top:1px solid #2b2b2c;padding-top:9px}
+.gs-advanced summary{color:#b8b9bf;font-size:11px;cursor:pointer;list-style:none}
+.gs-advanced summary::-webkit-details-marker{display:none}
+.gs-advanced summary:after{content:"+";float:right;color:#85868b}
+.gs-advanced[open] summary:after{content:"−"}
+.gs-advanced-body{padding-top:2px}
+.gs-placement{display:flex;gap:8px;margin-bottom:18px;position:relative}
+.gs-placement-indicator{position:absolute;left:0;top:0;z-index:0;pointer-events:none;border:1px solid #b8babe;border-radius:12px;background:#313235;transition:transform 180ms var(--ease),width 180ms var(--ease),height 180ms var(--ease)}
+.gs-placepick{position:relative;z-index:1;background:#242527;border:1px solid #404043;color:#ddd;border-radius:12px;padding:10px 7px;width:50%;display:flex;align-items:center;flex-direction:column;gap:8px;cursor:pointer;transition:border-color 180ms var(--ease),background 180ms var(--ease)}
+.gs-placepick.selected{border-color:transparent;background:transparent;color:#fff}
 .gs-placepick strong{font-size:10px;font-weight:500}
 .gs-placegraphic{width:77px;height:42px;display:block;position:relative;border:1px solid #515359;border-radius:5px;background:#1b1d21}
 .gs-place-floating{position:absolute;width:35px;height:10px;background:#d7d9de;border-radius:20px;left:20px;top:8px}
@@ -381,22 +395,26 @@ button{touch-action:manipulation}
 .as-header .icon-button{height:28px;width:28px;background:#242426;border:1px solid #36373b;border-radius:9px}
 .as-meta{margin-left:auto;font-size:10px;color:#888}
 .as-body{min-height:0;flex:1;display:flex;flex-direction:column}
-.as-nav{padding:8px 12px;display:flex;gap:4px;border-bottom:1px solid #292b2f;background:#181818}
-.as-navitem{height:35px;flex:1;background:none;color:#929292;border:0;border-radius:9px;padding:0 9px;text-align:center;font-size:11px;cursor:pointer}
-.as-navitem.active{background:#2e3033;color:#fff}
+.as-nav{padding:8px 12px;border-bottom:1px solid #292b2f;background:#181818}
+.as-nav-group{display:flex;gap:4px;position:relative}
+.as-nav-indicator{position:absolute;left:0;top:0;z-index:0;pointer-events:none;border-radius:9px;background:#2e3033;transition:transform 180ms var(--ease),width 180ms var(--ease),height 180ms var(--ease)}
+.as-navitem{position:relative;z-index:1;height:35px;flex:1;background:none;color:#929292;border:0;border-radius:9px;padding:0 9px;text-align:center;font-size:11px;transition:color 180ms var(--ease);cursor:pointer}
+.as-navitem.active{color:#fff}
 .as-navitem:hover{background:#272729;color:#eee}
 .as-scroll{min-width:0;min-height:0;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
-.as-view{padding:15px 17px 20px}
+.as-view{padding:16px}
 .as-field{border-bottom:1px solid #2b2b2c;padding-bottom:13px;margin-bottom:13px}
-.as-fieldlabel{font-size:11px;color:#e3e3e3;margin-bottom:9px}
+.as-fieldlabel{font-size:11px;font-weight:550;line-height:1.35;color:#b5b5ba;margin-bottom:6px}
+.as-note{display:block;margin:-3px 0 10px;color:#9d9da1;font-size:9px}
 
 .agent-feed::-webkit-scrollbar,.lyrics-column::-webkit-scrollbar,.setting-body::-webkit-scrollbar,.gs-views::-webkit-scrollbar,.as-scroll::-webkit-scrollbar{display:none}
 .as-providerlist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:0}
-.as-provider{position:relative;min-width:0;overflow:hidden;border:1px solid #353535;background:#242426;color:#fafafa;text-align:left;display:flex;cursor:pointer;transition:border-color .2s var(--ease),background .2s var(--ease)}
+.as-provider{position:relative;z-index:1;min-width:0;overflow:hidden;border:1px solid #353535;background:#242426;color:#fafafa;text-align:left;display:flex;cursor:pointer;transition:border-color 180ms var(--ease),background 180ms var(--ease)}
 .as-provider:not(:disabled):hover{border-color:#575962;background:#303034}
 .as-provider:focus-visible{outline:2px solid #b8bdc9;outline-offset:2px}
 .as-provider{align-items:center;justify-content:center;gap:6px;border-radius:12px;padding:10px 6px;min-height:88px;flex-direction:column}
-.as-provider.selected{border-color:#888a90;background:#303034}
+.as-provider.selected{border-color:transparent;background:transparent}
+.as-provider-indicator{position:absolute;inset:0;z-index:0;pointer-events:none;border:1px solid #888a90;border-radius:12px;background:#303034;transition:transform 180ms var(--ease),width 180ms var(--ease),height 180ms var(--ease)}
 .as-provider-art{display:flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:9px;background:#2f3034}
 .as-provider-art img{width:28px;height:28px;object-fit:contain}
 .as-provider-check{position:absolute;right:7px;top:7px;width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#f2f2f2;color:#171717;font-weight:700;font-size:10px}
@@ -412,10 +430,12 @@ button{touch-action:manipulation}
 .as-mode>span{flex:1}
 .as-radio{width:14px;height:14px;flex:none;border:1px solid #74757a;border-radius:50%}
 .as-mode.active .as-radio{background:#e0e1e3;box-shadow:inset 0 0 0 4px #303034}
-.as-status{display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid #404146;background:#242427;border-radius:10px;margin:10px 0;color:#d4d5d8}
+.as-status{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;border:1px solid #404146;background:#242427;border-radius:10px;margin:8px 0;color:#d4d5d8}
 .as-status svg{margin-top:1px;flex:none}
 .as-status strong{display:block;font-size:10px;font-weight:550}
 .as-status small{display:block;margin-top:4px;color:#96979b;font-size:9px;line-height:1.5}
+.as-ready{display:flex;align-items:center;gap:7px;margin:8px 0;color:#b5b5ba;font-size:10px}
+.as-ready i{width:6px;height:6px;border-radius:50%;background:#75c69a;display:block}
 .as-input{display:flex;gap:8px;align-items:center;border:1px solid #414146;background:#252528;border-radius:9px;padding:0 10px}
 .as-input input{flex:1;min-width:0;width:100%;background:transparent;border:0;padding:10px 0;color:#eee;font-size:11px;outline:0}
 .as-input:focus-within{border-color:#878994}
@@ -630,6 +650,32 @@ import {House,Terminal,Music2,Timer,Settings2,ArrowLeft,ChevronRight,ChevronDown
 const ICONS={House,Terminal,Music2,Timer,Settings2,ArrowLeft,ChevronRight,ChevronDown,Play,Pause,SkipBack,SkipForward,Camera,Send,Square,Copy,Check,Wifi,Bluetooth,Volume2,Sun,BatteryCharging,Headphones,Mouse,Monitor,SlidersHorizontal,MessageSquare,RotateCcw,Plus,Minus,Music,Disc3,Focus,Command,CheckCircle2,AlertCircle,ArrowUpRight,LockKeyhole,X,History,Pencil,Trash2,Search};
 const el=(tag,props,...children)=>h(tag,props,...children);
 const Icon=({name,size=16,...rest})=>h(ICONS[name],{size,strokeWidth:1.7,"aria-hidden":true,...rest});
+function ActiveIndicatorGroup({activeKey,children,className="",indicatorClassName=""}){
+ const ref=useRef(null);
+ const [rect,setRect]=useState(null);
+ const measure=useCallback(()=>{
+  const group=ref.current;
+  if(!group)return;
+  const active=[...group.querySelectorAll("[data-active-key]")].find(node=>node.dataset.activeKey===activeKey);
+  if(!active)return;
+  const groupRect=group.getBoundingClientRect();
+  const activeRect=active.getBoundingClientRect();
+  const next={x:activeRect.left-groupRect.left,y:activeRect.top-groupRect.top,width:activeRect.width,height:activeRect.height};
+  setRect(current=>current&&current.x===next.x&&current.y===next.y&&current.width===next.width&&current.height===next.height?current:next);
+ },[activeKey]);
+ useLayoutEffect(()=>{
+  measure();
+  const group=ref.current;
+  if(!group)return;
+  const observer=typeof ResizeObserver==="undefined"?null:new ResizeObserver(measure);
+  observer?.observe(group);
+  window.addEventListener("resize",measure);
+  return()=>{observer?.disconnect();window.removeEventListener("resize",measure)};
+ },[activeKey,measure]);
+ return el("div",{ref,className:["active-indicator-group",className].filter(Boolean).join(" ")},
+  rect?el("span",{"aria-hidden":true,className:["active-indicator",indicatorClassName].filter(Boolean).join(" "),style:{width:rect.width,height:rect.height,transform:"translate3d("+rect.x+"px, "+rect.y+"px, 0)"}}):null,
+  children);
+}
 const durations={focus:25,short:5,long:15};
 const names={focus:"Focus",short:"Short break",long:"Long break"};
 const formatTime=(sec)=>String(Math.floor(Math.max(0,sec)/60)).padStart(2,"0")+":"+String(Math.floor(Math.max(0,sec)%60)).padStart(2,"0");
@@ -655,10 +701,10 @@ function Header({title,context,onHome,onSettings,onBack}){
 }
 
 function Compact({page,agent,music,timer,open,onToggle,prefs}){
- if(page==="home")return el("button",{className:"eye-pair expression-"+prefs.expression.toLowerCase()+(prefs.reactive==="Alive"?" expressive":""),onClick:open,"aria-label":"Open Otto Home"},el("span",{className:"eye"}),el("span",{className:"eye"}));
+ if(page==="home")return el("button",{className:"eye-pair expression-"+prefs.expression.toLowerCase()+(prefs.reactive==="Alive"?" expressive":""),onClick:open,"aria-label":"Open Otto Home"},el("span",{className:"compact-eyes"},el("i"),el("i")));
  const phase=agent.phase||"ready";
-  const name=phase==="complete"&&agent.unread?"Answer ready":agent.provider;
-  const agentSub=agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported capability":phase==="interrupted"?"Conversation interrupted":phase==="stopped"?"Stopped":agent.busy?"Responding":phase==="complete"?"Answer ready":"Ready";
+   const name=agent.connection==="unavailable"?"Reconnect":phase==="complete"&&agent.unread?"Answer ready":agent.provider;
+   const agentSub=agent.connection==="unavailable"?"Otto unavailable":agent.readiness==="checking"?"Checking provider":agent.readiness==="unavailable"?"Provider unavailable":agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported capability":phase==="interrupted"?"Conversation interrupted":phase==="failed"?"Request failed":phase==="stopping"?"Stopping":phase==="stopped"?"Stopped":agent.busy?"Responding":phase==="complete"?"Answer ready":"Ready";
  const identity=page==="agent"?{icon:phase==="complete"?"CheckCircle2":"Terminal",name,sub:agentSub}:page==="music"?{icon:"Music2",name:tracks[music.track].title,sub:tracks[music.track].artist}:{icon:"Timer",name:formatTime(timer.remaining),sub:names[timer.phase]};
  return el("div",{className:"compact"},el("button",{type:"button",className:"compact-icon"+(page==="music"?" album-mini":""),onClick:open,"aria-label":"Open "+page},h(Icon,{name:identity.icon,size:16})),el("button",{type:"button",onClick:open,className:"compact-identity",style:{border:0,background:"none",textAlign:"left",padding:0,color:"inherit"}},el("strong",null,identity.name),el("small",null,identity.sub)),
  page==="agent"?(agent.busy?el("span",{className:"activity playing"},el("i"),el("i"),el("i")):agent.unread?el("span",{className:"unread"}):null):null,
@@ -796,35 +842,43 @@ const historyStamp=(updatedAt)=>{
  if(elapsed<86400000)return Math.floor(elapsed/3600000)+"h ago";
  return Math.floor(elapsed/86400000)+"d ago";
 };
-function HistoryPanel({conversations,setConversations,onBack,onOpen}){
+function HistoryPanel({conversations,setConversations,onBack,onOpen,pending,error,onRefresh}){
  const [query,setQuery]=useState("");
  const [renamingId,setRenamingId]=useState(null);
  const [confirmId,setConfirmId]=useState(null);
+ const [confirmAll,setConfirmAll]=useState(false);
  const [draft,setDraft]=useState("");
  const rows=conversations.filter(c=>!query.trim()||c.title.toLowerCase().includes(query.trim().toLowerCase()));
  const commit=id=>{if(draft.trim())setConversations(list=>list.map(c=>c.id===id?{...c,title:draft.trim()}:c));setRenamingId(null)};
- return el("div",{className:"afh"},
-  el("div",{className:"afh-head"},h(IconButton,{name:"ArrowLeft",label:"Back to conversation",onClick:onBack}),el("strong",null,"History"),el("span",{className:"afh-meta"},conversations.length+" saved")),
-  el("div",{className:"afh-search"},
-   el("label",{className:"afh-field"},h(Icon,{name:"Search",size:13}),el("span",null,"Search"),el("input",{value:query,placeholder:"Saved conversations",onChange:e=>setQuery(e.target.value)})),
-   el("button",{type:"button",className:"afh-tool",title:"Refresh conversation history",onClick:()=>setConversations(list=>[...list])},h(Icon,{name:"History",size:15}))),
-  el("div",{className:"afh-scroll"},
-   rows.length===0?el("p",{className:"afh-empty"},query.trim()?"No saved conversation matches this search.":"No saved conversations yet. Finished answers appear here."):null,
-   el("ul",{className:"afh-list"},...rows.map(c=>renamingId===c.id
-    ?el("li",{key:c.id,className:"afh-rename"},el("label",null,el("span",null,"Conversation title"),el("input",{value:draft,onChange:e=>setDraft(e.target.value),onKeyDown:e=>{if(e.key==="Enter")commit(c.id);if(e.key==="Escape")setRenamingId(null)}})))
-    :confirmId===c.id
-     ?el("li",{key:c.id,className:"afh-danger"},el("p",null,"Delete “"+c.title+"”? This cannot be undone."),el("div",null,el("button",{type:"button",onClick:()=>{setConversations(list=>list.filter(x=>x.id!==c.id));setConfirmId(null)}},"Delete"),el("button",{type:"button",onClick:()=>setConfirmId(null)},"Cancel")))
-     :el("li",{key:c.id,className:"afh-row"},
-       el("button",{type:"button",className:"afh-open",onClick:()=>onOpen(c)},el("strong",null,c.title),el("small",{className:c.interrupted?"warn":""},c.provider+" · "+c.messages+" messages · "+historyStamp(c.updatedAt)+(c.interrupted?" · Interrupted":""))),
-       el("span",{className:"afh-tools"},el("button",{type:"button",className:"afh-tool",title:"Rename "+c.title,onClick:()=>{setConfirmId(null);setDraft(c.title);setRenamingId(c.id)}},h(Icon,{name:"Pencil",size:13})),el("button",{type:"button",className:"afh-tool",title:"Delete "+c.title,onClick:()=>{setRenamingId(null);setConfirmId(c.id)}},h(Icon,{name:"Trash2",size:13}))))))));
+ const confirmDeleteAll=()=>{setConversations([]);setConfirmAll(false)};
+ const content=pending
+  ?el("p",{className:"afh-empty",role:"status"},"Loading saved conversations…")
+  :error
+   ?el("div",{className:"af-error",role:"alert"},el("strong",null,"History unavailable"),el("p",null,error),el("button",{type:"button",onClick:onRefresh},"Retry"))
+   :rows.length===0
+    ?el("p",{className:"afh-empty"},query.trim()?"No saved conversation matches this search.":"No saved conversations yet. Finished answers appear here.")
+   :el("ul",{className:"afh-list"},...rows.map(c=>{
+      if(renamingId===c.id)return el("li",{key:c.id,className:"afh-rename"},el("label",null,el("span",null,"Conversation title"),el("input",{value:draft,onChange:e=>setDraft(e.target.value),onKeyDown:e=>{if(e.key==="Enter")commit(c.id);if(e.key==="Escape")setRenamingId(null)}})));
+      if(confirmId===c.id)return el("li",{key:c.id,className:"afh-danger"},el("p",null,"Delete “"+c.title+"”? This cannot be undone."),el("div",null,el("button",{type:"button",onClick:()=>{setConversations(list=>list.filter(x=>x.id!==c.id));setConfirmId(null)}},"Delete"),el("button",{type:"button",onClick:()=>setConfirmId(null)},"Cancel")));
+      return el("li",{key:c.id,className:"afh-row"},el("button",{type:"button",className:"afh-open",onClick:()=>onOpen(c)},el("strong",null,c.title),el("small",{className:c.interrupted?"warn":""},c.provider+" · "+c.messages+" messages · "+historyStamp(c.updatedAt)+(c.interrupted?" · Interrupted":""))),el("span",{className:"afh-tools"},el("button",{type:"button",className:"afh-tool",title:"Rename "+c.title,onClick:()=>{setConfirmId(null);setDraft(c.title);setRenamingId(c.id)}},h(Icon,{name:"Pencil",size:13})),el("button",{type:"button",className:"afh-tool",title:"Delete "+c.title,onClick:()=>{setRenamingId(null);setConfirmId(c.id)}},h(Icon,{name:"Trash2",size:13}))));
+    }));
+ const confirmation=confirmAll&&conversations.length>0?el("div",{className:"afh-danger",role:"alert"},el("p",null,"Delete all saved conversations? This cannot be undone."),el("div",null,el("button",{type:"button",onClick:confirmDeleteAll},"Delete all"),el("button",{type:"button",onClick:()=>setConfirmAll(false)},"Cancel"))):null;
+ const header=el("div",{className:"afh-head"},h(IconButton,{name:"ArrowLeft",label:"Back to conversation",onClick:onBack}),el("strong",null,"History"),el("span",{className:"afh-meta"},conversations.length+" saved"));
+ const search=el("div",{className:"afh-search"},el("label",{className:"afh-field"},h(Icon,{name:"Search",size:13}),el("span",null,"Search"),el("input",{value:query,placeholder:"Saved conversations",onChange:e=>setQuery(e.target.value)})),el("button",{type:"button",className:"afh-tool",title:"Delete all history","aria-label":"Delete all history",disabled:pending||conversations.length===0,onClick:()=>setConfirmAll(true)},h(Icon,{name:"Trash2",size:15})),el("button",{type:"button",className:"afh-tool",title:"Refresh conversation history",disabled:pending,onClick:onRefresh},h(Icon,{name:"History",size:15})));
+ const scroll=el("div",{className:"afh-scroll"},confirmation,content);
+ return el("div",{className:"afh"},header,search,scroll);
 }
 
 function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onNewSession,onCaptureSettings,onHome,onCapture,onRetry,onMeasured}){
  const feedRef=useRef(null),composerRef=useRef(null),textareaRef=useRef(null);
  const [feedback,setFeedback]=useState("");
+ const [composerExpanded,setComposerExpanded]=useState(false);
  const [conversations,setConversations]=useState(PROTOTYPE_HISTORY);
+ const [historyPending,setHistoryPending]=useState(false);
+ const [historyError,setHistoryError]=useState("");
  const [showHistory,setShowHistory]=useState(false);
- const phase=agent.phase||"ready",capturePhase=agent.capturePhase||"idle",ready=agent.readiness==="ready",unread=agent.unread&&!agent.busy;
+ const phase=agent.phase||"ready",capturePhase=agent.capturePhase||"idle",ready=agent.readiness==="ready"&&agent.connection!=="unavailable",unread=agent.unread&&!agent.busy;
+ const connectionUnavailable=agent.connection==="unavailable",selectionPending=Boolean(agent.selectionPending),stopping=phase==="stopping";
  const capability=AGENT_CAPABILITIES[agent.provider]||AGENT_CAPABILITIES.Codex;
  const measuredHeight=()=>{
   const feed=feedRef.current,composer=composerRef.current;
@@ -841,6 +895,7 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onNewSession,o
   const height=Math.max(19,Math.min(cap,area.scrollHeight));
   area.style.height=height+"px";
   area.style.overflowY=area.scrollHeight>cap?"auto":"hidden";
+  setComposerExpanded(height>19);
   measuredHeight();
  },[draft,agent.provider,feedback]);
  useLayoutEffect(()=>{measuredHeight()},[agent.messages,agent.busy,agent.phase,agent.warning]);
@@ -857,10 +912,10 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onNewSession,o
   const notify=message=>setFeedback(message);
  const copy=async(value,success)=>notify(await copyPrototypeText(value)?success:"Clipboard unavailable — select text to copy");
  const captureLabel=capturePhase==="failed"?"Capture failed":capturePhase==="preparing"?"Preparing capture":capturePhase==="capturing"?"Capturing screen":capturePhase==="submitting"?"Sending image":capturePhase==="analyzing"?"Analyzing screenshot":"";
-  const status=captureLabel|| (agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="interrupted"?"Interrupted":phase==="error"?"Provider blocked":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Preview ready");
+  const status=captureLabel|| (connectionUnavailable?"Connection unavailable":agent.readiness==="checking"?"Checking":agent.readiness==="unavailable"?"Unavailable":agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="interrupted"?"Interrupted":phase==="failed"?"Request failed":phase==="error"?"Provider blocked":stopping?"Stopping":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Preview ready");
  const head=el("div",{className:"af-head"},
   el("button",{type:"button",className:"af-eyebutton",onClick:onHome,"aria-label":"Return to Home"},el("i"),el("i")),
-   el("div",{className:"af-identity"},el("strong",null,agent.provider),el("small",null,(agent.model||"Model not selected")+(agent.effort?" · "+agent.effort:"")+" · "+(agent.readiness==="ready"?"Tools disabled":agent.readiness==="preview"?"Verifying":"Unavailable"))),
+    el("div",{className:"af-identity"},el("strong",null,agent.provider),el("small",null,(agent.model||"Model not selected")+(agent.effort?" · "+agent.effort:"")+" · "+(connectionUnavailable?"Reconnect required":agent.readiness==="checking"?"Checking provider":ready?"Tools disabled":"Unavailable"))),
    el("span",{className:"af-state"+(ready?"":" af-attention"),role:"status"},el("i",{className:!ready?"warn":phase==="error"?"bad":""}),status),
    h(IconButton,{name:"History",label:"Conversation history",onClick:()=>setShowHistory(true)}),
    agent.messages.length>0?h(IconButton,{name:"Plus",label:"New chat",disabled:agent.busy,onClick:onNewSession}):null,
@@ -872,89 +927,101 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onNewSession,o
   return el("div",{key:i,className:m.role==="user"?"af-question":"af-response"},
    m.role==="assistant"&&m.text?el("div",{className:"af-md"},mdLite(m.text,copy)):m.text||el("span",{className:"af-thinking"},el("span",{className:"activity playing"},el("i"),el("i"),el("i")),"Reading context…"),actions);
  });
- const hint=!ready?el("div",{className:"af-inline-state"},
-  el("div",{className:"af-inline-heading"},h(Icon,{name:"AlertCircle",size:15}),status),
-  el("p",null,agent.readiness==="auth"?"The selected CLI needs authentication. Your draft is retained.":agent.readiness==="missing"?"CLI executable not found. Install it or choose a working provider.":"This provider or model cannot fulfill the selected capability."),
-  el("button",{type:"button",onClick:onSettings},"Configure provider")):null;
- const error=["error","interrupted"].includes(phase)?el("div",{className:"af-error"},
-  el("strong",null,phase==="interrupted"?"Previous run interrupted":"Cannot reach "+agent.provider),
-  el("p",null,phase==="interrupted"?"The previous run outcome is unknown. No reply was restored. Start a new request.":"Provider request failed. Keep your draft; retry after recovery."),
-  el("button",{type:"button",onClick:onRetry},phase==="interrupted"?"Start fresh":"Retry")):null;
- const captureError=capturePhase==="failed"?el("div",{className:"af-error"},
-  el("strong",null,"Capture failed"),el("p",null,agent.captureError||"No image was captured or transmitted in this HTML preview."),
-  el("button",{type:"button",onClick:onCapture},"Retry capture"),el("button",{type:"button",onClick:onCaptureSettings},"Screen Capture settings")):null;
- const feed=el("div",{className:"af-feed",ref:feedRef,"aria-live":"polite"},el("div",{className:"af-feedstack"},
+  const hint=!ready?el("div",{className:"af-inline-state"},
+   el("div",{className:"af-inline-heading"},h(Icon,{name:"AlertCircle",size:15}),status),
+   el("p",null,connectionUnavailable?"Otto cannot reach the desktop process. Your draft is retained.":agent.readiness==="checking"?"Checking the selected provider before sending.":agent.readiness==="auth"?"The selected CLI needs authentication. Your draft is retained.":agent.readiness==="missing"?"CLI executable not found. Install it or choose a working provider.":agent.readiness==="unavailable"?"Provider readiness is unavailable. Reconnect and try again.":"This provider or model cannot fulfill the selected capability."),
+   el("button",{type:"button",onClick:connectionUnavailable?onRetry:onSettings},connectionUnavailable?"Reconnect":agent.readiness==="checking"?"Open Agent settings":"Configure provider")):null;
+  const error=connectionUnavailable||["error","failed","interrupted"].includes(phase)?el("div",{className:"af-error"},
+   el("strong",null,connectionUnavailable?"Otto connection unavailable":phase==="interrupted"?"Previous run interrupted":phase==="failed"?"Request failed":"Cannot reach "+agent.provider),
+   el("p",null,connectionUnavailable?"The desktop process is unavailable. Reconnect before sending.":phase==="interrupted"?"The previous run outcome is unknown. No reply was restored. Start a new request.":"Provider request failed. Keep your draft; retry after recovery."),
+   el("button",{type:"button",onClick:onRetry},connectionUnavailable?"Reconnect":phase==="interrupted"?"Start fresh":"Retry")):null;
+  const captureError=capturePhase==="failed"?el("div",{className:"af-error"},
+   el("strong",null,"Capture failed"),el("p",null,agent.captureError||"No image was captured or transmitted in this HTML preview."),
+   el("button",{type:"button",onClick:onCapture},"Retry capture"),el("button",{type:"button",onClick:onCaptureSettings},"Screen Capture settings")):null;
+  const portability=agent.portable&&!agent.threadId?el("div",{className:"af-warning",role:"status"},"This saved transcript has no live native thread context. Continue to start a new native run."):null;
+  const feed=el("div",{className:"af-feed",ref:feedRef,"aria-live":"polite"},el("div",{className:"af-feedstack"},
   ...messages,
-  agent.busy?el("div",{className:"af-working"},el("span",{className:"activity playing"},el("i"),el("i"),el("i")),phase==="thinking"?"Reading context":"Streaming output · simulated"):null,
-  hint,error,captureError,
-  unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
+   agent.busy?el("div",{className:"af-working"},el("span",{className:"activity playing"},el("i"),el("i"),el("i")),phase==="thinking"?"Reading context":stopping?"Stopping request":"Streaming output · simulated"):null,
+   hint,error,captureError,
+   portability,
+   unread?el("div",{className:"af-warning"},"Answer ready — reopened from background"):null,
   agent.warning?el("div",{className:"af-warning"},agent.warning,el("button",{type:"button",className:"as-textbutton",onClick:/capture|screenshot|hotkey|window|image/i.test(agent.warning)?onCaptureSettings:onSettings},/capture|screenshot|hotkey|window|image/i.test(agent.warning)?"Screen Capture settings":"Provider settings")):null));
-  const send=e=>{e.preventDefault();if(agent.busy)onStop();else if(ready&&draft.trim()){onSend(draft.trim());onDraft("")}};
+  const send=e=>{e.preventDefault();if(stopping)return;if(agent.busy)onStop();else if(ready&&draft.trim()){onSend(draft.trim());onDraft("")}};
 
+ const captureControl=h(IconButton,{name:"Camera",label:capturePhase==="failed"?"Retry screen capture":capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy||["preparing","capturing","submitting","analyzing"].includes(capturePhase)});
  const composer=el("div",{className:"af-composewrap",ref:composerRef},
   feedback?el("div",{className:"af-feedback",role:"status"},feedback):null,
-  el("form",{className:"af-composer",onSubmit:send},
+  el("form",{className:"af-composer"+(composerExpanded?" af-expanded":""),onSubmit:send},
+    !composerExpanded?captureControl:null,
     el("textarea",{ref:textareaRef,rows:1,value:draft,placeholder:ready?"Ask "+agent.provider+"…":"Configure "+agent.provider+" to send","aria-label":"Agent prompt",onKeyDown:e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(ready&&!agent.busy&&draft.trim())send(e)}},onChange:e=>{onDraft(e.target.value);if(feedback)setFeedback("")}}),
    el("div",{className:"af-compose-actions"},
-    el("div",{className:"af-compose-tools"},h(IconButton,{name:"Camera",label:capturePhase==="failed"?"Retry screen capture":capability.image?"Screen capture — native only":"Screen capture unsupported for "+agent.provider,onClick:onCapture,disabled:agent.busy||["preparing","capturing","submitting","analyzing"].includes(capturePhase)})),
+    composerExpanded?el("div",{className:"af-compose-tools"},captureControl):null,
     el("button",{type:agent.busy?"button":"submit",className:"af-send",onClick:agent.busy?onStop:undefined,disabled:!agent.busy&&(!draft.trim()||!ready),"aria-label":agent.busy?"Stop request":"Send"},h(Icon,{name:agent.busy?"Square":"ArrowUpRight",size:16})))));
- if(showHistory)return el("div",{className:"af"},h(HistoryPanel,{conversations,setConversations,onBack:()=>setShowHistory(false),onOpen:()=>{setShowHistory(false);notify("Prototype only — native opens the saved conversation transcript.")}}));
+  const refreshHistory=()=>{setHistoryPending(true);setHistoryError("");window.setTimeout(()=>setHistoryPending(false),450)};
+  if(showHistory)return el("div",{className:"af"},h(HistoryPanel,{conversations,setConversations,onBack:()=>setShowHistory(false),pending:historyPending,error:historyError,onRefresh:refreshHistory,onOpen:()=>{setShowHistory(false);notify("Prototype only — native opens the saved conversation transcript.")}}));
  return el("div",{className:"af"},head,feed,composer);
 }
 
 
 
 function AgentSettings({agent,setAgent,capture,setCapture,tab,setTab,onBack}){
- const names=["Setup","Capture"];
+ const names=["Assistant","Capture"];
  const [showSample,setShowSample]=useState(false);
  const runtimeInfo=agent.runtimeInfo||(showSample?AGENT_RUNTIME_EXAMPLE[agent.provider]:null);
  const remaining=agentContextRemaining(runtimeInfo);
+ const hasContext=runtimeInfo&&Number.isFinite(runtimeInfo.contextUsed)&&Number.isFinite(runtimeInfo.contextWindow);
  const caps=AGENT_CAPABILITIES[agent.provider]||AGENT_CAPABILITIES.Codex;
-  const locked=agent.busy;
- const statusText={ready:"Preview ready",auth:"Sign-in required",missing:"Not installed",unsupported:"Not verified"};
- const field=(label,control)=>el("div",{className:"as-field"},el("div",{className:"as-fieldlabel"},label),control);
- const status=(heading,note)=>el("div",{className:"as-status",role:"status"},h(Icon,{name:"AlertCircle",size:15}),el("div",null,el("strong",null,heading),el("small",null,note)));
- const modeButton=(name,desc,active,callback,disabled=false)=>el("button",{type:"button",className:"as-mode"+(active?" active":""),onClick:callback,disabled},el("i",{className:"as-radio"}),el("span",null,el("strong",null,name),el("small",null,desc)));
+  const locked=agent.busy||agent.selectionPending;
+  const statusText={ready:"Preview ready",checking:"Checking",unavailable:"Unavailable",auth:"Sign-in required",missing:"Not installed",unsupported:"Not verified"};
+  const field=(label,control)=>el("div",{className:"as-field"},el("div",{className:"as-fieldlabel"},label),control);
+  const status=(heading,note)=>el("div",{className:"as-status",role:"status"},h(Icon,{name:"AlertCircle",size:15}),el("div",null,el("strong",null,heading),el("small",null,note)));
+  const modeButton=(name,active,callback,disabled=false)=>el("button",{type:"button",className:"as-mode"+(active?" active":""),onClick:callback,disabled},el("i",{className:"as-radio"}),el("span",null,el("strong",null,name)));
+  const updateRuntime=update=>{setAgent(a=>({...update(a),selectionPending:true}));window.setTimeout(()=>setAgent(a=>({...a,selectionPending:false})),350)};
  const parts=[];
- if(tab==="Setup"){
+  if(tab==="Assistant"){
 
   const providers=["Codex","Agy","Pi"].map(name=>{
    const selected=agent.provider===name;
    const label=name==="Agy"?"Antigravity":name;
    const cmd=name==="Codex"?"codex":name==="Agy"?"agy":"pi";
-   const desc=name==="Codex"?"OpenAI coding agent":name==="Agy"?"Google Antigravity CLI":"Minimal coding harness";
-    return el("button",{type:"button",key:name,disabled:locked,className:"as-provider"+(selected?" selected":""),"aria-pressed":selected,onClick:()=>setAgent(a=>({...a,provider:name,phase:"ready",warning:""}))},
+     return el("button",{type:"button",key:name,"data-active-key":name,disabled:locked,className:"as-provider"+(selected?" selected":""),"aria-pressed":selected,onClick:()=>updateRuntime(a=>({...a,provider:name,phase:"ready",warning:""}))},
     el("span",{className:"as-provider-art"},el("img",{src:AGENT_PROVIDER_ICONS[name],alt:""}),selected?el("span",{className:"as-provider-check"},"✓"):null),
     el("span",{className:"as-provider-copy"},el("strong",null,label),el("small",null,cmd)));
   });
-  parts.push(field("Choose your agent",el("div",{className:"as-providerlist"},...providers)));
-  parts.push(status(agent.provider+" · "+(statusText[agent.readiness]||"Unknown"),"Prototype status only. Installed CLI, model, and authentication require native readiness checks."));
-  if(agent.readiness!=="ready")parts.push(el("button",{type:"button",className:"as-textbutton",onClick:()=>setAgent(a=>({...a,warning:"Native readiness checks are not available in this standalone HTML."}))},"Retry readiness"));
+    parts.push(field("Provider",h(ActiveIndicatorGroup,{activeKey:agent.provider,className:"as-providerlist",indicatorClassName:"as-provider-indicator"},providers)));
+   if(agent.connection==="unavailable")parts.push(status("Otto connection unavailable","Reconnect before reading provider readiness."));
+   else if(agent.readiness==="ready")parts.push(el("div",{className:"as-ready",role:"status"},el("i"),"Ready"));
+   else parts.push(status(agent.provider+" · "+(statusText[agent.readiness]||"Unknown"),agent.readiness==="checking"?"Checking installed CLI, authentication, and model capability.":"Installed CLI, model, and authentication require native readiness checks."));
+   if(agent.connection==="unavailable"||agent.readiness!=="ready")parts.push(el("button",{type:"button",className:"as-textbutton",onClick:()=>setAgent(a=>({...a,connection:"ready",readiness:"checking",warning:"Native readiness checks are not available in this standalone HTML."}))},agent.connection==="unavailable"?"Reconnect":"Retry readiness"));
+   if(agent.selectionPending)parts.push(status("Saving runtime selection","Provider, model, and thinking changes apply when the response ends."));
   const modelChoices=agent.provider==="Codex"?["Provider default","Demo model"]:["Provider-managed"];
    if(locked)parts.push(status("Generation active","Provider, model, and thinking changes apply when the response ends."));
   parts.push(el("div",{className:"as-grid"},
-   field("Requested model",el("select",{className:"as-select",value:agent.model||modelChoices[0],disabled:locked||modelChoices.length===1,onChange:e=>setAgent(a=>({...a,model:e.target.value===modelChoices[0]?"":e.target.value}))},...modelChoices.map(name=>el("option",{key:name,value:name},name)))),
-   field("Thinking effort",el("select",{className:"as-select",value:agent.effort||"High",disabled:locked,onChange:e=>setAgent(a=>({...a,effort:e.target.value}))},...["Low","Medium","High"].map(name=>el("option",{key:name,value:name},name))))));
-  parts.push(field("Runtime",el("div",{className:"as-runtime-grid"},
-   el("div",{className:"as-runtime-row"},el("span",null,"Active model"),el("strong",null,runtimeInfo?.model||"Not detected")),
-   el("div",{className:"as-runtime-row"},el("span",null,"Thinking effort"),el("strong",null,runtimeInfo?.effort||"Unavailable")),
-   el("div",{className:"as-runtime-row"},el("span",null,"Used tokens"),el("strong",null,runtimeInfo?.contextUsed!=null?formatAgentTokens(runtimeInfo.contextUsed):"Unavailable")),
-   el("div",{className:"as-runtime-row"},el("span",null,"Remaining context"),el("strong",null,remaining===null?"Unavailable":formatAgentTokens(remaining))),
+    field("Model",el("select",{className:"as-select",value:agent.model||modelChoices[0],disabled:locked||modelChoices.length===1,onChange:e=>updateRuntime(a=>({...a,model:e.target.value===modelChoices[0]?"":e.target.value}))},...modelChoices.map(name=>el("option",{key:name,value:name},name)))),
+    field("Thinking effort",el("select",{className:"as-select",value:agent.effort||"High",disabled:locked,onChange:e=>updateRuntime(a=>({...a,effort:e.target.value}))},...["Low","Medium","High"].map(name=>el("option",{key:name,value:name},name))))));
+  if(hasContext)parts.push(field("Context",el("div",{className:"as-runtime-grid"},
+   el("div",{className:"as-runtime-row"},el("span",null,"Used tokens"),el("strong",null,formatAgentTokens(runtimeInfo.contextUsed))),
+   el("div",{className:"as-runtime-row"},el("span",null,"Remaining context"),el("strong",null,formatAgentTokens(remaining))),
    remaining!==null?el("div",{className:"as-runtime-track",role:"progressbar","aria-label":"Context used","aria-valuenow":runtimeInfo.contextUsed,"aria-valuemin":0,"aria-valuemax":runtimeInfo.contextWindow},el("span",{style:{width:Math.min(100,100*runtimeInfo.contextUsed/runtimeInfo.contextWindow)+"%"}})):null)));
   if(!agent.runtimeInfo)parts.push(el("button",{type:"button",className:"as-runtime-example",onClick:()=>setShowSample(x=>!x)},showSample?"Hide example":"Show example values"));
  }else{
-  const windowChoice=modeButton("Last focused window","Capture the most recent non-Otto window.",capture.source==="Last focused window",()=>setCapture(c=>({...c,source:"Last focused window"})));
-  const fullChoice=modeButton("Full screen","Explicit alternative · may include other windows.",capture.source==="Full screen",()=>setCapture(c=>({...c,source:"Full screen"})));
-  parts.push(field("Capture source",el("div",{className:"as-modes"},windowChoice,fullChoice)));
-  const shortcut=el("input",{value:capture.hotkey,"aria-label":"Capture hotkey",placeholder:"Ctrl + Shift + O",onChange:e=>setCapture(c=>({...c,hotkey:e.target.value,hotkeyStatus:"unverified"}))});
-  parts.push(field("Shortcut",el("label",{className:"as-input"},h(Icon,{name:"Command",size:15}),shortcut)));
-  const condition=capture.permission==="denied"?"Permission denied":capture.permission==="missing target"?"Target unavailable":capture.hotkeyStatus==="conflict"?"Hotkey conflict":"Capture not verified";
-  const help=condition==="Permission denied"?"No image will be sent.":condition==="Target unavailable"?"Focus a valid window and retry.":condition==="Hotkey conflict"?"Choose a different combination.":"Native verifies target identity, selected model vision, and consent.";
-  parts.push(status(condition,help));
+   const windowChoice=modeButton("Last focused window",capture.source==="Last focused window",()=>setCapture(c=>({...c,source:"Last focused window"})),locked||capture.sourcePending);
+   const fullChoice=modeButton("Full screen",capture.source==="Full screen",()=>setCapture(c=>({...c,source:"Full screen"})),locked||capture.sourcePending);
+    const shortcut=el("input",{value:capture.hotkey,"aria-label":"Capture hotkey",placeholder:"Ctrl + Shift + O",disabled:capture.saving,onChange:e=>setCapture(c=>({...c,hotkey:e.target.value,hotkeyStatus:"unverified"}))});
+    parts.push(el("div",{className:"as-field"},el("div",{className:"as-fieldlabel"},"Shortcut"),el("small",{className:"as-note"},"Only a manual action sends an image."),el("label",{className:"as-input"},h(Icon,{name:"Command",size:15}),shortcut),el("button",{type:"button",className:"as-runtime-example",disabled:capture.saving,onClick:()=>{setCapture(c=>({...c,saving:true,captureMessage:""}));window.setTimeout(()=>setCapture(c=>({...c,saving:false,captureMessage:"Capture shortcut saved."})),350)}},capture.saving?"Saving…":"Save shortcut")));
+    parts.push(field("Source",el("div",{className:"as-modes"},windowChoice,fullChoice)));
+   const sourceStatus=capture.sourcePending?status("Checking capture source","Verifying source availability on the Windows host."):capture.sourceReady===false?status("Capture source unavailable","Choose another source or retry the native check."):capture.targetPending?status("Checking target","Resolving the focused window identity."):capture.targetWarning?status("Target unavailable",capture.targetWarning):capture.targetTitle?status("Target ready",capture.targetTitle):null;
+   if(sourceStatus)parts.push(sourceStatus);
+   const condition=capture.permission==="denied"?"Permission denied":capture.targetWarning||capture.permission==="missing target"?"Target unavailable":capture.hotkeyStatus==="conflict"?"Hotkey conflict":capture.sourceReady===false?"Source unavailable":"Capture not verified";
+   const help=condition==="Permission denied"?"No image will be sent.":condition==="Target unavailable"?"Focus a valid window and retry.":condition==="Hotkey conflict"?"Choose a different combination.":condition==="Source unavailable"?"Choose an available capture source.":"Native verifies target identity, selected model vision, and consent.";
+   parts.push(status(condition,help));
+   if(capture.captureMessage)parts.push(el("div",{className:"as-ready",role:"status"},el("i"),capture.captureMessage));
   parts.push(status(agent.provider+(caps.image?" · Image transport supported":" · Screenshots unsupported"),caps.image?"The selected model must separately confirm image input before capture.":"This CLI transport accepts text only. Choose Codex or a vision-capable Pi model."));
  }
   const header=el("header",{className:"as-header"},h(IconButton,{name:"ArrowLeft",label:"Back to Agent",onClick:onBack}),el("strong",null,"Agent settings"),el("span",{className:"as-meta"},agent.provider));
- const sidebar=el("nav",{className:"as-nav","aria-label":"Agent settings sections"},...names.map(name=>el("button",{type:"button",key:name,className:"as-navitem"+(tab===name?" active":""),onClick:()=>setTab(name)},name)));
+ const sidebar=el("nav",{className:"as-nav","aria-label":"Agent settings sections"},
+  h(ActiveIndicatorGroup,{activeKey:tab,className:"as-nav-group",indicatorClassName:"as-nav-indicator"},
+   names.map(name=>el("button",{type:"button",key:name,"data-active-key":name,className:"as-navitem"+(tab===name?" active":""),onClick:()=>setTab(name)},name))));
  return el("div",{className:"as-root"},header,el("div",{className:"as-body"},sidebar,el("div",{className:"as-scroll"},el("section",{className:"as-view"},...parts))));
 }
 
@@ -1189,37 +1256,39 @@ function GlobalSettings({prefs,setPrefs,tab,setTab,onBack,onPlacementChange}){
  const inverseToggle=(key,title)=>el("label",{className:"gs-switchrow"},el("strong",null,title),el("input",{type:"checkbox",checked:!prefs[key],onChange:e=>put(key,!e.target.checked)}),el("i",{"aria-hidden":"true"}));
  const slider=(key,title,min,max,step,suffix,disabled)=>el("div",{className:"gs-unit gs-range"},el("div",{className:"gs-rangehead"},el("label",{htmlFor:"gs-"+key},title),el("output",{htmlFor:"gs-"+key},prefs[key]+suffix)),el("input",{id:"gs-"+key,type:"range",min,max,step,value:prefs[key],disabled:!!disabled,onChange:e=>put(key,Number(e.target.value))}));
  const views={
-  General:el(React.Fragment,null,
-   el("h2",null,"General"),
+  Appearance:el(React.Fragment,null,
+   el("h2",null,"Appearance"),
    unit("Idle expression",choice("expression",[["Calm","Calm"],["Curious","Curious"],["Happy","Happy"],["Sleepy","Sleepy"]])),
    unit("Idle response",choice("reactive",[["Quiet","Quiet"],["Alive","Alive"]])),
    el("button",{type:"button",className:"gs-reset",onClick:()=>{setPrefs({...defaultGlobalPrefs});onPlacementChange("floating")}},"Restore defaults"),
-   el("div",{className:"gs-update"},el("strong",null,"Software update"),el("span",null,"Checks automatically after launch.")),
-   toggle("hideFromCapture","Hide Otto from screen capture"),
-   el("div",{className:"gs-update"},el("strong",null,"Capture protection"),el("span",null,"Preview only. The Windows app applies this setting; not all recorders respect it."))),
+   el("details",{className:"gs-advanced"},el("summary",null,"Artwork tuning"),el("div",{className:"gs-advanced-body"},slider("tilt","Artwork tilt",0,55,1,"°",false),slider("gradient","Tonal gradient",0,100,5,"%",false)))),
   Interaction:el(React.Fragment,null,
-   el("h2",null,"Interaction & motion"),
+   el("h2",null,"Interaction"),
    toggle("hoverExpand","Expand on hover"),
-   slider("hoverDelay","Hover intent",0,450,50," ms",!prefs.hoverExpand),
-   slider("leaveDelay","Leave delay",150,850,50," ms",!prefs.hoverExpand),
    inverseToggle("clickOutside","Keep expanded when switching apps"),
    unit("Motion profile",choice("motion",[["Fluid","Smooth"],["Subtle","Subtle"],["Reduced","Reduced"]])),
-   slider("tilt","Artwork tilt",0,55,1,"°",false),
-   slider("gradient","Gradient strength",0,100,5,"%",false)),
+   el("details",{className:"gs-advanced"},el("summary",null,"Hover timing"),el("div",{className:"gs-advanced-body"},slider("hoverDelay","Hover intent",0,450,50," ms",!prefs.hoverExpand),slider("leaveDelay","Leave delay",150,850,50," ms",!prefs.hoverExpand)))),
+  System:el(React.Fragment,null,
+   el("h2",null,"System"),
+   toggle("osEventsEnabled","Show OS events"),
+   toggle("hideFromCapture","Hide Otto from screen capture"),
+   el("div",{className:"gs-update"},el("strong",null,"Capture protection"),el("span",null,"Best effort for supported Windows recorders.")),
+   el("div",{className:"gs-update"},el("strong",null,"Software update"),el("span",null,"Checks automatically after launch."))),
   Placement:el(React.Fragment,null,
    el("h2",null,"Placement"),
-   el("div",{className:"gs-placement"},
-    ["floating","attached"].map(value=>el("button",{type:"button",key:value,className:"gs-placepick"+(prefs.placement===value?" selected":""),onClick:()=>onPlacementChange(value),"aria-pressed":prefs.placement===value},
+   h(ActiveIndicatorGroup,{activeKey:prefs.placement,className:"gs-placement",indicatorClassName:"gs-placement-indicator"},
+    ["floating","attached"].map(value=>el("button",{type:"button",key:value,"data-active-key":value,className:"gs-placepick"+(prefs.placement===value?" selected":""),onClick:()=>onPlacementChange(value),"aria-pressed":prefs.placement===value},
       el("span",{className:"gs-placegraphic"},el("i",{className:"gs-place-"+value})),el("strong",null,value==="floating"?"Floating":"Attached")))),
    prefs.placement==="floating"?slider("topOffset","Top offset",8,48,2," px",false):null,
    )};
  return el("div",{className:"gs-root"},
    el("header",{className:"gs-head"},el("button",{type:"button",className:"gs-back",onClick:onBack,"aria-label":"Back to Home"},h(Icon,{name:"ArrowLeft",size:18})),el("strong",null,"Settings"),el("span",{className:"gs-meta"},"Otto")),
    el("div",{className:"gs-body"},el("nav",{className:"gs-nav","aria-label":"Settings sections"},
-      ["General","Interaction","Placement"].map(x=>el("button",{type:"button",key:x,className:"gs-navitem"+(tab===x?" active":""),onClick:()=>setTab(x),"aria-current":tab===x?"page":undefined},x))),
+      h(ActiveIndicatorGroup,{activeKey:tab,className:"gs-nav-group",indicatorClassName:"gs-nav-indicator"},
+        ["Appearance","Interaction","System","Placement"].map(x=>el("button",{type:"button",key:x,"data-active-key":x,className:"gs-navitem"+(tab===x?" active":""),onClick:()=>setTab(x),"aria-current":tab===x?"page":undefined},x)))),
      el("div",{className:"gs-views"},el("section",{className:"gs-view",key:tab},views[tab]))));
 }
-const defaultGlobalPrefs={expression:"Calm",reactive:"Quiet",hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,hideFromCapture:true,motion:"Fluid",tilt:43,gradient:80,topOffset:20};
+const defaultGlobalPrefs={expression:"Calm",reactive:"Quiet",hoverExpand:true,hoverDelay:150,leaveDelay:350,clickOutside:true,hideFromCapture:true,osEventsEnabled:true,motion:"Fluid",tilt:43,gradient:80,topOffset:20};
 
 function PrototypeTransition({id,panel,reduce}){
  const latest=useRef({id,panel});
@@ -1246,17 +1315,17 @@ function App(){
  const [presentation,setPresentation]=useState("pinned");
  const [placement,setPlacement]=useState("floating");
  const [drawer,setDrawer]=useState(null);
- const [tab,setTab]=useState("General");
+ const [tab,setTab]=useState("Appearance");
  const [prefs,setPrefs]=useState({...defaultGlobalPrefs});
- const [agent,setAgent]=useState({provider:"Codex",messages:[],busy:false,warning:"",unread:false,phase:"ready",readiness:"ready",capturePhase:"idle",captureError:""});
+  const [agent,setAgent]=useState({provider:"Codex",messages:[],busy:false,warning:"",unread:false,phase:"ready",readiness:"ready",connection:"ready",selectionPending:false,threadId:null,portable:false,capturePhase:"idle",captureError:"",historyPending:false,historyError:""});
  const [agentDraft,setAgentDraft]=useState("");
  const [agentNaturalHeight,setAgentNaturalHeight]=useState(170);
  const [music,setMusic]=useState({track:0,position:74,playing:true,lyrics:false,line:2,follow:true,lyricsAvailable:true,mediaAvailable:true});
  const [timer,setTimer]=useState({phase:"focus",remaining:1500,running:false,deadline:null,duration:{...durations},status:"ready",settings:false,confirmPhase:null,finished:0});
  const [event,setEvent]=useState(null);
- const [capture,setCapture]=useState({source:"Last focused window",permission:"unknown",hotkey:"Ctrl + Shift + O",hotkeyStatus:"unverified"});
- const [agentSettingsTab,setAgentSettingsTab]=useState("Setup");
- const pointerEnter=useRef(null),pointerLeave=useRef(null),completion=useRef(null),agentRun=useRef(null),pinnedUntil=useRef(0);
+  const [capture,setCapture]=useState({source:"Last focused window",permission:"unknown",hotkey:"Ctrl + Shift + O",hotkeyStatus:"unverified",sourceReady:true,sourcePending:false,targetPending:false,targetTitle:null,targetWarning:null,saving:false,captureMessage:""});
+ const [agentSettingsTab,setAgentSettingsTab]=useState("Assistant");
+  const pointerEnter=useRef(null),pointerLeave=useRef(null),completion=useRef(null),agentRun=useRef(null),agentStop=useRef(null),pinnedUntil=useRef(0);
  const currentPage=useRef(page);currentPage.current=page;
  const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches||prefs.motion==="Reduced";
  const navigate=useCallback(next=>{clearTimeout(pointerEnter.current);clearTimeout(pointerLeave.current);setEvent(null);setDrawer(null);setPage(next);setPresentation("pinned");if(next==="agent")setAgent(a=>({...a,unread:false}))},[]);
@@ -1266,8 +1335,8 @@ function App(){
  const resetTimer=useCallback(()=>setTimer(t=>({...t,running:false,deadline:null,remaining:t.duration[t.phase]*60,status:"ready",settings:false,confirmPhase:null})),[]);
  useEffect(()=>{if(!timer.running)return;const handle=setInterval(()=>setTimer(t=>{if(!t.running||!t.deadline)return t;const remaining=Math.max(0,Math.ceil((t.deadline-Date.now())/1000));return remaining===0?{...t,remaining:0,running:false,deadline:null,status:"completed",finished:t.finished+(t.phase==="focus"?1:0)}:{...t,remaining}}),250);return()=>clearInterval(handle)},[timer.running]);
  useEffect(()=>{if(!music.playing)return;const handle=setInterval(()=>setMusic(m=>{const pos=m.position+1;return pos>=tracks[m.track].duration?{...m,playing:false,position:tracks[m.track].duration}:{...m,position:pos}}),1000);return()=>clearInterval(handle)},[music.playing]);
- useEffect(()=>()=>{clearInterval(agentRun.current);clearTimeout(completion.current);clearTimeout(pointerEnter.current);clearTimeout(pointerLeave.current)},[]);
- const stopAgent=()=>{clearInterval(agentRun.current);setAgent(a=>({...a,busy:false,phase:"stopped",warning:"Request stopped"}))};
+  useEffect(()=>()=>{clearInterval(agentRun.current);clearTimeout(agentStop.current);clearTimeout(completion.current);clearTimeout(pointerEnter.current);clearTimeout(pointerLeave.current)},[]);
+  const stopAgent=()=>{if(agent.phase==="stopping")return;clearInterval(agentRun.current);setAgent(a=>({...a,busy:true,phase:"stopping",warning:""}));agentStop.current=setTimeout(()=>setAgent(a=>({...a,busy:false,phase:"stopped",warning:"Request stopped"})),320)};
  const sendAgent=(text,forceDemo=false)=>{if(!forceDemo&&agent.readiness!=="ready"){setAgent(a=>({...a,warning:"Provider adapter unavailable in this prototype"}));return}
  clearInterval(agentRun.current);
  setAgent(a=>({...a,busy:true,phase:"thinking",warning:"",messages:[...a.messages,{role:"user",text},{role:"assistant",text:""}]}));
@@ -1286,7 +1355,7 @@ function App(){
  const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(prefs.leaveDelay,pinnedUntil.current-Date.now()+140))}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else if(page==="focus"&&timer.confirmPhase){setTimer(t=>({...t,confirmPhase:null}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
- const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("General");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onMeasured:onAgentMeasured,onSend:sendAgent,onStop:stopAgent,onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Setup");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onNewSession:()=>{if(agent.busy)return;clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",model:"",effort:"",unread:false,warning:""}))},onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
+ const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("Appearance");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onMeasured:onAgentMeasured,onSend:sendAgent,onStop:stopAgent,onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Assistant");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onNewSession:()=>{if(agent.busy)return;clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",model:"",effort:"",unread:false,warning:""}))},onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});
 
  const stageNav=[["home","House","Home"],["agent","Terminal","Agent"],["music","Music2","Music"],["focus","Timer","Focus"],["settings","Settings2","Settings"]];
  const eventKeys=["volume","wifi","bluetooth","brightness","battery","headphones"];

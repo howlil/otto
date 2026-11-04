@@ -6,11 +6,14 @@ const MAX_TRANSCRIPT_MESSAGES: usize = 24;
 const MAX_ASSISTANT_TEXT: usize = 128_000;
 
 pub(super) fn start_turn(messages: &mut Vec<ChatMessage>, run_id: u64, text: String) {
-    messages.push(ChatMessage {
-        id: format!("{run_id}:user"),
-        role: "user".into(),
-        text,
-    });
+    let user_id = format!("{run_id}:user");
+    if !messages.iter().any(|message| message.id == user_id) {
+        messages.push(ChatMessage {
+            id: user_id,
+            role: "user".into(),
+            text,
+        });
+    }
     messages.push(ChatMessage {
         id: format!("{run_id}:assistant"),
         role: "assistant".into(),
@@ -122,6 +125,19 @@ mod tests {
         assert!(has_answer(&messages, 25));
         assert!(!has_answer(&messages, 24));
         assert_eq!(messages.last().unwrap().text, "complete");
+    }
+
+    #[test]
+    fn pending_user_message_is_not_duplicated_when_provider_accepts_it() {
+        let mut messages = vec![ChatMessage {
+            id: "7:user".into(),
+            role: "user".into(),
+            text: "pending question".into(),
+        }];
+        start_turn(&mut messages, 7, "pending question".into());
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].id, "7:user");
+        assert_eq!(messages[1].id, "7:assistant");
     }
 
     #[test]

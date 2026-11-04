@@ -14,6 +14,7 @@
       {
         "label": "main",
         "title": "",
+        "visible": false,
         "width": 92,
         "height": 42,
         "resizable": false,

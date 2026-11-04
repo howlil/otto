@@ -1,4 +1,4 @@
-import { Range, SegmentedControl, Text, Toggle } from "../../shared/ui";
+import { Range, SegmentedControl, SettingsSection, Text, Toggle } from "../../shared/ui";
 import type { Preferences } from "./preferences";
 
 export function InteractionSettings({
@@ -9,30 +9,11 @@ export function InteractionSettings({
   change: (patch: Partial<Preferences>) => void;
 }) {
   return (
-    <>
-      <Text as="h2" variant="heading" className="m-0 mb-[3px]">
-        Interaction & motion
-      </Text>
+    <SettingsSection title="Interaction & motion">
       <Toggle
         title="Expand on hover"
         checked={prefs.hoverExpand}
         onChange={(hoverExpand) => change({ hoverExpand })}
-      />
-      <Range
-        label="Hover intent"
-        value={prefs.hoverDelay}
-        min={0}
-        max={400}
-        unit=" ms"
-        onChange={(hoverDelay) => change({ hoverDelay })}
-      />
-      <Range
-        label="Leave delay"
-        value={prefs.leaveDelay}
-        min={0}
-        max={650}
-        unit=" ms"
-        onChange={(leaveDelay) => change({ leaveDelay })}
       />
       <Toggle
         title="Keep expanded when switching apps"
@@ -54,22 +35,31 @@ export function InteractionSettings({
           ]}
         />
       </div>
-      <Range
-        label="Artwork tilt"
-        value={prefs.tilt}
-        min={0}
-        max={65}
-        unit="°"
-        onChange={(tilt) => change({ tilt })}
-      />
-      <Range
-        label="Tonal gradient"
-        value={prefs.gradient}
-        min={0}
-        max={100}
-        unit="%"
-        onChange={(gradient) => change({ gradient })}
-      />
-    </>
+      <details className="mt-3 border-t border-otto-line-soft pt-2">
+        <summary className="cursor-pointer list-none text-otto-sm text-otto-text-secondary">
+          Hover timing
+        </summary>
+        <div className="pt-1">
+          <Range
+            label="Hover intent"
+            value={prefs.hoverDelay}
+            min={0}
+            max={400}
+            unit=" ms"
+            disabled={!prefs.hoverExpand}
+            onChange={(hoverDelay) => change({ hoverDelay })}
+          />
+          <Range
+            label="Leave delay"
+            value={prefs.leaveDelay}
+            min={0}
+            max={650}
+            unit=" ms"
+            disabled={!prefs.hoverExpand}
+            onChange={(leaveDelay) => change({ leaveDelay })}
+          />
+        </div>
+      </details>
+    </SettingsSection>
   );
 }

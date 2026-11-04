@@ -17,6 +17,7 @@ export function AgentHeader({
   resetBusy,
   capturePhase,
   readiness,
+  toolFreeAdmission,
   eventMotion,
   onBack,
   onSettings,
@@ -33,6 +34,7 @@ export function AgentHeader({
   resetBusy: boolean;
   capturePhase: AgentPanelModel["snapshot"]["capture"]["phase"];
   readiness: ProviderReadiness["status"];
+  toolFreeAdmission: boolean;
   eventMotion?: string;
   onBack: () => void;
   onSettings: () => void;
@@ -66,6 +68,7 @@ export function AgentHeader({
         model={model}
         thinkingEffort={thinkingEffort}
         readiness={readiness}
+        toolFreeAdmission={toolFreeAdmission}
       />
       {view === "settings" && (
         <Text as="span" variant="status" className="text-otto-label-muted">

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { configureCaptureSource, nativeAvailable, type CaptureSource } from "../../platform/tauri";
+import {
+  configureCaptureSource,
+  nativeAvailable,
+  type CaptureSource,
+} from "../../platform/tauri/capture";
 
 function savedCaptureSource(): CaptureSource {
   try {

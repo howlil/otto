@@ -13,6 +13,7 @@ const props = (overrides = {}) => ({
   resetBusy: false,
   capturePhase: "idle",
   readiness: "ready",
+  toolFreeAdmission: true,
   onBack: () => {},
   onSettings: () => {},
   onHistory: () => {},

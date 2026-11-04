@@ -36,7 +36,7 @@ export function Eyes({
   const sides = ["left", "right"] as const;
   return (
     <span
-      className={`inline-flex h-[23px] flex-none items-center justify-center ${mini ? "w-[23px] gap-1.5" : compact ? "w-[44px] gap-[17px]" : "w-7 gap-2"}`}
+      className={`inline-flex h-[23px] flex-none items-center justify-center ${mini ? "w-[23px] gap-1.5" : compact ? "w-8 gap-2" : "w-7 gap-2"}`}
       data-expression={expression}
       aria-hidden="true"
     >
