@@ -1,31 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import {
-  IconButton,
-  Range,
-  SegmentedControl,
-  Text,
-  Toggle,
-  TransitionContent,
-} from "../../shared/ui";
+import { IconButton, Text, TransitionContent } from "../../shared/ui";
 import type { Preferences, SettingsTab } from "./preferences";
 import { PlacementSettings } from "./PlacementSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import { InteractionSettings } from "./InteractionSettings";
 import type { AppUpdateState } from "./useAppUpdate";
 
-export function GlobalSettings({
-  prefs,
-  change,
-  onBack,
-  onMeasured,
-  update,
-  reducedMotion,
-  captureProtected,
-  captureProtectionSupported,
-  captureProtectionPending,
-  captureProtectionError,
-  setCaptureProtection,
-  motionClass = "",
-}: {
+type GlobalSettingsProps = {
   prefs: Preferences;
   change: (patch: Partial<Preferences>) => void;
   onBack: () => void;
@@ -42,7 +23,24 @@ export function GlobalSettings({
   captureProtectionPending: boolean;
   captureProtectionError: string | null;
   setCaptureProtection: (enabled: boolean) => Promise<void>;
-}) {
+  osEventsError: string | null;
+};
+
+export function GlobalSettings({
+  prefs,
+  change,
+  onBack,
+  onMeasured,
+  update,
+  reducedMotion,
+  captureProtected,
+  captureProtectionSupported,
+  captureProtectionPending,
+  captureProtectionError,
+  setCaptureProtection,
+  osEventsError,
+  motionClass = "",
+}: GlobalSettingsProps) {
   const [tab, setTab] = useState<SettingsTab>("general");
   const back = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLElement>(null);
@@ -99,72 +97,10 @@ export function GlobalSettings({
                 captureProtectionPending={captureProtectionPending}
                 captureProtectionError={captureProtectionError}
                 onCaptureProtectionChange={setCaptureProtection}
+                osEventsError={osEventsError}
               />
             )}
-            {tab === "interaction" && (
-              <>
-                <Text as="h2" variant="heading" className="m-0 mb-[3px]">
-                  Interaction & motion
-                </Text>
-                <Toggle
-                  title="Expand on hover"
-                  checked={prefs.hoverExpand}
-                  onChange={(hoverExpand) => change({ hoverExpand })}
-                />
-                <Range
-                  label="Hover intent"
-                  value={prefs.hoverDelay}
-                  min={0}
-                  max={400}
-                  unit=" ms"
-                  onChange={(hoverDelay) => change({ hoverDelay })}
-                />
-                <Range
-                  label="Leave delay"
-                  value={prefs.leaveDelay}
-                  min={0}
-                  max={650}
-                  unit=" ms"
-                  onChange={(leaveDelay) => change({ leaveDelay })}
-                />
-                <Toggle
-                  title="Keep expanded when switching apps"
-                  help="Pinned panels stay open until you close them."
-                  checked={!prefs.clickOutside}
-                  onChange={(keepExpanded) => change({ clickOutside: !keepExpanded })}
-                />
-                <div className="mb-[14px]">
-                  <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
-                    Motion profile
-                  </Text>
-                  <SegmentedControl
-                    value={prefs.motion}
-                    onChange={(motion) => change({ motion })}
-                    choices={[
-                      { value: "fluid", label: "Fluid" },
-                      { value: "gentle", label: "Subtle" },
-                      { value: "reduced", label: "Reduced" },
-                    ]}
-                  />
-                </div>
-                <Range
-                  label="Artwork tilt"
-                  value={prefs.tilt}
-                  min={0}
-                  max={65}
-                  unit="°"
-                  onChange={(tilt) => change({ tilt })}
-                />
-                <Range
-                  label="Tonal gradient"
-                  value={prefs.gradient}
-                  min={0}
-                  max={100}
-                  unit="%"
-                  onChange={(gradient) => change({ gradient })}
-                />
-              </>
-            )}
+            {tab === "interaction" && <InteractionSettings prefs={prefs} change={change} />}
             {tab === "placement" && <PlacementSettings prefs={prefs} change={change} />}
           </TransitionContent>
         </div>

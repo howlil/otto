@@ -20,12 +20,13 @@ import {
   type Preferences,
 } from "./preferences";
 import { shouldCollapseOnBlur } from "./surface";
+import { useOsEventPreference } from "./useOsEventPreference";
 
 type ShellMode = "compact" | "preview" | "pinned";
 
 export function useNotchShell(options: { hoverEnabled?: boolean } = {}) {
   const hoverEnabled = useRef(options.hoverEnabled ?? true);
-  hoverEnabled.current = options.hoverEnabled ?? true;
+  if (options.hoverEnabled !== undefined) hoverEnabled.current = options.hoverEnabled;
   const [page, setPage] = useState<Page>("home");
   const [mode, setMode] = useState<ShellMode>("compact");
   const expanded = mode !== "compact";
@@ -34,6 +35,7 @@ export function useNotchShell(options: { hoverEnabled?: boolean } = {}) {
   const [captureProtected, setCaptureProtected] = useState<boolean | null>(null);
   const [captureProtectionPending, setCaptureProtectionPending] = useState(nativeAvailable);
   const [captureProtectionError, setCaptureProtectionError] = useState<string | null>(null);
+  const osEventsError = useOsEventPreference(prefs.osEventsEnabled);
   const initialCapturePreference = useRef(prefs.hideFromCapture);
   const captureRequestActive = useRef(false);
   const [eventMotion, setEventMotion] = useState("");
@@ -57,6 +59,9 @@ export function useNotchShell(options: { hoverEnabled?: boolean } = {}) {
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
     enterTimer.current = null;
     leaveTimer.current = null;
+  }, []);
+  const setHoverEnabled = useCallback((enabled: boolean) => {
+    hoverEnabled.current = enabled;
   }, []);
   const collapse = useCallback(() => {
     clearTimers();
@@ -207,12 +212,14 @@ export function useNotchShell(options: { hoverEnabled?: boolean } = {}) {
     captureProtectionPending,
     captureProtectionError,
     setCaptureProtection,
+    osEventsError,
     eventMotion,
     setEventMotion,
     reducedMotion,
     isAgent,
     compactButton,
     homeGear,
+    setHoverEnabled,
     collapse,
     open,
     back,

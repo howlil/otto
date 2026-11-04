@@ -45,6 +45,7 @@ pub fn run() {
             commands::notch_set_surface,
             commands::os_events_subscribe,
             commands::os_events_unsubscribe,
+            commands::os_events_set_enabled,
         ])
         .setup(|app| {
             #[cfg(windows)]

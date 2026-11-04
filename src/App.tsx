@@ -44,8 +44,8 @@ function motionCue(status: string): string | null {
 const ACTIVE_RUN = new Set(["starting", "streaming", "stopping"]);
 
 export default function App() {
-  const osEvents = useOsEvents();
-  const shell = useNotchShell({ hoverEnabled: !osEvents.event });
+  const shell = useNotchShell();
+  const osEvents = useOsEvents(shell.prefs.osEventsEnabled);
   const agent = useAgent(shell.expanded && shell.isAgent);
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
@@ -60,6 +60,9 @@ export default function App() {
 
   const runActive = ACTIVE_RUN.has(agent.snapshot.status);
   const osEventVisible = shouldPresentOsEvent(expanded, runActive, osEvents.event);
+  useEffect(() => {
+    shell.setHoverEnabled(!osEvents.event);
+  }, [osEvents.event, shell.setHoverEnabled]);
   useEffect(() => {
     if (osEvents.event && !osEventVisible) osEvents.dismiss();
   }, [osEvents.event, osEvents.dismiss, osEventVisible]);

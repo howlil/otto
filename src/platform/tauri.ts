@@ -185,6 +185,10 @@ export async function subscribeOsEvents(
   };
 }
 
+export async function setOsEventsEnabled(enabled: boolean): Promise<void> {
+  if (nativeAvailable) await invoke("os_events_set_enabled", { enabled });
+}
+
 export async function selectAgentProvider(provider: AgentProvider): Promise<void> {
   await invoke("agent_select_provider", { provider });
 }

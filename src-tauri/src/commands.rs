@@ -56,6 +56,11 @@ pub fn os_events_unsubscribe(runtime: State<'_, Arc<OsEventRuntime>>, subscripti
 }
 
 #[tauri::command]
+pub fn os_events_set_enabled(runtime: State<'_, Arc<OsEventRuntime>>, enabled: bool) {
+    runtime.set_enabled(enabled);
+}
+
+#[tauri::command]
 pub fn agent_snapshot(runtime: State<'_, AgentRuntime>) -> Snapshot {
     runtime.snapshot()
 }

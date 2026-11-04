@@ -199,11 +199,9 @@ function useAgentSubmission(
   draftEpoch: React.RefObject<number>,
 ) {
   const submitted = useRef<SubmittedDraft | null>(null);
-  const [acknowledgedRun, setAcknowledgedRun] = useState<number | null>(null);
   const markAccepted = useCallback((request: SubmittedDraft, runId: number) => {
     if (submitted.current !== request) return false;
     request.acceptedRunId = runId;
-    setAcknowledgedRun(runId);
     return true;
   }, []);
 
@@ -223,7 +221,7 @@ function useAgentSubmission(
     if (snapshot.status === "completed" || snapshot.status === "stopped") {
       submitted.current = null;
     }
-  }, [acknowledgedRun, draftEpoch, setDraft, snapshot.messages, snapshot.runId, snapshot.status]);
+  }, [draftEpoch, setDraft, snapshot.messages, snapshot.runId, snapshot.status]);
 
   return { submitted, markAccepted };
 }

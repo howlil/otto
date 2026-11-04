@@ -13,6 +13,7 @@ export type Preferences = {
   leaveDelay: number;
   clickOutside: boolean;
   hideFromCapture: boolean;
+  osEventsEnabled: boolean;
   motion: Motion;
   tilt: number;
   gradient: number;
@@ -28,6 +29,7 @@ export const defaults: Preferences = {
   leaveDelay: 340,
   clickOutside: true,
   hideFromCapture: true,
+  osEventsEnabled: true,
   motion: "fluid",
   tilt: 43,
   gradient: 80,

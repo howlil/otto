@@ -46,6 +46,10 @@ pub struct Hub {
 }
 
 impl Hub {
+    pub fn clear_current(&mut self) {
+        self.current = None;
+    }
+
     pub fn current(&mut self) -> Option<OsEventView> {
         let now = self.now_ms();
         self.current_at(now)

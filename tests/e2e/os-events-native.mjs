@@ -101,6 +101,9 @@ async function click(xpath) {
 async function state() {
   return call("POST", endpoint("/execute/sync"), {
     script: `const el = document.querySelector("[data-os-event]");
+      const toggle = [...document.querySelectorAll("label")].find((item) =>
+        item.innerText.includes("Show OS events"),
+      )?.querySelector("input[type=checkbox]");
       return {
         width: innerWidth,
         height: innerHeight,
@@ -111,6 +114,7 @@ async function state() {
         surface: el?.dataset.surface ?? null,
         text: el?.innerText ?? "",
         focused: document.hasFocus(),
+        osEventsEnabled: toggle?.checked ?? null,
       };`,
     args: [],
   });
@@ -139,6 +143,46 @@ async function waitDismissed(label, timeout = 8000) {
     const current = await state();
     return current.event === null && current.width === 92 && current.height === 42;
   }, timeout);
+}
+
+async function toggleOsEvents() {
+  await focusOtto();
+  await click('//button[.//span[normalize-space(.)="Open Otto settings"]]');
+  await until(
+    "global settings",
+    async () => {
+      const current = await state();
+      return current.surface === "homeSettings" && current.osEventsEnabled !== null;
+    },
+  );
+  const toggle = '//label[.//strong[normalize-space(.)="Show OS events"]]';
+
+  if (!(await state()).osEventsEnabled) {
+    await click(toggle);
+    await until("OS events enabled baseline", async () => (await state()).osEventsEnabled === true);
+  }
+  await click(toggle);
+  await until("OS events disabled", async () => (await state()).osEventsEnabled === false);
+  await new Promise((done) => setTimeout(done, 250));
+  volumeNeedsRestore = true;
+  signal("volume-mute");
+  await new Promise((done) => setTimeout(done, 1800));
+  assert.equal((await state()).event, null, "disabled OS events still rendered a capsule");
+
+  await click(toggle);
+  await until("OS events re-enabled", async () => (await state()).osEventsEnabled === true);
+  await new Promise((done) => setTimeout(done, 250));
+  signal("volume-mute");
+  await waitEvent("volume", 8000);
+  await waitDismissed("toggle re-enable auto-dismiss");
+  signal("volume-mute");
+  volumeNeedsRestore = false;
+  await click('//button[.//span[normalize-space(.)="Back to Home"]]');
+  await until("compact Home after settings", async () => {
+    const current = await state();
+    return current.surface === "idle" || current.surface === "home";
+  });
+  note("PASS", "OS event toggle", "disable suppresses native publication and enable restores the capsule");
 }
 
 async function start() {
@@ -389,6 +433,8 @@ try {
   await start();
   await until("compact Home", async () => (await state()).width === 92, 30000);
 
+  if (probe.audio) await toggleOsEvents();
+  else note("SKIP", "OS event toggle", "no active audio endpoint to prove publication suppression");
   if (probe.audio) {
     await volume();
     await volumeClickDismiss();

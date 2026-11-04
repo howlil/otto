@@ -6,9 +6,9 @@ import {
   type OsEventView,
 } from "../../platform/tauri";
 
-const DISPLAY_MS = 2_400;
+const DISPLAY_MS = 2_200;
 
-export function useOsEvents() {
+export function useOsEvents(enabled = true) {
   const [event, setEvent] = useState<OsEventView | null>(null);
   const subscription = useRef<OsEventSubscription | null>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,7 +29,10 @@ export function useOsEvents() {
   }, []);
 
   useEffect(() => {
-    if (!nativeAvailable) return;
+    if (!nativeAvailable || !enabled) {
+      dismiss();
+      return;
+    }
     let active = true;
     void subscribeOsEvents(show)
       .then((next) => {
@@ -44,7 +47,7 @@ export function useOsEvents() {
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
       dismissTimer.current = null;
     };
-  }, [show]);
+  }, [dismiss, enabled, show]);
 
   return { event, dismiss };
 }

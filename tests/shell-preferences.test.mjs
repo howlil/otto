@@ -20,6 +20,7 @@ describe("Shell preferences compatibility", () => {
   test("capture protection defaults on and pinned blur auto-closes", () => {
     expect(readSaved(null)).toEqual(defaults);
     expect(defaults.hideFromCapture).toBe(true);
+    expect(defaults.osEventsEnabled).toBe(true);
     expect(defaults.clickOutside).toBe(true);
   });
   test("legacy values preserve behavior when the capture flag is absent", () => {
@@ -27,6 +28,7 @@ describe("Shell preferences compatibility", () => {
     expect(result.clickOutside).toBe(false);
     expect(result.expression).toBe("happy");
     expect(result.hideFromCapture).toBe(true);
+    expect(result.osEventsEnabled).toBe(true);
   });
   test("explicit capture opt-out coexists with Keep Expanded", () => {
     const result = readSaved(JSON.stringify({ hideFromCapture: false, clickOutside: false }));
@@ -51,5 +53,9 @@ describe("Shell preferences compatibility", () => {
     const result = readSaved(JSON.stringify({ hideFromCapture: "false", clickOutside: "false" }));
     expect(result.hideFromCapture).toBe(true);
     expect(result.clickOutside).toBe(true);
+  });
+  test("OS event preference accepts an explicit opt-out and rejects invalid values", () => {
+    expect(readSaved(JSON.stringify({ osEventsEnabled: false })).osEventsEnabled).toBe(false);
+    expect(readSaved(JSON.stringify({ osEventsEnabled: "false" })).osEventsEnabled).toBe(true);
   });
 });

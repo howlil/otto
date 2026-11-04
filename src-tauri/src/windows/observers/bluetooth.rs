@@ -127,12 +127,8 @@ fn run(sink: Arc<dyn EventSink>, stop: &AtomicBool) {
         return;
     }
 
-    let started = std::time::Instant::now();
     while !stop.load(Ordering::SeqCst) {
         sleep_while(stop, IDLE_INTERVAL);
-        if !enumerated.load(Ordering::SeqCst) && started.elapsed() > Duration::from_secs(2) {
-            enumerated.store(true, Ordering::SeqCst);
-        }
     }
 
     let _ = watcher.Stop();

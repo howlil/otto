@@ -112,6 +112,7 @@ export function ExpandedContent({
         captureProtectionPending={shell.captureProtectionPending}
         captureProtectionError={shell.captureProtectionError}
         setCaptureProtection={shell.setCaptureProtection}
+        osEventsError={shell.osEventsError}
         motionClass={motionClass}
       />
     );

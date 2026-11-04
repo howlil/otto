@@ -1,5 +1,6 @@
-import { Button, SegmentedControl, Text, Toggle } from "../../shared/ui";
+import { Button, SegmentedControl, Text } from "../../shared/ui";
 import { defaults, type Preferences } from "./preferences";
+import { SystemSettings } from "./SystemSettings";
 import { UpdateSettings } from "./UpdateSettings";
 import type { AppUpdateState } from "./useAppUpdate";
 
@@ -12,6 +13,7 @@ export function GeneralSettings({
   captureProtectionPending,
   captureProtectionError,
   onCaptureProtectionChange,
+  osEventsError,
 }: {
   prefs: Preferences;
   change: (patch: Partial<Preferences>) => void;
@@ -25,6 +27,7 @@ export function GeneralSettings({
   captureProtectionPending: boolean;
   captureProtectionError: string | null;
   onCaptureProtectionChange: (enabled: boolean) => Promise<void>;
+  osEventsError: string | null;
 }) {
   return (
     <>
@@ -71,28 +74,16 @@ export function GeneralSettings({
       >
         Restore defaults
       </Button>
-      <div className="mt-3 border-t border-otto-line-soft pt-2">
-        <Toggle
-          title="Hide Otto from screen capture"
-          help="Best effort: some recorders may still show Otto."
-          checked={captureProtected ?? prefs.hideFromCapture}
-          disabled={!captureProtectionSupported || captureProtectionPending}
-          onChange={(enabled) => void onCaptureProtectionChange(enabled)}
-        />
-        <Text as="p" variant="caption" className="mt-2 text-otto-text-tertiary" role="status">
-          {!captureProtectionSupported
-            ? "Requires Otto for Windows."
-            : captureProtectionPending
-              ? "Applying Windows capture setting…"
-              : captureProtectionError
-                ? captureProtectionError
-                : captureProtected === true
-                  ? "Capture exclusion is enabled for supported Windows recorders."
-                  : captureProtected === false
-                    ? "Capture exclusion is off. Otto may appear in recordings."
-                    : "Windows capture state is unavailable."}
-        </Text>
-      </div>
+      <SystemSettings
+        prefs={prefs}
+        change={change}
+        captureProtected={captureProtected}
+        captureProtectionSupported={captureProtectionSupported}
+        captureProtectionPending={captureProtectionPending}
+        captureProtectionError={captureProtectionError}
+        onCaptureProtectionChange={onCaptureProtectionChange}
+        osEventsError={osEventsError}
+      />
       <UpdateSettings update={update} />
     </>
   );
