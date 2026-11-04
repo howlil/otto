@@ -6,6 +6,7 @@ export function HomeCard({
   subtitle,
   artwork,
   onClick,
+  disabled = false,
   tilt,
   gradient,
   entryMotion = "",
@@ -13,7 +14,8 @@ export function HomeCard({
   name: string;
   subtitle: string;
   artwork: string;
-  onClick: () => void;
+  onClick?: () => void;
+  disabled?: boolean;
   tilt: number;
   gradient: number;
   entryMotion?: string;
@@ -27,7 +29,9 @@ export function HomeCard({
   return (
     <button
       type="button"
-      className={`group relative isolate block h-[76px] min-w-0 overflow-hidden rounded-[15px] border border-otto-home-card-border py-[11px] pl-[13px] pr-[10px] text-left text-otto-text transition-[border-color,background] duration-[260ms] ease-otto [--art-tilt:43deg] before:pointer-events-none before:absolute before:inset-0 before:z-[1] before:bg-[radial-gradient(ellipse_120px_98px_at_78%_25%,var(--color-otto-art-halo),transparent_72%)] before:opacity-100 before:mix-blend-screen after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:bg-[linear-gradient(90deg,var(--color-otto-art-overlay-start)_0%,var(--color-otto-art-overlay-middle)_29%,var(--color-otto-art-overlay-end)_64%,transparent_100%)] hover:border-otto-line-hover focus-visible:border-otto-line-hover ${backgroundClass} ${entryMotion}`}
+      disabled={disabled}
+      title={disabled ? "Coming soon" : undefined}
+      className={`group relative isolate block h-[76px] min-w-0 overflow-hidden rounded-otto-launcher border border-otto-home-card-border p-3 text-left text-otto-text transition-[border-color,background] duration-[260ms] ease-otto [--art-tilt:43deg] before:pointer-events-none before:absolute before:inset-0 before:z-[1] before:bg-[radial-gradient(ellipse_120px_98px_at_78%_25%,var(--color-otto-art-halo),transparent_72%)] before:opacity-100 before:mix-blend-screen after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:bg-[linear-gradient(90deg,var(--color-otto-art-overlay-start)_0%,var(--color-otto-art-overlay-middle)_29%,var(--color-otto-art-overlay-end)_64%,transparent_100%)] enabled:hover:border-otto-line-hover focus-visible:border-otto-line-hover disabled:cursor-not-allowed disabled:opacity-60 ${backgroundClass} ${entryMotion}`}
       onClick={onClick}
       style={
         { "--art-tilt": `${tilt}deg`, "--art-opacity": String(gradient / 100) } as CSSProperties

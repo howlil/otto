@@ -3,6 +3,33 @@ import { Button, ChoiceGroup, StatusMessage, Text, TextField } from "../../share
 import type { CaptureSource } from "../../platform/tauri";
 import type { CaptureShortcutModel } from "./view-model";
 
+function CaptureSourceField({
+  source,
+  selectSource,
+  disabled,
+}: Pick<CaptureShortcutModel, "source" | "selectSource"> & { disabled: boolean }) {
+  return (
+    <fieldset className="border-0 p-0" aria-labelledby="otto-capture-source-label">
+      <legend
+        id="otto-capture-source-label"
+        className="mb-2 block text-otto-sm font-medium leading-[1.35] text-otto-text-secondary"
+      >
+        Source
+      </legend>
+      <ChoiceGroup<CaptureSource>
+        value={source}
+        choices={[
+          { value: "window", label: "Last focused window" },
+          { value: "fullScreen", label: "Full screen" },
+        ]}
+        onChange={(next) => void selectSource(next)}
+        disabled={disabled}
+        presentation="row"
+      />
+    </fieldset>
+  );
+}
+
 export function AgentCaptureSettings({
   capture,
   focusCaptureShortcut,
@@ -43,11 +70,14 @@ export function AgentCaptureSettings({
     <section className="border-b border-otto-raised-deep py-3">
       <Text
         as="label"
-        variant="meta"
-        className="block text-otto-muted-strong"
+        variant="label"
+        className="block text-otto-text-secondary"
         htmlFor="otto-capture-shortcut"
       >
-        Screen capture shortcut
+        Shortcut
+      </Text>
+      <Text as="p" variant="caption" className="mt-1 text-otto-text-tertiary">
+        Only a manual action sends an image.
       </Text>
       <div className="mt-2 flex items-center gap-2 rounded-otto-control border border-otto-line-mid bg-otto-field-deep px-2">
         <TextField
@@ -57,7 +87,8 @@ export function AgentCaptureSettings({
           placeholder="Ctrl+Shift+O"
           disabled={!available || savingCapture || sourcePending || !sourceReady}
           spellCheck={false}
-          className="h-[34px] min-w-0 flex-1 bg-transparent text-otto-sm text-otto-knob outline-none"
+          appearance="embedded"
+          className="min-w-0 flex-1"
         />
         <Button
           variant="primary"
@@ -65,17 +96,13 @@ export function AgentCaptureSettings({
           disabled={!available || savingCapture || sourcePending || !sourceReady}
           onClick={() => void saveShortcut()}
         >
-          Apply
+          Save
         </Button>
       </div>
       <div className="mt-3">
-        <ChoiceGroup<CaptureSource>
-          value={source}
-          choices={[
-            { value: "window", label: "Last window" },
-            { value: "fullScreen", label: "Full desktop" },
-          ]}
-          onChange={(next) => void selectSource(next)}
+        <CaptureSourceField
+          source={source}
+          selectSource={selectSource}
           disabled={!available || savingCapture || sourcePending}
         />
       </div>

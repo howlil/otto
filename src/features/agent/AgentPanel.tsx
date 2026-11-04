@@ -70,6 +70,7 @@ export function AgentPanel({
         resetBusy={busy || captureBusy}
         capturePhase={snapshot.capture.phase}
         readiness={readiness.status}
+        toolFreeAdmission={readiness.toolFreeAdmission}
         eventMotion={eventMotion}
         onBack={() => {
           if (settings) onSettingsBack();

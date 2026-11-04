@@ -6,15 +6,18 @@ import {
   resolveAgentSurface,
   useAgent,
 } from "./features/agent";
-import { resolveSurface, useAppUpdate, useNotchShell } from "./features/shell";
+import { shouldPresentOsEvent, useOsEvents } from "./features/os-events";
 import {
-  isContentResize,
-  shouldAnimateNotch,
+  morphDuration,
+  notchGutter,
+  notchShape,
+  resolveSurface,
   updateMeasuredHeights,
-  type NotchGeometry,
-} from "./features/shell/motion";
-import { setNotchSurface } from "./platform/tauri";
-import type { AgentSnapshot, ProviderReadiness } from "./platform/tauri";
+  useAppUpdate,
+  useNotchShell,
+  useNotchSurfaceSync,
+} from "./features/shell";
+import type { AgentSnapshot, NotchPlacement, ProviderReadiness } from "./platform/tauri";
 
 function agentHomeSubtitle(
   snapshot: AgentSnapshot,
@@ -40,8 +43,11 @@ function motionCue(status: string): string | null {
   }
 }
 
+const ACTIVE_RUN = new Set(["starting", "streaming", "stopping"]);
+
 export default function App() {
   const shell = useNotchShell();
+  const osEvents = useOsEvents(shell.prefs.osEventsEnabled);
   const agent = useAgent(shell.expanded && shell.isAgent);
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
@@ -54,11 +60,21 @@ export default function App() {
     [page],
   );
 
+  const runActive = ACTIVE_RUN.has(agent.snapshot.status);
+  const osEventVisible = shouldPresentOsEvent(expanded, runActive, osEvents.event);
+  useEffect(() => {
+    shell.setHoverEnabled(!osEvents.event);
+  }, [osEvents.event, shell.setHoverEnabled]);
+  useEffect(() => {
+    if (osEvents.event && !osEventVisible) osEvents.dismiss();
+  }, [osEvents.event, osEvents.dismiss, osEventVisible]);
+
   const surface = resolveSurface({
     expanded,
     isAgent,
     page,
     agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
+    osEvent: osEventVisible,
   });
   const agentHomeCopy = agentHomeSubtitle(agent.snapshot, agent.readiness, agent.error);
   const artProps = {
@@ -66,28 +82,36 @@ export default function App() {
     gradient: prefs.gradient,
   };
 
-  const previousGeometry = useRef<NotchGeometry | null>(null);
   const measuredHeight =
     expanded && (page === "agent" || page === "agent-settings" || page === "global-settings")
       ? contentHeights[page]
       : undefined;
-  useEffect(() => {
-    let active = true;
-    const nextGeometry: NotchGeometry = { surface, height: measuredHeight };
-    const animate = shouldAnimateNotch(previousGeometry.current, nextGeometry, reducedMotion);
-    const contentOnly = isContentResize(previousGeometry.current, nextGeometry);
-    previousGeometry.current = nextGeometry;
-    void setNotchSurface(surface, prefs.topOffset, animate, measuredHeight, contentOnly)
-      .then(() => {
-        if (active) setSurfaceError(null);
-      })
-      .catch(() => {
-        if (active) setSurfaceError("Notch resizing is unavailable in this Windows session.");
-      });
-    return () => {
-      active = false;
-    };
-  }, [surface, prefs.topOffset, reducedMotion, measuredHeight]);
+  const requestedShape = notchShape(shell.placement.requested, expanded);
+  const gutter = notchGutter(notchShape(shell.placement.applied, expanded));
+  const onSurfaceObserved = useCallback(
+    (observed: NotchPlacement) => {
+      setSurfaceError(null);
+      shell.syncPlacement(observed);
+    },
+    [shell.syncPlacement],
+  );
+  const onSurfaceError = useCallback((message: string) => setSurfaceError(message), []);
+  const {
+    size: surfaceSize,
+    nativeSize,
+    morphMs,
+    stageRef,
+  } = useNotchSurfaceSync({
+    surface,
+    shape: requestedShape,
+    topOffset: prefs.topOffset,
+    measuredHeight,
+    reducedMotion,
+    durationMs: morphDuration(prefs.motion),
+    attempt: shell.placement.attempt,
+    onObserved: onSurfaceObserved,
+    onError: onSurfaceError,
+  });
 
   const lastStatus = useRef(agent.snapshot.status);
   useEffect(() => {
@@ -110,8 +134,15 @@ export default function App() {
       surfaceError={surfaceError}
       agentHomeCopy={agentHomeCopy}
       artProps={artProps}
+      gutter={gutter}
+      size={surfaceSize}
+      nativeSize={nativeSize}
+      morphMs={morphMs}
+      stageRef={stageRef}
       onContentMeasured={onContentMeasured}
       appUpdate={appUpdate}
+      osEvent={osEventVisible ? osEvents.event : null}
+      onDismissOsEvent={osEvents.dismiss}
     />
   );
 }

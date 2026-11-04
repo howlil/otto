@@ -31,7 +31,7 @@ export type AgentSettingsProps = {
 };
 
 export function AgentSettings(props: AgentSettingsProps) {
-  const [tab, setTab] = useState<AgentSettingsTab>("setup");
+  const [tab, setTab] = useState<AgentSettingsTab>("assistant");
   const root = useRef<HTMLElement>(null);
   const scrollViewport = useRef<HTMLDivElement>(null);
   useEffect(() => {

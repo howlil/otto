@@ -1,6 +1,6 @@
 export { GlobalSettings } from "./GlobalSettings";
 export { useAppUpdate, type AppUpdateState } from "./useAppUpdate";
-export { useNotchShell } from "./useNotchShell";
+export { useNotchShell, type PlacementStatus } from "./useNotchShell";
 export {
   defaults,
   readPreferences,
@@ -12,4 +12,16 @@ export {
   type SettingsTab,
 } from "./preferences";
 export { resolveSurface } from "./surface";
+export { notchGutter, notchShape, SHOULDER_PX, type NotchShape } from "./placement";
+export {
+  cappedMorphDuration,
+  isContentResize,
+  morphDuration,
+  morphMilliseconds,
+  shouldAnimateNotch,
+  updateMeasuredHeights,
+  type NotchGeometry,
+} from "./motion";
+export { ShellFrame } from "./ShellFrame";
+export { useNotchSurfaceSync, type SurfaceSize } from "./useNotchSurfaceSync";
 export { SurfaceError } from "./SurfaceError";

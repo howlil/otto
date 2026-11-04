@@ -55,7 +55,7 @@ pub fn measure_history() -> HistoryMeasurements {
             .upsert(ConversationRecord {
                 id: format!("conversation-{conversation}"),
                 title: format!("Conversation {conversation}"),
-                provider: super::providers::registry::ProviderId::Codex,
+                provider: super::runtime::ProviderId::Codex,
                 model: Some("gpt-5.1-codex".into()),
                 thinking_effort: Some("high".into()),
                 messages: (0..MESSAGES_PER_CONVERSATION)

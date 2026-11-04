@@ -3,6 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
+import { runPreflight } from './preflight.mjs';
 
 if (process.platform !== 'win32') throw new Error('P8 native E2E requires Windows');
 const root = resolve(import.meta.dirname, '../..');
@@ -12,22 +13,116 @@ const gate = join(temp, 'stream');
 const port = Number(process.env.OTTO_E2E_PORT || 4540);
 let server;
 let session;
+let driverOutput = '';
+let driverError = null;
+
+function collectDriverOutput(chunk) {
+  driverOutput = (driverOutput + String(chunk)).slice(-6000);
+}
 
 function available(name) {
   return spawnSync('where.exe', [name], { encoding: 'utf8' }).status === 0;
 }
-async function call(method, path, data) {
+function runningInstances() {
+  const result = spawnSync('tasklist.exe', ['/FI', 'IMAGENAME eq otto.exe', '/FO', 'CSV', '/NH'], {
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  return String(result.stdout ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.toLowerCase().startsWith('"otto.exe"'))
+    .map((line) => line.split('","')[1]?.replaceAll('"', '') ?? '');
+}
+function startupDiagnosis() {
+  const instances = runningInstances();
+  if (instances.length === 0) {
+    return '\nNo Otto process is running; the app exited during WebDriver startup.';
+  }
+  return (
+    '\nOtto is already running (PID ' +
+    instances.join(', ') +
+    '). The installed single-instance guard makes a second process exit before Tauri ' +
+    'creates a window, so WebDriver never gets a session. Close Otto and rerun.'
+  );
+}
+async function call(method, path, data, timeout = 10000) {
   const response = await fetch('http://127.0.0.1:' + port + path, {
     method,
     headers: { 'content-type': 'application/json' },
     body: data === undefined ? undefined : JSON.stringify(data),
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(timeout),
   });
   const payload = await response.json();
   if (!response.ok || payload.value?.error)
     throw new Error(method + ' ' + path + ': ' + JSON.stringify(payload.value).slice(0, 500));
   return payload.value;
 }
+const shell = available('pwsh.exe') ? 'pwsh.exe' : 'powershell.exe';
+const foregroundProbe = `
+Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+'@
+[OttoFocus.Native]::GetForegroundWindow().ToInt64()
+`;
+const focusHolderScript = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+[DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, System.UIntPtr extra);
+'@
+$form = New-Object System.Windows.Forms.Form
+$form.Text = 'Otto focus probe'
+$form.Width = 320
+$form.Height = 120
+$form.Show()
+[OttoFocus.Native]::keybd_event(0x12, 0, 0, [System.UIntPtr]::Zero)
+[OttoFocus.Native]::keybd_event(0x12, 0, 2, [System.UIntPtr]::Zero)
+[OttoFocus.Native]::SetForegroundWindow($form.Handle) | Out-Null
+Start-Sleep -Milliseconds 800
+Write-Output ("handle={0} foreground={1}" -f $form.Handle.ToInt64(), [OttoFocus.Native]::GetForegroundWindow().ToInt64())
+Start-Sleep -Seconds 180
+`;
+let focusHolder = null;
+
+function powershell(script) {
+  const result = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-Command', script], {
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  if (result.status !== 0) throw new Error(shell + ' failed: ' + String(result.stderr).trim());
+  return String(result.stdout).trim();
+}
+
+function foregroundWindow() {
+  return powershell(foregroundProbe);
+}
+
+async function takeForeground() {
+  const script = join(temp, 'focus-holder.ps1');
+  writeFileSync(script, focusHolderScript);
+  focusHolder = spawn(shell, ['-NoProfile', '-NonInteractive', '-File', script], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  focusHolder.stdout.on('data', (chunk) => {
+    output += String(chunk);
+  });
+  focusHolder.stderr.on('data', () => {});
+  const match = await until('focus holder window', () => /handle=(\d+) foreground=(\d+)/.exec(output));
+  assert.equal(match[2], match[1], 'the focus probe window must own the foreground');
+  return match[1];
+}
+
+function releaseForeground() {
+  if (!focusHolder) return;
+  const pid = focusHolder.pid;
+  focusHolder.kill();
+  if (pid) spawnSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+  focusHolder = null;
+}
+
 async function until(label, predicate, timeout = 20000) {
   const end = Date.now() + timeout;
   let last;
@@ -67,28 +162,50 @@ async function snapshot() {
   assert.ok(!result.error, String(result.error));
   return result;
 }
+async function savedConversations() {
+  const result = await call('POST', endpoint('/execute/async'), {
+    script: "const done=arguments[arguments.length-1];const api=window.__TAURI_INTERNALS__;api.invoke('agent_history_list').then(done,e=>done({error:String(e)}));",
+    args: [],
+  });
+  if (!Array.isArray(result)) throw new Error('History list failed: ' + JSON.stringify(result));
+  return result;
+}
 async function start() {
+  runPreflight(root);
   server = spawn('tauri-driver', ['--port', String(port), '--native-port', String(port + 1)], {
     windowsHide: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
       PATH: join(root, 'tests/e2e/bin') + delimiter + process.env.PATH,
       OTTO_E2E_GATE: gate,
     },
   });
-  server.on('error', (error) => { console.error('tauri-driver:', error.message); });
-  await until('tauri-driver', async () => {
-    if (server.exitCode !== null) throw new Error('tauri-driver exited');
-    try { return (await call('GET', '/status'))?.ready; } catch { return false; }
-  });
-  const created = await call('POST', '/session', {
-    capabilities: { alwaysMatch: {
-      browserName: 'wry', 'tauri:options': { application: app },
-    } },
-  });
-  session = created.sessionId;
-  assert.ok(session, 'Missing WebDriver session');
+  server.stdout.on('data', collectDriverOutput);
+  server.stderr.on('data', collectDriverOutput);
+  server.on('error', (error) => { driverError = error; });
+  try {
+    await until('tauri-driver', async () => {
+      if (driverError) throw driverError;
+      if (server.exitCode !== null) throw new Error('tauri-driver exited');
+      try { return (await call('GET', '/status'))?.ready; } catch { return false; }
+    });
+    const created = await call('POST', '/session', {
+      capabilities: { alwaysMatch: {
+        browserName: 'wry', 'tauri:options': { application: app },
+      } },
+    }, 90000);
+    session = created.sessionId;
+    assert.ok(session, 'Missing WebDriver session');
+  } catch (error) {
+    throw new Error(
+      'WebDriver session startup failed: ' +
+      String(error) +
+      startupDiagnosis() +
+      (driverOutput ? '\nDriver output (tail):\n' + driverOutput : '\nNo driver output captured.'),
+      { cause: error },
+    );
+  }
 }
 async function p8() {
   const home = '//button[contains(., "Return to Home")]';
@@ -122,12 +239,19 @@ async function p8() {
   assert.equal(resumed.runId, first.runId);
   assert.equal(resumed.threadId, first.threadId);
   await click(home);
+  const heldForeground = await takeForeground();
   writeFileSync(gate + '.release', 'release');
   await until('background completion without navigation', async () => {
     const x = await snapshot();
     assert.equal((await ui()).status, null);
     return x.status === 'completed';
   });
+  assert.equal(
+    foregroundWindow(),
+    heldForeground,
+    'a background completion must not take keyboard focus',
+  );
+  await click('//button[contains(., "Open Otto")]');
   await click(agent);
   await until('completed answer visible', async () => {
     const x = await ui();
@@ -138,18 +262,39 @@ async function p8() {
   assert.equal(done.threadId, first.threadId);
   assert.equal(done.messages.filter((m) => m.role === 'assistant').length, 1);
   assert.equal(done.messages.at(-1).text, 'OTTO_FIRST_CHUNK OTTO_FINAL_CHUNK');
+  await until('completed chat persisted in local history', async () =>
+    (await savedConversations()).some((record) => record.id === done.conversationId),
+  );
+  await click('//button[.//span[normalize-space()="Conversation history"]]');
+  await until('saved history row ready', async () => {
+    const id = await find('//li/button[.//span[normalize-space()="Deterministic streaming test"]]');
+    return call('GET', endpoint('/element/' + id + '/enabled'));
+  });
+  await click('//li/button[.//span[normalize-space()="Deterministic streaming test"]]');
+  const restored = await until('history restored through production UI', async () => {
+    const current = await snapshot();
+    const rendered = await ui();
+    return current.conversationId === done.conversationId &&
+      current.threadId === null &&
+      current.messages.at(-1)?.text === 'OTTO_FIRST_CHUNK OTTO_FINAL_CHUNK' &&
+      rendered.transcript.includes('OTTO_FINAL_CHUNK') && current;
+  });
+  assert.notEqual(restored.runId, done.runId);
 }
 try {
   assert.ok(existsSync(app), 'Build the debug Tauri binary first: ' + app);
-  for (const name of ['node.exe', 'tauri-driver.exe', 'msedgedriver.exe'])
+  for (const name of ['node.exe', 'tauri-driver.exe', 'msedgedriver.exe', shell])
     assert.ok(available(name), name + ' must be installed on PATH');
+  const existing = runningInstances();
+  if (existing.length > 0) throw new Error(startupDiagnosis().trim());
   await start();
   await p8();
-  console.log('PASS: P8 native background continuity');
+  console.log('PASS: P8 native background continuity and focus hold');
 } catch (error) {
   console.error('FAIL: P8 native background continuity', error);
   process.exitCode = 1;
 } finally {
+  releaseForeground();
   if (session) try { await call('DELETE', endpoint()); } catch {}
   if (server) {
     const pid = server.pid;

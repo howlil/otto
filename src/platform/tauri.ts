@@ -59,6 +59,7 @@ export type ProviderReadiness = {
   recovery: string;
   imageInput: boolean;
   imageTransport: boolean;
+  toolFreeAdmission: boolean;
   model: string | null;
   models: AgentModelOption[];
   thinkingEffort: string | null;
@@ -88,12 +89,42 @@ export type NotchSurface =
   | "agentThinking"
   | "agentFull"
   | "agentError"
-  | "agentSettings";
+  | "agentSettings"
+  | "osEvent";
+
+export type OsEventView =
+  | { class: "volume"; id: number; percent: number; muted: boolean }
+  | { class: "brightness"; id: number; percent: number }
+  | { class: "wifi"; id: number; connected: boolean }
+  | {
+      class: "bluetooth";
+      id: number;
+      connected: boolean;
+      kind: "audio" | "input" | "unknown";
+      name: string | null;
+    }
+  | {
+      class: "battery";
+      id: number;
+      plugged: boolean;
+      charging: boolean;
+      percent: number | null;
+      low: boolean;
+      critical: boolean;
+    };
+
+export type OsEventSubscription = {
+  unsubscribe: () => Promise<void>;
+};
 
 export const nativeAvailable = isTauri();
 
 export async function getOverlayProtectionStatus(): Promise<boolean> {
   return invoke<boolean>("overlay_protection_status");
+}
+
+export async function setOverlayCaptureProtection(enabled: boolean): Promise<boolean> {
+  return invoke<boolean>("overlay_set_capture_protection", { enabled });
 }
 
 export async function getAgentSnapshot(): Promise<AgentSnapshot> {
@@ -110,6 +141,9 @@ export async function renameAgentHistory(id: string, title: string): Promise<voi
 }
 export async function deleteAgentHistory(id: string): Promise<void> {
   await invoke("agent_history_delete", { conversationId: id });
+}
+export async function deleteAllAgentHistory(): Promise<void> {
+  await invoke("agent_history_delete_all");
 }
 export async function codexInstalled(): Promise<boolean> {
   return invoke<boolean>("agent_codex_installed");
@@ -143,6 +177,22 @@ export async function subscribeAgent(
     unsubscribe: () => invoke("agent_unsubscribe", { subscriptionId }),
   };
 }
+export async function subscribeOsEvents(
+  onEvent: (event: OsEventView) => void,
+): Promise<OsEventSubscription> {
+  if (!nativeAvailable) return { unsubscribe: async () => {} };
+  const channel = new Channel<OsEventView>();
+  channel.onmessage = onEvent;
+  const subscriptionId = await invoke<number>("os_events_subscribe", { onEvent: channel });
+  return {
+    unsubscribe: () => invoke("os_events_unsubscribe", { subscriptionId }),
+  };
+}
+
+export async function setOsEventsEnabled(enabled: boolean): Promise<void> {
+  if (nativeAvailable) await invoke("os_events_set_enabled", { enabled });
+}
+
 export async function selectAgentProvider(provider: AgentProvider): Promise<void> {
   await invoke("agent_select_provider", { provider });
 }
@@ -154,12 +204,14 @@ export async function selectAgentRuntimeOptions(
   await invoke("agent_select_runtime_options", { model, thinkingEffort });
 }
 
+export type AcceptedAgentRun = { runId: number };
+
 export async function askAgent(
   text: string,
   provider: AgentProvider,
   options: { model: string | null; thinkingEffort: string | null },
-): Promise<void> {
-  await invoke("agent_ask", { text, provider, ...options });
+): Promise<AcceptedAgentRun> {
+  return invoke<AcceptedAgentRun>("agent_ask", { text, provider, ...options });
 }
 export async function configureCaptureShortcut(shortcut: string): Promise<void> {
   await invoke("agent_configure_capture_shortcut", { shortcut });
@@ -193,13 +245,104 @@ export async function onNotchFocusChanged(
   return getCurrentWindow().onFocusChanged(({ payload }) => onFocus(payload));
 }
 
-export async function setNotchSurface(
-  surface: NotchSurface,
-  topOffset = 20,
-  animate = true,
-  contentHeight?: number,
-  contentOnly = false,
+export type NotchShape = "capsule" | "card" | "attached";
+export type NotchPlacement = "floating" | "attached";
+
+export async function setNotchHitRegion(
+  width: number,
+  height: number,
+  shape: NotchShape,
 ): Promise<void> {
-  if (nativeAvailable)
-    await invoke("notch_set_surface", { surface, topOffset, animate, contentHeight, contentOnly });
+  if (!nativeAvailable || width <= 0 || height <= 0) return;
+  await invoke("notch_set_hit_region", {
+    width: Math.round(width),
+    height: Math.round(height),
+    shape,
+  });
+}
+
+export type AppliedSurface = {
+  placement: NotchPlacement;
+  width: number;
+  height: number;
+  outerWidth: number | null;
+  outerHeight: number | null;
+  geometryConfirmed: boolean;
+};
+
+export type NotchSurfaceRequest = {
+  surface: NotchSurface;
+  shape: NotchShape;
+  topOffset?: number;
+  contentHeight?: number;
+  deferShrink?: boolean;
+};
+
+function normalizeSurface(
+  value: {
+    placement: string;
+    width: number;
+    height: number;
+    outerWidth?: number | null;
+    outerHeight?: number | null;
+    geometryConfirmed?: boolean;
+  },
+  geometryConfirmedDefault: boolean,
+): AppliedSurface {
+  return {
+    placement: value.placement === "attached" ? "attached" : "floating",
+    width: value.width,
+    height: value.height,
+    outerWidth: value.outerWidth ?? null,
+    outerHeight: value.outerHeight ?? null,
+    geometryConfirmed: value.geometryConfirmed ?? geometryConfirmedDefault,
+  };
+}
+
+export async function measureNotchSurface(
+  request: Omit<NotchSurfaceRequest, "deferShrink">,
+): Promise<AppliedSurface> {
+  const { surface, shape, topOffset = 20, contentHeight } = request;
+  if (!nativeAvailable) {
+    return {
+      placement: "floating",
+      width: 0,
+      height: 0,
+      outerWidth: null,
+      outerHeight: null,
+      geometryConfirmed: false,
+    };
+  }
+  const measured = await invoke<{
+    placement: string;
+    width: number;
+    height: number;
+    outerWidth?: number | null;
+    outerHeight?: number | null;
+    geometryConfirmed?: boolean;
+  }>("notch_measure_surface", { surface, shape, topOffset, contentHeight });
+  return normalizeSurface(measured, false);
+}
+
+export async function setNotchSurface(request: NotchSurfaceRequest): Promise<AppliedSurface> {
+  const { surface, shape, topOffset = 20, contentHeight, deferShrink = false } = request;
+  if (!nativeAvailable) {
+    return {
+      placement: "floating",
+      width: 0,
+      height: 0,
+      outerWidth: null,
+      outerHeight: null,
+      geometryConfirmed: false,
+    };
+  }
+  const applied = await invoke<{
+    placement: string;
+    width: number;
+    height: number;
+    outerWidth?: number | null;
+    outerHeight?: number | null;
+    geometryConfirmed?: boolean;
+  }>("notch_set_surface", { surface, shape, topOffset, contentHeight, deferShrink });
+  return normalizeSurface(applied, true);
 }

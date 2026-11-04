@@ -1,8 +1,10 @@
+use super::authentication_required;
 use super::job::Job;
+use super::transport::JsonlProcess;
 use crate::agent::events::{AgentEvent, ProviderEvents};
 #[cfg(test)]
 use crate::agent::{CaptureSnapshot, ChatMessage, Snapshot};
-use crate::agent::{Control, ProviderReadiness, RunPhase, UsageSnapshot};
+use crate::agent::{Control, ModelOption, ProviderReadiness, RunPhase, UsageSnapshot};
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -13,14 +15,17 @@ use std::{
 #[cfg(test)]
 use tokio::sync::watch;
 use tokio::{
-    io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, ChildStdout, Command},
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt},
+    process::Command,
     sync::mpsc,
     time::timeout,
 };
 
 const AGENT_NAME: &str = "otto-chat";
 const AGENT_DEFINITION: &str = "---\nname: otto-chat\ndescription: Tool-free text answers from Otto.\nmainAgent: true\nsubagent: false\ntools: []\ncommandExecutionPolicy: \"off\"\ninheritMcp: false\ninheritCustomizations: false\n---\nAnswer the user's question without executing tools or modifying any files.\n";
+const SAFE_SETTINGS: &str = r#"{"toolPermission":"strict","permissions":{"deny":["command(*)","write_file(*)","read_file(*)","read_url(*)","execute_url(*)","mcp(*)"]}}"#;
+const MODEL_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(30);
+const TURN_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 
 pub fn executable() -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
@@ -56,26 +61,25 @@ fn install_safe_agent(home: &Path) -> Result<(), String> {
     }
     let parent = file.parent().ok_or("Invalid Agy profile path.")?;
     std::fs::create_dir_all(parent).map_err(|_| "Cannot prepare the Otto Agy profile.")?;
-    match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&file)
-    {
-        Ok(mut output) => {
-            use std::io::Write;
-            output
-                .write_all(AGENT_DEFINITION.as_bytes())
-                .map_err(|_| "Cannot write the Otto Agy profile.".to_string())
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-            if std::fs::read_to_string(&file).ok().as_deref() == Some(AGENT_DEFINITION) {
-                Ok(())
-            } else {
-                Err("Otto Agy profile was modified; refusing to replace it.".into())
-            }
-        }
-        Err(_) => Err("Cannot create the Otto Agy profile.".into()),
+    let temporary = file.with_extension(format!("agent.md.tmp-{}", std::process::id()));
+    let result = (|| {
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .map_err(|_| "Cannot create the Otto Agy profile.".to_string())?;
+        use std::io::Write;
+        output
+            .write_all(AGENT_DEFINITION.as_bytes())
+            .and_then(|_| output.sync_all())
+            .map_err(|_| "Cannot write the Otto Agy profile.".to_string())?;
+        std::fs::rename(&temporary, &file)
+            .map_err(|_| "Cannot publish the Otto Agy profile.".to_string())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temporary);
     }
+    result
 }
 
 fn ensure_profile() -> Result<(), String> {
@@ -83,8 +87,8 @@ fn ensure_profile() -> Result<(), String> {
     install_safe_agent(Path::new(&home))
 }
 
-fn launch_args() -> &'static [&'static str] {
-    &[
+fn launch_args(model: Option<&str>, thinking_effort: Option<&str>) -> Vec<String> {
+    let mut args = vec![
         "--input-format",
         "stream-json",
         "--output-format",
@@ -92,34 +96,44 @@ fn launch_args() -> &'static [&'static str] {
         "--disable-slash-commands",
         "--agent",
         AGENT_NAME,
+        "--settings",
+        SAFE_SETTINGS,
     ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect::<Vec<_>>();
+    if let Some(model) = model.filter(|value| !value.is_empty()) {
+        args.extend(["--model".into(), model.into()]);
+    }
+    if let Some(effort) = thinking_effort.filter(|value| !value.is_empty()) {
+        args.extend(["--effort".into(), effort.into()]);
+    }
+    args
 }
 
 struct Rpc {
-    job: Job,
-    child: Child,
-    stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
+    process: JsonlProcess,
     partial_frame: Vec<u8>,
     stderr_task: tokio::task::JoinHandle<String>,
 }
 
 impl Rpc {
-    fn launch(cwd: &Path) -> Result<Self, String> {
+    fn launch_with_options(
+        cwd: &Path,
+        model: Option<&str>,
+        thinking_effort: Option<&str>,
+    ) -> Result<Self, String> {
         let binary = executable().ok_or("Agy CLI was not found in PATH.")?;
-        let mut command = Command::new(binary);
-        command
-            .args(launch_args())
-            .current_dir(cwd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
-        let (mut child, job) =
-            Job::spawn(command).map_err(|_| "Cannot start isolated Agy stream-json mode.")?;
-        let stdin = child.stdin.take().ok_or("Agy stdin unavailable.")?;
-        let stdout = child.stdout.take().ok_or("Agy stdout unavailable.")?;
-        let mut stderr = child.stderr.take().ok_or("Agy stderr unavailable.")?;
+        let args = launch_args(model, thinking_effort);
+        let (process, stderr) = JsonlProcess::launch(
+            "Agy",
+            &binary,
+            args,
+            cwd,
+            true,
+            "Cannot start isolated Agy stream-json mode.",
+        )?;
+        let mut stderr = stderr.ok_or("Agy stderr unavailable.")?;
         let stderr_task = tokio::spawn(async move {
             let mut captured = Vec::new();
             let mut chunk = [0_u8; 1024];
@@ -135,17 +149,14 @@ impl Rpc {
             String::from_utf8_lossy(&captured).into_owned()
         });
         Ok(Self {
-            job,
-            child,
-            stdin,
-            stdout: BufReader::new(stdout),
+            process,
             partial_frame: Vec::new(),
             stderr_task,
         })
     }
 
     async fn read(&mut self) -> Result<Value, String> {
-        match read_frame(&mut self.stdout, &mut self.partial_frame).await? {
+        match read_frame(self.process.reader(), &mut self.partial_frame).await? {
             Some(frame) => Ok(frame),
             None => {
                 let diagnostics = timeout(Duration::from_millis(250), &mut self.stderr_task)
@@ -157,27 +168,25 @@ impl Rpc {
         }
     }
 
+    async fn read_turn(&mut self) -> Result<Value, String> {
+        timeout(TURN_IDLE_TIMEOUT, self.read())
+            .await
+            .map_err(|_| "Agy stopped responding during the answer.".to_string())?
+    }
+
     async fn send(&mut self, prompt: &str) -> Result<(), String> {
-        let mut message = serde_json::to_vec(&json!({
+        let message = serde_json::to_vec(&json!({
             "event": "user",
             "message": { "content": prompt }
         }))
         .map_err(|_| "Cannot serialize an Agy question.")?;
-        message.push(b'\n');
-        self.stdin
-            .write_all(&message)
+        self.process
+            .send_line(message, "Agy input disconnected.")
             .await
-            .map_err(|_| "Agy input disconnected.")?;
-        self.stdin
-            .flush()
-            .await
-            .map_err(|_| "Agy input disconnected.".into())
     }
 
     async fn terminate(&mut self) {
-        self.job.terminate();
-        let _ = timeout(Duration::from_secs(3), self.child.wait()).await;
-        let _ = self.child.start_kill();
+        self.process.terminate_tree().await;
     }
 }
 
@@ -222,10 +231,10 @@ fn safe_init(frame: &Value) -> Result<String, String> {
     let Some(tools) = frame["init"]["tools"].as_array() else {
         return Err("Agy did not disclose its available tools.".into());
     };
-    if tools
-        .iter()
-        .any(|tool| tool.as_str() != Some("send_message"))
-    {
+    if frame["init"]["permission_mode"] != "strict" {
+        return Err("Agy did not confirm Otto's isolated permission policy.".into());
+    }
+    if !tools.is_empty() {
         return Err("Agy exposed tools outside Otto's chat policy.".into());
     }
     let Some(session) = frame["conversation_id"]
@@ -241,6 +250,32 @@ fn model_discovery_args() -> &'static [&'static str] {
     &["--output-format", "json", "models"]
 }
 
+fn model_catalog(value: &Value) -> Vec<ModelOption> {
+    value
+        .pointer("/command/data/models")
+        .or_else(|| value.get("models"))
+        .or_else(|| value.as_array().map(|_| value))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|model| {
+            let id = model["id"].as_str().filter(|value| !value.is_empty())?;
+            let display_name = model["label"]
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .unwrap_or(id);
+            Some(ModelOption {
+                id: id.to_owned(),
+                display_name: display_name.to_owned(),
+                context_window: None,
+                image_input: false,
+                thinking_efforts: Vec::new(),
+                default_thinking_effort: None,
+            })
+        })
+        .collect()
+}
+
 fn available_models(value: &Value) -> bool {
     if value
         .get("status")
@@ -249,30 +284,7 @@ fn available_models(value: &Value) -> bool {
     {
         return false;
     }
-    value
-        .pointer("/command/data/models")
-        .or_else(|| value.get("models"))
-        .or_else(|| value.as_array().map(|_| value))
-        .and_then(Value::as_array)
-        .is_some_and(|models| !models.is_empty())
-}
-
-fn authentication_required(detail: &str) -> bool {
-    let detail = detail.to_ascii_lowercase();
-    [
-        "sign in",
-        "sign-in",
-        "not signed in",
-        "log in",
-        "login",
-        "not authenticated",
-        "authentication required",
-        "unauthorized",
-        "invalid credentials",
-        "expired credentials",
-    ]
-    .iter()
-    .any(|signal| detail.contains(signal))
+    !model_catalog(value).is_empty()
 }
 
 fn model_discovery_failure(stdout: &[u8], stderr: &[u8]) -> ProviderReadiness {
@@ -297,7 +309,7 @@ fn model_discovery_failure(stdout: &[u8], stderr: &[u8]) -> ProviderReadiness {
     }
 }
 
-pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
+pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderReadiness {
     let Some(binary) = executable() else {
         return ProviderReadiness::new(
             "missing",
@@ -315,7 +327,7 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    match Job::probe(command, Duration::from_secs(12)).await {
+    let models = match Job::probe(command, MODEL_DISCOVERY_TIMEOUT).await {
         Ok(output) if output.status.success() => {
             let parsed = serde_json::from_slice::<Value>(&output.stdout).ok();
             if parsed
@@ -331,6 +343,11 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
                     "Update Agy and choose a text model, then Retry.",
                 );
             }
+            parsed
+                .as_ref()
+                .map(model_catalog)
+                .filter(|models| !models.is_empty())
+                .unwrap_or_default()
         }
         Ok(output) => {
             return model_discovery_failure(&output.stdout, &output.stderr);
@@ -342,8 +359,17 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
                 "Check the Agy installation, then Retry.",
             );
         }
+    };
+    if let Some(model) = selected_model
+        && !models.iter().any(|candidate| candidate.id == model)
+    {
+        return ProviderReadiness::new(
+            "unsupported",
+            "Agy selected model is not available.",
+            "Choose a model from the current Agy catalog, then Retry.",
+        );
     }
-    let Ok(mut rpc) = Rpc::launch(cwd) else {
+    let Ok(mut rpc) = Rpc::launch_with_options(cwd, selected_model, None) else {
         return ProviderReadiness::new("unavailable", "Agy cannot start.", "Update Agy and Retry.");
     };
     let response = timeout(Duration::from_secs(20), rpc.read()).await;
@@ -354,11 +380,19 @@ pub async fn readiness(cwd: &PathBuf) -> ProviderReadiness {
     };
     rpc.terminate().await;
     match verified {
-        Ok(_) => ProviderReadiness::new(
-            "ready",
-            "Agy CLI is initialized; model access is verified on the first answer.",
-            "",
-        ),
+        Ok(_) => {
+            let mut readiness = ProviderReadiness::new(
+                "ready",
+                "Agy CLI is initialized; model access is verified on the first answer.",
+                "",
+            );
+            readiness.tool_free_admission = true;
+            readiness.model = selected_model
+                .map(str::to_owned)
+                .or_else(|| models.first().map(|model| model.id.clone()));
+            readiness.models = models;
+            readiness
+        }
         Err(reason) if reason.starts_with("Agy authentication expired.") => ProviderReadiness::new(
             "authRequired",
             "Agy needs authentication.",
@@ -488,6 +522,8 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         display_text,
         cwd,
         run_id,
+        model,
+        thinking_effort,
         capture: None,
         ..
     } = initial
@@ -502,7 +538,8 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         events.fail(run_id, &reason);
         return;
     }
-    let mut rpc = match Rpc::launch(&cwd) {
+    let mut rpc = match Rpc::launch_with_options(&cwd, model.as_deref(), thinking_effort.as_deref())
+    {
         Ok(value) => value,
         Err(reason) => {
             events.fail(run_id, &reason);
@@ -584,7 +621,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                 None => { rpc.terminate().await; break; }
                 _ => {}
             },
-            frame = rpc.read() => match frame {
+            frame = rpc.read_turn() => match frame {
                 Ok(value) => {
                     let Some(id) = active else { continue; };
                     if value["event"] == "step_update"
@@ -637,6 +674,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncWriteExt, BufReader};
 
     #[tokio::test]
     async fn ndjson_stream_preserves_sequential_frames_and_eof() {
@@ -738,13 +776,11 @@ mod tests {
 
     #[test]
     fn tool_permissions_are_checked_before_any_prompt() {
-        let safe = json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":["send_message"]}});
+        let safe = json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":[],"permission_mode":"strict"}});
         assert_eq!(safe_init(&safe).unwrap(), "conversation-1");
-        let documented = json!({"event":"init","conversation_id":"conversation-1","init":{"cwd":"C:\\work","tools":["send_message"],"permission_mode":"request-review"}});
-        assert_eq!(safe_init(&documented).unwrap(), "conversation-1");
-        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"tools":["send_message", "run_command"]}})).is_err());
-        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":["write_to_file"]}})).is_err());
-        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"default","tools":[]}})).is_err());
+        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":["run_command"],"permission_mode":"strict"}})).is_err());
+        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":["send_message"],"permission_mode":"request-review"}})).is_err());
+        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"default","tools":[],"permission_mode":"strict"}})).is_err());
         assert!(
             safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{}}))
                 .is_err()
@@ -753,17 +789,30 @@ mod tests {
 
     #[test]
     fn stream_launch_disables_cli_slash_command_expansion() {
-        assert!(launch_args().contains(&"--disable-slash-commands"));
+        let args = launch_args(None, None);
+        assert!(args.iter().any(|arg| arg == "--disable-slash-commands"));
         assert!(
-            launch_args()
-                .windows(2)
+            args.windows(2)
                 .any(|args| args == ["--input-format", "stream-json"])
         );
         assert!(
-            launch_args()
-                .windows(2)
+            args.windows(2)
                 .any(|args| args == ["--output-format", "stream-json"])
         );
+        assert!(
+            args.windows(2)
+                .any(|args| args == ["--settings", SAFE_SETTINGS])
+        );
+    }
+
+    #[test]
+    fn stream_launch_forwards_selected_model_and_effort() {
+        let args = launch_args(Some("gemini-4-argon-medium"), Some("high"));
+        assert!(
+            args.windows(2)
+                .any(|args| args == ["--model", "gemini-4-argon-medium"])
+        );
+        assert!(args.windows(2).any(|args| args == ["--effort", "high"]));
     }
 
     #[test]
@@ -808,6 +857,26 @@ mod tests {
             &json!({"status":"ERROR","command":{"data":{"models":[{"id":"gemini"}]}}})
         ));
         assert!(!available_models(&json!({"message":"auth required"})));
+    }
+
+    #[test]
+    fn model_catalog_maps_provider_models_to_runtime_options() {
+        let models = model_catalog(&json!({
+            "command": {
+                "data": {
+                    "models": [
+                        {"id": "gemini-4-argon-medium", "label": "Gemini 4 Argon (Medium)"},
+                        {"id": "claude-opus-5-5-high", "label": "Claude Opus 5.5 (High)"},
+                        {"id": ""}
+                    ]
+                }
+            }
+        }));
+        assert_eq!(models.len(), 2);
+        assert_eq!(models[0].id, "gemini-4-argon-medium");
+        assert_eq!(models[0].display_name, "Gemini 4 Argon (Medium)");
+        assert!(!models[0].image_input);
+        assert!(models[0].thinking_efforts.is_empty());
     }
 
     #[test]

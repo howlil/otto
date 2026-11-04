@@ -1,5 +1,24 @@
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
+pub(crate) fn authentication_required(detail: &str) -> bool {
+    let detail = detail.to_ascii_lowercase();
+    [
+        "sign in",
+        "sign-in",
+        "not signed in",
+        "log in",
+        "login",
+        "not authenticated",
+        "authentication required",
+        "unauthorized",
+        "invalid credentials",
+        "expired credentials",
+        "token expired",
+    ]
+    .iter()
+    .any(|signal| detail.contains(signal))
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum BoundedLineError {
     Read,
@@ -58,6 +77,14 @@ pub(crate) async fn read_bounded_line<R: AsyncBufRead + Unpin>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auth_signals_are_recognized_from_provider_detail() {
+        assert!(authentication_required("401 Unauthorized: token expired"));
+        assert!(authentication_required("Please log in again"));
+        assert!(!authentication_required("rate limit reached"));
+        assert!(!authentication_required(""));
+    }
     use tokio::io::BufReader;
 
     #[tokio::test]
@@ -98,3 +125,4 @@ mod job;
 #[cfg(windows)]
 pub mod pi;
 pub mod registry;
+mod transport;

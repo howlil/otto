@@ -1,4 +1,8 @@
-export type SubmittedDraft = { text: string; epoch: number; previousRunId: number };
+export type SubmittedDraft = {
+  text: string;
+  epoch: number;
+  acceptedRunId: number | null;
+};
 
 export function clearAcceptedDraft(
   current: string,
@@ -15,7 +19,7 @@ export function restoreRejectedDraft(
   observedRunId: number,
   accepted: boolean,
 ): string {
-  if (observedRunId <= submitted.previousRunId || accepted || currentEpoch !== submitted.epoch) {
+  if (observedRunId !== submitted.acceptedRunId || accepted || currentEpoch !== submitted.epoch) {
     return current;
   }
   return current || submitted.text;

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { IconButton, StatusMessage, Text, TextField } from "../../shared/ui";
+import { Button, IconButton, StatusMessage, Text, TextField } from "../../shared/ui";
 import { filterConversations, normalizeTitle, orderConversations } from "./history-model";
-import { HistoryRow } from "./HistoryRow";
+import { HistoryDeleteAllPrompt } from "./HistoryDeleteAllPrompt";
+import { HistoryRows } from "./HistoryRows";
 import type { AgentHistoryModel } from "./view-model";
 
 const SEARCH_FIELD = "otto-history-search";
@@ -10,12 +11,16 @@ function HistorySearch({
   query,
   setQuery,
   pending,
+  hasItems,
   onRefresh,
+  onDeleteAll,
 }: {
   query: string;
   setQuery: (value: string) => void;
   pending: boolean;
+  hasItems: boolean;
   onRefresh: () => void;
+  onDeleteAll: () => void;
 }) {
   return (
     <div className="flex shrink-0 items-center gap-1.5 px-[15px] pb-[7px] pt-[9px]">
@@ -32,7 +37,9 @@ function HistorySearch({
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Saved conversations"
           spellCheck={false}
-          className="h-[29px] min-w-0 flex-1 border-0 bg-transparent text-otto-sm text-otto-knob outline-none placeholder:text-otto-text-subtle"
+          density="compact"
+          appearance="embedded"
+          className="min-w-0 flex-1 placeholder:text-otto-text-subtle"
         />
       </label>
       <IconButton
@@ -42,6 +49,15 @@ function HistorySearch({
         disabled={pending}
         onClick={onRefresh}
       />
+      <Button
+        variant="quiet"
+        size="xs"
+        className="text-otto-danger-detail"
+        disabled={pending || !hasItems}
+        onClick={onDeleteAll}
+      >
+        Delete all history
+      </Button>
     </div>
   );
 }
@@ -60,6 +76,7 @@ export function History({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
   const renameInput = useRef<HTMLInputElement>(null);
   const rows = filterConversations(orderConversations(history.conversations), history.query);
@@ -94,13 +111,24 @@ export function History({
         query={history.query}
         setQuery={history.setQuery}
         pending={history.pending}
+        hasItems={history.conversations.length > 0}
         onRefresh={() => void history.refresh()}
+        onDeleteAll={() => setConfirmAll(true)}
       />
       <div
         ref={viewport}
         className="otto-scrollbar-hidden min-h-0 min-w-0 flex-1 overflow-y-auto px-[15px] pb-3 [overscroll-behavior:contain]"
       >
         <div className="min-w-0">
+          {confirmAll && history.conversations.length > 0 && (
+            <HistoryDeleteAllPrompt
+              disabled={disabled}
+              onConfirm={async () => {
+                if (await history.removeAll()) setConfirmAll(false);
+              }}
+              onCancel={() => setConfirmAll(false)}
+            />
+          )}
           {history.error && (
             <StatusMessage
               tone="error"
@@ -117,45 +145,35 @@ export function History({
                 : "No saved conversations yet. Finished answers appear here."}
             </Text>
           )}
-          <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-            {rows.map((conversation) => (
-              <HistoryRow
-                key={conversation.id}
-                conversation={conversation}
-                now={now}
-                disabled={disabled}
-                titleDraft={titleDraft}
-                renameRef={renameInput}
-                onDraft={setTitleDraft}
-                mode={
-                  renamingId === conversation.id
-                    ? "rename"
-                    : confirmId === conversation.id
-                      ? "confirm"
-                      : "row"
-                }
-                onOpen={() => {
-                  void history.open(conversation.id).then((opened) => opened && onDone());
-                }}
-                onStartRename={() => {
-                  setConfirmId(null);
-                  setTitleDraft(conversation.title);
-                  setRenamingId(conversation.id);
-                }}
-                onCommitRename={() => commitRename(conversation.id)}
-                onCancelRename={() => setRenamingId(null)}
-                onStartDelete={() => {
-                  setRenamingId(null);
-                  setConfirmId(conversation.id);
-                }}
-                onConfirmDelete={() => {
-                  setConfirmId(null);
-                  void history.remove(conversation.id);
-                }}
-                onCancelDelete={() => setConfirmId(null)}
-              />
-            ))}
-          </ul>
+          <HistoryRows
+            rows={rows}
+            now={now}
+            disabled={disabled}
+            titleDraft={titleDraft}
+            renameInput={renameInput}
+            renamingId={renamingId}
+            confirmId={confirmId}
+            onDraft={setTitleDraft}
+            onOpen={(id) => {
+              void history.open(id).then((opened) => opened && onDone());
+            }}
+            onStartRename={(conversation) => {
+              setConfirmId(null);
+              setTitleDraft(conversation.title);
+              setRenamingId(conversation.id);
+            }}
+            onCommitRename={commitRename}
+            onCancelRename={() => setRenamingId(null)}
+            onStartDelete={(id) => {
+              setRenamingId(null);
+              setConfirmId(id);
+            }}
+            onConfirmDelete={(id) => {
+              setConfirmId(null);
+              void history.remove(id);
+            }}
+            onCancelDelete={() => setConfirmId(null)}
+          />
         </div>
       </div>
     </section>

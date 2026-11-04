@@ -11,6 +11,7 @@ use windows_sys::Win32::{
 };
 
 const EXCLUDE_FROM_CAPTURE: u32 = 0x11;
+const NO_CAPTURE_RESTRICTION: u32 = 0;
 
 fn overlay_window_style(current: isize) -> isize {
     (current | WS_EX_TOOLWINDOW as isize) & !(WS_EX_APPWINDOW as isize)
@@ -92,21 +93,47 @@ fn read_affinity(hwnd: HWND) -> io::Result<u32> {
     Ok(affinity)
 }
 
-fn apply_capture_exclusion(hwnd: HWND) -> io::Result<()> {
-    if read_affinity(hwnd).is_ok_and(|value| value == EXCLUDE_FROM_CAPTURE) {
+fn requested_capture_affinity(enabled: bool) -> u32 {
+    if enabled {
+        EXCLUDE_FROM_CAPTURE
+    } else {
+        NO_CAPTURE_RESTRICTION
+    }
+}
+
+fn set_affinity(hwnd: HWND, enabled: bool) -> io::Result<()> {
+    let requested = requested_capture_affinity(enabled);
+    if read_affinity(hwnd).is_ok_and(|current| current == requested) {
         return Ok(());
     }
-
-    if unsafe { SetWindowDisplayAffinity(hwnd, EXCLUDE_FROM_CAPTURE) } == 0 {
+    if unsafe { SetWindowDisplayAffinity(hwnd, requested) } == 0 {
         return Err(io::Error::last_os_error());
     }
-
-    if read_affinity(hwnd)? != EXCLUDE_FROM_CAPTURE {
+    if read_affinity(hwnd)? != requested {
         return Err(io::Error::other(
-            "Capture exclusion affinity was not retained.",
+            "Window capture affinity was not retained.",
         ));
     }
     Ok(())
+}
+
+fn apply_capture_exclusion(hwnd: HWND) -> io::Result<()> {
+    set_affinity(hwnd, true)
+}
+
+pub fn capture_protection_status(window: &WebviewWindow) -> io::Result<bool> {
+    let hwnd = window.hwnd().map_err(io::Error::other)?.0 as _;
+    match read_affinity(hwnd)? {
+        EXCLUDE_FROM_CAPTURE => Ok(true),
+        NO_CAPTURE_RESTRICTION => Ok(false),
+        _ => Err(io::Error::other("Unexpected window capture affinity.")),
+    }
+}
+
+pub fn set_capture_protection(window: &WebviewWindow, enabled: bool) -> io::Result<bool> {
+    let hwnd = window.hwnd().map_err(io::Error::other)?.0 as _;
+    set_affinity(hwnd, enabled)?;
+    capture_protection_status(window)
 }
 
 fn clear_picker_title(window: &WebviewWindow, hwnd: HWND) -> io::Result<()> {
@@ -156,6 +183,105 @@ mod tests {
         WS_EX_LAYERED, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
     };
 
+    #[cfg(target_os = "windows")]
+    mod native_affinity {
+        use super::*;
+        use std::ptr::{null, null_mut};
+        use std::sync::atomic::{AtomicU32, Ordering};
+        use windows_sys::Win32::{
+            Foundation::{LPARAM, LRESULT, WPARAM},
+            System::LibraryLoader::GetModuleHandleW,
+            UI::WindowsAndMessaging::{
+                CreateWindowExW, DefWindowProcW, DestroyWindow, RegisterClassW, SW_SHOWNOACTIVATE,
+                ShowWindow, WNDCLASSW, WS_OVERLAPPED,
+            },
+        };
+
+        unsafe extern "system" fn test_proc(
+            hwnd: HWND,
+            message: u32,
+            wparam: WPARAM,
+            lparam: LPARAM,
+        ) -> LRESULT {
+            unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
+        }
+
+        static PROBE_CLASS: AtomicU32 = AtomicU32::new(0);
+
+        struct TestWindow(HWND);
+
+        impl Drop for TestWindow {
+            fn drop(&mut self) {
+                unsafe { DestroyWindow(self.0) };
+            }
+        }
+
+        fn create_window() -> TestWindow {
+            let class: Vec<u16> = format!(
+                "OttoAffinityProbe{}\0",
+                PROBE_CLASS.fetch_add(1, Ordering::Relaxed)
+            )
+            .encode_utf16()
+            .collect();
+            let instance = unsafe { GetModuleHandleW(null()) };
+            let class_info = WNDCLASSW {
+                style: 0,
+                lpfnWndProc: Some(test_proc),
+                cbClsExtra: 0,
+                cbWndExtra: 0,
+                hInstance: instance,
+                hIcon: null_mut(),
+                hCursor: null_mut(),
+                hbrBackground: null_mut(),
+                lpszMenuName: null(),
+                lpszClassName: class.as_ptr(),
+            };
+            assert_ne!(unsafe { RegisterClassW(&class_info) }, 0);
+            let title: Vec<u16> = "Otto affinity probe\0".encode_utf16().collect();
+            let hwnd = unsafe {
+                CreateWindowExW(
+                    0,
+                    class.as_ptr(),
+                    title.as_ptr(),
+                    WS_OVERLAPPED,
+                    0,
+                    0,
+                    64,
+                    64,
+                    null_mut(),
+                    null_mut(),
+                    instance,
+                    null(),
+                )
+            };
+            assert!(!hwnd.is_null());
+            unsafe { ShowWindow(hwnd, SW_SHOWNOACTIVATE) };
+            TestWindow(hwnd)
+        }
+
+        #[test]
+        fn capture_protection_toggle_changes_real_window_affinity() {
+            let window = create_window();
+            assert_eq!(read_affinity(window.0).unwrap(), NO_CAPTURE_RESTRICTION);
+
+            set_affinity(window.0, true).unwrap();
+            assert_eq!(read_affinity(window.0).unwrap(), EXCLUDE_FROM_CAPTURE);
+
+            set_affinity(window.0, true).unwrap();
+            assert_eq!(read_affinity(window.0).unwrap(), EXCLUDE_FROM_CAPTURE);
+
+            set_affinity(window.0, false).unwrap();
+            assert_eq!(read_affinity(window.0).unwrap(), NO_CAPTURE_RESTRICTION);
+        }
+
+        #[test]
+        fn overlay_default_application_excludes_a_window_that_started_capturable() {
+            let window = create_window();
+            apply_capture_exclusion(window.0).unwrap();
+            assert_eq!(read_affinity(window.0).unwrap(), EXCLUDE_FROM_CAPTURE);
+        }
+    }
+
     #[test]
     fn preserves_overlay_layering_topmost_and_unrelated_extended_styles() {
         let unrelated = WS_EX_TRANSPARENT as isize;
@@ -180,6 +306,16 @@ mod tests {
         assert_eq!(window["contentProtected"], true);
         assert_eq!(window["alwaysOnTop"], true);
         assert_eq!(window["skipTaskbar"], true);
+    }
+
+    #[test]
+    fn capture_protection_toggle_uses_exact_windows_affinity_values() {
+        assert_eq!(requested_capture_affinity(true), EXCLUDE_FROM_CAPTURE);
+        assert_eq!(requested_capture_affinity(false), NO_CAPTURE_RESTRICTION);
+        assert_ne!(
+            requested_capture_affinity(true),
+            requested_capture_affinity(false)
+        );
     }
 
     #[test]

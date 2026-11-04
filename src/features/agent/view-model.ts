@@ -50,6 +50,7 @@ export type AgentHistoryModel = {
   open: (id: string) => Promise<boolean>;
   rename: (id: string, title: string) => Promise<boolean>;
   remove: (id: string) => Promise<boolean>;
+  removeAll: () => Promise<boolean>;
 };
 
 export type AgentPanelModel = AgentTranscriptModel & {

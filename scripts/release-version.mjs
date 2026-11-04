@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 export function parseTag(tag) {
   const match = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(tag);
@@ -52,10 +52,11 @@ function git(...args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim();
 }
 
-function readBaseline() {
-  const p = JSON.parse(readFileSync('package.json', 'utf8')).version;
-  const t = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8')).version;
-  const cargo = readFileSync('src-tauri/Cargo.toml', 'utf8').match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+export function readBaseline(root = '.') {
+  const read = (path) => readFileSync(join(root, path), 'utf8');
+  const p = JSON.parse(read('package.json')).version;
+  const t = JSON.parse(read('src-tauri/tauri.conf.json')).version;
+  const cargo = read('src-tauri/Cargo.toml').match(/^version\s*=\s*"([^"]+)"/m)?.[1];
   if (!p || p !== t || p !== cargo || !/^\d+\.\d+\.\d+$/.test(p)) {
     throw new Error('Source versions must match before generating a release');
   }

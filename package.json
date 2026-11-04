@@ -8,11 +8,14 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "check": "biome check --max-diagnostics=none src vite.config.ts && node scripts/frontend-rules.mjs",
-    "test:frontend:critical": "bun test tests/*.test.mjs && node --test tests/e2e/codex-fixture.test.mjs",
+    "check": "biome check --max-diagnostics=none src vite.config.ts && node scripts/frontend-rules.mjs && node scripts/rust-boundaries.mjs",
+    "test:frontend:critical": "bun test --isolate tests/*.test.mjs tests/*.test.tsx && node --test tests/e2e/codex-fixture.test.mjs",
     "format": "biome check --write src vite.config.ts",
     "lint:frontend": "node scripts/frontend-rules.mjs",
-    "test:e2e:native": "node tests/e2e/p8-native.mjs"
+    "test:e2e:native": "node tests/e2e/p8-native.mjs",
+    "test:e2e:transitions": "node tests/e2e/transitions-native.mjs",
+    "test:e2e:os-events": "node tests/e2e/os-events-native.mjs",
+    "test:e2e:shell": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/e2e/shell-native.ps1"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
@@ -30,14 +33,18 @@
     "remark-math": "^6.0.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
+    "@biomejs/biome": "2.6.4",
+    "@happy-dom/global-registrator": "^21.0.4",
     "@tailwindcss/vite": "^4",
+    "@tauri-apps/cli": "^2",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
+    "happy-dom": "^21.0.4",
     "tailwindcss": "^4",
     "typescript": "~6.0.3",
-    "vite": "^8.0.16",
-    "@biomejs/biome": "2.6.4"
+    "vite": "^8.0.16"
   }
 }

@@ -1,16 +1,26 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  ActiveIndicatorGroup,
   IconButton,
-  Range,
-  SegmentedControl,
+  SettingsSection,
   Text,
-  Toggle,
   TransitionContent,
 } from "../../shared/ui";
-import type { Preferences, SettingsTab } from "./preferences";
+import { defaults, type Preferences, type SettingsTab } from "./preferences";
 import { PlacementSettings } from "./PlacementSettings";
+import type { PlacementStatus } from "./useNotchShell";
 import { GeneralSettings } from "./GeneralSettings";
+import { InteractionSettings } from "./InteractionSettings";
+import { SystemSettings } from "./SystemSettings";
+import { UpdateSettings } from "./UpdateSettings";
 import type { AppUpdateState } from "./useAppUpdate";
+
+const settingsTabs: ReadonlyArray<{ id: SettingsTab; label: string }> = [
+  { id: "appearance", label: "Appearance" },
+  { id: "interaction", label: "Interaction" },
+  { id: "system", label: "System" },
+  { id: "placement", label: "Placement" },
+];
 
 export function GlobalSettings({
   prefs,
@@ -20,6 +30,12 @@ export function GlobalSettings({
   update,
   reducedMotion,
   captureProtected,
+  captureProtectionSupported,
+  captureProtectionPending,
+  captureProtectionError,
+  setCaptureProtection,
+  osEventsError,
+  placement,
   motionClass = "",
 }: {
   prefs: Preferences;
@@ -34,8 +50,18 @@ export function GlobalSettings({
   motionClass?: string;
   reducedMotion: boolean;
   captureProtected: boolean | null;
+  captureProtectionSupported: boolean;
+  captureProtectionPending: boolean;
+  captureProtectionError: string | null;
+  setCaptureProtection: (enabled: boolean) => Promise<void>;
+  osEventsError: string | null;
+  placement: PlacementStatus;
 }) {
-  const [tab, setTab] = useState<SettingsTab>("general");
+  const [tab, setTab] = useState<SettingsTab>("appearance");
+  const restoreDefaults = () => {
+    change(defaults);
+    if (captureProtectionSupported) void setCaptureProtection(defaults.hideFromCapture);
+  };
   const back = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -67,92 +93,54 @@ export function GlobalSettings({
           <span id="otto-settings-sections" className="sr-only">
             Settings sections
           </span>
-          {(["general", "interaction", "placement"] as SettingsTab[]).map((name) => (
-            <button
-              type="button"
-              key={name}
-              className={`h-[35px] rounded-otto-control border-0 bg-transparent px-[11px] text-left text-otto-sm text-otto-label-muted hover:bg-otto-control-deep hover:text-otto-hover-text ${tab === name ? "bg-otto-control-deep text-otto-invert-line" : ""}`}
-              aria-current={tab === name ? "page" : undefined}
-              onClick={() => setTab(name)}
-            >
-              {name[0].toUpperCase() + name.slice(1)}
-            </button>
-          ))}
+          <ActiveIndicatorGroup
+            activeKey={tab}
+            className="flex flex-col items-stretch gap-1"
+            indicatorClassName="rounded-otto-control bg-otto-control-deep"
+          >
+            {settingsTabs.map(({ id, label }) => (
+              <button
+                type="button"
+                key={id}
+                data-active-key={id}
+                className={`relative z-[1] h-[35px] rounded-otto-control border-0 bg-transparent px-[11px] text-left text-otto-sm text-otto-label-muted transition-colors duration-[var(--otto-selection-duration)] ease-otto hover:bg-otto-control-hover hover:text-otto-hover-text ${tab === id ? "text-otto-invert-line" : ""}`}
+                aria-current={tab === id ? "page" : undefined}
+                onClick={() => setTab(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </ActiveIndicatorGroup>
         </nav>
         <div className="otto-scrollbar-hidden min-w-0 overflow-y-auto px-[18px] pb-5 pt-4 text-otto-text [&>h2]:m-0 [&>h2]:mb-[3px] [&>p]:m-0 [&>p]:mb-4">
           <TransitionContent transitionKey={tab} kind="tab" reducedMotion={reducedMotion}>
-            {tab === "general" && (
+            {tab === "appearance" && (
               <GeneralSettings
                 prefs={prefs}
                 change={change}
-                update={update}
-                captureProtected={captureProtected}
+                onRestoreDefaults={restoreDefaults}
+                captureProtectionPending={captureProtectionPending}
               />
             )}
-            {tab === "interaction" && (
-              <>
-                <Text as="h2" variant="heading" className="m-0 mb-[3px]">
-                  Interaction & motion
-                </Text>
-                <Toggle
-                  title="Expand on hover"
-                  checked={prefs.hoverExpand}
-                  onChange={(hoverExpand) => change({ hoverExpand })}
+            {tab === "interaction" && <InteractionSettings prefs={prefs} change={change} />}
+            {tab === "system" && (
+              <SettingsSection title="System">
+                <SystemSettings
+                  prefs={prefs}
+                  change={change}
+                  captureProtected={captureProtected}
+                  captureProtectionSupported={captureProtectionSupported}
+                  captureProtectionPending={captureProtectionPending}
+                  captureProtectionError={captureProtectionError}
+                  onCaptureProtectionChange={setCaptureProtection}
+                  osEventsError={osEventsError}
                 />
-                <Range
-                  label="Hover intent"
-                  value={prefs.hoverDelay}
-                  min={0}
-                  max={400}
-                  unit=" ms"
-                  onChange={(hoverDelay) => change({ hoverDelay })}
-                />
-                <Range
-                  label="Leave delay"
-                  value={prefs.leaveDelay}
-                  min={0}
-                  max={650}
-                  unit=" ms"
-                  onChange={(leaveDelay) => change({ leaveDelay })}
-                />
-                <Toggle
-                  title="Close when returning to desktop"
-                  checked={prefs.clickOutside}
-                  onChange={(clickOutside) => change({ clickOutside })}
-                />
-                <div className="mb-[14px]">
-                  <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
-                    Motion profile
-                  </Text>
-                  <SegmentedControl
-                    value={prefs.motion}
-                    onChange={(motion) => change({ motion })}
-                    choices={[
-                      { value: "fluid", label: "Fluid" },
-                      { value: "gentle", label: "Subtle" },
-                      { value: "reduced", label: "Reduced" },
-                    ]}
-                  />
-                </div>
-                <Range
-                  label="Artwork tilt"
-                  value={prefs.tilt}
-                  min={0}
-                  max={65}
-                  unit="°"
-                  onChange={(tilt) => change({ tilt })}
-                />
-                <Range
-                  label="Tonal gradient"
-                  value={prefs.gradient}
-                  min={0}
-                  max={100}
-                  unit="%"
-                  onChange={(gradient) => change({ gradient })}
-                />
-              </>
+                <UpdateSettings update={update} />
+              </SettingsSection>
             )}
-            {tab === "placement" && <PlacementSettings prefs={prefs} change={change} />}
+            {tab === "placement" && (
+              <PlacementSettings prefs={prefs} change={change} placement={placement} />
+            )}
           </TransitionContent>
         </div>
       </main>

@@ -1,5 +1,5 @@
 export type Page = "home" | "agent" | "global-settings" | "agent-settings";
-export type SettingsTab = "general" | "interaction" | "placement";
+export type SettingsTab = "appearance" | "interaction" | "system" | "placement";
 export type Expression = "calm" | "curious" | "sleepy" | "happy";
 export type Motion = "fluid" | "gentle" | "reduced";
 export type Placement = "floating" | "attached";
@@ -12,6 +12,8 @@ export type Preferences = {
   hoverDelay: number;
   leaveDelay: number;
   clickOutside: boolean;
+  hideFromCapture: boolean;
+  osEventsEnabled: boolean;
   motion: Motion;
   tilt: number;
   gradient: number;
@@ -26,6 +28,8 @@ export const defaults: Preferences = {
   hoverDelay: 150,
   leaveDelay: 340,
   clickOutside: true,
+  hideFromCapture: true,
+  osEventsEnabled: true,
   motion: "fluid",
   tilt: 43,
   gradient: 80,
@@ -44,7 +48,7 @@ const choices: Partial<Record<keyof Preferences, readonly string[]>> = {
   reactive: ["quiet", "alive"],
   motion: ["fluid", "gentle", "reduced"],
 
-  placement: ["floating"],
+  placement: ["floating", "attached"],
 };
 
 function validPreference(key: keyof Preferences, value: unknown): boolean {
@@ -76,4 +80,29 @@ export function readPreferences(): Preferences {
   } catch {
     return { ...defaults };
   }
+}
+
+export function mergePreferences(current: Preferences, patch: Partial<Preferences>): Preferences {
+  return {
+    ...current,
+    ...patch,
+    hideFromCapture: current.hideFromCapture,
+    placement: current.placement,
+  };
+}
+
+export function confirmedPlacementPreference(
+  current: Preferences,
+  observed: Placement | null,
+): Preferences {
+  return observed === null || observed === current.placement
+    ? current
+    : { ...current, placement: observed };
+}
+
+export function confirmedCapturePreference(
+  current: Preferences,
+  confirmed: boolean | null,
+): Preferences {
+  return confirmed === null ? current : { ...current, hideFromCapture: confirmed };
 }

@@ -9,7 +9,7 @@ import { ProviderSettings } from "./AgentSettingsSections";
 import { agentStatusLabel } from "./status";
 
 const headings: Record<AgentSettingsTab, string> = {
-  setup: "Agent setup",
+  assistant: "Assistant",
   capture: "Screen capture",
 };
 
@@ -56,13 +56,12 @@ function CaptureSettings({
       )}
       {!readiness.imageTransport && (
         <StatusMessage tone="info">
-          This provider cannot transport screenshots. Choose Codex or a vision-capable Pi model.
+          Screenshots are not supported by this provider. Choose Codex or a vision-capable Pi model.
         </StatusMessage>
       )}
       {readiness.imageTransport && readiness.status === "ready" && !readiness.imageInput && (
         <StatusMessage tone="info">
-          The selected model does not confirm image input. Choose a vision-capable model in your CLI
-          and Retry before capturing.
+          This model does not confirm image input. Choose a vision-capable model, then Retry.
         </StatusMessage>
       )}
     </div>
@@ -97,11 +96,11 @@ export function AgentSettingsDetails({
       ref={scrollRef}
       className="otto-scrollbar-hidden min-h-0 min-w-0 flex-1 overflow-y-auto [overscroll-behavior:contain]"
     >
-      <div className="min-w-0 px-[17px] pb-5 pt-[15px]">
+      <div className="min-w-0 px-4 pb-4 pt-4">
         <SettingsHeader tab={tab} />
         <ActiveRunNotice {...props} />
         <TransitionContent transitionKey={tab} kind="tab" reducedMotion={props.reducedMotion}>
-          {tab === "setup" && (
+          {tab === "assistant" && (
             <div className="space-y-3">
               <ProviderSettings
                 readiness={props.readiness}
@@ -111,6 +110,12 @@ export function AgentSettingsDetails({
                 locked={props.locked}
                 onRetry={props.onRetry}
               />
+              {props.snapshot.messages.length > 0 && props.snapshot.threadId === null && (
+                <StatusMessage tone="info">
+                  History stays in Otto. The next provider receives a bounded text transcript, not
+                  the original session.
+                </StatusMessage>
+              )}
               <ModelUsageSettings
                 readiness={props.readiness}
                 snapshot={props.snapshot}

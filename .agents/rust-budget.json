@@ -1,0 +1,4 @@
+{
+  "maxProdLines": 880,
+  "ipcGeometryOwner": "src-tauri/src/notch.rs"
+}
