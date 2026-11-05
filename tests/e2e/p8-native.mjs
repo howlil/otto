@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { runPreflight } from './preflight.mjs';
@@ -66,6 +66,8 @@ Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
 [OttoFocus.Native]::GetForegroundWindow().ToInt64()
 `;
 const focusHolderScript = `
+param([string]$ReadyFile)
+$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -77,12 +79,22 @@ $form.Text = 'Otto focus probe'
 $form.Width = 320
 $form.Height = 120
 $form.Show()
+[System.Windows.Forms.Application]::DoEvents()
 [OttoFocus.Native]::keybd_event(0x12, 0, 0, [System.UIntPtr]::Zero)
 [OttoFocus.Native]::keybd_event(0x12, 0, 2, [System.UIntPtr]::Zero)
-[OttoFocus.Native]::SetForegroundWindow($form.Handle) | Out-Null
-Start-Sleep -Milliseconds 800
-Write-Output ("handle={0} foreground={1}" -f $form.Handle.ToInt64(), [OttoFocus.Native]::GetForegroundWindow().ToInt64())
-Start-Sleep -Seconds 180
+for ($attempt = 0; $attempt -lt 20; $attempt++) {
+  [OttoFocus.Native]::SetForegroundWindow($form.Handle) | Out-Null
+  [System.Windows.Forms.Application]::DoEvents()
+  if ([OttoFocus.Native]::GetForegroundWindow() -eq $form.Handle) { break }
+  Start-Sleep -Milliseconds 100
+}
+[System.IO.File]::WriteAllText($ReadyFile, ("handle={0} foreground={1}" -f $form.Handle.ToInt64(), [OttoFocus.Native]::GetForegroundWindow().ToInt64()))
+$expires = (Get-Date).AddSeconds(180)
+while ((Get-Date) -lt $expires -and -not $form.IsDisposed) {
+  [System.Windows.Forms.Application]::DoEvents()
+  Start-Sleep -Milliseconds 50
+}
+$form.Close()
 `;
 let focusHolder = null;
 
@@ -101,16 +113,40 @@ function foregroundWindow() {
 
 async function takeForeground() {
   const script = join(temp, 'focus-holder.ps1');
+  const ready = join(temp, 'focus-holder.ready');
   writeFileSync(script, focusHolderScript);
-  focusHolder = spawn(shell, ['-NoProfile', '-NonInteractive', '-File', script], {
+  focusHolder = spawn(shell, ['-NoProfile', '-NonInteractive', '-Sta', '-File', script, '-ReadyFile', ready], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
+  let error = null;
   focusHolder.stdout.on('data', (chunk) => {
-    output += String(chunk);
+    output = (output + String(chunk)).slice(-2000);
   });
-  focusHolder.stderr.on('data', () => {});
-  const match = await until('focus holder window', () => /handle=(\d+) foreground=(\d+)/.exec(output));
+  focusHolder.stderr.on('data', (chunk) => {
+    output = (output + String(chunk)).slice(-2000);
+  });
+  focusHolder.on('error', (cause) => {
+    error = cause;
+  });
+
+  const deadline = Date.now() + 20000;
+  let match = null;
+  while (Date.now() < deadline) {
+    if (existsSync(ready)) {
+      match = /handle=(\d+) foreground=(\d+)/.exec(readFileSync(ready, 'utf8'));
+      if (match) break;
+    }
+    if (error || focusHolder.exitCode !== null) break;
+    await new Promise((done) => setTimeout(done, 100));
+  }
+  if (!match) {
+    throw new Error(
+      'Focus holder failed to initialize: ' +
+      (error?.message ?? ('exit=' + focusHolder.exitCode)) +
+      (output ? '\nPowerShell: ' + output : ''),
+    );
+  }
   assert.equal(match[2], match[1], 'the focus probe window must own the foreground');
   return match[1];
 }
