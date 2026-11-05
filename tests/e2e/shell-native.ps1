@@ -60,6 +60,7 @@ function Get-OttoWindow([int]$processId) {
     $owner = 0
     [OttoProbe.Native]::GetWindowThreadProcessId($hwnd, [ref]$owner) | Out-Null
     if ($owner -ne $processId -or -not [OttoProbe.Native]::IsWindowVisible($hwnd)) { return $true }
+    if ([OttoProbe.Native]::GetWindowTextLengthW($hwnd) -ne 0) { return $true }
     $rect = New-Object OttoProbe.Native+RECT
     [OttoProbe.Native]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
     $area = ($rect.Right - $rect.Left) * ($rect.Bottom - $rect.Top)
