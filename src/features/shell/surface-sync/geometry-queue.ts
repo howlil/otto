@@ -43,7 +43,12 @@ export function createGeometryQueue() {
     const operation: QueueOperation = { kind: "hit", item: hit };
     if (!isCurrent(operation)) return;
     const next = { width: Math.round(hit.width), height: Math.round(hit.height), shape: hit.shape };
-    if (lastHit?.width === next.width && lastHit?.height === next.height && lastHit?.shape === next.shape) return;
+    if (
+      lastHit?.width === next.width &&
+      lastHit?.height === next.height &&
+      lastHit?.shape === next.shape
+    )
+      return;
     try {
       await setNotchHitRegion(next.width, next.height, next.shape);
       if (!disposed && isCurrent(operation)) lastHit = next;
@@ -96,7 +101,13 @@ export function createGeometryQueue() {
       pendingSurface = item;
       void flush();
     },
-    enqueueHit(width: number, height: number, shape: NotchShape, isCurrent: () => boolean, report?: () => void) {
+    enqueueHit(
+      width: number,
+      height: number,
+      shape: NotchShape,
+      isCurrent: () => boolean,
+      report?: () => void,
+    ) {
       pendingHit = { width, height, shape, generation, isCurrent, report };
       void flush();
     },

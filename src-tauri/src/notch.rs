@@ -136,10 +136,7 @@ mod tests {
     use super::*;
     #[test]
     fn hit_region_tracks_the_visible_surface_inside_a_larger_window() {
-        assert_eq!(
-            hit_region_plan((678, 222), (678, 222)),
-            None
-        );
+        assert_eq!(hit_region_plan((678, 222), (678, 222)), None);
         assert_eq!(
             hit_region_plan((678, 222), (138, 63)),
             Some((270, 0, 138, 63))
