@@ -59,6 +59,7 @@ async function call(method, path, data, timeout = 10000) {
   return payload.value;
 }
 const shell = available('pwsh.exe') ? 'pwsh.exe' : 'powershell.exe';
+const focusShell = available('powershell.exe') ? 'powershell.exe' : shell;
 const foregroundProbe = `
 Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -68,18 +69,21 @@ Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
 const focusHolderScript = `
 param([string]$ReadyFile)
 $ErrorActionPreference = 'Stop'
+[System.IO.File]::WriteAllText($ReadyFile + '.phase', 'starting')
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
 [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, System.UIntPtr extra);
 '@
+[System.IO.File]::WriteAllText($ReadyFile + '.phase', 'native-loaded')
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Otto focus probe'
 $form.Width = 320
 $form.Height = 120
 $form.Show()
 [System.Windows.Forms.Application]::DoEvents()
+[System.IO.File]::WriteAllText($ReadyFile + '.phase', 'form-shown')
 [OttoFocus.Native]::keybd_event(0x12, 0, 0, [System.UIntPtr]::Zero)
 [OttoFocus.Native]::keybd_event(0x12, 0, 2, [System.UIntPtr]::Zero)
 for ($attempt = 0; $attempt -lt 20; $attempt++) {
@@ -115,7 +119,7 @@ async function takeForeground() {
   const script = join(temp, 'focus-holder.ps1');
   const ready = join(temp, 'focus-holder.ready');
   writeFileSync(script, focusHolderScript);
-  focusHolder = spawn(shell, ['-NoProfile', '-NonInteractive', '-Sta', '-File', script, '-ReadyFile', ready], {
+  focusHolder = spawn(focusShell, ['-NoProfile', '-NonInteractive', '-Sta', '-ExecutionPolicy', 'Bypass', '-File', script, '-ReadyFile', ready], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -144,6 +148,8 @@ async function takeForeground() {
     throw new Error(
       'Focus holder failed to initialize: ' +
       (error?.message ?? ('exit=' + focusHolder.exitCode)) +
+      ', phase=' + (existsSync(ready + '.phase') ? readFileSync(ready + '.phase', 'utf8') : 'not-started') +
+      ', runtime=' + focusShell +
       (output ? '\nPowerShell: ' + output : ''),
     );
   }
