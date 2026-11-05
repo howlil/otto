@@ -51,6 +51,7 @@ function useNotchHitRegionSync({
   morphMs,
   queue,
   revision,
+  reported,
 }: {
   stageRef: RefObject<HTMLDivElement | null>;
   targetWidth: number | undefined;
@@ -59,11 +60,13 @@ function useNotchHitRegionSync({
   morphMs: number;
   queue: GeometryQueue;
   revision: { current: number };
+  reported: { current: (message: string) => void };
 }) {
   useEffect(() => {
     if (!nativeAvailable || !targetWidth || !targetHeight) return;
     let frame = 0;
     let lastSent = 0;
+    let errorReported = false;
     const started = performance.now();
     const currentRevision = revision.current;
     const surface = () => {
@@ -79,6 +82,11 @@ function useNotchHitRegionSync({
         measured.height,
         shape,
         () => currentRevision === revision.current,
+        () => {
+          if (errorReported) return;
+          errorReported = true;
+          reported.current("Windows could not update Otto's hit region.");
+        },
       );
     };
     const tick = (now: number) => {
@@ -91,7 +99,7 @@ function useNotchHitRegionSync({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [stageRef, targetWidth, targetHeight, shape, morphMs, queue, revision]);
+  }, [stageRef, targetWidth, targetHeight, shape, morphMs, queue, revision, reported]);
 }
 
 function useSurfaceMeasurement({
@@ -328,6 +336,7 @@ export function useNotchSurfaceSync({
     morphMs,
     queue: queue.current,
     revision,
+    reported,
   });
 
   useEffect(() => {

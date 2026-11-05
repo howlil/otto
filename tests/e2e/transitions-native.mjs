@@ -119,6 +119,19 @@ function assertGeometry(label, frames) {
       frame.stage.width <= frame.window.width + 2 && frame.stage.height <= frame.window.height + 2,
       `${label}: stage exceeded native frame at ${JSON.stringify(frame)}`,
     );
+    assert.ok(
+      Math.abs(frame.main.width - frame.stage.width) <= 1.5 &&
+        Math.abs(frame.main.height - frame.stage.height) <= 1.5,
+      `${label}: visible surface must track the animated stage at ${JSON.stringify(frame)}`,
+    );
+    assert.ok(
+      frame.windowBackground === "rgba(0, 0, 0, 0)" || frame.windowBackground === "transparent",
+      `${label}: outer window paints an opaque rectangle: ${JSON.stringify(frame)}`,
+    );
+    assert.ok(
+      frame.stageBackground === "rgba(0, 0, 0, 0)" || frame.stageBackground === "transparent",
+      `${label}: animated stage paints an opaque rectangle: ${JSON.stringify(frame)}`,
+    );
   }
 }
 
@@ -129,13 +142,20 @@ async function transition(label, selector, expected) {
     const started = performance.now();
     const frames = [];
     const sample = (now) => {
-      const stage = document.querySelector('[data-surface-stage]')?.getBoundingClientRect();
-      const frame = document.querySelector('[data-surface-window]')?.getBoundingClientRect();
-      if (stage && frame) {
+      const stageElement = document.querySelector('[data-surface-stage]');
+      const frameElement = document.querySelector('[data-surface-window]');
+      const mainElement = stageElement?.querySelector('main');
+      if (stageElement && frameElement && mainElement) {
+        const stage = stageElement.getBoundingClientRect();
+        const frame = frameElement.getBoundingClientRect();
+        const main = mainElement.getBoundingClientRect();
         frames.push({
           time: Math.round(now - started),
           stage: { left: stage.left, top: stage.top, width: stage.width, height: stage.height },
           window: { left: frame.left, top: frame.top, width: frame.width, height: frame.height },
+          main: { width: main.width, height: main.height },
+          windowBackground: getComputedStyle(frameElement).backgroundColor,
+          stageBackground: getComputedStyle(stageElement).backgroundColor,
         });
       }
       if (now - started < 1100) requestAnimationFrame(sample);

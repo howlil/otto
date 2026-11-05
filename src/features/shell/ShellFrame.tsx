@@ -38,7 +38,7 @@ export function ShellFrame({
       )}
       <div
         data-surface-window="true"
-        className="pointer-events-none relative mx-auto overflow-hidden bg-otto-surface"
+        className="pointer-events-none relative mx-auto overflow-hidden"
         style={{
           width: nativeSize?.width ?? size?.width,
           height: nativeSize?.height ?? size?.height,
@@ -47,7 +47,7 @@ export function ShellFrame({
         <div
           ref={stageRef}
           data-surface-stage="true"
-          className="pointer-events-auto relative mx-auto h-full w-full overflow-hidden bg-otto-surface transition-[width,height] ease-otto"
+          className="pointer-events-auto relative mx-auto h-full w-full overflow-hidden transition-[width,height] ease-otto"
           style={{
             width: size?.width,
             height: size?.height,

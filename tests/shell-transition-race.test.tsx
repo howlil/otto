@@ -11,6 +11,7 @@ const surfaceCalls: Array<{
   }) => void;
 }> = [];
 const hitCalls: Array<{ payload: { width: number; height: number; shape: string } }> = [];
+let failHitRegion = false;
 
 const surfaceSizes = {
   idle: { width: 92, height: 42 },
@@ -31,7 +32,7 @@ mock.module("@tauri-apps/api/core", () => ({
     }
     if (command === "notch_set_hit_region") {
       hitCalls.push(payload as { width: number; height: number; shape: string });
-      return Promise.resolve(null);
+      return failHitRegion ? Promise.reject(new Error("native hit region failure")) : Promise.resolve(null);
     }
     if (command === "notch_measure_surface") {
       const surface = (payload as { surface: keyof typeof surfaceSizes }).surface;
@@ -46,6 +47,7 @@ const { createGeometryQueue, useNotchSurfaceSync } = await import(
   "../src/features/shell/useNotchSurfaceSync",
 );
 const { TransitionContent } = await import("../src/shared/ui/TransitionContent");
+const { ShellFrame } = await import("../src/features/shell/ShellFrame");
 
 function useSurface(
   surface: "idle" | "home" | "homeSettings",
@@ -89,9 +91,46 @@ afterEach(() => {
   cleanup();
   surfaceCalls.length = 0;
   hitCalls.length = 0;
+  failHitRegion = false;
 });
 
 describe("native surface transition ordering", () => {
+  test("keeps the animated window and stage wrappers unpainted", () => {
+    const view = render(
+      <ShellFrame
+        placement="floating"
+        gutter={0}
+        size={{ width: 92, height: 42 }}
+        nativeSize={{ width: 452, height: 148 }}
+        morphMs={420}
+        stageRef={{ current: null }}
+      >
+        <main className="rounded-otto-island bg-otto-surface" />
+      </ShellFrame>,
+    );
+    const windowFrame = view.container.querySelector("[data-surface-window]");
+    const stage = view.container.querySelector("[data-surface-stage]");
+    expect(windowFrame?.classList.contains("bg-otto-surface")).toBe(false);
+    expect(stage?.classList.contains("bg-otto-surface")).toBe(false);
+    expect(view.container.querySelector("main")?.classList.contains("bg-otto-surface")).toBe(true);
+  });
+
+  test("does not reapply unchanged native hit regions and reports a failed update", async () => {
+    const queue = createGeometryQueue();
+    queue.resume();
+    queue.enqueueHit(92, 42, "capsule", () => true);
+    await waitFor(() => expect(hitCalls).toHaveLength(1));
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    queue.enqueueHit(92.2, 42, "capsule", () => true);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(hitCalls).toHaveLength(1);
+    failHitRegion = true;
+    let errors = 0;
+    queue.enqueueHit(93, 42, "capsule", () => true, () => { errors += 1; });
+    await waitFor(() => expect(errors).toBe(1));
+    queue.dispose();
+  });
+
   test("retains the newest pending hit region when a surface write supersedes another", async () => {
     const queue = createGeometryQueue();
     queue.resume();

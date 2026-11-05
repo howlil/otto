@@ -59,8 +59,6 @@ export function ShellView({
         style={
           {
             "--otto-morph-duration": morphMilliseconds(shell.prefs.motion),
-            width: size?.width,
-            height: size?.height,
           } as CSSProperties
         }
         data-reduced={shell.reducedMotion ? "true" : undefined}

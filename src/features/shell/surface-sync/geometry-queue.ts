@@ -15,6 +15,7 @@ type HitQueueItem = {
   shape: NotchShape;
   generation: number;
   isCurrent: () => boolean;
+  report?: () => void;
 };
 
 type QueueOperation =
@@ -27,6 +28,7 @@ export function createGeometryQueue() {
   let generation = 0;
   let running = false;
   let disposed = false;
+  let lastHit: { width: number; height: number; shape: NotchShape } | null = null;
 
   const flushSurface = async (surface: SurfaceQueueItem) => {
     try {
@@ -38,8 +40,16 @@ export function createGeometryQueue() {
   };
 
   const flushHit = async (hit: HitQueueItem) => {
-    if (!isCurrent({ kind: "hit", item: hit })) return;
-    await setNotchHitRegion(hit.width, hit.height, hit.shape);
+    const operation: QueueOperation = { kind: "hit", item: hit };
+    if (!isCurrent(operation)) return;
+    const next = { width: Math.round(hit.width), height: Math.round(hit.height), shape: hit.shape };
+    if (lastHit?.width === next.width && lastHit?.height === next.height && lastHit?.shape === next.shape) return;
+    try {
+      await setNotchHitRegion(next.width, next.height, next.shape);
+      if (!disposed && isCurrent(operation)) lastHit = next;
+    } catch {
+      if (!disposed && isCurrent(operation)) hit.report?.();
+    }
   };
 
   const takeOperation = (): QueueOperation | null => {
@@ -80,13 +90,14 @@ export function createGeometryQueue() {
     },
     enqueueSurface(item: SurfaceQueueItem) {
       generation += 1;
+      lastHit = null;
       if (pendingHit && !pendingHit.isCurrent()) pendingHit = null;
       if (pendingHit) pendingHit.generation = generation;
       pendingSurface = item;
       void flush();
     },
-    enqueueHit(width: number, height: number, shape: NotchShape, isCurrent: () => boolean) {
-      pendingHit = { width, height, shape, generation, isCurrent };
+    enqueueHit(width: number, height: number, shape: NotchShape, isCurrent: () => boolean, report?: () => void) {
+      pendingHit = { width, height, shape, generation, isCurrent, report };
       void flush();
     },
     dispose() {
@@ -94,6 +105,7 @@ export function createGeometryQueue() {
       generation += 1;
       pendingSurface = null;
       pendingHit = null;
+      lastHit = null;
     },
   };
 }

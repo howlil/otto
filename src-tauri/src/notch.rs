@@ -120,7 +120,7 @@ pub fn attached_gutter(shape: &str) -> f64 {
 }
 
 pub fn hit_region_plan(current: (i32, i32), target: (i32, i32)) -> Option<(i32, i32, i32, i32)> {
-    if current.0 <= 0 || current.1 <= 0 || target.0 <= 0 || target.1 <= 0 {
+    if current == target || current.0 <= 0 || current.1 <= 0 || target.0 <= 0 || target.1 <= 0 {
         return None;
     }
     Some((
@@ -138,7 +138,7 @@ mod tests {
     fn hit_region_tracks_the_visible_surface_inside_a_larger_window() {
         assert_eq!(
             hit_region_plan((678, 222), (678, 222)),
-            Some((0, 0, 678, 222))
+            None
         );
         assert_eq!(
             hit_region_plan((678, 222), (138, 63)),
