@@ -493,7 +493,7 @@ try {
   }
 
   $cornerOwners = @()
-  foreach ($inset in @(2, 6)) {
+  foreach ($inset in @(2, 4)) {
     $cornerOwners += (Get-PointOwnerPid ($compact.Left + $inset) ($compact.Top + $inset))
     $cornerOwners += (Get-PointOwnerPid ($compact.Right - $inset) ($compact.Top + $inset))
     $cornerOwners += (Get-PointOwnerPid ($compact.Left + $inset) ($compact.Bottom - $inset))

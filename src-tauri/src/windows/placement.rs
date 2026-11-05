@@ -501,8 +501,12 @@ mod tests {
         let shape = shape_for(Silhouette::Capsule, 42.0, 1.0);
         let region = create_region_at(shape, 92.0, 42.0, 0, 0).unwrap();
         assert!(region_contains(region, 46, 21));
-        assert!(!region_contains(region, 1, 1));
-        assert!(!region_contains(region, 91, 41));
+        for inset in [2, 4] {
+            assert!(!region_contains(region, inset, inset));
+            assert!(!region_contains(region, 92 - inset, inset));
+            assert!(!region_contains(region, inset, 42 - inset));
+            assert!(!region_contains(region, 92 - inset, 42 - inset));
+        }
         unsafe { DeleteObject(region as _) };
     }
 
