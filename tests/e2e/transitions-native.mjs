@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { runPreflight } from "./preflight.mjs";
+import { createVisualRecorder } from "./visual-capture.mjs";
 
 if (process.platform !== "win32") throw new Error("Native transition E2E requires Windows");
 
@@ -16,6 +17,7 @@ const shell = spawnSync("where.exe", ["pwsh.exe"], { encoding: "utf8" }).status 
   : "powershell.exe";
 let driver;
 let session;
+const visual = createVisualRecorder("transitions");
 
 function available(name) {
   return spawnSync("where.exe", [name], { encoding: "utf8" }).status === 0;
@@ -62,6 +64,10 @@ async function until(label, predicate, timeout = 20000) {
 }
 
 const endpoint = (path = "") => `/session/${session}${path}`;
+
+async function capture(label) {
+  await visual.capture(label, () => call("GET", endpoint("/screenshot")));
+}
 
 async function execute(script) {
   return call("POST", endpoint("/execute/sync"), { script, args: [] });
@@ -137,6 +143,7 @@ function assertGeometry(label, frames) {
 
 async function transition(label, selector, expected) {
   await clickTarget(selector);
+  await capture(`${label}-entering`);
   const result = await executeAsync(`
     const done = arguments[arguments.length - 1];
     const started = performance.now();
@@ -178,6 +185,7 @@ async function transition(label, selector, expected) {
     `${label}: expected state did not settle; frames=${result.frames.length}; state=${JSON.stringify(result.state)}`,
   );
   assertGeometry(label, result.frames);
+  await capture(`${label}-settled`);
   return result.frames;
 }
 
@@ -302,4 +310,5 @@ try {
     if (pid) spawnSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
   }
   rmSync(profile, { recursive: true, force: true });
+  if (visual.enabled) console.log(`Private WebDriver snapshots: ${visual.directory}`);
 }

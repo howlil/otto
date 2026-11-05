@@ -3,6 +3,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
+import { createVisualRecorder } from "./visual-capture.mjs";
 
 if (process.platform !== "win32") throw new Error("OS event acceptance requires Windows");
 const root = resolve(import.meta.dirname, "../..");
@@ -12,6 +13,7 @@ const port = Number(process.env.OTTO_E2E_PORT || 4542);
 const network = process.env.OTTO_E2E_NETWORK === "1";
 const strictFocus = process.env.OTTO_E2E_STRICT_FOCUS === "1";
 const temp = mkdtempSync(join(tmpdir(), "otto-os-events-"));
+const visual = createVisualRecorder("os-events");
 let server;
 let session;
 let driverOutput = "";
@@ -88,6 +90,10 @@ async function until(label, predicate, timeout = 20000) {
 
 const endpoint = (path = "") => `/session/${session}${path}`;
 
+async function capture(label) {
+  await visual.capture(label, () => call("GET", endpoint("/screenshot")));
+}
+
 async function find(xpath) {
   const value = await call("POST", endpoint("/element"), { using: "xpath", value: xpath });
   return value["element-6066-11e4-a52e-4f735466cecf"];
@@ -156,6 +162,7 @@ async function waitEvent(kind, timeout) {
     `${kind} animated stage has an opaque backing`,
   );
   assert.ok(value.composition.matches, `${kind} rendered surface does not match its stage`);
+  await capture(`${kind}-capsule`);
   return value;
 }
 
@@ -164,6 +171,7 @@ async function waitDismissed(label, timeout = 8000) {
     const current = await state();
     return current.event === null && current.width === 92 && current.height === 42;
   }, timeout);
+  await capture(`${label}-dismissed`);
 }
 
 async function toggleOsEvents() {
@@ -507,4 +515,5 @@ try {
     if (pid) spawnSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
   }
   rmSync(temp, { recursive: true, force: true });
+  if (visual.enabled) console.log(`Private WebDriver snapshots: ${visual.directory}`);
 }
