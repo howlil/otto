@@ -101,6 +101,11 @@ async function click(xpath) {
 async function state() {
   return call("POST", endpoint("/execute/sync"), {
     script: `const el = document.querySelector("[data-os-event]");
+      const stage = document.querySelector("[data-surface-stage]");
+      const frame = document.querySelector("[data-surface-window]");
+      const main = stage?.querySelector("main");
+      const stageRect = stage?.getBoundingClientRect();
+      const mainRect = main?.getBoundingClientRect();
       const toggle = [...document.querySelectorAll("label")].find((item) =>
         item.innerText.includes("Show OS events"),
       )?.querySelector("input[type=checkbox]");
@@ -112,6 +117,13 @@ async function state() {
         screenWidth: screen.width,
         event: el?.dataset.osEvent ?? null,
         surface: el?.dataset.surface ?? null,
+        composition: {
+          windowBackground: frame ? getComputedStyle(frame).backgroundColor : null,
+          stageBackground: stage ? getComputedStyle(stage).backgroundColor : null,
+          matches: Boolean(stageRect && mainRect &&
+            Math.abs(stageRect.width - mainRect.width) <= 1.5 &&
+            Math.abs(stageRect.height - mainRect.height) <= 1.5),
+        },
         text: el?.innerText ?? "",
         focused: document.hasFocus(),
         osEventsEnabled: toggle?.checked ?? null,
@@ -135,6 +147,15 @@ async function waitEvent(kind, timeout) {
     return second.event === kind && second.width === 234 && second.height === 52 ? second : null;
   }, 4000);
   assert.equal(value.surface, "os-event", `${kind} native surface`);
+  assert.ok(
+    ["transparent", "rgba(0, 0, 0, 0)"].includes(value.composition.windowBackground),
+    `${kind} native window has an opaque backing`,
+  );
+  assert.ok(
+    ["transparent", "rgba(0, 0, 0, 0)"].includes(value.composition.stageBackground),
+    `${kind} animated stage has an opaque backing`,
+  );
+  assert.ok(value.composition.matches, `${kind} rendered surface does not match its stage`);
   return value;
 }
 

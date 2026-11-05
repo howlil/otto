@@ -134,7 +134,9 @@ describe("OS event surface", () => {
     expect(frame).toBeTruthy();
     expect(frame?.querySelectorAll(".otto-shoulder-l, .otto-shoulder-r").length).toBe(2);
     expect(stage?.style.width).toBe("234px");
-    expect(surface?.style.width).toBe("234px");
+    expect(surface?.style.width).toBe("");
+    expect(surface?.classList.contains("w-full")).toBe(true);
+    expect(surface?.classList.contains("h-full")).toBe(true);
     expect(stage?.className).toContain("overflow-hidden");
     expect(stage?.querySelector("main > .inset-0")).toBeTruthy();
     expect(stage?.querySelector("main > .inset-0")?.getAttribute("style")).toBeNull();
