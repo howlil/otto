@@ -63,7 +63,7 @@ function Get-OttoWindow([int]$processId) {
     $rect = New-Object OttoProbe.Native+RECT
     [OttoProbe.Native]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
     $area = ($rect.Right - $rect.Left) * ($rect.Bottom - $rect.Top)
-    if ($area -lt 4000) { return $true }
+    if ($area -lt 900) { return $true }
     if ($area -gt $script:foundArea) {
       $script:foundArea = $area
       $script:found = $hwnd
@@ -449,6 +449,9 @@ try {
   Start-Sleep -Milliseconds 600
   $finalSize = Get-RectSize (Get-Rect $hwnd)
   $finalRegion = Get-WindowRegionBox $hwnd
+  if ($null -eq $finalRegion -or $finalRegion.Kind -eq 0) {
+    $failures.Add("the settled native window has no silhouette region; rounded corners may intercept desktop clicks")
+  }
   if ($null -ne $finalRegion -and $finalRegion.Width -lt $finalSize.Width) {
     $failures.Add("a clipping window region was left at rest (window $($finalSize.Width) px, region $($finalRegion.Width) px)")
   }
@@ -505,7 +508,7 @@ try {
       $failures.Add("$cornerOtto of $($cornerOwners.Count) shoulder and corner samples still belong to Otto; the native region does not follow the silhouette")
     }
   } elseif ($cornerOtto -gt 0) {
-    $notes.Add("floating keeps a rectangular window, so $cornerOtto of $($cornerOwners.Count) corner samples belong to Otto (D9)")
+    $failures.Add("$cornerOtto of $($cornerOwners.Count) floating corner samples belong to Otto; transparent corners still block desktop clicks")
   }
 
   $report = [ordered]@{

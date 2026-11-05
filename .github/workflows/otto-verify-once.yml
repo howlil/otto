@@ -155,6 +155,9 @@ jobs:
       - name: Native shell compositing transitions
         timeout-minutes: 10
         run: bun run test:e2e:transitions
+      - name: Native Win32 silhouette and capture gate
+        timeout-minutes: 10
+        run: bun run test:e2e:shell
       - name: Native OS event capsule
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
         timeout-minutes: 10
