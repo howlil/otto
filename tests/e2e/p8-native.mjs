@@ -73,21 +73,20 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
-[DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, System.UIntPtr extra);
 '@
 [System.IO.File]::WriteAllText($ReadyFile + '.phase', 'native-loaded')
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Otto focus probe'
 $form.Width = 320
 $form.Height = 120
+$form.TopMost = $true
 $form.Show()
 [System.Windows.Forms.Application]::DoEvents()
 [System.IO.File]::WriteAllText($ReadyFile + '.phase', 'form-shown')
-[OttoFocus.Native]::keybd_event(0x12, 0, 0, [System.UIntPtr]::Zero)
-[OttoFocus.Native]::keybd_event(0x12, 0, 2, [System.UIntPtr]::Zero)
+$form.Activate()
+$form.BringToFront()
+[System.IO.File]::WriteAllText($ReadyFile + '.phase', 'activated')
 for ($attempt = 0; $attempt -lt 20; $attempt++) {
-  [OttoFocus.Native]::SetForegroundWindow($form.Handle) | Out-Null
   [System.Windows.Forms.Application]::DoEvents()
   if ([OttoFocus.Native]::GetForegroundWindow() -eq $form.Handle) { break }
   Start-Sleep -Milliseconds 100
