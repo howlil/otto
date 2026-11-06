@@ -2,7 +2,7 @@
 @import "katex/dist/katex.min.css";
 
 @theme static {
-  --color-otto-surface: #151515;
+  --color-otto-surface: #101114;
   --color-otto-text: #fafafa;
   --color-otto-idle-eye: #f2f2f3;
   --color-otto-agent-eye: #f4f4f4;
@@ -11,12 +11,12 @@
   --color-otto-error-bg: #392525;
   --color-otto-error-text: #ffbbbb;
 
-  --color-otto-line: #353535;
+  --color-otto-line: #2b2e35;
   --color-otto-line-strong: #3b3d41;
   --color-otto-control: #242426;
   --color-otto-control-hover: #34353a;
   --color-otto-control-text: #eee;
-  --color-otto-raised-soft: #29292c;
+  --color-otto-raised-soft: #23262d;
   --color-otto-selected: #303034;
   --color-otto-selected-hover: #393b40;
   --color-otto-nav-bg: #181818;
@@ -61,7 +61,7 @@
   --color-otto-art-alt-middle: #292b2b;
   --color-otto-art-alt-end: #212424;
   --color-otto-art-halo: #bccfe039;
-  --color-otto-home-card-border: #373737;
+  --color-otto-home-card-border: #343842;
   --color-otto-home-card-title: #f5f5f5;
   --color-otto-home-card-subtitle: #aaaeb4;
   --color-otto-compact-icon: #292b31;
