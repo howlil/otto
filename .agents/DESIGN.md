@@ -1,5 +1,5 @@
 ---
-colors: {surface: "#151515", text: "#FAFAFA", muted: "#A3A3A3"}
+colors: {surface: "#101114", text: "#FAFAFA", muted: "#A3A3A3"}
 typography: {body: {family: "Inter, Segoe UI Variable, Segoe UI, system-ui, sans-serif", size: "12px"}}
 spacing: {base: "4px"}
 radius: {island: "9999px", expanded_card_reference: "27px", attached_bottom_reference: "24px", attached_shoulder_reference: "12px"}
@@ -10,7 +10,7 @@ motion: {ease: "cubic-bezier(0.22, 1, 0.36, 1)", reduced: "disable nonessential 
 ## Direction
 Product: a Windows desktop notch that lets someone ask a locally installed AI CLI for help without leaving the active task; music and Pomodoro are secondary modes.
 Character: quiet, precise, gently expressive.
-World: a small, dark instrument at the top edge of the working desktop; the surrounding window stays transparent.
+World: a single opaque dark instrument at the top edge of the working desktop; the surrounding native window remains transparent and never paints a second backdrop.
 Identity: idle Compact shows only paired robot eyes; active modules use task-specific identity. Keep the surrounding chrome restrained; subtle tonal gradients are reserved for approved module artwork, with no gratuitous glow or generic card layouts.
 Per-surface moments and interaction graphs belong in the current PR/task, not in this durable file.
 
