@@ -95,6 +95,72 @@ afterEach(() => {
 });
 
 describe("native surface transition ordering", () => {
+  test("starts a native shrink only after the CSS stage transition completes", async () => {
+    const view = render(<SurfaceHarness surface="home" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(1));
+    await act(async () => {
+      surfaceCalls[0].resolve({ placement: "floating", width: 452, height: 148 });
+    });
+    await waitFor(() =>
+      expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.width).toBe("452px"),
+    );
+
+    view.rerender(<SurfaceHarness surface="idle" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(2));
+    expect(surfaceCalls[1].payload.deferShrink).toBe(true);
+    expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.transitionDuration).toBe("0ms");
+    await act(async () => {
+      surfaceCalls[1].resolve({ placement: "floating", width: 92, height: 42 });
+    });
+    await waitFor(() =>
+      expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.width).toBe("92px"),
+    );
+    expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.transitionDuration).toBe("420ms");
+    expect(surfaceCalls).toHaveLength(2);
+
+    const event = new Event("transitionend", { bubbles: true });
+    Object.defineProperty(event, "propertyName", { value: "width" });
+    await act(async () => {
+      document.querySelector("[data-surface-stage]")?.dispatchEvent(event);
+    });
+    await waitFor(() => expect(surfaceCalls).toHaveLength(3));
+    expect(surfaceCalls[2].payload).toEqual({ surface: "idle", deferShrink: false });
+    await act(async () => {
+      surfaceCalls[2].resolve({ placement: "floating", width: 92, height: 42 });
+    });
+  });
+
+  test("discards an interrupted stage settle when a new target replaces it", async () => {
+    const view = render(<SurfaceHarness surface="home" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(1));
+    await act(async () => {
+      surfaceCalls[0].resolve({ placement: "floating", width: 452, height: 148 });
+    });
+    view.rerender(<SurfaceHarness surface="idle" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(2));
+    await act(async () => {
+      surfaceCalls[1].resolve({ placement: "floating", width: 92, height: 42 });
+    });
+    await waitFor(() =>
+      expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.width).toBe("92px"),
+    );
+    view.rerender(<SurfaceHarness surface="home" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(3));
+
+    const stale = new Event("transitionend", { bubbles: true });
+    Object.defineProperty(stale, "propertyName", { value: "width" });
+    await act(async () => {
+      document.querySelector("[data-surface-stage]")?.dispatchEvent(stale);
+    });
+    expect(surfaceCalls).toHaveLength(3);
+    await act(async () => {
+      surfaceCalls[2].resolve({ placement: "floating", width: 452, height: 148 });
+    });
+    await waitFor(() =>
+      expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.width).toBe("452px"),
+    );
+  });
+
   test("keeps the animated window and stage wrappers unpainted", () => {
     const view = render(
       <ShellFrame

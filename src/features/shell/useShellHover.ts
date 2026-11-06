@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, type PointerEvent } from "react";
-import { morphDuration } from "./motion";
 import type { Preferences } from "./preferences";
 
 export function useShellHover({
   prefs,
   expanded,
   pinned,
-  reducedMotion,
   beginMorph,
   onCollapse,
   onPreview,
@@ -14,14 +12,12 @@ export function useShellHover({
   prefs: Preferences;
   expanded: boolean;
   pinned: boolean;
-  reducedMotion: boolean;
   beginMorph: () => void;
   onCollapse: () => void;
   onPreview: () => void;
 }) {
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const morphUntil = useRef(0);
   const hoverEnabled = useRef(true);
 
   const clearTimers = useCallback(() => {
@@ -49,7 +45,6 @@ export function useShellHover({
       enterTimer.current = setTimeout(() => {
         enterTimer.current = null;
         beginMorph();
-        morphUntil.current = performance.now() + (reducedMotion ? 0 : morphDuration(prefs.motion));
         onPreview();
       }, prefs.hoverDelay);
     }
@@ -62,8 +57,7 @@ export function useShellHover({
     }
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
     if (!pinned && expanded) {
-      const settling = Math.max(0, morphUntil.current - performance.now());
-      leaveTimer.current = setTimeout(() => onCollapse(), prefs.leaveDelay + settling);
+      leaveTimer.current = setTimeout(() => onCollapse(), prefs.leaveDelay);
     }
   };
 

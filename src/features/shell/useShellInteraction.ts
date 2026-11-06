@@ -36,7 +36,6 @@ export function useShellInteraction({ prefs }: { prefs: Preferences }) {
     prefs,
     expanded,
     pinned,
-    reducedMotion,
     beginMorph,
     onCollapse: requestCollapse,
     onPreview: () => setMode("preview"),

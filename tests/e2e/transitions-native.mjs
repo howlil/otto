@@ -185,6 +185,10 @@ async function transition(label, selector, expected) {
     `${label}: expected state did not settle; frames=${result.frames.length}; state=${JSON.stringify(result.state)}`,
   );
   assertGeometry(label, result.frames);
+  const gaps = result.frames.slice(1).map((frame, index) => frame.time - result.frames[index].time);
+  const sorted = gaps.toSorted((a, b) => a - b);
+  const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1] ?? 0;
+  console.log(`MOTION ${label}: frames=${result.frames.length}, p95_gap=${p95}ms, max_gap=${sorted.at(-1) ?? 0}ms`);
   await capture(`${label}-settled`);
   return result.frames;
 }

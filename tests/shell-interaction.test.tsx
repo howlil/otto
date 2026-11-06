@@ -148,6 +148,24 @@ describe("Otto shell hover and pin interaction", () => {
     expect(document.activeElement).toBe(document.body);
   });
 
+  test("leave grace does not wait for an active CSS morph to finish", async () => {
+    const { surface } = await mount({ hoverDelay: 0, leaveDelay: 40, motion: "fluid" });
+    await hover(surface);
+    fireEvent.pointerOut(surface, { pointerType: "mouse", relatedTarget: document.body });
+    await waitFor(() => expect(isExpanded()).toBe(false), { timeout: 220 });
+  });
+
+  test("re-entering during leave grace cancels the pending collapse", async () => {
+    const { surface } = await mount({ hoverDelay: 0, leaveDelay: 90, motion: "fluid" });
+    await hover(surface);
+    fireEvent.pointerOut(surface, { pointerType: "mouse", relatedTarget: document.body });
+    fireEvent.pointerOver(surface, { pointerType: "mouse", relatedTarget: null });
+    await new Promise((done) => setTimeout(done, 120));
+    expect(isExpanded()).toBe(true);
+    fireEvent.pointerOut(surface, { pointerType: "mouse", relatedTarget: document.body });
+    await waitFor(() => expect(isExpanded()).toBe(false), { timeout: 350 });
+  });
+
   test("leaving a preview returns to the compact capsule", async () => {
     const { surface } = await mount();
     await hover(surface);

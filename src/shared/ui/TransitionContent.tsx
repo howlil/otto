@@ -51,7 +51,7 @@ export function TransitionContent({
     if (!retained) return;
     const timer = window.setTimeout(
       () => setRetained((current) => (current === retained ? null : current)),
-      kind === "compact" ? 280 : kind === "tab" ? 140 : 160,
+      kind === "compact" ? 160 : kind === "tab" ? 140 : 160,
     );
     return () => window.clearTimeout(timer);
   }, [retained, kind]);
