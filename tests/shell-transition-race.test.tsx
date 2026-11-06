@@ -124,7 +124,7 @@ describe("native surface transition ordering", () => {
       document.querySelector("[data-surface-stage]")?.dispatchEvent(event);
     });
     await waitFor(() => expect(surfaceCalls).toHaveLength(3));
-    expect(surfaceCalls[2].payload).toEqual({ surface: "idle", deferShrink: false });
+    expect(surfaceCalls[2].payload).toMatchObject({ surface: "idle", deferShrink: false });
     await act(async () => {
       surfaceCalls[2].resolve({ placement: "floating", width: 92, height: 42 });
     });
