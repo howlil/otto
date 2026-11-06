@@ -55,12 +55,10 @@ export function ShellView({
       stageRef={stageRef}
     >
       <main
-        className={`relative h-full w-full overflow-hidden border border-otto-line bg-otto-surface text-otto-text ${attached ? "rounded-t-none rounded-b-otto-attached border-t-transparent" : shell.expanded ? "rounded-otto-expanded" : "rounded-otto-island"} transition-[border-radius] duration-[var(--otto-morph-duration)] ease-otto`}
+        className={`relative isolate h-full w-full overflow-hidden border border-otto-line bg-otto-surface text-otto-text ${attached ? "rounded-t-none rounded-b-otto-attached border-t-transparent" : shell.expanded ? "rounded-otto-expanded" : "rounded-otto-island"} transition-[border-radius] duration-[var(--otto-morph-duration)] ease-otto`}
         style={
           {
             "--otto-morph-duration": morphMilliseconds(shell.prefs.motion),
-            width: size?.width,
-            height: size?.height,
           } as CSSProperties
         }
         data-reduced={shell.reducedMotion ? "true" : undefined}

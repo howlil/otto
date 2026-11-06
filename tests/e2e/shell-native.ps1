@@ -60,10 +60,11 @@ function Get-OttoWindow([int]$processId) {
     $owner = 0
     [OttoProbe.Native]::GetWindowThreadProcessId($hwnd, [ref]$owner) | Out-Null
     if ($owner -ne $processId -or -not [OttoProbe.Native]::IsWindowVisible($hwnd)) { return $true }
+    if ([OttoProbe.Native]::GetWindowTextLengthW($hwnd) -ne 0) { return $true }
     $rect = New-Object OttoProbe.Native+RECT
     [OttoProbe.Native]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
     $area = ($rect.Right - $rect.Left) * ($rect.Bottom - $rect.Top)
-    if ($area -lt 4000) { return $true }
+    if ($area -lt 900) { return $true }
     if ($area -gt $script:foundArea) {
       $script:foundArea = $area
       $script:found = $hwnd
@@ -72,6 +73,31 @@ function Get-OttoWindow([int]$processId) {
   }
   [OttoProbe.Native]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
   return $script:found
+}
+
+function Get-StartupDiagnostics([int]$processId, [string]$stdoutPath, [string]$stderrPath) {
+  $found = New-Object System.Collections.Generic.List[string]
+  $callback = [OttoProbe.Native+EnumProc] {
+    param($hwnd, $param)
+    $owner = 0
+    [OttoProbe.Native]::GetWindowThreadProcessId($hwnd, [ref]$owner) | Out-Null
+    if ($owner -ne $processId) { return $true }
+    $rect = New-Object OttoProbe.Native+RECT
+    [OttoProbe.Native]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
+    $className = New-Object System.Text.StringBuilder 128
+    [OttoProbe.Native]::GetClassNameW($hwnd, $className, 128) | Out-Null
+    $found.Add(("{0}x{1} visible={2} titleLength={3} class={4}" -f
+      ($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top),
+      [OttoProbe.Native]::IsWindowVisible($hwnd),
+      [OttoProbe.Native]::GetWindowTextLengthW($hwnd), $className.ToString()))
+    return $true
+  }
+  [OttoProbe.Native]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
+  $stdout = if (Test-Path $stdoutPath) { (Get-Content -Raw $stdoutPath -ErrorAction SilentlyContinue) } else { "" }
+  $stderr = if (Test-Path $stderrPath) { (Get-Content -Raw $stderrPath -ErrorAction SilentlyContinue) } else { "" }
+  return ("Windows=[{0}]; stdout={1}; stderr={2}" -f
+    ($found -join "; "), "$stdout".Substring(0, [math]::Min(1500, "$stdout".Length)),
+    "$stderr".Substring(0, [math]::Min(1500, "$stderr".Length)))
 }
 
 function Get-Rect($hwnd) {
@@ -283,14 +309,25 @@ try {
   $env:WEBVIEW2_USER_DATA_FOLDER = $profile
   [OttoProbe.Native]::SetCursorPos([int]($screen.Right - 4), [int]($screen.Bottom - 4)) | Out-Null
   Start-Sleep -Milliseconds 200
-  $process = Start-Process -FilePath $App -PassThru
+  $stdoutPath = Join-Path $profile 'otto-startup.stdout.log'
+  $stderrPath = Join-Path $profile 'otto-startup.stderr.log'
+  $process = Start-Process -FilePath $App -WorkingDirectory (Split-Path -Parent $App) -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
   $hwnd = [IntPtr]::Zero
-  $deadline = (Get-Date).AddSeconds(25)
+  $startup = [Diagnostics.Stopwatch]::StartNew()
+  $deadline = (Get-Date).AddSeconds(40)
   while ($hwnd -eq [IntPtr]::Zero -and (Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 100
+    $process.Refresh()
+    if ($process.HasExited) { break }
     $hwnd = Get-OttoWindow $process.Id
   }
-  if ($hwnd -eq [IntPtr]::Zero) { throw "Otto did not create a visible window within 25s (PID $($process.Id))." }
+  $startup.Stop()
+  if ($hwnd -eq [IntPtr]::Zero) {
+    $process.Refresh()
+    $exitStatus = if ($process.HasExited) { "exited code=$($process.ExitCode)" } else { "still-running" }
+    $details = Get-StartupDiagnostics $process.Id $stdoutPath $stderrPath
+    throw "Otto startup failed after $($startup.ElapsedMilliseconds)ms (PID $($process.Id), $exitStatus). $details"
+  }
 
   [OttoProbe.Native]::SetWindowPos($hwnd, [IntPtr](-1), 0, 0, 0, 0, 0x0001 -bor 0x0002 -bor 0x0010) | Out-Null
   $firstStyle = Get-WindowStyle $hwnd
@@ -449,6 +486,9 @@ try {
   Start-Sleep -Milliseconds 600
   $finalSize = Get-RectSize (Get-Rect $hwnd)
   $finalRegion = Get-WindowRegionBox $hwnd
+  if ($null -eq $finalRegion -or $finalRegion.Kind -eq 0) {
+    $failures.Add("the settled native window has no silhouette region; rounded corners may intercept desktop clicks")
+  }
   if ($null -ne $finalRegion -and $finalRegion.Width -lt $finalSize.Width) {
     $failures.Add("a clipping window region was left at rest (window $($finalSize.Width) px, region $($finalRegion.Width) px)")
   }
@@ -489,7 +529,7 @@ try {
   }
 
   $cornerOwners = @()
-  foreach ($inset in @(2, 6)) {
+  foreach ($inset in @(2, 4)) {
     $cornerOwners += (Get-PointOwnerPid ($compact.Left + $inset) ($compact.Top + $inset))
     $cornerOwners += (Get-PointOwnerPid ($compact.Right - $inset) ($compact.Top + $inset))
     $cornerOwners += (Get-PointOwnerPid ($compact.Left + $inset) ($compact.Bottom - $inset))
@@ -505,7 +545,7 @@ try {
       $failures.Add("$cornerOtto of $($cornerOwners.Count) shoulder and corner samples still belong to Otto; the native region does not follow the silhouette")
     }
   } elseif ($cornerOtto -gt 0) {
-    $notes.Add("floating keeps a rectangular window, so $cornerOtto of $($cornerOwners.Count) corner samples belong to Otto (D9)")
+    $failures.Add("$cornerOtto of $($cornerOwners.Count) floating corner samples belong to Otto; transparent corners still block desktop clicks")
   }
 
   $report = [ordered]@{

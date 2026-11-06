@@ -51,7 +51,7 @@ export function TransitionContent({
     if (!retained) return;
     const timer = window.setTimeout(
       () => setRetained((current) => (current === retained ? null : current)),
-      kind === "compact" ? 280 : kind === "tab" ? 140 : 160,
+      kind === "compact" ? 160 : kind === "tab" ? 140 : 160,
     );
     return () => window.clearTimeout(timer);
   }, [retained, kind]);
@@ -88,6 +88,10 @@ export function TransitionContent({
           inert
           className={`pointer-events-none absolute left-0 top-0 z-10 ${layout} ${exit}`}
           style={frameStyle(outgoing.size)}
+          onAnimationEnd={(event) => {
+            if (event.target !== event.currentTarget) return;
+            setRetained((current) => (current?.key === outgoing.key ? null : current));
+          }}
         >
           {outgoing.node}
         </div>

@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { runPreflight } from "./preflight.mjs";
+import { createVisualRecorder } from "./visual-capture.mjs";
 
 if (process.platform !== "win32") throw new Error("Native transition E2E requires Windows");
 
@@ -16,6 +17,7 @@ const shell = spawnSync("where.exe", ["pwsh.exe"], { encoding: "utf8" }).status 
   : "powershell.exe";
 let driver;
 let session;
+const visual = createVisualRecorder("transitions");
 
 function available(name) {
   return spawnSync("where.exe", [name], { encoding: "utf8" }).status === 0;
@@ -62,6 +64,10 @@ async function until(label, predicate, timeout = 20000) {
 }
 
 const endpoint = (path = "") => `/session/${session}${path}`;
+
+async function capture(label) {
+  await visual.capture(label, () => call("GET", endpoint("/screenshot")));
+}
 
 async function execute(script) {
   return call("POST", endpoint("/execute/sync"), { script, args: [] });
@@ -119,23 +125,44 @@ function assertGeometry(label, frames) {
       frame.stage.width <= frame.window.width + 2 && frame.stage.height <= frame.window.height + 2,
       `${label}: stage exceeded native frame at ${JSON.stringify(frame)}`,
     );
+    assert.ok(
+      Math.abs(frame.main.width - frame.stage.width) <= 1.5 &&
+        Math.abs(frame.main.height - frame.stage.height) <= 1.5,
+      `${label}: visible surface must track the animated stage at ${JSON.stringify(frame)}`,
+    );
+    assert.ok(
+      frame.windowBackground === "rgba(0, 0, 0, 0)" || frame.windowBackground === "transparent",
+      `${label}: outer window paints an opaque rectangle: ${JSON.stringify(frame)}`,
+    );
+    assert.ok(
+      frame.stageBackground === "rgba(0, 0, 0, 0)" || frame.stageBackground === "transparent",
+      `${label}: animated stage paints an opaque rectangle: ${JSON.stringify(frame)}`,
+    );
   }
 }
 
 async function transition(label, selector, expected) {
   await clickTarget(selector);
+  await capture(`${label}-entering`);
   const result = await executeAsync(`
     const done = arguments[arguments.length - 1];
     const started = performance.now();
     const frames = [];
     const sample = (now) => {
-      const stage = document.querySelector('[data-surface-stage]')?.getBoundingClientRect();
-      const frame = document.querySelector('[data-surface-window]')?.getBoundingClientRect();
-      if (stage && frame) {
+      const stageElement = document.querySelector('[data-surface-stage]');
+      const frameElement = document.querySelector('[data-surface-window]');
+      const mainElement = stageElement?.querySelector('main');
+      if (stageElement && frameElement && mainElement) {
+        const stage = stageElement.getBoundingClientRect();
+        const frame = frameElement.getBoundingClientRect();
+        const main = mainElement.getBoundingClientRect();
         frames.push({
           time: Math.round(now - started),
           stage: { left: stage.left, top: stage.top, width: stage.width, height: stage.height },
           window: { left: frame.left, top: frame.top, width: frame.width, height: frame.height },
+          main: { width: main.width, height: main.height },
+          windowBackground: getComputedStyle(frameElement).backgroundColor,
+          stageBackground: getComputedStyle(stageElement).backgroundColor,
         });
       }
       if (now - started < 1100) requestAnimationFrame(sample);
@@ -158,6 +185,11 @@ async function transition(label, selector, expected) {
     `${label}: expected state did not settle; frames=${result.frames.length}; state=${JSON.stringify(result.state)}`,
   );
   assertGeometry(label, result.frames);
+  const gaps = result.frames.slice(1).map((frame, index) => frame.time - result.frames[index].time);
+  const sorted = gaps.toSorted((a, b) => a - b);
+  const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1] ?? 0;
+  console.log(`MOTION ${label}: frames=${result.frames.length}, p95_gap=${p95}ms, max_gap=${sorted.at(-1) ?? 0}ms`);
+  await capture(`${label}-settled`);
   return result.frames;
 }
 
@@ -282,4 +314,5 @@ try {
     if (pid) spawnSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
   }
   rmSync(profile, { recursive: true, force: true });
+  if (visual.enabled) console.log(`Private WebDriver snapshots: ${visual.directory}`);
 }

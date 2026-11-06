@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, waitFor } from "@testing-library/react";
 
 const surfaceCalls: Array<{
   payload: { surface: string; deferShrink: boolean };
@@ -11,6 +11,7 @@ const surfaceCalls: Array<{
   }) => void;
 }> = [];
 const hitCalls: Array<{ payload: { width: number; height: number; shape: string } }> = [];
+let failHitRegion = false;
 
 const surfaceSizes = {
   idle: { width: 92, height: 42 },
@@ -31,7 +32,7 @@ mock.module("@tauri-apps/api/core", () => ({
     }
     if (command === "notch_set_hit_region") {
       hitCalls.push(payload as { width: number; height: number; shape: string });
-      return Promise.resolve(null);
+      return failHitRegion ? Promise.reject(new Error("native hit region failure")) : Promise.resolve(null);
     }
     if (command === "notch_measure_surface") {
       const surface = (payload as { surface: keyof typeof surfaceSizes }).surface;
@@ -46,6 +47,7 @@ const { createGeometryQueue, useNotchSurfaceSync } = await import(
   "../src/features/shell/useNotchSurfaceSync",
 );
 const { TransitionContent } = await import("../src/shared/ui/TransitionContent");
+const { ShellFrame } = await import("../src/features/shell/ShellFrame");
 
 function useSurface(
   surface: "idle" | "home" | "homeSettings",
@@ -89,9 +91,112 @@ afterEach(() => {
   cleanup();
   surfaceCalls.length = 0;
   hitCalls.length = 0;
+  failHitRegion = false;
 });
 
 describe("native surface transition ordering", () => {
+  test("starts a native shrink only after the CSS stage transition completes", async () => {
+    const view = render(<SurfaceHarness surface="home" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(1));
+    await act(async () => {
+      surfaceCalls[0].resolve({ placement: "floating", width: 452, height: 148 });
+    });
+    await waitFor(() =>
+      expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.width).toBe("452px"),
+    );
+
+    view.rerender(<SurfaceHarness surface="idle" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(2));
+    expect(surfaceCalls[1].payload.deferShrink).toBe(true);
+    expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.transitionDuration).toBe("0ms");
+    await act(async () => {
+      surfaceCalls[1].resolve({ placement: "floating", width: 92, height: 42 });
+    });
+    await waitFor(() =>
+      expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.width).toBe("92px"),
+    );
+    expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.transitionDuration).toBe("420ms");
+    expect(surfaceCalls).toHaveLength(2);
+
+    const event = new Event("transitionend", { bubbles: true });
+    Object.defineProperty(event, "propertyName", { value: "width" });
+    await act(async () => {
+      document.querySelector("[data-surface-stage]")?.dispatchEvent(event);
+    });
+    await waitFor(() => expect(surfaceCalls).toHaveLength(3));
+    expect(surfaceCalls[2].payload).toMatchObject({ surface: "idle", deferShrink: false });
+    await act(async () => {
+      surfaceCalls[2].resolve({ placement: "floating", width: 92, height: 42 });
+    });
+  });
+
+  test("discards an interrupted stage settle when a new target replaces it", async () => {
+    const view = render(<SurfaceHarness surface="home" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(1));
+    await act(async () => {
+      surfaceCalls[0].resolve({ placement: "floating", width: 452, height: 148 });
+    });
+    view.rerender(<SurfaceHarness surface="idle" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(2));
+    await act(async () => {
+      surfaceCalls[1].resolve({ placement: "floating", width: 92, height: 42 });
+    });
+    await waitFor(() =>
+      expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.width).toBe("92px"),
+    );
+    view.rerender(<SurfaceHarness surface="home" reducedMotion={false} durationMs={420} />);
+    await waitFor(() => expect(surfaceCalls).toHaveLength(3));
+
+    const stale = new Event("transitionend", { bubbles: true });
+    Object.defineProperty(stale, "propertyName", { value: "width" });
+    await act(async () => {
+      document.querySelector("[data-surface-stage]")?.dispatchEvent(stale);
+    });
+    expect(surfaceCalls).toHaveLength(3);
+    await act(async () => {
+      surfaceCalls[2].resolve({ placement: "floating", width: 452, height: 148 });
+    });
+    await waitFor(() =>
+      expect(document.querySelector<HTMLElement>("[data-surface-stage]")?.style.width).toBe("452px"),
+    );
+  });
+
+  test("keeps the animated window and stage wrappers unpainted", () => {
+    const view = render(
+      <ShellFrame
+        placement="floating"
+        gutter={0}
+        size={{ width: 92, height: 42 }}
+        nativeSize={{ width: 452, height: 148 }}
+        morphMs={420}
+        stageRef={{ current: null }}
+      >
+        <main className="rounded-otto-island bg-otto-surface" />
+      </ShellFrame>,
+    );
+    const windowFrame = view.container.querySelector("[data-surface-window]");
+    const stage = view.container.querySelector("[data-surface-stage]");
+    expect(windowFrame?.classList.contains("bg-otto-surface")).toBe(false);
+    expect(stage?.classList.contains("bg-otto-surface")).toBe(false);
+    expect(view.container.querySelector("main")?.classList.contains("bg-otto-surface")).toBe(true);
+  });
+
+  test("does not reapply unchanged native hit regions and reports a failed update", async () => {
+    const queue = createGeometryQueue();
+    queue.resume();
+    queue.enqueueHit(92, 42, "capsule", () => true);
+    await waitFor(() => expect(hitCalls).toHaveLength(1));
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    queue.enqueueHit(92.2, 42, "capsule", () => true);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(hitCalls).toHaveLength(1);
+    failHitRegion = true;
+    let errors = 0;
+    queue.enqueueHit(93, 42, "capsule", () => true, () => { errors += 1; });
+    await waitFor(() => expect(errors).toBe(1));
+    queue.dispose();
+  });
+
   test("retains the newest pending hit region when a surface write supersedes another", async () => {
     const queue = createGeometryQueue();
     queue.resume();
@@ -230,6 +335,28 @@ describe("native surface transition ordering", () => {
     });
 
     expect(hook.result.current.size).toBeNull();
+  });
+
+  test("removes outgoing content on its own exit animation and not a nested animation", () => {
+    const view = render(
+      <TransitionContent transitionKey="home" reducedMotion={false}>
+        <div data-frame="home" />
+      </TransitionContent>,
+    );
+    view.rerender(
+      <TransitionContent transitionKey="agent" reducedMotion={false}>
+        <div data-frame="agent" />
+      </TransitionContent>,
+    );
+    const outgoing = view.container.querySelector<HTMLElement>("[aria-hidden='true']");
+    expect(outgoing).not.toBeNull();
+    const nested = outgoing?.querySelector<HTMLElement>("[data-frame='home']");
+    expect(nested).not.toBeNull();
+    fireEvent.animationEnd(nested!);
+    expect(view.container.querySelector("[aria-hidden='true']")).not.toBeNull();
+    fireEvent.animationEnd(outgoing!);
+    expect(view.container.querySelector("[aria-hidden='true']")).toBeNull();
+    expect(view.container.querySelector("[data-frame='agent']")).not.toBeNull();
   });
 
   test("keeps the outgoing content frame at its previous layout size", () => {

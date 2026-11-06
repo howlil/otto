@@ -154,9 +154,9 @@ button{touch-action:manipulation}
 .window{background:#fafbfdc9;border-color:#d2d8e0;opacity:.82;box-shadow:0 12px 35px #64728416}
 .win-top{border-color:#e0e4ea}.win-top span{border-color:#c2c7ce}.win-line{background:#e0e4ea}
 .canvas-note,.corner-note{color:#9ba5b2}.canvas-note kbd{border-color:#aeb9c6;color:#8996a8}
-.notch{background:#151515;border-color:#353535;box-shadow:0 14px 28px #25344924}
-.notch.attached:before{background:radial-gradient(circle at 0 100%,transparent 11.5px,#151515 12px)}
-.notch.attached:after{background:radial-gradient(circle at 100% 100%,transparent 11.5px,#151515 12px)}
+.notch{background:#101114;border-color:#2b2e35;box-shadow:0 14px 28px #25344924}
+.notch.attached:before{background:radial-gradient(circle at 0 100%,transparent 11.5px,#101114 12px)}
+.notch.attached:after{background:radial-gradient(circle at 100% 100%,transparent 11.5px,#101114 12px)}
 .hf{padding:15px 17px}
 .hf-head{height:34px;display:flex;gap:9px;align-items:center;flex:none}
 .hf-head strong{font-size:13px;font-weight:520;letter-spacing:-.01em}
@@ -166,12 +166,12 @@ button{touch-action:manipulation}
 .hf-eyes i{height:13px;width:6px;border-radius:6px;background:#fafafa}
 .hf-head .icon-button{width:28px;height:28px;border-radius:9px}
 .home-panels{margin-top:8px;gap:8px}
-.module{height:76px;min-height:0;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:12px;border:1px solid #373737;border-radius:15px;background:#262626;position:relative;overflow:hidden;transition:background 160ms,border-color 160ms}
-.module.agent-card{background:linear-gradient(118deg,#26292e 0%,#262a30 51%,#1c2128 100%)}
-.module.music-card{background:linear-gradient(118deg,#29282d 0%,#282730 51%,#1d1e29 100%)}
-.module.focus-card{background:linear-gradient(118deg,#28292c 0%,#27282c 51%,#202329 100%)}
-.module:before{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse 120px 98px at 78% 25%,#bccfe039,transparent 72%)}
-.module:after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,#292a2edb 0%,#27292cb0 29%,#27292c28 64%,transparent 100%)}
+.module{height:76px;min-height:0;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:12px;border:1px solid #343842;border-radius:15px;background:#23262d;position:relative;overflow:hidden;transition:border-color 160ms}
+.module.agent-card{background:#23262d}
+.module.music-card{background:#23262d}
+.module.focus-card{background:#23262d}
+
+.module:after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,#23262d 0%,transparent 82%)}
 .module:hover{border-color:#535353}
 .hf-copy{position:relative;z-index:2;display:flex;flex-direction:column;gap:6px;white-space:nowrap}
 .hf-copy strong{font-size:12px;color:#f5f5f5;font-weight:550}
@@ -327,7 +327,7 @@ button{touch-action:manipulation}
 @media(max-width:575px){.af-compose-tools{gap:1px}}
 
 /* Canonical Global Settings: design/home.html panel layout and controls */
-.gs-root{width:100%;height:100%;background:#151515;border-radius:inherit;display:flex;flex-direction:column;overflow:hidden;color:#fafafa}
+.gs-root{width:100%;height:100%;background:#101114;border-radius:inherit;display:flex;flex-direction:column;overflow:hidden;color:#fafafa}
 .gs-head{height:51px;flex:none;border-bottom:1px solid #2b2c2f;display:flex;align-items:center;gap:10px;padding:0 15px}
 .gs-head strong{font-size:13px;font-weight:550}
 .gs-back{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#242426;color:#eee;border:1px solid #36373b;cursor:pointer}
@@ -389,7 +389,7 @@ button{touch-action:manipulation}
 @media(prefers-reduced-motion:reduce){.hf-eyes.expressive i,.eye-pair.expressive .eye{animation:none!important}}
 
 /* Agent Settings: same sidebar system as Global Settings; capture configuration stays here */
-.as-root{display:flex;flex-direction:column;height:100%;width:100%;border-radius:inherit;overflow:hidden;background:#151515;color:#fafafa}
+.as-root{display:flex;flex-direction:column;height:100%;width:100%;border-radius:inherit;overflow:hidden;background:#101114;color:#fafafa}
 .as-header{height:51px;flex:none;display:flex;align-items:center;gap:9px;padding:0 15px;border-bottom:1px solid #2b2c2f}
 .as-header strong{font-size:13px;font-weight:550}
 .as-header .icon-button{height:28px;width:28px;background:#242426;border:1px solid #36373b;border-radius:9px}
@@ -1325,7 +1325,7 @@ function App(){
  const [event,setEvent]=useState(null);
   const [capture,setCapture]=useState({source:"Last focused window",permission:"unknown",hotkey:"Ctrl + Shift + O",hotkeyStatus:"unverified",sourceReady:true,sourcePending:false,targetPending:false,targetTitle:null,targetWarning:null,saving:false,captureMessage:""});
  const [agentSettingsTab,setAgentSettingsTab]=useState("Assistant");
-  const pointerEnter=useRef(null),pointerLeave=useRef(null),completion=useRef(null),agentRun=useRef(null),agentStop=useRef(null),pinnedUntil=useRef(0);
+  const pointerEnter=useRef(null),pointerLeave=useRef(null),completion=useRef(null),agentRun=useRef(null),agentStop=useRef(null);
  const currentPage=useRef(page);currentPage.current=page;
  const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches||prefs.motion==="Reduced";
  const navigate=useCallback(next=>{clearTimeout(pointerEnter.current);clearTimeout(pointerLeave.current);setEvent(null);setDrawer(null);setPage(next);setPresentation("pinned");if(next==="agent")setAgent(a=>({...a,unread:false}))},[]);
@@ -1351,8 +1351,8 @@ function App(){
  const dim=event?[234,52]:presentation==="compact"?page==="home"?[92,42]:page==="agent"?[228,50]:page==="music"?[264,54]:[224,52]:drawer==="global"?[452,314]:drawer==="agent"?[526,466]:drawer==="focus"?[408,244]:page==="home"?[452,148]:page==="agent"?[526,Math.min(610,Math.max(170,agentNaturalHeight))]:page==="music"?[444,music.lyrics&&music.lyricsAvailable?212:178]:[408,timer.settings?328:174];
  const shape=event?"event":presentation==="compact"?"compact":"expanded";
  const shellKey=event?"event-"+event:shape==="compact"?page+"-compact":drawer||page+(music.lyrics?"-lyrics":"");
- const enter=()=>{clearTimeout(pointerLeave.current);if(event||presentation!=="compact"||!prefs.hoverExpand)return;clearTimeout(pointerEnter.current);pointerEnter.current=setTimeout(()=>{pinnedUntil.current=Date.now()+470;setPresentation("preview")},prefs.hoverDelay)};
- const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),Math.max(prefs.leaveDelay,pinnedUntil.current-Date.now()+140))}};
+ const enter=()=>{clearTimeout(pointerLeave.current);if(event||presentation!=="compact"||!prefs.hoverExpand)return;clearTimeout(pointerEnter.current);pointerEnter.current=setTimeout(()=>setPresentation("preview"),prefs.hoverDelay)};
+ const leave=()=>{clearTimeout(pointerEnter.current);if(presentation==="preview"){clearTimeout(pointerLeave.current);pointerLeave.current=setTimeout(()=>setPresentation(s=>s==="preview"?"compact":s),prefs.leaveDelay)}};
  const esc=()=>{if(event){clearTimeout(completion.current);setEvent(null)}else if(drawer){setDrawer(null)}else if(page==="music"&&music.lyrics){setMusic(m=>({...m,lyrics:false}))}else if(page==="focus"&&timer.confirmPhase){setTimer(t=>({...t,confirmPhase:null}))}else collapse()};
  useEffect(()=>{const onKey=e=>{if(e.key==="Escape"){e.preventDefault();esc()}};document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey)});
  const panel=event?el("div",{className:"event-content"},h(Icon,{name:events[event].icon,size:19}),el("div",null,el("strong",null,events[event].label),el("small",null,events[event].value)),el("span",{className:"micro-meter"},[1,2,3,4,5].map(i=>el("i",{key:i})))):presentation==="compact"?(page==="music"?h(MusicReference,{music,setMusic,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):page==="focus"?h(FocusReference,{timer,setTimer,isCompact:true,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion}):h(Compact,{page,agent,music,timer,open:()=>setPresentation("pinned"),onToggle:toggleTimer,prefs})):drawer==="global"?h(GlobalSettings,{prefs:{...prefs,placement},setPrefs,tab,setTab,onBack:()=>setDrawer(null),onPlacementChange:setPlacement}):drawer==="agent"?h(AgentSettings,{agent,setAgent,capture,setCapture,tab:agentSettingsTab,setTab:setAgentSettingsTab,onBack:()=>setDrawer(null)}):drawer==="focus"?h(FocusSettings,{timer,setTimer,onBack:()=>setDrawer(null)}):page==="home"?h(Home,{onHomeSettings:()=>{setTab("Appearance");setDrawer("global")},onNavigate:navigate,agent,prefs,reduce}):page==="agent"?h(AgentPanel,{agent,draft:agentDraft,onDraft:setAgentDraft,onMeasured:onAgentMeasured,onSend:sendAgent,onStop:stopAgent,onRetry:()=>setAgent(a=>({...a,phase:"ready",warning:""})),onSettings:()=>{setAgentSettingsTab("Assistant");setDrawer("agent")},onCaptureSettings:()=>{setAgentSettingsTab("Capture");setDrawer("agent")},onCapture:()=>requestCapture(),onNewSession:()=>{if(agent.busy)return;clearInterval(agentRun.current);setAgent(a=>({...a,messages:[],busy:false,phase:"ready",model:"",effort:"",unread:false,warning:""}))},onHome:()=>navigate("home")}):page==="music"?h(MusicReference,{music,setMusic,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home")}):h(FocusReference,{timer,setTimer,isCompact:false,onOpen:()=>setPresentation("pinned"),onCollapse:collapse,onHome:()=>navigate("home"),onToggle:toggleTimer,onReset:resetTimer,motion:prefs.motion});

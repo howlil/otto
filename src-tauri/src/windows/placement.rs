@@ -163,7 +163,7 @@ pub fn polygon(shape: Shape, width: f64, height: f64) -> Vec<(f64, f64)> {
         }
     } else if top > 0.0 {
         for step in 1..=ARC_SEGMENTS {
-            let angle = quarter + step_size * step as f64;
+            let angle = 2.0 * quarter + step_size * step as f64;
             points.push((left + top + top * angle.cos(), top + top * angle.sin()));
         }
     }
@@ -461,12 +461,52 @@ mod tests {
     }
 
     #[test]
+    fn floating_polygon_closes_on_the_top_tangent_without_a_diagonal_wedge() {
+        for (silhouette, width, height) in [
+            (Silhouette::Capsule, 92.0, 42.0),
+            (Silhouette::Card, 452.0, 148.0),
+            (Silhouette::Card, 526.0, 346.0),
+            (Silhouette::Card, 526.0, 466.0),
+            (Silhouette::Card, 526.0, 610.0),
+        ] {
+            let shape = shape_for(silhouette, height, 1.0);
+            let points = polygon(shape, width, height);
+            let first = points.first().unwrap();
+            let last = points.last().unwrap();
+            assert!(
+                (first.0 - last.0).abs() < 0.001 && (first.1 - last.1).abs() < 0.001,
+                "{silhouette:?}: top-left arc must close at the upper tangent"
+            );
+
+            let region = create_region_at(shape, width, height, 0, 0).unwrap();
+            for x in [2, 5, 10] {
+                let y = (height / 2.0) as i32;
+                assert!(
+                    region_contains(region, x, y),
+                    "{silhouette:?} {width}x{height}: left-edge interior {x},{y} was clipped"
+                );
+                assert!(
+                    region_contains(region, width as i32 - 1 - x, y),
+                    "{silhouette:?} {width}x{height}: right-edge interior was clipped"
+                );
+            }
+            assert!(!region_contains(region, 1, 1));
+            assert!(region_contains(region, width as i32 / 2, 1));
+            unsafe { DeleteObject(region as _) };
+        }
+    }
+
+    #[test]
     fn capsule_region_excludes_its_rounded_corners() {
         let shape = shape_for(Silhouette::Capsule, 42.0, 1.0);
         let region = create_region_at(shape, 92.0, 42.0, 0, 0).unwrap();
         assert!(region_contains(region, 46, 21));
-        assert!(!region_contains(region, 1, 1));
-        assert!(!region_contains(region, 91, 41));
+        for inset in [2, 4] {
+            assert!(!region_contains(region, inset, inset));
+            assert!(!region_contains(region, 92 - inset, inset));
+            assert!(!region_contains(region, inset, 42 - inset));
+            assert!(!region_contains(region, 92 - inset, 42 - inset));
+        }
         unsafe { DeleteObject(region as _) };
     }
 

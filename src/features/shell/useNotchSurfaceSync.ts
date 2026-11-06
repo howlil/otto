@@ -29,7 +29,8 @@ type GeometryQueue = ReturnType<typeof createGeometryQueue>;
 type PendingSurface = {
   revision: number;
   request: NotchSurfaceRequest;
-  settleAt: number | null;
+  settleMs: number | null;
+  morphMs: number;
 };
 
 function requiresMeasuredHeight(surface: NotchSurface): boolean {
@@ -51,6 +52,7 @@ function useNotchHitRegionSync({
   morphMs,
   queue,
   revision,
+  reported,
 }: {
   stageRef: RefObject<HTMLDivElement | null>;
   targetWidth: number | undefined;
@@ -59,11 +61,13 @@ function useNotchHitRegionSync({
   morphMs: number;
   queue: GeometryQueue;
   revision: { current: number };
+  reported: { current: (message: string) => void };
 }) {
   useEffect(() => {
     if (!nativeAvailable || !targetWidth || !targetHeight) return;
     let frame = 0;
     let lastSent = 0;
+    let errorReported = false;
     const started = performance.now();
     const currentRevision = revision.current;
     const surface = () => {
@@ -79,6 +83,11 @@ function useNotchHitRegionSync({
         measured.height,
         shape,
         () => currentRevision === revision.current,
+        () => {
+          if (errorReported) return;
+          errorReported = true;
+          reported.current("Windows could not update Otto's hit region.");
+        },
       );
     };
     const tick = (now: number) => {
@@ -91,7 +100,7 @@ function useNotchHitRegionSync({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [stageRef, targetWidth, targetHeight, shape, morphMs, queue, revision]);
+  }, [stageRef, targetWidth, targetHeight, shape, morphMs, queue, revision, reported]);
 }
 
 function useSurfaceMeasurement({
@@ -106,7 +115,7 @@ function useSurfaceMeasurement({
   lastAttempt,
   revision,
   reported,
-  setMorphMs,
+  settle,
   setPending,
 }: {
   surface: NotchSurface;
@@ -120,15 +129,16 @@ function useSurfaceMeasurement({
   lastAttempt: { current: number };
   revision: { current: number };
   reported: { current: (message: string) => void };
-  setMorphMs: Dispatch<SetStateAction<number>>;
+  settle: { current: (() => void) | null };
   setPending: Dispatch<SetStateAction<PendingSurface | null>>;
 }) {
   useEffect(() => {
     revision.current += 1;
     const currentRevision = revision.current;
+    if (settle.current) settle.current();
+    settle.current = null;
     let active = true;
     if (requiresMeasuredHeight(surface) && measuredHeight === undefined) {
-      setMorphMs(0);
       return () => {
         active = false;
       };
@@ -143,7 +153,6 @@ function useSurfaceMeasurement({
       ? cappedMorphDuration(durationMs, isContentResize(previous.current, next))
       : 0;
     previous.current = next;
-    setMorphMs(morphMs);
     const request = { surface, shape, topOffset, contentHeight: measuredHeight } satisfies Omit<
       NotchSurfaceRequest,
       "deferShrink"
@@ -154,7 +163,8 @@ function useSurfaceMeasurement({
         setPending({
           revision: currentRevision,
           request: { ...request, deferShrink: animate },
-          settleAt: animate ? performance.now() + morphMs : null,
+          settleMs: animate ? morphMs : null,
+          morphMs,
         });
       })
       .catch(() => {
@@ -177,7 +187,7 @@ function useSurfaceMeasurement({
     lastAttempt,
     revision,
     reported,
-    setMorphMs,
+    settle,
     setPending,
   ]);
 }
@@ -195,6 +205,32 @@ function acceptSurfaceAck(
   return false;
 }
 
+function settleAfterStageTransition(
+  stage: HTMLElement | null,
+  durationMs: number,
+  onSettled: () => void,
+): () => void {
+  let active = true;
+  const onTransitionEnd = (event: Event) => {
+    if (event.target !== stage) return;
+    const property = (event as TransitionEvent).propertyName;
+    if (property === "width" || property === "height") finish();
+  };
+  const stop = () => {
+    active = false;
+    clearTimeout(timeout);
+    stage?.removeEventListener("transitionend", onTransitionEnd);
+  };
+  const finish = () => {
+    if (!active) return;
+    stop();
+    onSettled();
+  };
+  const timeout = setTimeout(finish, durationMs + 80);
+  stage?.addEventListener("transitionend", onTransitionEnd);
+  return stop;
+}
+
 function useSurfaceApply({
   pending,
   queue,
@@ -205,8 +241,10 @@ function useSurfaceApply({
   confirmedWindow,
   settle,
   setSize,
+  setMorphMs,
   setWindowSize,
   windowSize,
+  stageRef,
 }: {
   pending: PendingSurface | null;
   queue: GeometryQueue;
@@ -215,8 +253,10 @@ function useSurfaceApply({
   reported: { current: (message: string) => void };
   confirmed: { current: SurfaceSize | null };
   confirmedWindow: { current: SurfaceSize | null };
-  settle: { current: ReturnType<typeof setTimeout> | null };
+  settle: { current: (() => void) | null };
   setSize: Dispatch<SetStateAction<SurfaceSize | null>>;
+  setMorphMs: Dispatch<SetStateAction<number>>;
+  stageRef: RefObject<HTMLDivElement | null>;
   setWindowSize: Dispatch<SetStateAction<SurfaceSize | null>>;
   windowSize: { current: SurfaceSize | null };
 }) {
@@ -238,12 +278,12 @@ function useSurfaceApply({
         windowSize.current = nextWindow;
         confirmedWindow.current = nextWindow;
         observed.current(applied.placement);
+        setMorphMs(current.morphMs);
         setSize({ width: applied.width, height: applied.height });
         setWindowSize(nextWindow);
-        if (current.settleAt === null) return;
-        if (settle.current) clearTimeout(settle.current);
-        const delay = Math.max(0, current.settleAt - performance.now());
-        settle.current = setTimeout(() => {
+        if (current.settleMs === null) return;
+        if (settle.current) settle.current();
+        settle.current = settleAfterStageTransition(stageRef.current, current.settleMs, () => {
           settle.current = null;
           if (current.revision !== revision.current) return;
           queue.enqueueSurface({
@@ -254,9 +294,13 @@ function useSurfaceApply({
               windowSize.current = confirmedWindow.current;
               setWindowSize(confirmedWindow.current);
             },
-            report: () => {},
+            report: () => {
+              if (current.revision === revision.current) {
+                reported.current("The notch could not finish resizing in this Windows session.");
+              }
+            },
           });
-        }, delay);
+        });
       },
       report: () => {
         if (current.revision !== revision.current) return;
@@ -275,8 +319,10 @@ function useSurfaceApply({
     confirmedWindow,
     settle,
     setSize,
+    setMorphMs,
     setWindowSize,
     windowSize,
+    stageRef,
   ]);
 }
 
@@ -303,7 +349,7 @@ export function useNotchSurfaceSync({
 }) {
   const previous = useRef<NotchGeometry | null>(null);
   const lastAttempt = useRef(attempt);
-  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settle = useRef<(() => void) | null>(null);
   const observed = useRef(onObserved);
   const reported = useRef(onError);
   const confirmed = useRef<SurfaceSize | null>(null);
@@ -313,7 +359,7 @@ export function useNotchSurfaceSync({
   reported.current = onError;
   const [size, setSize] = useState<SurfaceSize | null>(null);
   const [nativeSize, setNativeSize] = useState<SurfaceSize | null>(null);
-  const [morphMs, setMorphMs] = useState(durationMs);
+  const [morphMs, setMorphMs] = useState(0);
   const [pending, setPending] = useState<PendingSurface | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
@@ -328,13 +374,14 @@ export function useNotchSurfaceSync({
     morphMs,
     queue: queue.current,
     revision,
+    reported,
   });
 
   useEffect(() => {
     queue.current.resume();
     return () => {
       queue.current.dispose();
-      if (settle.current) clearTimeout(settle.current);
+      if (settle.current) settle.current();
     };
   }, []);
 
@@ -350,7 +397,7 @@ export function useNotchSurfaceSync({
     lastAttempt,
     revision,
     reported,
-    setMorphMs,
+    settle,
     setPending,
   });
   useSurfaceApply({
@@ -363,8 +410,10 @@ export function useNotchSurfaceSync({
     confirmedWindow,
     settle,
     setSize,
+    setMorphMs,
     setWindowSize: setNativeSize,
     windowSize,
+    stageRef,
   });
 
   return { size, nativeSize, morphMs, stageRef };
