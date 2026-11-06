@@ -13,5 +13,5 @@ test("Home cards remain fully opaque when unavailable", () => {
   expect(card.classList.contains("bg-otto-raised-soft")).toBe(true);
   expect(card.classList.contains("disabled:opacity-60")).toBe(false);
   expect(card.className).not.toContain("mix-blend");
-  expect(card.querySelector("img")?.getAttribute("style")).toContain("--art-opacity: 0.8");
+  expect(card.getAttribute("style")).toContain("--art-opacity: 0.8");
 });
