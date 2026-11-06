@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, waitFor } from "@testing-library/react";
 
 const surfaceCalls: Array<{
   payload: { surface: string; deferShrink: boolean };
@@ -335,6 +335,28 @@ describe("native surface transition ordering", () => {
     });
 
     expect(hook.result.current.size).toBeNull();
+  });
+
+  test("removes outgoing content on its own exit animation and not a nested animation", () => {
+    const view = render(
+      <TransitionContent transitionKey="home" reducedMotion={false}>
+        <div data-frame="home" />
+      </TransitionContent>,
+    );
+    view.rerender(
+      <TransitionContent transitionKey="agent" reducedMotion={false}>
+        <div data-frame="agent" />
+      </TransitionContent>,
+    );
+    const outgoing = view.container.querySelector<HTMLElement>("[aria-hidden='true']");
+    expect(outgoing).not.toBeNull();
+    const nested = outgoing?.querySelector<HTMLElement>("[data-frame='home']");
+    expect(nested).not.toBeNull();
+    fireEvent.animationEnd(nested!);
+    expect(view.container.querySelector("[aria-hidden='true']")).not.toBeNull();
+    fireEvent.animationEnd(outgoing!);
+    expect(view.container.querySelector("[aria-hidden='true']")).toBeNull();
+    expect(view.container.querySelector("[data-frame='agent']")).not.toBeNull();
   });
 
   test("keeps the outgoing content frame at its previous layout size", () => {

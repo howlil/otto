@@ -88,6 +88,10 @@ export function TransitionContent({
           inert
           className={`pointer-events-none absolute left-0 top-0 z-10 ${layout} ${exit}`}
           style={frameStyle(outgoing.size)}
+          onAnimationEnd={(event) => {
+            if (event.target !== event.currentTarget) return;
+            setRetained((current) => (current?.key === outgoing.key ? null : current));
+          }}
         >
           {outgoing.node}
         </div>
