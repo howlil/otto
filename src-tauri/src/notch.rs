@@ -55,6 +55,8 @@ pub fn surface_size(surface: &str) -> Option<(u32, u32)> {
     match surface {
         "idle" => Some((92, 42)),
         "agentCompact" => Some((228, 50)),
+        "musicCompact" => Some((264, 54)),
+        "musicPlayer" => Some((444, 178)),
         "home" => Some((452, 148)),
         "homeSettings" => Some((452, 314)),
         "agentReady" => Some((526, 170)),
@@ -232,6 +234,8 @@ mod tests {
     #[test]
     fn approved_home_agent_and_settings_sizes() {
         assert_eq!(surface_size("home"), Some((452, 148)));
+        assert_eq!(surface_size("musicCompact"), Some((264, 54)));
+        assert_eq!(surface_size("musicPlayer"), Some((444, 178)));
         assert_eq!(surface_size("agentReady"), Some((526, 170)));
         assert_eq!(surface_size("agentFull"), Some((526, 346)));
         assert_eq!(surface_size("agentSettings"), Some((526, 466)));

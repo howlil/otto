@@ -8,6 +8,8 @@ const surfaceSizes: Record<string, { width: number; height: number }> = {
   agentCompact: { width: 228, height: 50 },
   home: { width: 452, height: 148 },
   homeSettings: { width: 452, height: 314 },
+  musicCompact: { width: 264, height: 54 },
+  musicPlayer: { width: 444, height: 178 },
 };
 
 mock.module("@tauri-apps/api/core", () => ({
@@ -59,6 +61,26 @@ const { useNotchSurfaceSync } = await import("../src/features/shell/useNotchSurf
 const { ShellView } = await import("../src/AppView");
 
 const agentStub = {} as Parameters<typeof ShellView>[0]["agent"];
+const musicStub = {
+  snapshot: {
+    seq: 0,
+    status: "unavailable",
+    playback: "unknown",
+    title: null,
+    artist: null,
+    artworkDataUrl: null,
+    positionMs: null,
+    durationMs: null,
+    minSeekMs: null,
+    maxSeekMs: null,
+    controls: { toggle: false, previous: false, next: false, seek: false },
+    message: "Open a supported media app.",
+  },
+  error: null,
+  busy: false,
+  refresh: async () => {},
+  control: async () => {},
+} as Parameters<typeof ShellView>[0]["music"];
 const updateStub = {
   state: { status: "idle" },
   checkForUpdate: async () => {},
@@ -71,9 +93,11 @@ function Harness() {
   return (
     <ShellView
       agent={agentStub}
+      music={musicStub}
       shell={shell}
       surfaceError={null}
       agentHomeCopy="Ask your CLI"
+      musicHomeCopy="No media session"
       artProps={artProps}
       gutter={0}
       size={null}
@@ -138,6 +162,22 @@ afterEach(() => {
 });
 
 describe("Otto shell hover and pin interaction", () => {
+  test("Music opens from Home and returns to Home", async () => {
+    await mount();
+
+    fireEvent.click(compactButton());
+    await waitFor(() => expect(isExpanded()).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: /Music No media session/i }));
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Music" })).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to Home" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Music No media session/i })).toBeTruthy(),
+    );
+    expect(isExpanded()).toBe(true);
+  });
+
   test("hover previews the card without stealing keyboard focus", async () => {
     const { surface } = await mount();
     expect(isExpanded()).toBe(false);

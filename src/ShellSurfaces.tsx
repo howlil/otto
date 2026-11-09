@@ -1,6 +1,8 @@
 import { AgentCapsule, AgentPanel } from "./features/agent";
 import type { useAgent } from "./features/agent";
 import { HomeSurface } from "./features/home";
+import { MusicCapsule, MusicPanel } from "./features/music";
+import type { useMusic } from "./features/music";
 import { OsEventCapsule } from "./features/os-events";
 import { GlobalSettings } from "./features/shell";
 import type { AppUpdateState, useNotchShell } from "./features/shell";
@@ -8,6 +10,7 @@ import type { OsEventView } from "./platform/tauri";
 import { Eyes, VisuallyHidden } from "./shared/ui";
 
 type AgentModel = ReturnType<typeof useAgent>;
+type MusicModel = ReturnType<typeof useMusic>;
 type ShellModel = ReturnType<typeof useNotchShell>;
 
 export function CompactEyesButton({
@@ -52,8 +55,10 @@ export function CompactEyesButton({
 
 export function SurfaceBody({
   agent,
+  music,
   shell,
   agentHomeCopy,
+  musicHomeCopy,
   artProps,
   appUpdate,
   onContentMeasured,
@@ -61,8 +66,10 @@ export function SurfaceBody({
   osEvent,
 }: {
   agent: AgentModel;
+  music: MusicModel;
   shell: ShellModel;
   agentHomeCopy: string;
+  musicHomeCopy: string;
   artProps: { tilt: number; gradient: number };
   appUpdate: {
     state: AppUpdateState;
@@ -73,18 +80,27 @@ export function SurfaceBody({
   nudgeMotion: string;
   osEvent: OsEventView | null;
 }) {
-  const { expanded, isAgent, page } = shell;
+  const { expanded, isAgent, isMusic, page } = shell;
   if (!expanded) {
     if (osEvent) return <OsEventCapsule event={osEvent} />;
-    return isAgent ? (
-      <AgentCapsule
-        snapshot={agent.snapshot}
-        installed={agent.installed}
-        readiness={agent.readiness}
-        error={agent.error}
+    if (isAgent) {
+      return (
+        <AgentCapsule
+          snapshot={agent.snapshot}
+          installed={agent.installed}
+          readiness={agent.readiness}
+          error={agent.error}
+          buttonRef={shell.compactButton}
+          onOpen={() => shell.open("agent")}
+          motionClass={nudgeMotion}
+        />
+      );
+    }
+    return isMusic ? (
+      <MusicCapsule
+        snapshot={music.snapshot}
         buttonRef={shell.compactButton}
-        onOpen={() => shell.open("agent")}
-        motionClass={nudgeMotion}
+        onOpen={() => shell.open("music")}
       />
     ) : null;
   }
@@ -93,9 +109,11 @@ export function SurfaceBody({
       <HomeSurface
         homeGear={shell.homeGear}
         agentSubtitle={agentHomeCopy}
+        musicSubtitle={musicHomeCopy}
         artProps={artProps}
         onOpenSettings={() => shell.open("global-settings")}
         onOpenAgent={() => shell.open("agent")}
+        onOpenMusic={() => shell.open("music")}
         motionClass={nudgeMotion}
       />
     );
@@ -116,6 +134,19 @@ export function SurfaceBody({
         setCaptureProtection={shell.setCaptureProtection}
         osEventsError={shell.osEventsError}
         placement={shell.placement}
+        motionClass={nudgeMotion}
+      />
+    );
+  }
+  if (isMusic) {
+    return (
+      <MusicPanel
+        snapshot={music.snapshot}
+        error={music.error}
+        busy={music.busy}
+        onBack={() => shell.open("home")}
+        onRefresh={music.refresh}
+        onControl={music.control}
         motionClass={nudgeMotion}
       />
     );
