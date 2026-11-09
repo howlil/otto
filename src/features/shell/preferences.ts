@@ -1,4 +1,4 @@
-export type Page = "home" | "agent" | "global-settings" | "agent-settings";
+export type Page = "home" | "agent" | "music" | "global-settings" | "agent-settings";
 export type SettingsTab = "appearance" | "interaction" | "system" | "placement";
 export type Expression = "calm" | "curious" | "sleepy" | "happy";
 export type Motion = "fluid" | "gentle" | "reduced";

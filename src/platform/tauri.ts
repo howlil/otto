@@ -85,6 +85,8 @@ export type NotchSurface =
   | "home"
   | "homeSettings"
   | "agentCompact"
+  | "musicCompact"
+  | "musicPlayer"
   | "agentReady"
   | "agentThinking"
   | "agentFull"
@@ -114,6 +116,36 @@ export type OsEventView =
     };
 
 export type OsEventSubscription = {
+  unsubscribe: () => Promise<void>;
+};
+
+export type MediaStatus = "loading" | "available" | "unavailable" | "unsupported";
+export type MediaPlayback = "playing" | "paused" | "stopped" | "unknown";
+export type MediaCommand = "toggle" | "previous" | "next" | "seek";
+
+export type MediaControls = {
+  toggle: boolean;
+  previous: boolean;
+  next: boolean;
+  seek: boolean;
+};
+
+export type MediaSnapshot = {
+  seq: number;
+  status: MediaStatus;
+  playback: MediaPlayback;
+  title: string | null;
+  artist: string | null;
+  artworkDataUrl: string | null;
+  positionMs: number | null;
+  durationMs: number | null;
+  minSeekMs: number | null;
+  maxSeekMs: number | null;
+  controls: MediaControls;
+  message: string;
+};
+
+export type MediaSubscription = {
   unsubscribe: () => Promise<void>;
 };
 
@@ -191,6 +223,33 @@ export async function subscribeOsEvents(
 
 export async function setOsEventsEnabled(enabled: boolean): Promise<void> {
   if (nativeAvailable) await invoke("os_events_set_enabled", { enabled });
+}
+
+export async function getMediaSnapshot(): Promise<MediaSnapshot> {
+  return invoke<MediaSnapshot>("media_snapshot");
+}
+
+export async function subscribeMedia(
+  onSnapshot: (snapshot: MediaSnapshot) => void,
+): Promise<MediaSubscription> {
+  if (!nativeAvailable) return { unsubscribe: async () => {} };
+  const channel = new Channel<MediaSnapshot>();
+  channel.onmessage = onSnapshot;
+  const subscriptionId = await invoke<number>("media_subscribe", { onEvent: channel });
+  return {
+    unsubscribe: () => invoke("media_unsubscribe", { subscriptionId }),
+  };
+}
+
+export async function refreshMedia(): Promise<MediaSnapshot> {
+  return invoke<MediaSnapshot>("media_refresh");
+}
+
+export async function controlMedia(
+  command: MediaCommand,
+  positionMs?: number,
+): Promise<MediaSnapshot> {
+  return invoke<MediaSnapshot>("media_control", { command, positionMs });
 }
 
 export async function selectAgentProvider(provider: AgentProvider): Promise<void> {

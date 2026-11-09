@@ -1,4 +1,5 @@
 pub mod capture;
+pub mod media;
 pub mod observers;
 pub mod overlay;
 pub mod placement;

@@ -1,5 +1,6 @@
 mod agent;
 mod ipc;
+mod media;
 mod notch;
 mod os_events;
 #[cfg(windows)]
@@ -47,6 +48,11 @@ pub fn run() {
             ipc::notch::notch_measure_surface,
             ipc::notch::notch_set_surface,
             ipc::notch::notch_set_hit_region,
+            ipc::media::media_snapshot,
+            ipc::media::media_subscribe,
+            ipc::media::media_unsubscribe,
+            ipc::media::media_refresh,
+            ipc::media::media_control,
             ipc::os_events::os_events_subscribe,
             ipc::os_events::os_events_unsubscribe,
             ipc::os_events::os_events_set_enabled,
@@ -64,6 +70,12 @@ pub fn run() {
             };
             agent.start_recovery_observer();
             app.manage(agent);
+            let media = std::sync::Arc::new(media::MediaRuntime::new());
+            app.manage(media.clone());
+            #[cfg(windows)]
+            app.manage(windows::media::MediaController::start(media));
+            #[cfg(not(windows))]
+            let _ = media;
             let os_events = std::sync::Arc::new(os_events::OsEventRuntime::new());
             app.manage(os_events.clone());
             #[cfg(windows)]

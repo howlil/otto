@@ -18,6 +18,7 @@ export function useShellInteraction({ prefs }: { prefs: Preferences }) {
     (typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const isAgent = page === "agent" || page === "agent-settings";
+  const isMusic = page === "music";
 
   const beginMorph = useCallback(() => {
     if (reducedMotion) {
@@ -101,6 +102,7 @@ export function useShellInteraction({ prefs }: { prefs: Preferences }) {
     setEventMotion,
     reducedMotion,
     isAgent,
+    isMusic,
     compactButton: focus.compactButton,
     homeGear: focus.homeGear,
     collapse,

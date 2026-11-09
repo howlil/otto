@@ -6,6 +6,7 @@ import {
   resolveAgentSurface,
   useAgent,
 } from "./features/agent";
+import { mediaHomeSubtitle, useMusic } from "./features/music";
 import { shouldPresentOsEvent, useOsEvents } from "./features/os-events";
 import {
   morphDuration,
@@ -49,10 +50,11 @@ export default function App() {
   const shell = useNotchShell();
   const osEvents = useOsEvents(shell.prefs.osEventsEnabled);
   const agent = useAgent(shell.expanded && shell.isAgent);
+  const music = useMusic();
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
   const appUpdate = useAppUpdate();
-  const { page, expanded, prefs, reducedMotion, isAgent, setEventMotion } = shell;
+  const { page, expanded, prefs, reducedMotion, isAgent, isMusic, setEventMotion } = shell;
   const onContentMeasured = useCallback(
     (height: number) => {
       setContentHeights((current) => updateMeasuredHeights(current, page, height));
@@ -72,6 +74,7 @@ export default function App() {
   const surface = resolveSurface({
     expanded,
     isAgent,
+    isMusic,
     page,
     agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
     osEvent: osEventVisible,
@@ -130,9 +133,11 @@ export default function App() {
   return (
     <ShellView
       agent={agent}
+      music={music}
       shell={shell}
       surfaceError={surfaceError}
       agentHomeCopy={agentHomeCopy}
+      musicHomeCopy={mediaHomeSubtitle(music.snapshot)}
       artProps={artProps}
       gutter={gutter}
       size={surfaceSize}
