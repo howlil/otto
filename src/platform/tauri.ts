@@ -160,6 +160,7 @@ export type MediaSnapshot = {
   artist: string | null;
   album?: string | null;
   sourceId?: string | null;
+  sessionRevision?: number | null;
   observedAtMs?: number | null;
   playbackRate?: number | null;
   artworkDataUrl: string | null;
@@ -341,9 +342,10 @@ export async function refreshMedia(): Promise<MediaSnapshot> {
 
 export async function controlMedia(
   command: MediaCommand,
+  expectedTrack: string,
   positionMs?: number,
 ): Promise<MediaSnapshot> {
-  return invoke<MediaSnapshot>("media_control", { command, positionMs });
+  return invoke<MediaSnapshot>("media_control", { command, expectedTrack, positionMs });
 }
 
 export async function selectAgentProvider(provider: AgentProvider): Promise<void> {

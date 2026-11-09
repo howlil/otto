@@ -56,9 +56,10 @@ pub fn media_refresh(runtime: State<'_, Arc<MediaRuntime>>) -> MediaSnapshot {
 pub fn media_control(
     controller: State<'_, crate::windows::media::MediaController>,
     command: String,
+    expected_track: String,
     position_ms: Option<u64>,
 ) -> Result<MediaSnapshot, String> {
-    controller.control(MediaAction::parse(&command, position_ms)?)
+    controller.control(MediaAction::parse(&command, position_ms)?, expected_track)
 }
 
 #[cfg(not(windows))]
@@ -66,10 +67,11 @@ pub fn media_control(
 pub fn media_control(
     runtime: State<'_, Arc<MediaRuntime>>,
     command: String,
+    expected_track: String,
     position_ms: Option<u64>,
 ) -> Result<MediaSnapshot, String> {
-    let _ = MediaAction::parse(&command, position_ms)?;
-    Ok(runtime.publish(MediaSnapshot::unsupported(
-        "System media is available in Otto on Windows.",
-    )))
+    runtime
+        .snapshot()
+        .validate_action(MediaAction::parse(&command, position_ms)?, &expected_track)?;
+    Err("System media is available in Otto on Windows.".to_string())
 }

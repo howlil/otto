@@ -29,6 +29,7 @@ enum Request {
     EventRefresh,
     Control {
         action: MediaAction,
+        expected_track: String,
         reply: Sender<Result<MediaSnapshot, String>>,
     },
     Stop,
@@ -65,8 +66,16 @@ impl MediaController {
         self.request(|reply| Request::Refresh(Some(reply)))
     }
 
-    pub fn control(&self, action: MediaAction) -> Result<MediaSnapshot, String> {
-        self.request(|reply| Request::Control { action, reply })
+    pub fn control(
+        &self,
+        action: MediaAction,
+        expected_track: String,
+    ) -> Result<MediaSnapshot, String> {
+        self.request(|reply| Request::Control {
+            action,
+            expected_track,
+            reply,
+        })
     }
 
     fn request(
@@ -114,6 +123,7 @@ struct Worker {
     event_pending: Arc<AtomicBool>,
     manager: Option<ManagerBinding>,
     session: Option<SessionBinding>,
+    session_revision: u64,
 }
 
 fn run(
@@ -138,6 +148,7 @@ fn run(
         event_pending,
         manager: None,
         session: None,
+        session_revision: 0,
     };
     worker.refresh();
     while let Ok(request) = receiver.recv() {
@@ -152,8 +163,12 @@ fn run(
                 worker.event_pending.store(false, Ordering::Release);
                 worker.refresh();
             }
-            Request::Control { action, reply } => {
-                let _ = reply.send(worker.control(action));
+            Request::Control {
+                action,
+                expected_track,
+                reply,
+            } => {
+                let _ = reply.send(worker.control(action, &expected_track));
             }
             Request::Stop => break,
         }
@@ -211,12 +226,16 @@ impl Worker {
         }
     }
 
-    fn control(&mut self, action: MediaAction) -> Result<MediaSnapshot, String> {
+    fn control(
+        &mut self,
+        action: MediaAction,
+        expected_track: &str,
+    ) -> Result<MediaSnapshot, String> {
         let snapshot = self.refresh();
         if snapshot.status != MediaStatus::Available {
             return Err("No active media session supports that action.".to_string());
         }
-        self.validate_action(action, &snapshot)?;
+        snapshot.validate_action(action, expected_track)?;
         let session = self
             .session
             .as_ref()
@@ -242,23 +261,6 @@ impl Worker {
             return Err("The media session did not accept that action.".to_string());
         }
         Ok(self.refresh())
-    }
-
-    fn validate_action(&self, action: MediaAction, snapshot: &MediaSnapshot) -> Result<(), String> {
-        let supported = match action {
-            MediaAction::Toggle => snapshot.controls.toggle,
-            MediaAction::Previous => snapshot.controls.previous,
-            MediaAction::Next => snapshot.controls.next,
-            MediaAction::Seek(position) => {
-                snapshot.controls.seek
-                    && snapshot.min_seek_ms.zip(snapshot.max_seek_ms).is_some_and(
-                        |(minimum, maximum)| position >= minimum && position <= maximum,
-                    )
-            }
-        };
-        supported
-            .then_some(())
-            .ok_or_else(|| "That media action is not supported by the current session.".to_string())
     }
 
     fn ensure_manager(&mut self) -> Result<(), String> {
@@ -343,6 +345,7 @@ impl Worker {
                 Ok(())
             }))
             .map_err(|error| error.to_string())?;
+        self.session_revision = self.session_revision.saturating_add(1);
         self.session = Some(SessionBinding {
             session,
             timeline,
@@ -414,6 +417,7 @@ impl Worker {
                 .and_then(|p| p.AlbumTitle().ok())
                 .and_then(non_empty),
             source_id: session.SourceAppUserModelId().ok().and_then(non_empty),
+            session_revision: Some(self.session_revision),
             observed_at_ms: timeline
                 .as_ref()
                 .and_then(|t| t.LastUpdatedTime().ok())
@@ -516,6 +520,7 @@ mod tests {
         sender
             .send(Request::Control {
                 action: MediaAction::Toggle,
+                expected_track: String::new(),
                 reply,
             })
             .unwrap();

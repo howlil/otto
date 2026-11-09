@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MediaCommand, MediaSnapshot } from "../../platform/tauri/media";
-import { Button, Text } from "../../shared/ui";
+import { Button, IconButton, Text } from "../../shared/ui";
 import { LyricsConsent, LyricsContent } from "./LyricsContent";
 import { Artwork } from "./MusicPlayback";
 import { parseLyrics } from "./lyrics-model";
@@ -96,6 +96,14 @@ export function MusicLyrics({
             Retry lyrics
           </Button>
         )}
+        <IconButton
+          className="ml-auto"
+          variant="round"
+          icon={snapshot.playback === "playing" ? "pause" : "play"}
+          label={snapshot.playback === "playing" ? "Pause media" : "Play media"}
+          disabled={busy || !snapshot.controls.toggle}
+          onClick={() => void onControl("toggle")}
+        />
       </div>
     </div>
   );

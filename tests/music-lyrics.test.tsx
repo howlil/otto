@@ -73,7 +73,7 @@ test("lyrics journey enables online lookup, follows lines, seeks only supported 
   expect(view.queryByText("Second")).toBeNull();
 });
 
-function NavigationPlayer({ media, onControl = async () => {} }: { media: MediaSnapshot; onControl?: (command: string, position?: number) => Promise<void> }) {
+function NavigationPlayer({ media, onControl = async () => {}, busy = false }: { media: MediaSnapshot; onControl?: (command: string, position?: number) => Promise<void>; busy?: boolean }) {
   const lyrics = useLyrics(media);
   const consumeEscape = useCallback((page: string) => {
     if (page !== "music" || !lyrics.open) return false;
@@ -85,7 +85,7 @@ function NavigationPlayer({ media, onControl = async () => {} }: { media: MediaS
     <button type="button" onClick={() => shell.open("music")}>Open Music</button>
     <button type="button" onClick={() => shell.open("agent")}>Open Agent</button>
     <output data-testid="shell-mode">{shell.expanded ? shell.page : "compact"}</output>
-    {shell.expanded && shell.isMusic && <MusicPanel music={{ snapshot: media, lyrics, error: null, busy: false, refresh: async () => {}, control: onControl }} onBack={() => shell.open("home")} />}
+    {shell.expanded && shell.isMusic && <MusicPanel music={{ snapshot: media, lyrics, error: null, busy, refresh: async () => {}, control: onControl }} onBack={() => shell.open("home")} />}
   </>;
 }
 
@@ -98,6 +98,24 @@ async function enableFromKeyboard(view: ReturnType<typeof render>) {
   await waitFor(() => expect(requests).toHaveLength(1));
   await act(async () => { requests[0].resolve({ key: trackKey(snapshot), record }); });
 }
+
+test("Lyrics playback stays in the subview and obeys observed capability and pending state", async () => {
+  const controls: string[] = [];
+  const onControl = async (command: string) => { controls.push(command); };
+  const view = render(<NavigationPlayer media={snapshot} onControl={onControl} />);
+  await enableFromKeyboard(view);
+  fireEvent.click(view.getByRole("button", { name: "Pause media" }));
+  expect(controls).toEqual(["toggle"]);
+  expect(view.getByRole("button", { name: "Player" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Words" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Pause media" })).toBeTruthy();
+  view.rerender(<NavigationPlayer media={snapshot} onControl={onControl} busy />);
+  expect(view.getByRole("button", { name: "Pause media" }).hasAttribute("disabled")).toBe(true);
+  const unsupported = { ...snapshot, playback: "paused" as const, controls: { ...snapshot.controls, toggle: false } };
+  view.rerender(<NavigationPlayer media={unsupported} onControl={onControl} />);
+  expect(view.getByRole("button", { name: "Play media" }).hasAttribute("disabled")).toBe(true);
+  expect(controls).toEqual(["toggle"]);
+});
 
 test("online permission remains revocable after the media session disappears", async () => {
   const view = render(<NavigationPlayer media={snapshot} />);

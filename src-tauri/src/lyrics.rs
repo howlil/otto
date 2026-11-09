@@ -1,4 +1,4 @@
-use crate::media::{MediaRuntime, MediaSnapshot, MediaStatus};
+use crate::media::{MediaRuntime, MediaSnapshot, MediaStatus, track_key};
 use serde::{Deserialize, Serialize};
 use std::{
     sync::atomic::{AtomicBool, AtomicU64, Ordering},
@@ -42,17 +42,6 @@ fn matches_track(record: &LyricsRecord, snapshot: &MediaSnapshot) -> bool {
         && snapshot.duration_ms.is_some_and(|duration| {
             record.duration.is_finite() && (record.duration - duration as f64 / 1000.0).abs() <= 2.0
         })
-}
-
-pub fn track_key(snapshot: &MediaSnapshot) -> String {
-    serde_json::to_string(&(
-        &snapshot.source_id,
-        &snapshot.title,
-        &snapshot.artist,
-        &snapshot.album,
-        snapshot.duration_ms,
-    ))
-    .unwrap()
 }
 
 #[derive(Clone, Serialize)]

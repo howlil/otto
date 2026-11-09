@@ -7,6 +7,7 @@ export function trackKey(snapshot: MediaSnapshot): string {
     snapshot.artist,
     snapshot.album ?? null,
     snapshot.durationMs,
+    snapshot.sessionRevision ?? null,
   ]);
 }
 

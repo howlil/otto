@@ -144,9 +144,14 @@ export function MusicPanel({
         </Text>
       )}
       {error && (
-        <Text as="p" variant="caption" className="shrink-0 text-otto-text-secondary" role="status">
-          Music update failed: {error}
-        </Text>
+        <div className="flex shrink-0 items-center gap-2 text-otto-text-secondary">
+          <Text as="p" variant="caption" className="min-w-0 flex-1" role="status">
+            Music update failed: {error}
+          </Text>
+          <Button size="link" disabled={busy} onClick={() => void onRefresh()}>
+            Retry Music
+          </Button>
+        </div>
       )}
     </section>
   );

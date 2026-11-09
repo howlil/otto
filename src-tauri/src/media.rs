@@ -67,6 +67,7 @@ pub struct MediaSnapshot {
     pub artist: Option<String>,
     pub album: Option<String>,
     pub source_id: Option<String>,
+    pub session_revision: Option<u64>,
     pub observed_at_ms: Option<u64>,
     pub playback_rate: Option<f64>,
     pub artwork_data_url: Option<String>,
@@ -78,7 +79,40 @@ pub struct MediaSnapshot {
     pub message: String,
 }
 
+pub fn track_key(snapshot: &MediaSnapshot) -> String {
+    serde_json::to_string(&(
+        &snapshot.source_id,
+        &snapshot.title,
+        &snapshot.artist,
+        &snapshot.album,
+        snapshot.duration_ms,
+        snapshot.session_revision,
+    ))
+    .unwrap()
+}
+
 impl MediaSnapshot {
+    pub fn validate_action(&self, action: MediaAction, expected_track: &str) -> Result<(), String> {
+        if self.status != MediaStatus::Available || track_key(self) != expected_track {
+            return Err("The media item changed. Refresh Music before trying again.".to_string());
+        }
+        let supported =
+            match action {
+                MediaAction::Toggle => self.controls.toggle,
+                MediaAction::Previous => self.controls.previous,
+                MediaAction::Next => self.controls.next,
+                MediaAction::Seek(position) => {
+                    self.controls.seek
+                        && self.min_seek_ms.zip(self.max_seek_ms).is_some_and(
+                            |(minimum, maximum)| position >= minimum && position <= maximum,
+                        )
+                }
+            };
+        supported
+            .then_some(())
+            .ok_or_else(|| "That media action is not supported by the current session.".to_string())
+    }
+
     pub fn loading() -> Self {
         Self {
             seq: 0,
@@ -88,6 +122,7 @@ impl MediaSnapshot {
             artist: None,
             album: None,
             source_id: None,
+            session_revision: None,
             observed_at_ms: None,
             playback_rate: None,
             artwork_data_url: None,
@@ -194,6 +229,7 @@ mod tests {
             artist: Some("Otto".to_string()),
             album: None,
             source_id: None,
+            session_revision: None,
             observed_at_ms: None,
             playback_rate: None,
             artwork_data_url: None,
@@ -227,6 +263,80 @@ mod tests {
         assert_eq!(snapshot.title, None);
         assert_eq!(snapshot.artist, None);
         assert_eq!(snapshot.controls, MediaControls::default());
+    }
+
+    #[test]
+    fn controls_reject_replaced_tracks_and_sources_before_dispatch() {
+        let mut observed = MediaSnapshot::loading();
+        observed.status = MediaStatus::Available;
+        observed.source_id = Some("player-a".into());
+        observed.title = Some("Orbit".into());
+        observed.controls.toggle = true;
+        observed.controls.seek = true;
+        observed.min_seek_ms = Some(1000);
+        observed.max_seek_ms = Some(10_000);
+        let expected = track_key(&observed);
+        for position in [1000, 10_000] {
+            assert!(
+                observed
+                    .validate_action(MediaAction::Seek(position), &expected)
+                    .is_ok()
+            );
+        }
+        assert!(
+            observed
+                .validate_action(MediaAction::Seek(999), &expected)
+                .is_err()
+        );
+        assert!(
+            observed
+                .validate_action(MediaAction::Previous, &expected)
+                .is_err()
+        );
+        observed.controls.seek = false;
+        assert!(
+            observed
+                .validate_action(MediaAction::Seek(4000), &expected)
+                .is_err()
+        );
+        observed.controls.seek = true;
+        assert!(
+            observed
+                .validate_action(MediaAction::Seek(4000), &expected)
+                .is_ok()
+        );
+        assert!(
+            observed
+                .validate_action(MediaAction::Seek(10_001), &expected)
+                .is_err()
+        );
+        observed.session_revision = Some(2);
+        assert!(
+            observed
+                .validate_action(MediaAction::Seek(4000), &expected)
+                .is_err()
+        );
+        observed.session_revision = None;
+        observed.title = Some("New orbit".into());
+        assert!(
+            observed
+                .validate_action(MediaAction::Seek(4000), &expected)
+                .is_err()
+        );
+        observed.title = Some("Orbit".into());
+        observed.source_id = Some("player-b".into());
+        assert!(
+            observed
+                .validate_action(MediaAction::Toggle, &expected)
+                .is_err()
+        );
+        observed.source_id = Some("player-a".into());
+        observed.status = MediaStatus::Unavailable;
+        assert!(
+            observed
+                .validate_action(MediaAction::Toggle, &expected)
+                .is_err()
+        );
     }
 
     #[test]

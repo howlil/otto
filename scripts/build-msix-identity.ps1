@@ -126,7 +126,7 @@ $packageManifest = @"
   </Applications>
 </Package>
 "@
-Set-Content -LiteralPath $packageManifestPath -Value $packageManifest -Encoding utf8NoBOM
+[System.IO.File]::WriteAllText($packageManifestPath, $packageManifest, [System.Text.UTF8Encoding]::new($false))
 
 $makeAppx = Find-SdkTool 'makeappx.exe'
 & $makeAppx pack /o /d $stagingDirectory /nv /p $packagePath
