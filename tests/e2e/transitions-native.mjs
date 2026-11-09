@@ -224,6 +224,12 @@ async function start() {
   );
   session = created.sessionId;
   assert.ok(session, "Missing WebDriver session");
+  await execute(`
+    const key = 'otto.preferences.v1';
+    const preferences = JSON.parse(localStorage.getItem(key) || '{}');
+    localStorage.setItem(key, JSON.stringify({ ...preferences, clickOutside: false }));
+  `);
+  await call("POST", endpoint("/refresh"), {});
   await until("compact Home", () => execute('return Boolean(document.querySelector("button[aria-expanded=\\"false\\"]"));'));
 }
 
@@ -298,6 +304,21 @@ async function audit() {
     'Array.from(document.querySelectorAll("button")).find((button) => button.querySelector("strong")?.textContent?.trim() === "Focus")',
     '(() => { const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect(); return Boolean(document.querySelector("[data-surface=\\"focus\\"]")) && Math.round(stage?.width ?? 0) === 408 && Math.round(stage?.height ?? 0) === 174; })()',
   );
+  const focusAppearance = await execute(`
+    const focus = document.querySelector('[data-surface="focus"]');
+    const countdown = focus.querySelector('p.tabular-nums');
+    const phase = focus.querySelector('button[aria-pressed="true"]');
+    return {
+      homeEyes: Boolean(focus.querySelector('.otto-focus-home [data-expression]')),
+      headerHeight: focus.querySelector('header').getBoundingClientRect().height,
+      countdownSize: getComputedStyle(countdown).fontSize,
+      phaseSize: getComputedStyle(phase).fontSize,
+    };
+  `);
+  assert.equal(focusAppearance.homeEyes, true, "Focus Home must render Otto eyes");
+  assert.equal(focusAppearance.headerHeight, 42, "Focus header must match the canonical height");
+  assert.equal(focusAppearance.countdownSize, "39px", "Focus countdown must retain its display scale");
+  assert.equal(focusAppearance.phaseSize, "10px", "Global button inheritance must not override Focus typography");
   await clickTarget(
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Start timer"))',
   );
@@ -327,6 +348,11 @@ async function audit() {
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Edit durations"))',
     '(() => { const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect(); return document.body.innerText.includes("Session lengths") && Math.round(stage?.width ?? 0) === 408 && Math.round(stage?.height ?? 0) === 328; })()',
   );
+  const presetSize = await execute(`
+    const preset = Array.from(document.querySelectorAll('button')).find(button => button.textContent?.trim() === '15m');
+    return getComputedStyle(preset).fontSize;
+  `);
+  assert.equal(presetSize, "10px", "Focus presets must retain canonical typography in WebView2");
   await transition(
     "Focus Settings to Focus",
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Done")',

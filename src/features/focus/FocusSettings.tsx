@@ -24,25 +24,33 @@ function DurationStepper({
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="flex min-h-[38px] items-center justify-between gap-3 border-b border-otto-control-deep py-1.5 last:border-b-0">
-      <Text as="span" variant="label" className="text-otto-text-secondary">
+    <div className="flex min-h-[27px] items-center justify-between gap-3">
+      <Text as="span" variant="label" className="font-normal! text-otto-icon-muted">
         {label}
       </Text>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-[5px]">
         <IconButton
           icon="minus"
           label={`Decrease ${label} duration`}
           variant="outlined"
+          size={13}
+          className="h-[27px]! w-[27px]! border-otto-focus-stepper-line! bg-otto-focus-icon! active:scale-[0.92]"
           disabled={disabled || value === durationBounds.minimum}
           onClick={() => onChange(clampDuration(value - 1))}
         />
-        <Text as="output" variant="code" className="min-w-[43px] text-center text-otto-text-bright">
+        <Text
+          as="output"
+          variant="code"
+          className="min-w-[45px] text-center font-otto-focus! text-otto-sm! text-otto-focus-text tabular-nums"
+        >
           {value} min
         </Text>
         <IconButton
           icon="plus"
           label={`Increase ${label} duration`}
           variant="outlined"
+          size={13}
+          className="h-[27px]! w-[27px]! border-otto-focus-stepper-line! bg-otto-focus-icon! active:scale-[0.92]"
           disabled={disabled || value === durationBounds.maximum}
           onClick={() => onChange(clampDuration(value + 1))}
         />
@@ -66,24 +74,24 @@ export function FocusSettings({
     void onConfigure(withDuration(snapshot.durations, phase, value));
   };
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-[9px] px-[18px] pb-[15px] pt-3 animate-otto-focus-settings motion-reduce:animate-none">
       <div>
-        <div className="flex items-baseline justify-between gap-3">
-          <Text as="h2" variant="label" className="m-0">
+        <div className="flex items-center justify-between gap-3">
+          <Text as="h2" variant="label" className="m-0 font-[550]! text-otto-focus-text">
             Session lengths
           </Text>
           <Text as="span" variant="caption" className="text-otto-label-muted">
             Focus presets
           </Text>
         </div>
-        <div className="mt-2 flex gap-1.5">
+        <div className="mt-[9px] flex gap-[5px]">
           {[15, 25, 50].map((value) => (
             <button
               type="button"
               key={value}
               aria-pressed={snapshot.durations.focus === value}
               disabled={pending}
-              className={`min-h-7 rounded-otto-chip border px-2.5 py-1 text-otto-xs transition-colors duration-[var(--otto-selection-duration)] ease-otto ${snapshot.durations.focus === value ? "border-otto-line-focused bg-otto-selected text-otto-text" : "border-otto-line-mid bg-otto-field-deep text-otto-text-secondary hover:bg-otto-control-hover"}`}
+              className={`min-h-6 min-w-12 rounded-full border px-3 py-[5px] text-otto-xs! leading-[normal]! transition-[background,border-color,color,transform] duration-[160ms] active:scale-[0.92] ${snapshot.durations.focus === value ? "border-otto-invert-bg-hover bg-otto-invert-bg-hover text-otto-invert-text" : "border-otto-focus-stepper-line bg-otto-field-deep text-otto-label-faded hover:bg-otto-control-hover"}`}
               onClick={() => change("focus", value)}
             >
               {value}m
@@ -91,7 +99,7 @@ export function FocusSettings({
           ))}
         </div>
       </div>
-      <div className="mt-2">
+      <div className="flex flex-col gap-[9px]">
         {phaseChoices.map((choice) => (
           <DurationStepper
             key={choice.value}
@@ -102,11 +110,22 @@ export function FocusSettings({
           />
         ))}
       </div>
-      <Text as="p" variant="caption" className="mb-0 mt-2 text-otto-label-muted">
-        {durationNote(snapshot.status)} After four focus sessions, Otto suggests a long break.
+      <Text
+        as="p"
+        variant="meta"
+        className="mb-0 mt-px border-t border-otto-control-hover pt-[7px] text-otto-focus-note"
+      >
+        {durationNote(snapshot.status)}
+        <br />
+        After four focus sessions, Otto suggests a long break.
       </Text>
-      <div className="mt-auto flex justify-end pt-2">
-        <Button variant="secondary" size="xs" onClick={onDone}>
+      <div className="mt-auto flex justify-end">
+        <Button
+          variant="primary"
+          size="xs"
+          onClick={onDone}
+          className="px-[13px] py-[7px] text-otto-sm! font-normal!"
+        >
           Done
         </Button>
       </div>

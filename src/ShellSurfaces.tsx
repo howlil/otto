@@ -1,15 +1,15 @@
-import { AgentCapsule, AgentPanel } from "./features/agent";
+import { AgentPanel } from "./features/agent";
 import type { useAgent } from "./features/agent";
-import { FocusCapsule, FocusPanel } from "./features/focus";
+import { FocusPanel } from "./features/focus";
 import type { FocusTimerModel } from "./features/focus";
 import { HomeSurface } from "./features/home";
-import { MusicCapsule, MusicPanel } from "./features/music";
+import { MusicPanel } from "./features/music";
 import type { useMusic } from "./features/music";
-import { OsEventCapsule } from "./features/os-events";
 import { GlobalSettings } from "./features/shell";
 import type { AppUpdateState, useNotchShell } from "./features/shell";
 import type { OsEventView } from "./platform/tauri";
 import { Eyes, VisuallyHidden } from "./shared/ui";
+import { ShellCompactSurface } from "./ShellCompactSurface";
 
 type AgentModel = ReturnType<typeof useAgent>;
 type MusicModel = ReturnType<typeof useMusic>;
@@ -85,42 +85,18 @@ export function SurfaceBody({
   nudgeMotion: string;
   osEvent: OsEventView | null;
 }) {
-  const { expanded, isAgent, isMusic, page } = shell;
+  const { expanded, isMusic, page } = shell;
   if (!expanded) {
-    if (osEvent) return <OsEventCapsule event={osEvent} />;
-    if (page === "focus" || page === "focus-settings") {
-      return (
-        <FocusCapsule
-          snapshot={focus.snapshot}
-          pending={focus.pending}
-          buttonRef={shell.compactButton}
-          onOpen={() => shell.open("focus")}
-          onStart={() => void focus.start()}
-          onPause={() => void focus.pause()}
-          onStartNext={() => void focus.startNext()}
-        />
-      );
-    }
-    if (isAgent) {
-      return (
-        <AgentCapsule
-          snapshot={agent.snapshot}
-          installed={agent.installed}
-          readiness={agent.readiness}
-          error={agent.error}
-          buttonRef={shell.compactButton}
-          onOpen={() => shell.open("agent")}
-          motionClass={nudgeMotion}
-        />
-      );
-    }
-    return isMusic ? (
-      <MusicCapsule
-        snapshot={music.snapshot}
-        buttonRef={shell.compactButton}
-        onOpen={() => shell.open("music")}
+    return (
+      <ShellCompactSurface
+        agent={agent}
+        music={music}
+        focus={focus}
+        shell={shell}
+        nudgeMotion={nudgeMotion}
+        osEvent={osEvent}
       />
-    ) : null;
+    );
   }
   if (page === "home") {
     return (

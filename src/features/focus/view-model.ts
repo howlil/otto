@@ -11,7 +11,7 @@ export const phaseChoices: ReadonlyArray<{ value: TimerPhase; label: string }> =
 export function formatRemaining(remainingSeconds: number): string {
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = remainingSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 export function phaseLabel(phase: TimerPhase): string {
@@ -28,14 +28,35 @@ export function statusLabel(status: TimerStatus): string {
 }
 
 export function timerHint(snapshot: TimerSnapshot): string {
-  if (snapshot.status === "running") return `${phaseLabel(snapshot.phase)} · Keep going`;
-  if (snapshot.status === "paused") return `${phaseLabel(snapshot.phase)} · Timer paused`;
-  return `${phaseLabel(snapshot.phase)} · Ready to start`;
+  const phase = snapshot.phase === "focus" ? "Focus session" : phaseLabel(snapshot.phase);
+  if (snapshot.status === "running") return `${phase} · Keep going`;
+  if (snapshot.status === "paused") return `${phase} · Timer paused`;
+  return `${phase} · Ready to start`;
 }
 
-export function completedFocusCycle(completedFocusSessions: number): number {
-  if (completedFocusSessions === 0) return 0;
-  return ((completedFocusSessions - 1) % 4) + 1;
+export function primaryActionLabel(snapshot: TimerSnapshot): string {
+  if (snapshot.status === "completed") return nextActionLabel(snapshot);
+  if (snapshot.status === "running") return "Pause timer";
+  return snapshot.status === "paused" ? "Resume timer" : "Start timer";
+}
+
+export function compactPhaseLabel(snapshot: TimerSnapshot): string {
+  if (snapshot.status === "completed")
+    return snapshot.phase === "focus" ? "Session done" : "Break done";
+  const phase = phaseLabel(snapshot.phase);
+  return snapshot.status === "paused" ? `${phase} · Paused` : phase;
+}
+
+export function completedFocusCycle(snapshot: TimerSnapshot): number {
+  const { completedFocusSessions, phase, status } = snapshot;
+  const cycle = completedFocusSessions % 4;
+  if (
+    completedFocusSessions > 0 &&
+    cycle === 0 &&
+    (phase === "long" || (phase === "focus" && status === "completed"))
+  )
+    return 4;
+  return cycle;
 }
 
 export function nextPhase(snapshot: TimerSnapshot): TimerPhase {
@@ -52,9 +73,7 @@ export function completionTitle(snapshot: TimerSnapshot): string {
 }
 
 export function completionHint(snapshot: TimerSnapshot): string {
-  return snapshot.phase === "focus"
-    ? `${phaseLabel(nextPhase(snapshot))} is ready when you are.`
-    : "Return to focus when you are ready.";
+  return snapshot.phase === "focus" ? "Your focus session is complete." : "Your break is complete.";
 }
 
 export function durationNote(status: TimerStatus): string {

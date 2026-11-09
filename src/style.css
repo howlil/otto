@@ -49,6 +49,30 @@
   --color-otto-icon-muted: #c4c4c7;
   --color-otto-line-muted: #83838a;
   --color-otto-completion-soft: #cbd9d0;
+  --color-otto-focus-line: #303030;
+  --color-otto-focus-eye: #f8f8f8;
+  --color-otto-focus-primary: #f3f3f3;
+  --color-otto-focus-primary-hover: #dfdfdf;
+  --color-otto-focus-text: #f1f1f1;
+  --color-otto-focus-secondary: #a4a4a4;
+  --color-otto-focus-hint: #9f9f9f;
+  --color-otto-focus-inactive: #999;
+  --color-otto-focus-selected: #2e2e2e;
+  --color-otto-focus-dot: #545454;
+  --color-otto-focus-ready: #7b7b7b;
+  --color-otto-focus-running: #c6ddce;
+  --color-otto-focus-paused: #d7cba7;
+  --color-otto-focus-icon: #2a2a2a;
+  --color-otto-focus-icon-active: #303b35;
+  --color-otto-focus-icon-active-text: #e1f1e6;
+  --color-otto-focus-icon-paused: #39352a;
+  --color-otto-focus-icon-paused-text: #e9dcb9;
+  --color-otto-focus-icon-complete: #2c4535;
+  --color-otto-focus-icon-complete-text: #d5ffe0;
+  --color-otto-focus-stepper-line: #414141;
+  --color-otto-focus-note: #989898;
+  --color-otto-focus-dialog-overlay: #151515eb;
+  --color-otto-focus-dialog: #262626;
   --color-otto-art-agent-start: #292a2c;
   --color-otto-art-agent-middle: #25272b;
   --color-otto-art-agent-end: #202123;
@@ -102,6 +126,7 @@
   --color-otto-disabled-selected: #707077;
   --font-otto-ui: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-otto-mono: Consolas, monospace;
+  --font-otto-focus: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 
   --text-otto-2xs: 9px;
   --text-otto-xs: 10px;
@@ -110,6 +135,9 @@
   --text-otto-lg: 13px;
   --text-otto-xl: 14px;
   --text-otto-2xl: 15px;
+  --text-otto-focus-countdown: 39px;
+  --text-otto-focus-compact: 18px;
+  --text-otto-focus-completion: 21px;
 
   --radius-otto-control: 9px;
   --radius-otto-panel: 10px;
@@ -142,6 +170,40 @@
   --animate-otto-focus-phase: otto-focus-phase 380ms var(--ease-otto);
   --animate-otto-focus-complete: otto-focus-complete 420ms var(--ease-otto);
   --animate-otto-focus-spark: otto-focus-spark 620ms var(--ease-otto) both;
+  --animate-otto-focus-settings: otto-focus-settings 250ms var(--ease-otto) both;
+  --animate-otto-focus-confirm: otto-focus-confirm 180ms ease-out both;
+  --animate-otto-focus-dialog: otto-focus-dialog 250ms var(--ease-otto) both;
+
+  @keyframes otto-focus-settings {
+    from {
+      transform: translateY(7px);
+      opacity: 0.4;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes otto-focus-confirm {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes otto-focus-dialog {
+    from {
+      transform: translateY(5px) scale(0.985);
+      opacity: 0.7;
+    }
+    to {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
 
   @keyframes otto-event-meter {
     from {
@@ -643,6 +705,54 @@ h4.md-h {
 }
 .katex-display {
   margin: 4px 0;
+}
+
+.otto-focus-home [data-expression] {
+  width: 31px;
+  column-gap: 7px;
+}
+
+:where(.otto-focus-home [data-expression]) i {
+  background: var(--color-otto-focus-eye);
+}
+
+.otto-focus-primary {
+  background: var(--color-otto-focus-primary);
+  color: var(--color-otto-invert-text);
+}
+
+.otto-focus-primary:hover:not(:disabled) {
+  background: var(--color-otto-focus-primary-hover);
+}
+
+.otto-focus-control:disabled {
+  opacity: 0.45;
+}
+
+.otto-focus-icon {
+  background: var(--color-otto-focus-icon);
+  color: var(--color-otto-text-bright);
+}
+
+.otto-focus-open:where(:hover) .otto-focus-icon {
+  background: var(--color-otto-line-mid);
+}
+
+[data-status="running"] .otto-focus-icon,
+[data-phase="short"] .otto-focus-icon,
+[data-phase="long"] .otto-focus-icon {
+  background: var(--color-otto-focus-icon-active);
+  color: var(--color-otto-focus-icon-active-text);
+}
+
+[data-status="paused"] .otto-focus-icon {
+  background: var(--color-otto-focus-icon-paused);
+  color: var(--color-otto-focus-icon-paused-text);
+}
+
+[data-status="completed"] .otto-focus-icon {
+  background: var(--color-otto-focus-icon-complete);
+  color: var(--color-otto-focus-icon-complete-text);
 }
 
 .otto-focus-spark:nth-child(2) {

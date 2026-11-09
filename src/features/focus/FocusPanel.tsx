@@ -56,7 +56,7 @@ export function FocusPanel({
 
   return (
     <section
-      className="relative flex h-full min-h-0 flex-col"
+      className="relative flex h-full min-h-0 flex-col font-otto-focus"
       data-status={focus.snapshot.status}
       data-surface="focus"
     >

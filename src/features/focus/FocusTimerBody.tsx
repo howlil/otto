@@ -8,6 +8,7 @@ import {
   formatRemaining,
   nextActionLabel,
   phaseChoices,
+  primaryActionLabel,
   timerHint,
 } from "./view-model";
 
@@ -21,7 +22,7 @@ function PhaseSelector({
   onSelect: (phase: TimerPhase, trigger: HTMLButtonElement) => void;
 }) {
   return (
-    <fieldset className="m-0 flex min-w-0 gap-1 border-0 p-0">
+    <fieldset className="m-0 flex min-w-0 gap-[3px] border-0 p-0">
       <legend className="sr-only">Choose timer phase</legend>
       {phaseChoices.map((choice) => (
         <button
@@ -29,7 +30,7 @@ function PhaseSelector({
           key={choice.value}
           aria-pressed={choice.value === phase}
           disabled={disabled}
-          className={`min-h-7 rounded-otto-chip border px-2.5 py-1 text-otto-xs transition-colors duration-[var(--otto-selection-duration)] ease-otto ${choice.value === phase ? "border-otto-line-focused bg-otto-selected text-otto-text" : "border-otto-line-mid bg-otto-field-deep text-otto-text-secondary hover:bg-otto-control-hover"}`}
+          className={`rounded-otto-chip border-0 px-[9px] py-2 text-otto-xs! leading-[normal]! transition-colors duration-[170ms] ${choice.value === phase ? "bg-otto-focus-selected text-otto-invert-line" : "bg-transparent text-otto-focus-inactive hover:bg-otto-focus-selected"}`}
           onClick={(event) => onSelect(choice.value, event.currentTarget)}
         >
           {choice.label}
@@ -39,34 +40,29 @@ function PhaseSelector({
   );
 }
 
-function SessionCycle({ completedFocusSessions }: { completedFocusSessions: number }) {
-  const cycle = completedFocusCycle(completedFocusSessions);
+function SessionCycle({ snapshot }: { snapshot: TimerSnapshot }) {
+  const cycle = completedFocusCycle(snapshot);
   return (
-    <div className="flex shrink-0 items-center gap-1.5" title={`${cycle} of 4 focus sessions`}>
-      <span className="flex gap-1" aria-hidden="true">
+    <div
+      className="flex shrink-0 items-center gap-[5px] text-otto-focus-secondary"
+      title={`${cycle} of 4 focus sessions`}
+    >
+      <span className="flex gap-[5px]" aria-hidden="true">
         {[1, 2, 3, 4].map((index) => (
           <i
             key={index}
-            className={`h-1.5 w-1.5 rounded-full ${index <= cycle ? "bg-otto-completion-soft" : "bg-otto-line-strong"}`}
+            className={`h-[5px] w-[5px] rounded-full ${index <= cycle ? "bg-otto-focus-text" : "bg-otto-focus-dot"}`}
           />
         ))}
       </span>
-      <Text as="span" variant="caption" className="text-otto-label-muted">
+      <Text as="span" variant="meta" className="ml-[5px]">
         {cycle}/4
       </Text>
     </div>
   );
 }
 
-export function FocusTimerBody({
-  snapshot,
-  pending,
-  onStart,
-  onPause,
-  onReset,
-  onStartNext,
-  onSelectPhase,
-}: {
+type TimerBodyProps = {
   snapshot: TimerSnapshot;
   pending: boolean;
   onStart: () => void;
@@ -74,109 +70,120 @@ export function FocusTimerBody({
   onReset: () => void;
   onStartNext: () => void;
   onSelectPhase: (phase: TimerPhase, trigger: HTMLButtonElement) => void;
-}) {
+};
+
+function CompletedBody({ snapshot, pending, onReset, onStartNext }: TimerBodyProps) {
+  return (
+    <>
+      <div className="flex min-h-0 flex-1 items-center gap-2 px-5 pb-[5px] pt-[9px]">
+        <div className="min-w-0 flex-1" role="status">
+          <Text
+            as="h2"
+            variant="heading"
+            className="m-0 text-otto-focus-completion! font-medium! tracking-[-0.035em]"
+          >
+            {completionTitle(snapshot)}
+          </Text>
+          <Text as="p" variant="meta" className="mb-0 mt-1 text-otto-text-secondary">
+            {completionHint(snapshot)}
+          </Text>
+        </div>
+        <Button
+          variant="primary"
+          disabled={pending}
+          onClick={onStartNext}
+          className="rounded-full! px-3 py-2.5 text-otto-sm! font-[550]! leading-[normal]!"
+        >
+          {nextActionLabel(snapshot)}
+        </Button>
+      </div>
+      <footer className="flex h-[49px] shrink-0 items-center justify-between gap-2 px-[18px] pb-[11px] pt-[3px]">
+        <Text as="span" variant="meta" className="text-otto-label-faded">
+          {snapshot.phase === "focus"
+            ? `${completedFocusCycle(snapshot)} of 4 focus sessions`
+            : "Ready for your next focus"}
+        </Text>
+        <IconButton
+          icon="reset"
+          label="Reset current session"
+          variant="round"
+          disabled={pending}
+          onClick={onReset}
+          className="otto-focus-control"
+        />
+      </footer>
+    </>
+  );
+}
+
+export function FocusTimerBody(props: TimerBodyProps) {
+  const { snapshot, pending, onStart, onPause, onReset, onSelectPhase } = props;
   const motion = useFocusFeedbackMotion(snapshot);
   const statusMotionClass = focusStatusMotionClass(motion.statusMotion);
   const phaseMotionClass =
     motion.phaseKey > 0 ? "animate-otto-focus-phase motion-reduce:animate-none" : "";
-
-  if (snapshot.status === "completed") {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col justify-between px-4 pb-3 pt-3">
-        <div className="min-w-0" role="status">
-          <div key={motion.statusKey} className={`relative ${statusMotionClass}`}>
-            {motion.statusMotion === "complete" && (
-              <span
-                className="pointer-events-none absolute right-0 top-0 flex gap-1"
-                aria-hidden="true"
-              >
-                {[1, 2, 3].map((spark) => (
-                  <i
-                    key={spark}
-                    className="otto-focus-spark h-1 w-1 rounded-full bg-otto-completion-soft animate-otto-focus-spark motion-reduce:animate-none"
-                  />
-                ))}
-              </span>
-            )}
-            <Text as="h2" variant="heading" className="m-0 text-otto-completion-soft">
-              {completionTitle(snapshot)}
-            </Text>
-            <Text as="p" variant="meta" className="mb-0 mt-1 text-otto-text-secondary">
-              {completionHint(snapshot)}
-            </Text>
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <Text as="span" variant="caption" className="text-otto-label-muted">
-            {snapshot.phase === "focus"
-              ? `${completedFocusCycle(snapshot.completedFocusSessions)} of 4 focus sessions`
-              : "Ready for your next focus"}
-          </Text>
-          <div className="flex items-center gap-1.5">
-            <IconButton
-              icon="reset"
-              label="Reset current session"
-              variant="outlined"
-              disabled={pending}
-              onClick={onReset}
-            />
-            <Button variant="primary" size="xs" disabled={pending} onClick={onStartNext}>
-              {nextActionLabel(snapshot)}
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const running = snapshot.status === "running";
   return (
-    <div className="flex min-h-0 flex-1 flex-col justify-between px-4 pb-3 pt-3">
-      <div className="flex items-center justify-between gap-4">
-        <div key={motion.statusKey} className={`min-w-0 ${statusMotionClass}`}>
-          <Text as="p" variant="caption" className="m-0 text-otto-label-muted">
-            {snapshot.phase === "focus"
-              ? "Focus session"
-              : snapshot.phase === "short"
-                ? "Short break"
-                : "Long break"}
-          </Text>
-          <div key={motion.phaseKey} className={phaseMotionClass}>
-            <Text as="p" variant="display" className="m-0 mt-0.5 font-otto-mono tabular-nums">
-              {formatRemaining(snapshot.remainingSeconds)}
-            </Text>
-            <Text as="p" variant="meta" className="m-0 mt-0.5 text-otto-text-secondary">
-              {timerHint(snapshot)}
-            </Text>
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {snapshot.status === "completed" ? (
+        <div key={motion.statusKey} className={`flex min-h-0 flex-1 flex-col ${statusMotionClass}`}>
+          {motion.statusMotion === "complete" && (
+            <span
+              className="pointer-events-none absolute right-[30px] top-3 flex gap-1"
+              aria-hidden="true"
+            >
+              {[1, 2, 3].map((spark) => (
+                <i
+                  key={spark}
+                  className="otto-focus-spark h-1 w-1 rounded-full bg-otto-focus-running animate-otto-focus-spark motion-reduce:animate-none"
+                />
+              ))}
+            </span>
+          )}
+          <CompletedBody {...props} />
+        </div>
+      ) : (
+        <>
+          <div className="flex min-h-0 flex-1 items-center gap-3 px-5 pb-[5px] pt-[9px]">
+            <div key={motion.statusKey} className={`min-w-0 flex-1 ${statusMotionClass}`}>
+              <div key={motion.phaseKey} className={phaseMotionClass}>
+                <Text
+                  as="p"
+                  variant="display"
+                  className="m-0 text-otto-focus-countdown! font-normal! leading-[1.05]! tracking-[-0.045em] tabular-nums"
+                >
+                  {formatRemaining(snapshot.remainingSeconds)}
+                </Text>
+                <Text as="p" variant="meta" className="mb-0 mt-[5px] text-otto-focus-hint">
+                  {timerHint(snapshot)}
+                </Text>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-[5px]">
+              <IconButton
+                icon={running ? "pause" : "play"}
+                label={primaryActionLabel(snapshot)}
+                variant={running ? "round" : "primary"}
+                disabled={pending}
+                onClick={running ? onPause : onStart}
+                className={`otto-focus-control ${running ? "" : "otto-focus-primary"}`}
+              />
+              <IconButton
+                icon="reset"
+                label="Reset current session"
+                variant="round"
+                disabled={pending}
+                onClick={onReset}
+                className="otto-focus-control"
+              />
+            </div>
           </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <IconButton
-            icon={running ? "pause" : "play"}
-            label={
-              running
-                ? "Pause timer"
-                : snapshot.status === "paused"
-                  ? "Resume timer"
-                  : "Start timer"
-            }
-            variant={running ? "outlined" : "primary"}
-            disabled={pending}
-            onClick={running ? onPause : onStart}
-          />
-          <IconButton
-            icon="reset"
-            label="Reset current session"
-            variant="outlined"
-            disabled={pending}
-            onClick={onReset}
-          />
-        </div>
-      </div>
-      <footer className="flex items-center justify-between gap-3">
-        <PhaseSelector phase={snapshot.phase} disabled={pending} onSelect={onSelectPhase} />
-        <SessionCycle completedFocusSessions={snapshot.completedFocusSessions} />
-      </footer>
+          <footer className="flex h-[49px] shrink-0 items-center justify-between gap-2 px-[18px] pb-[11px] pt-[3px]">
+            <PhaseSelector phase={snapshot.phase} disabled={pending} onSelect={onSelectPhase} />
+            <SessionCycle snapshot={snapshot} />
+          </footer>
+        </>
+      )}
     </div>
   );
 }

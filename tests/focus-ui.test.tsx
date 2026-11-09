@@ -143,6 +143,134 @@ test("active Focus phase change requires an explicit discard confirmation", asyn
   await waitFor(() => expect(recorded.select).toEqual([["short", true]]));
 });
 
+test("Focus Home control renders Otto eyes and preserves the active session", () => {
+  const recorded = calls();
+  let homeVisits = 0;
+  render(
+    <FocusPanel
+      focus={focusModel(timerSnapshot({ status: "running", remainingSeconds: 1_490 }), recorded)}
+      settings={false}
+      onSettings={() => {}}
+      onSettingsBack={() => {}}
+      onHome={() => { homeVisits += 1; }}
+    />,
+  );
+
+  const home = screen.getByRole("button", { name: "Back to Home" });
+  expect(home.querySelector('[data-expression="calm"]')).not.toBeNull();
+  fireEvent.click(home);
+  expect(homeVisits).toBe(1);
+  expect(screen.getByText("24:50")).toBeTruthy();
+  expect(recorded.pause).toBe(0);
+});
+
+test("phase confirmation contains keyboard navigation and Escape keeps the timer", async () => {
+  const recorded = calls();
+  render(
+    <FocusPanel
+      focus={focusModel(timerSnapshot({ status: "paused" }), recorded)}
+      settings={false}
+      onSettings={() => {}}
+      onSettingsBack={() => {}}
+      onHome={() => {}}
+    />,
+  );
+  const phase = screen.getByRole("button", { name: "Long" });
+  fireEvent.click(phase);
+  const keep = screen.getByRole("button", { name: "Keep timer" });
+  const change = screen.getByRole("button", { name: "Switch phase" });
+  await waitFor(() => expect(document.activeElement === keep).toBe(true));
+  fireEvent.keyDown(keep, { key: "Tab", shiftKey: true });
+  expect(document.activeElement === change).toBe(true);
+  fireEvent.keyDown(change, { key: "Tab" });
+  expect(document.activeElement === keep).toBe(true);
+  fireEvent.keyDown(keep, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(recorded.select).toEqual([]);
+  expect(document.activeElement).toBe(phase);
+});
+
+test("a pending or rejected phase switch keeps the dialog recoverable", async () => {
+  const recorded = calls();
+  const model = focusModel(timerSnapshot({ status: "paused" }), recorded);
+  model.selectPhase = async () => false;
+  const panel = (pending: boolean) => (
+    <FocusPanel
+      focus={{ ...model, pending }}
+      settings={false}
+      onSettings={() => {}}
+      onSettingsBack={() => {}}
+      onHome={() => {}}
+    />
+  );
+  const view = render(panel(false));
+  fireEvent.click(screen.getByRole("button", { name: "Short" }));
+  fireEvent.click(screen.getByRole("button", { name: "Switch phase" }));
+  await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+  view.rerender(panel(true));
+  const dialog = screen.getByRole("dialog");
+  await waitFor(() => expect(document.activeElement === dialog).toBe(true));
+  fireEvent.keyDown(dialog, { key: "Tab" });
+  expect(document.activeElement === dialog).toBe(true);
+  expect((screen.getByRole("button", { name: "Switch phase" }) as HTMLButtonElement).disabled).toBe(true);
+  view.rerender(panel(false));
+  fireEvent.keyDown(dialog, { key: "Tab" });
+  expect(document.activeElement === screen.getByRole("button", { name: "Keep timer" })).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Keep timer" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(screen.getByRole("button", { name: "Resume timer" })).toBeTruthy();
+});
+
+test("compact completion starts the next phase only through its primary action", () => {
+  let starts = 0;
+  render(
+    <FocusCapsule
+      snapshot={timerSnapshot({ status: "completed", remainingSeconds: 0, completedFocusSessions: 4 })}
+      pending={false}
+      buttonRef={createRef()}
+      onOpen={() => {}}
+      onStart={() => { throw new Error("Completed sessions cannot resume"); }}
+      onPause={() => {}}
+      onStartNext={() => { starts += 1; }}
+    />,
+  );
+  expect(screen.getByText("Complete")).toBeTruthy();
+  expect(starts).toBe(0);
+  fireEvent.click(screen.getByRole("button", { name: "Start long break" }));
+  expect(starts).toBe(1);
+});
+
+test("short breaks render the canonical padded countdown", () => {
+  const recorded = calls();
+  render(
+    <FocusPanel
+      focus={focusModel(timerSnapshot({ phase: "short", remainingSeconds: 300 }), recorded)}
+      settings={false}
+      onSettings={() => {}}
+      onSettingsBack={() => {}}
+      onHome={() => {}}
+    />,
+  );
+  expect(screen.getByText("05:00")).toBeTruthy();
+});
+
+test("cycle dots restart after four sessions but retain the completed long-break cycle", () => {
+  const recorded = calls();
+  const panel = (snapshot: TimerSnapshot) => (
+    <FocusPanel
+      focus={focusModel(snapshot, recorded)}
+      settings={false}
+      onSettings={() => {}}
+      onSettingsBack={() => {}}
+      onHome={() => {}}
+    />
+  );
+  const view = render(panel(timerSnapshot({ completedFocusSessions: 4 })));
+  expect(screen.queryByText("0/4") !== null).toBe(true);
+  view.rerender(panel(timerSnapshot({ phase: "long", completedFocusSessions: 4 })));
+  expect(screen.queryByText("4/4") !== null).toBe(true);
+});
+
 test("duration settings send the complete adjusted duration contract", async () => {
   const recorded = calls();
   render(

@@ -80,7 +80,7 @@ pub(crate) struct FocusTimerState {
     phase: TimerPhase,
     status: TimerStatus,
     durations: TimerDurations,
-    remaining_seconds: u32,
+    remaining_duration: Duration,
     deadline: Option<Instant>,
     completed_focus_sessions: u32,
     revision: u64,
@@ -92,7 +92,9 @@ impl Default for FocusTimerState {
         Self {
             phase: TimerPhase::Focus,
             status: TimerStatus::Ready,
-            remaining_seconds: durations.seconds_for(TimerPhase::Focus),
+            remaining_duration: Duration::from_secs(u64::from(
+                durations.seconds_for(TimerPhase::Focus),
+            )),
             durations,
             deadline: None,
             completed_focus_sessions: 0,
@@ -109,7 +111,7 @@ impl FocusTimerState {
             TimerStatus::Running => Ok(changed),
             TimerStatus::Ready | TimerStatus::Paused => {
                 self.status = TimerStatus::Running;
-                self.deadline = Some(now + Duration::from_secs(u64::from(self.remaining_seconds)));
+                self.deadline = Some(now + self.remaining_duration);
                 self.revision += 1;
                 Ok(true)
             }
@@ -129,16 +131,17 @@ impl FocusTimerState {
 
     pub(crate) fn reset(&mut self, now: Instant) -> bool {
         let changed = self.refresh(now);
-        let remaining_seconds = self.durations.seconds_for(self.phase);
+        let remaining_duration =
+            Duration::from_secs(u64::from(self.durations.seconds_for(self.phase)));
         if self.status == TimerStatus::Ready
             && self.deadline.is_none()
-            && self.remaining_seconds == remaining_seconds
+            && self.remaining_duration == remaining_duration
         {
             return changed;
         }
         self.status = TimerStatus::Ready;
         self.deadline = None;
-        self.remaining_seconds = remaining_seconds;
+        self.remaining_duration = remaining_duration;
         self.revision += 1;
         true
     }
@@ -153,10 +156,12 @@ impl FocusTimerState {
         if self.durations == durations {
             return Ok(changed);
         }
-        let previous_duration = self.durations.seconds_for(self.phase);
+        let previous_duration =
+            Duration::from_secs(u64::from(self.durations.seconds_for(self.phase)));
         self.durations = durations;
-        if self.status == TimerStatus::Ready && self.remaining_seconds == previous_duration {
-            self.remaining_seconds = self.durations.seconds_for(self.phase);
+        if self.status == TimerStatus::Ready && self.remaining_duration == previous_duration {
+            self.remaining_duration =
+                Duration::from_secs(u64::from(self.durations.seconds_for(self.phase)));
         }
         self.revision += 1;
         Ok(true)
@@ -178,7 +183,7 @@ impl FocusTimerState {
         self.phase = phase;
         self.status = TimerStatus::Ready;
         self.deadline = None;
-        self.remaining_seconds = self.durations.seconds_for(phase);
+        self.remaining_duration = Duration::from_secs(u64::from(self.durations.seconds_for(phase)));
         self.revision += 1;
         Ok(true)
     }
@@ -196,8 +201,9 @@ impl FocusTimerState {
             TimerPhase::Short | TimerPhase::Long => TimerPhase::Focus,
         };
         self.status = TimerStatus::Running;
-        self.remaining_seconds = self.durations.seconds_for(self.phase);
-        self.deadline = Some(now + Duration::from_secs(u64::from(self.remaining_seconds)));
+        self.remaining_duration =
+            Duration::from_secs(u64::from(self.durations.seconds_for(self.phase)));
+        self.deadline = Some(now + self.remaining_duration);
         self.revision += 1;
         Ok(true)
     }
@@ -209,11 +215,12 @@ impl FocusTimerState {
         let Some(deadline) = self.deadline else {
             return false;
         };
-        let remaining_seconds = remaining_seconds_at(deadline, now);
-        if remaining_seconds == self.remaining_seconds {
+        let previous_seconds = rounded_seconds(self.remaining_duration);
+        self.remaining_duration = deadline.saturating_duration_since(now);
+        let remaining_seconds = rounded_seconds(self.remaining_duration);
+        if remaining_seconds == previous_seconds {
             return false;
         }
-        self.remaining_seconds = remaining_seconds;
         if remaining_seconds == 0 {
             self.status = TimerStatus::Completed;
             self.deadline = None;
@@ -245,7 +252,7 @@ impl FocusTimerState {
             revision: self.revision,
             phase: self.phase,
             status: self.status,
-            remaining_seconds: self.remaining_seconds,
+            remaining_seconds: rounded_seconds(self.remaining_duration),
             durations: self.durations.clone(),
             completed_focus_sessions: self.completed_focus_sessions,
         }
@@ -257,7 +264,10 @@ impl FocusTimerState {
 }
 
 fn remaining_seconds_at(deadline: Instant, now: Instant) -> u32 {
-    let remaining = deadline.saturating_duration_since(now);
+    rounded_seconds(deadline.saturating_duration_since(now))
+}
+
+fn rounded_seconds(remaining: Duration) -> u32 {
     let seconds = remaining.as_secs();
     let rounded = seconds.saturating_add(u64::from(remaining.subsec_nanos() > 0));
     u32::try_from(rounded).unwrap_or(u32::MAX)
@@ -281,6 +291,47 @@ mod tests {
         timer.pause(now + Duration::from_secs(20)).unwrap();
 
         assert_eq!(timer.snapshot().remaining_seconds, 1_480);
+    }
+
+    #[test]
+    fn subsecond_pause_resume_does_not_extend_the_session() {
+        let now = Instant::now();
+        let mut timer = FocusTimerState::default();
+        timer
+            .configure(
+                TimerDurations {
+                    focus: 1,
+                    short: 5,
+                    long: 15,
+                },
+                now,
+            )
+            .unwrap();
+
+        timer.start(now).unwrap();
+        timer.pause(now + Duration::from_millis(250)).unwrap();
+        timer.refresh(now + Duration::from_secs(1_000));
+        assert_eq!(timer.snapshot().status, TimerStatus::Paused);
+        assert_eq!(timer.snapshot().remaining_seconds, 60);
+
+        let first_resume = now + Duration::from_secs(3_600);
+        timer.start(first_resume).unwrap();
+        timer
+            .pause(first_resume + Duration::from_millis(750))
+            .unwrap();
+        assert_eq!(timer.snapshot().remaining_seconds, 59);
+
+        let second_resume = now + Duration::from_secs(7_200);
+        timer.start(second_resume).unwrap();
+        timer.refresh(second_resume + Duration::from_millis(58_999));
+        assert_eq!(timer.snapshot().status, TimerStatus::Running);
+        assert_eq!(timer.snapshot().remaining_seconds, 1);
+
+        timer.refresh(second_resume + Duration::from_secs(59));
+        assert_eq!(timer.snapshot().status, TimerStatus::Completed);
+        assert_eq!(timer.snapshot().remaining_seconds, 0);
+        timer.refresh(second_resume + Duration::from_secs(120));
+        assert_eq!(timer.snapshot().completed_focus_sessions, 1);
     }
 
     #[test]

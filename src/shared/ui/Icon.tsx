@@ -1,4 +1,5 @@
 import {
+  ArrowRight,
   Battery,
   BatteryCharging,
   BatteryLow,
@@ -6,6 +7,8 @@ import {
   Camera,
   Check,
   CircleCheck,
+  CirclePlus,
+  Clock3,
   ChevronLeft,
   CircleAlert,
   Copy,
@@ -39,6 +42,7 @@ import {
 const icons = {
   settings: Settings,
   back: ChevronLeft,
+  forward: ArrowRight,
   close: X,
   camera: Camera,
   send: Send,
@@ -51,6 +55,8 @@ const icons = {
   unavailable: CircleAlert,
   terminal: Terminal,
   timer: Timer,
+  clock: Clock3,
+  durationSettings: CirclePlus,
   play: Play,
   pause: Pause,
   reset: RotateCcw,

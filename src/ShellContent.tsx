@@ -26,6 +26,7 @@ function surfaceKey(
     if (page === "focus" || page === "focus-settings") return "compact-focus";
     return isAgent ? "compact-agent" : isMusic ? "compact-music" : "compact-home";
   }
+  if (page === "focus" || page === "focus-settings") return "focus";
   return isAgent ? "agent" : isMusic ? "music" : page;
 }
 
@@ -37,7 +38,7 @@ function isCompactExpandedPair(a: string, b: string): boolean {
     (a === "agent" && b === "compact-agent") ||
     (a === "compact-music" && b === "music") ||
     (a === "compact-focus" && b === "focus") ||
-    (a === "focus" && b === "compact-focus")
+    (a === "focus" && b === "compact-focus") ||
     (a === "music" && b === "compact-music")
   );
 }
