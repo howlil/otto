@@ -8,6 +8,7 @@ import type { FocusTimerModel } from "./features/focus";
 import type { useMusic } from "./features/music";
 import type { OsEventView } from "./platform/tauri";
 import { ShellContent } from "./ShellContent";
+import { OttoLogoProvider } from "./shared/ui";
 
 type AgentModel = ReturnType<typeof useAgent>;
 type MusicModel = ReturnType<typeof useMusic>;
@@ -56,57 +57,59 @@ export function ShellView({
 }) {
   const attached = shell.placement.applied === "attached";
   return (
-    <ShellFrame
-      placement={shell.placement.applied}
-      gutter={gutter}
-      size={size}
-      nativeSize={nativeSize}
-      morphMs={morphMs}
-      stageRef={stageRef}
-    >
-      <main
-        className={`relative isolate h-full w-full overflow-hidden border border-otto-line bg-otto-surface text-otto-text ${attached ? "rounded-t-none rounded-b-otto-attached border-t-transparent" : shell.expanded ? "rounded-otto-expanded" : "rounded-otto-island"} transition-[border-radius] duration-[var(--otto-morph-duration)] ease-otto`}
-        style={
-          {
-            "--otto-morph-duration": morphMilliseconds(shell.prefs.motion),
-          } as CSSProperties
-        }
-        data-reduced={shell.reducedMotion ? "true" : undefined}
-        onPointerEnter={osEvent ? undefined : shell.handleEnter}
-        onPointerLeave={shell.handleLeave}
-        onKeyDown={(event) => {
-          if (osEvent) {
-            event.preventDefault();
-            onDismissOsEvent();
-            return;
-          }
-          shell.handleEscape(event);
-        }}
-        onPointerDown={() => {
-          if (osEvent) {
-            onDismissOsEvent();
-            return;
-          }
-          if (shell.expanded && !shell.pinned) shell.pin();
-        }}
+    <OttoLogoProvider value={shell.prefs}>
+      <ShellFrame
+        placement={shell.placement.applied}
+        gutter={gutter}
+        size={size}
+        nativeSize={nativeSize}
+        morphMs={morphMs}
+        stageRef={stageRef}
       >
-        <div className="absolute inset-0">
-          <ShellContent
-            agent={agent}
-            music={music}
-            focus={focus}
-            shell={shell}
-            agentHomeCopy={agentHomeCopy}
-            musicHomeCopy={musicHomeCopy}
-            artProps={artProps}
-            onContentMeasured={onContentMeasured}
-            appUpdate={appUpdate}
-            osEvent={osEvent}
-            frameSize={size}
-          />
-          <SurfaceError message={surfaceError} expanded={shell.expanded} />
-        </div>
-      </main>
-    </ShellFrame>
+        <main
+          className={`relative isolate h-full w-full overflow-hidden border border-otto-line bg-otto-surface text-otto-text ${attached ? "rounded-t-none rounded-b-otto-attached border-t-transparent" : shell.expanded ? "rounded-otto-expanded" : "rounded-otto-island"} transition-[border-radius] duration-[var(--otto-morph-duration)] ease-otto`}
+          style={
+            {
+              "--otto-morph-duration": morphMilliseconds(shell.prefs.motion),
+            } as CSSProperties
+          }
+          data-reduced={shell.reducedMotion ? "true" : undefined}
+          onPointerEnter={osEvent ? undefined : shell.handleEnter}
+          onPointerLeave={shell.handleLeave}
+          onKeyDown={(event) => {
+            if (osEvent) {
+              event.preventDefault();
+              onDismissOsEvent();
+              return;
+            }
+            shell.handleEscape(event);
+          }}
+          onPointerDown={() => {
+            if (osEvent) {
+              onDismissOsEvent();
+              return;
+            }
+            if (shell.expanded && !shell.pinned) shell.pin();
+          }}
+        >
+          <div className="absolute inset-0">
+            <ShellContent
+              agent={agent}
+              music={music}
+              focus={focus}
+              shell={shell}
+              agentHomeCopy={agentHomeCopy}
+              musicHomeCopy={musicHomeCopy}
+              artProps={artProps}
+              onContentMeasured={onContentMeasured}
+              appUpdate={appUpdate}
+              osEvent={osEvent}
+              frameSize={size}
+            />
+            <SurfaceError message={surfaceError} expanded={shell.expanded} />
+          </div>
+        </main>
+      </ShellFrame>
+    </OttoLogoProvider>
   );
 }

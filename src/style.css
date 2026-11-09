@@ -707,15 +707,6 @@ h4.md-h {
   margin: 4px 0;
 }
 
-.otto-focus-home [data-expression] {
-  width: 31px;
-  column-gap: 7px;
-}
-
-:where(.otto-focus-home [data-expression]) i {
-  background: var(--color-otto-focus-eye);
-}
-
 .otto-focus-primary {
   background: var(--color-otto-focus-primary);
   color: var(--color-otto-invert-text);

@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { Eyes, IconButton, Text, VisuallyHidden } from "../../shared/ui";
+import { IconButton, OttoHomeButton, Text } from "../../shared/ui";
 import type { AgentProvider, AgentStatus, ProviderReadiness } from "../../platform/tauri";
 import { agentStatusColor, agentStatusLabel, capturePhaseLabel } from "./status";
 import { providerLabel } from "./history-model";
@@ -50,16 +50,7 @@ export function BackControl({
       />
     );
   }
-  return (
-    <button
-      className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-otto-panel border-0 bg-otto-raised-soft text-otto-control-text transition-[background,transform] duration-150 hover:bg-otto-line-mid active:scale-[0.96]"
-      type="button"
-      onClick={onHome}
-    >
-      <Eyes mini />
-      <VisuallyHidden>Return to Home</VisuallyHidden>
-    </button>
-  );
+  return <OttoHomeButton label="Return to Home" onClick={onHome} />;
 }
 
 export function Identity({

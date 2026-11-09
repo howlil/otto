@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FocusEvent } from "react";
 import type { MediaCommand, MediaSnapshot } from "../../platform/tauri/media";
-import { Button, Eyes, StatusMessage, Text, VisuallyHidden } from "../../shared/ui";
+import { Button, OttoHomeButton, StatusMessage, Text } from "../../shared/ui";
 import { MusicLyrics } from "./MusicLyrics";
 import { Artwork, PlaybackControls, SeekBar } from "./MusicPlayback";
 import { playbackPosition, trackKey } from "./lyrics-model";
@@ -64,17 +64,8 @@ export function MusicPanel({
       data-surface={lyrics.open ? "music-lyrics" : "music"}
       onFocusCapture={focus.rememberFocus}
     >
-      <header className="flex h-8 shrink-0 items-center gap-2 border-b border-otto-line-mid pb-1">
-        <Button
-          ref={focus.homeButton}
-          variant="secondary"
-          size="xs"
-          className="px-1"
-          onClick={onBack}
-        >
-          <Eyes mini />
-          <VisuallyHidden>Back to Home</VisuallyHidden>
-        </Button>
+      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-otto-line-mid pb-1">
+        <OttoHomeButton ref={focus.homeButton} onClick={onBack} />
         <Text as="h1" id="otto-music-title" variant="title" className="text-otto-text-bright">
           Music
         </Text>

@@ -162,8 +162,11 @@ button{touch-action:manipulation}
 .hf-head strong{font-size:13px;font-weight:520;letter-spacing:-.01em}
 .hf-logo{height:34px;width:34px;display:grid;place-items:center;border:0;background:#29292c;color:#f0f0f0;border-radius:11px;flex:none}
 .hf-logo:hover{background:#37373a}
-.hf-eyes{width:28px;height:23px;display:flex;align-items:center;justify-content:center;gap:8px}
-.hf-eyes i{height:13px;width:6px;border-radius:6px;background:#fafafa}
+.hf-eyes{width:32px;height:23px;display:flex;align-items:center;justify-content:center;gap:8px}
+.hf-eyes i{height:14px;width:10px;border-radius:7px;background:#fafafa}
+.otto-logo-slot{display:contents}
+.otto-home-button{height:34px;width:34px;display:grid;place-items:center;flex:none;border:0;padding:0;background:transparent;color:inherit}
+.otto-home-button:active .hf-logo{transform:scale(.96)}
 .hf-head .icon-button{width:28px;height:28px;border-radius:9px}
 .home-panels{margin-top:8px;gap:8px}
 .module{height:76px;min-height:0;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:12px;border:1px solid #343842;border-radius:15px;background:#23262d;position:relative;overflow:hidden;transition:border-color 160ms}
@@ -181,9 +184,6 @@ button{touch-action:manipulation}
 .module:hover .module-art{opacity:1}
 .af{height:100%;width:100%;display:flex;flex-direction:column;min-height:0}
 .af-head{height:53px;padding:9px 15px 5px;display:flex;align-items:center;gap:9px;flex:none}
-.af-eyebutton{width:34px;height:34px;background:#29292c;border:0;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:6px;flex:none}
-.af-eyebutton i{height:12px;width:5px;background:#f4f4f4;border-radius:7px}
-.af-eyebutton:hover{background:#37373a}
 .af-identity{min-width:0;flex:1}
 .af-identity strong{font-size:12px;font-weight:590;white-space:nowrap;display:block;overflow:hidden;text-overflow:ellipsis}
 .af-identity strong em{color:#86868b;font-style:normal;font-weight:400}
@@ -380,13 +380,14 @@ button{touch-action:manipulation}
 
 /* Connected behavior of Global preferences, matching Home study */
 .module .module-art{opacity:var(--art-opacity,.9);transform:perspective(380px) rotateY(calc(-1 * var(--art-tilt,43deg))) rotateZ(-6deg)}
-.hf-eyes.expression-sleepy i,.eye-pair.expression-sleepy .eye{height:4px;border-radius:5px}
-.hf-eyes.expression-curious i:first-child,.eye-pair.expression-curious .eye:first-child{height:16px}
-.hf-eyes.expression-curious i:last-child,.eye-pair.expression-curious .eye:last-child{height:9px}
-.hf-eyes.expression-happy i,.eye-pair.expression-happy .eye{height:8px;width:10px;background:transparent;border:2px solid #fafafa;border-bottom:0;border-radius:10px 10px 0 0}
+.notch[data-logo-expression="sleepy"] .hf-eyes i,.eye-pair.expression-sleepy .eye{height:4px;border-radius:5px}
+.notch[data-logo-expression="curious"] .hf-eyes i:first-child,.eye-pair.expression-curious .eye:first-child{height:16px}
+.notch[data-logo-expression="curious"] .hf-eyes i:last-child,.eye-pair.expression-curious .eye:last-child{height:9px}
+.notch[data-logo-expression="happy"] .hf-eyes i,.eye-pair.expression-happy .eye{height:8px;width:10px;background:transparent;border:2px solid #fafafa;border-bottom:0;border-radius:10px 10px 0 0}
 @keyframes otto-blink{0%,95%,100%{transform:scaleY(1)}97%{transform:scaleY(.08)}}
-.hf-eyes.expressive i,.eye-pair.expressive .eye{animation:otto-blink 9.5s ease-in-out infinite}
-@media(prefers-reduced-motion:reduce){.hf-eyes.expressive i,.eye-pair.expressive .eye{animation:none!important}}
+.notch[data-logo-reactive="Alive"] .hf-eyes i,.eye-pair.expressive .eye{animation:otto-blink 9.5s ease-in-out infinite}
+.motion-reduced .hf-eyes i{animation:none!important}
+@media(prefers-reduced-motion:reduce){.hf-eyes i,.eye-pair.expressive .eye{animation:none!important}}
 
 /* Agent Settings: same sidebar system as Global Settings; capture configuration stays here */
 .as-root{display:flex;flex-direction:column;height:100%;width:100%;border-radius:inherit;overflow:hidden;background:#101114;color:#fafafa}
@@ -468,9 +469,6 @@ button{touch-action:manipulation}
 .ref-music .no-media .mark{height:28px;width:28px;border-radius:50%;background:#2c2c2c;display:grid;place-items:center}
 .ref-music .expanded{height:100%;display:flex;flex-direction:column;min-height:0}
 .ref-music .head{height:40px;flex-shrink:0;padding:0 17px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #303030}
-.ref-music .home{height:27px;width:27px;display:grid;place-items:center;border:0;background:#2a2a2a;color:#f0f0f0;border-radius:9px}
-.ref-music .eyes{display:flex;gap:5px}
-.ref-music .eyes i{width:4px;height:10px;background:#fff;border-radius:4px}
 .ref-music .head strong{font-weight:500;font-size:12px}
 .ref-music .source{margin-left:auto;color:#969696;font-size:10px}
 .ref-music .lyrics-switch{border:0;border-radius:9px;background:#2b2b2b;color:#e3e3e3;display:flex;align-items:center;gap:5px;font-size:11px;padding:6px 9px;transition:background .15s}
@@ -533,8 +531,6 @@ button{touch-action:manipulation}
 @keyframes swap-art{from{opacity:.35;transform:scale(.86)}to{opacity:1;transform:scale(1)}}.ref-music .track-enter .details,.ref-music .track-enter .meta{animation:swap-meta .21s var(--ease)}
 @keyframes swap-meta{from{opacity:.1;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .ref-focus .ico{width:16px;height:16px;stroke:currentColor;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.8}
-.ref-focus .eyes{display:inline-flex;align-items:center;justify-content:center;gap:7px;width:31px;height:23px}
-.ref-focus .eyes i{width:5px;height:12px;background:#f8f8f8;border-radius:5px}
 .ref-focus .round-icon{width:31px;height:31px;background:#2a2a2a;border-radius:50%;display:grid;place-items:center;flex-shrink:0;color:#e8e8e8}
 .ref-focus .button-icon{width:32px;height:32px;border:0;display:grid;place-items:center;border-radius:50%;background:transparent;color:#dedede;flex-shrink:0;transition:transform .12s ease,background .16s}
 .ref-focus .button-icon:hover{background:#383838}
@@ -552,8 +548,6 @@ button{touch-action:manipulation}
 .ref-focus .compact.completed .small-label{color:#b6d7c0}
 .ref-focus .expanded-view{height:100%;display:flex;flex-direction:column}
 .ref-focus .head{height:42px;display:flex;gap:9px;align-items:center;flex-shrink:0;padding:0 17px;border-bottom:1px solid #303030}
-.ref-focus .homekey{height:29px;width:32px;display:grid;place-items:center;border:0;border-radius:10px;background:#292929;color:inherit}
-.ref-focus .homekey:hover{background:#383838}
 .ref-focus .head-title{font-size:12px;font-weight:550}
 .ref-focus .head-status{font-size:10px;color:#a4a4a4;margin-left:auto;display:flex;align-items:center;gap:7px}
 .ref-focus .statusdot{width:6px;height:6px;border-radius:50%;background:#7b7b7b}
@@ -611,8 +605,7 @@ button{touch-action:manipulation}
 .ref-focus .quiet-led.completed{background:#c6ddce}
 .ref-focus .button-icon.primary:active,.ref-focus .start-next:active,.ref-focus .settings-footer button:active{transform:scale(.89)}
 .ref-focus .button-icon:not(.primary):hover .ico,.ref-focus .gear:hover .ico{transform:rotate(13deg);transition:transform 190ms var(--ease)}
-.ref-focus .homekey:hover .eyes i:first-child{animation:eye-blink 270ms ease both}
-@keyframes eye-blink{45%{transform:scaleY(.18)}100%{transform:scaleY(1)}}.ref-focus .phase-toggle button.active{animation:phase-pick 290ms var(--ease) both}
+.ref-focus .phase-toggle button.active{animation:phase-pick 290ms var(--ease) both}
 @keyframes phase-pick{0%{transform:translateX(-4px);opacity:.7}65%{transform:translateX(1px);opacity:1}100%{transform:translateX(0)}}.ref-focus .statusdot{transition:background 180ms var(--ease)}
 .ref-focus .expressive .quiet-led.running,.ref-focus .expressive .statusdot.running{animation:focus-live 2.7s ease-in-out infinite}
 @keyframes focus-live{0%,100%{opacity:1}50%{opacity:.4}}.ref-focus .timehint{min-height:13px}
@@ -649,6 +642,8 @@ import {House,Terminal,Music2,Timer,Settings2,ArrowLeft,ChevronRight,ChevronDown
 
 const ICONS={House,Terminal,Music2,Timer,Settings2,ArrowLeft,ChevronRight,ChevronDown,Play,Pause,SkipBack,SkipForward,Camera,Send,Square,Copy,Check,Wifi,Bluetooth,Volume2,Sun,BatteryCharging,Headphones,Mouse,Monitor,SlidersHorizontal,MessageSquare,RotateCcw,Plus,Minus,Music,Disc3,Focus,Command,CheckCircle2,AlertCircle,ArrowUpRight,LockKeyhole,X,History,Pencil,Trash2,Search};
 const el=(tag,props,...children)=>h(tag,props,...children);
+const OTTO_LOGO_MARKUP='<span class="hf-logo" data-otto-logo="true" aria-hidden="true"><span class="hf-eyes"><i></i><i></i></span></span>';
+function OttoLogo(){return el("span",{className:"otto-logo-slot",dangerouslySetInnerHTML:{__html:OTTO_LOGO_MARKUP}})}
 const Icon=({name,size=16,...rest})=>h(ICONS[name],{size,strokeWidth:1.7,"aria-hidden":true,...rest});
 function ActiveIndicatorGroup({activeKey,children,className="",indicatorClassName=""}){
  const ref=useRef(null);
@@ -715,7 +710,7 @@ function Compact({page,agent,music,timer,open,onToggle,prefs}){
 const HOME_ART={"agent":"<svg class=\"art-svg agent-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"ag-window\" x1=\"26\" y1=\"8\" x2=\"111\" y2=\"93\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#44474C\" stop-opacity=\".70\"/><stop offset=\"1\" stop-color=\"#2B2C30\" stop-opacity=\".17\"/></linearGradient><linearGradient id=\"ag-stroke\" x1=\"34\" y1=\"19\" x2=\"109\" y2=\"82\"><stop stop-color=\"#D3D5DA\" stop-opacity=\".56\"/><stop offset=\"1\" stop-color=\"#7D8087\" stop-opacity=\".15\"/></linearGradient></defs>\n<g class=\"agent-stack\"><rect x=\"43\" y=\"2\" width=\"84\" height=\"65\" rx=\"13\" stroke=\"#777A81\" stroke-opacity=\".16\" transform=\"rotate(11 43 2)\"/><rect x=\"27\" y=\"12\" width=\"92\" height=\"68\" rx=\"13\" fill=\"url(#ag-window)\" stroke=\"#8D9198\" stroke-opacity=\".21\"/></g>\n<g class=\"agent-window\"><rect x=\"17\" y=\"24\" width=\"94\" height=\"68\" rx=\"13\" fill=\"#26282C\" fill-opacity=\".8\" stroke=\"url(#ag-stroke)\" stroke-width=\"1.1\"/><path d=\"M18 44H110\" stroke=\"#CACCD0\" stroke-opacity=\".15\"/><circle cx=\"30\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".48\"/><circle cx=\"38\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".22\"/><circle cx=\"46\" cy=\"34\" r=\"2\" fill=\"#C6C9CE\" fill-opacity=\".16\"/>\n<path class=\"agent-prompt\" d=\"m32 58 8 7-8 7\" stroke=\"#E0E2E6\" stroke-opacity=\".89\" stroke-width=\"3.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path class=\"agent-caret\" d=\"M47 72H63\" stroke=\"#E0E2E6\" stroke-opacity=\".89\" stroke-width=\"3.2\" stroke-linecap=\"round\"/>\n<path d=\"M73 58h18M73 65h13M73 72h18\" stroke=\"#A2A5AD\" stroke-opacity=\".27\" stroke-width=\"2.5\" stroke-linecap=\"round\"/></g></svg>","music":"<svg class=\"art-svg music-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"mu-ink\" x1=\"60\" y1=\"10\" x2=\"103\" y2=\"91\"><stop stop-color=\"#DBDDE1\" stop-opacity=\".9\"/><stop offset=\"1\" stop-color=\"#A3A7B0\" stop-opacity=\".52\"/></linearGradient><linearGradient id=\"mu-wave\" x1=\"0\" y1=\"0\" x2=\"128\" y2=\"0\"><stop stop-color=\"#666970\" stop-opacity=\"0\"/><stop offset=\".55\" stop-color=\"#D2D6DB\" stop-opacity=\".42\"/><stop offset=\"1\" stop-color=\"#9299A3\" stop-opacity=\".05\"/></linearGradient></defs>\n<g class=\"wave-group\"><path class=\"music-wave one\" d=\"M-6 75C19 55 34 86 60 66s41-40 75-25\" stroke=\"url(#mu-wave)\" stroke-width=\"1.5\"/><path class=\"music-wave two\" d=\"M-5 83C22 63 38 94 65 73s42-35 71-19\" stroke=\"url(#mu-wave)\" stroke-opacity=\".6\" stroke-width=\"1.1\"/><path class=\"music-wave three\" d=\"M-4 67C18 49 36 76 62 56s43-37 71-28\" stroke=\"url(#mu-wave)\" stroke-opacity=\".4\" stroke-width=\"1\"/></g>\n<g class=\"music-note\" stroke=\"url(#mu-ink)\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M73 72V22L109 14V62\"/><path d=\"M73 23L109 15\"/><ellipse cx=\"61\" cy=\"77\" rx=\"13\" ry=\"8\" transform=\"rotate(-24 61 77)\" fill=\"#92969F\" fill-opacity=\".32\"/><ellipse cx=\"97\" cy=\"67\" rx=\"13\" ry=\"8\" transform=\"rotate(-24 97 67)\" fill=\"#92969F\" fill-opacity=\".32\"/></g></svg>","focus":"<svg class=\"art-svg focus-art\" viewBox=\"0 0 128 96\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\">\n<defs><linearGradient id=\"fo-ring\" x1=\"30\" y1=\"0\" x2=\"113\" y2=\"96\"><stop stop-color=\"#D7DADF\" stop-opacity=\".65\"/><stop offset=\".56\" stop-color=\"#93979F\" stop-opacity=\".25\"/><stop offset=\"1\" stop-color=\"#777B84\" stop-opacity=\".10\"/></linearGradient><radialGradient id=\"fo-face\" cx=\"0\" cy=\"0\" r=\"1\" gradientTransform=\"translate(76 43) rotate(90) scale(53)\"><stop stop-color=\"#3C3E43\" stop-opacity=\".55\"/><stop offset=\"1\" stop-color=\"#242629\" stop-opacity=\"0\"/></radialGradient></defs>\n<circle cx=\"78\" cy=\"49\" r=\"47\" stroke=\"#9EA1A7\" stroke-opacity=\".08\" stroke-width=\"1\"/><circle cx=\"78\" cy=\"49\" r=\"37\" fill=\"url(#fo-face)\" stroke=\"url(#fo-ring)\" stroke-width=\"1.5\"/><circle class=\"focus-progress\" cx=\"78\" cy=\"49\" r=\"37\" stroke=\"#B6BAC2\" stroke-opacity=\".62\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-dasharray=\"42 191\" transform=\"rotate(-90 78 49)\"/>\n<g stroke=\"#B8BBC2\" stroke-opacity=\".40\" stroke-linecap=\"round\" stroke-width=\"1.5\"><path d=\"M78 18v4M78 76v4M47 49h4M105 49h4\"/></g>\n<g class=\"clock-hand\" stroke=\"#D9DCE1\" stroke-linecap=\"round\" stroke-width=\"3.5\"><path d=\"M78 49V27\"/><path d=\"M78 49 94 60\" stroke-opacity=\".74\"/></g><circle cx=\"78\" cy=\"49\" r=\"4\" fill=\"#C7CBD2\"/><circle cx=\"78\" cy=\"49\" r=\"1.5\" fill=\"#34363B\"/></svg>"};
 function Home({onHomeSettings,onNavigate,agent,prefs,reduce}){
  const cards=[["agent","Agent",agent.unread?"Answer ready":"Ask your CLI"],["music","Music","Playback"],["focus","Focus","Pomodoro"]];
- const head=el("div",{className:"hf-head"},el("span",{className:"hf-logo"},el("span",{className:"hf-eyes expression-"+prefs.expression.toLowerCase()+(prefs.reactive==="Alive"&&!reduce?" expressive":"")},el("i"),el("i"))),el("span",{style:{flex:1}}),h(IconButton,{name:"Settings2",label:"Global settings",onClick:onHomeSettings}));
+ const head=el("div",{className:"hf-head"},h(OttoLogo),el("span",{style:{flex:1}}),h(IconButton,{name:"Settings2",label:"Global settings",onClick:onHomeSettings}));
  const items=cards.map(([page,title,sub])=>el("button",{key:page,type:"button",className:"module "+page+"-card",style:{"--art-tilt":prefs.tilt+"deg","--art-opacity":prefs.gradient/100},onClick:()=>onNavigate(page)},
     el("span",{className:"hf-copy"},el("strong",null,title),el("small",null,sub)),
     el("span",{className:"module-art",dangerouslySetInnerHTML:{__html:HOME_ART[page]}})));
@@ -914,7 +909,7 @@ function AgentPanel({agent,draft,onDraft,onStop,onSend,onSettings,onNewSession,o
  const captureLabel=capturePhase==="failed"?"Capture failed":capturePhase==="preparing"?"Preparing capture":capturePhase==="capturing"?"Capturing screen":capturePhase==="submitting"?"Sending image":capturePhase==="analyzing"?"Analyzing screenshot":"";
   const status=captureLabel|| (connectionUnavailable?"Connection unavailable":agent.readiness==="checking"?"Checking":agent.readiness==="unavailable"?"Unavailable":agent.readiness==="auth"?"Sign-in required":agent.readiness==="missing"?"CLI not found":agent.readiness==="unsupported"?"Unsupported":phase==="interrupted"?"Interrupted":phase==="failed"?"Request failed":phase==="error"?"Provider blocked":stopping?"Stopping":agent.busy?phase==="thinking"?"Thinking":"Responding":phase==="complete"?"Answer ready":phase==="stopped"?"Stopped":"Preview ready");
  const head=el("div",{className:"af-head"},
-  el("button",{type:"button",className:"af-eyebutton",onClick:onHome,"aria-label":"Return to Home"},el("i"),el("i")),
+  el("button",{type:"button",className:"otto-home-button",onClick:onHome,"aria-label":"Return to Home"},h(OttoLogo)),
     el("div",{className:"af-identity"},el("strong",null,agent.provider),el("small",null,(agent.model||"Model not selected")+(agent.effort?" · "+agent.effort:"")+" · "+(connectionUnavailable?"Reconnect required":agent.readiness==="checking"?"Checking provider":ready?"Tools disabled":"Unavailable"))),
    el("span",{className:"af-state"+(ready?"":" af-attention"),role:"status"},el("i",{className:!ready?"warn":phase==="error"?"bad":""}),status),
    h(IconButton,{name:"History",label:"Conversation history",onClick:()=>setShowHistory(true)}),
@@ -1044,7 +1039,7 @@ const ART=[
 function activeBars(){return `<span class="bars ${state.playing?'on':''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>`}
 function seekBar(){return `<div class="seek" role="slider" tabindex="0" aria-label="Seek in song" aria-valuemin="0" aria-valuemax="${title().duration}" aria-valuenow="${Math.floor(state.position)}"><div class="seek-track"><div class="seek-fill"></div><div class="seek-thumb"></div></div><span class="seek-tip" aria-hidden="true"></span></div>`}
 function compact(){if(!state.mediaAvailable)return `<div class="no-media"><span class="mark">${icon('music',15)}</span><span class="meta"><b>No media session</b><small>Open a media player</small></span></div>`;return `<div class="compact ${state.changed?'track-enter':''}"><button class="touch-title" data-action="expand" aria-label="Expand Music player"><span class="round-art">${ART[state.track]}</span><span class="meta"><b>${esc(title().title)}</b><small>${esc(title().artist)}</small></span></button><button class="activity" data-action="toggle" aria-label="${state.playing?'Pause':'Play'} demo playback" title="${state.playing?'Pause':'Play'}">${activeBars()}</button></div>`}
-function header(){return `<header class="head"><button class="home" data-action="home" title="Back to Home" aria-label="Back to Home"><span class="eyes"><i></i><i></i></span></button><strong>Music</strong><span class="source">System media · demo</span><button class="lyrics-switch ${state.mode==='lyrics'?'active':''}" data-action="lyrics" ${!state.lyricsAvailable?'disabled title="No lyrics source"':''} aria-label="${state.mode==='lyrics'?'Back to player':'Show lyrics'}">${icon(state.mode==='lyrics'?'cross':'lyrics',13)}<span>${state.mode==='lyrics'?'Player':'Lyrics'}</span></button></header>`}
+function header(){return `<header class="head"><button class="otto-home-button" data-action="home" title="Back to Home" aria-label="Back to Home">${OTTO_LOGO_MARKUP}</button><strong>Music</strong><span class="source">System media · demo</span><button class="lyrics-switch ${state.mode==='lyrics'?'active':''}" data-action="lyrics" ${!state.lyricsAvailable?'disabled title="No lyrics source"':''} aria-label="${state.mode==='lyrics'?'Back to player':'Show lyrics'}">${icon(state.mode==='lyrics'?'cross':'lyrics',13)}<span>${state.mode==='lyrics'?'Player':'Lyrics'}</span></button></header>`}
 function transport(){return `<div class="transport"><button data-action="prev" aria-label="Previous track" title="Previous">${icon('prev',17)}</button><button class="primary" data-action="toggle" aria-label="${state.playing?'Pause':'Play'}">${icon(state.playing?'pause':'play',18)}</button><button data-action="next" aria-label="Next track" title="Next">${icon('next',17)}</button></div>`}
 function player(){if(!state.mediaAvailable)return `${header()}<div class="empty-expanded">${icon('music',23)}<b>No media session</b><span>Open a media app to resume controls</span></div>`;return `<div class="expanded ${state.changed?'track-enter':''}">${header()}<div class="player-body appear"><div class="large-art">${ART[state.track]}</div><div class="details"><h2>${esc(title().title)}</h2><p>${esc(title().artist)}</p></div>${transport()}</div><div class="progress-wrap"><span class="timestamp" data-elapsed>${fmt(state.position)}</span>${seekBar()}<span class="timestamp">${fmt(title().duration)}</span></div></div>`}
 function lyrics(){if(!state.mediaAvailable)return player();if(!state.onlineLyricsEnabled)return `${header()}<div class="unavailable"><b>Online lyrics</b><p>Send the title, artist, album and duration to LRCLIB. No audio or account credentials are sent.</p><button class="lyrics-switch" data-action="enable-lyrics">Enable online lyrics</button></div>`;if(!state.lyricsAvailable)return `${header()}<div class="unavailable"><b>Lyrics unavailable</b><p>No synchronized lyrics source is connected. Return to Player to keep listening.</p></div>`;return `<div class="expanded ${state.changed?'track-enter':''}">${header()}<div class="lyric-body appear"><div class="lyric-side"><div class="lyric-cover">${ART[state.track]}</div><b>${esc(title().title)}</b><small>${esc(title().artist)}</small></div><div class="lyric-pane"><div class="lyric-lines" role="group" aria-label="Synced demo lyrics. Scroll to browse or select a line to seek">${title().lyrics.map((x,i)=>`<button class="lyric-line" data-line="${i}" title="Seek to this line">${esc(x)}</button>`).join('')}</div><button class="resume-follow" data-action="follow" hidden aria-label="Resume following active lyric">${icon('play',11)}Follow</button></div></div><div class="lyric-bottom"><button class="lyrics-switch" data-action="disable-lyrics">Disable online lyrics</button><span class="lyric-count">${currentLine()+1} / ${title().lyrics.length}</span>${seekBar()}<span class="timestamp" data-elapsed>${fmt(state.position)}</span><button class="activity" style="width:24px;height:24px" data-action="toggle" title="Toggle playback" aria-label="${state.playing?'Pause':'Play'}">${icon(state.playing?'pause':'play',15)}</button></div></div>`}
@@ -1147,7 +1142,7 @@ function MusicPanel({music,setMusic,onHome}){
 function referenceFocusMarkup(timer,isCompact){
 const icons={timer:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',play:'<path d="m8 5 11 7-11 7z"/>',pause:'<path d="M8 5v14m8-14v14"/>',reset:'<path d="M3 11a9 9 0 1 1 3 7M3 4v7h7"/>',settings:'<path d="M12 8v8m-4-4h8"/><circle cx="12" cy="12" r="9"/>',check:'<path d="m4 12 5 5L20 6"/>',arrow:'<path d="m5 12 14 0m-6-6 6 6-6 6"/>',close:'<path d="M6 6l12 12M18 6 6 18"/>',back:'<path d="m14 5-7 7 7 7"/>'};
 const ico=n=>'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">'+(icons[n]||icons.timer)+'</svg>';
-const eye='<span class="eyes" aria-hidden="true"><i></i><i></i></span>';
+const eye=OTTO_LOGO_MARKUP;
 const btn=(name,act,label,primary=false)=>`<button type="button" class="button-icon${primary?' primary':''}" data-action="${act}" aria-label="${label}" title="${label}">${ico(name)}</button>`;
 
  const state={...timer,expanded:!isCompact,settings:!!timer.settings,confirmPhase:timer.confirmPhase||null,durations:timer.duration,remainingMs:timer.remaining*1000,status:timer.status|| (timer.running?"running":"ready")};
@@ -1161,7 +1156,7 @@ const nextPhase=()=>state.phase==='focus'?(state.finished%4===0?'long':'short'):
 const nextText=()=>state.phase==='focus'?`Start ${nextPhase()==='long'?'long':'short'} break`:'Start focus';
 const nextHint=()=>state.phase==='focus'?'Your focus session is complete.':'Your break is complete.';
 function compact(){const done=isComplete();let hint=done?(state.phase==='focus'?'Session done':'Break done'):(state.phase==='focus'?'Focus':modeLabel[state.phase]);let primary=done?btn('arrow','next','Continue to '+modeLabel[nextPhase()],true):btn(isBusy()?'pause':'play','toggle',isBusy()?'Pause timer':'Start or resume timer',true);return `<div class="compact ${done?'completed':''} ${state.status} ${state.phase}"><button type="button" class="compact-open" data-action="open" aria-label="Open focus timer"><span class="round-icon">${ico(done?'check':'timer')}</span><span class="compact-meta"><span class="small-label">${hint}${state.status==='paused'?' · Paused':''}</span><span class="compact-time" data-clock>${done?'Complete':fmt(state.remainingMs)}</span></span></button><span class="quiet-led ${state.status}" aria-hidden="true"></span>${primary}</div>`}
-function header(){return `<div class="head"><button class="homekey" type="button" data-action="home" aria-label="Back to Home" title="Back to Home">${eye}</button><strong class="head-title">Focus timer</strong><div class="head-status"><i class="statusdot ${isBusy()?'running':isComplete()?'complete':state.status==='paused'?'paused':''}"></i>${isComplete()?'Completed':state.status==='paused'?'Paused':isBusy()?'In progress':'Ready'}</div><button class="gear ${state.settings?'on':''}" type="button" data-action="settings" title="${state.settings?'Close':'Edit'} durations" aria-label="${state.settings?'Close':'Edit'} durations">${ico(state.settings?'close':'settings')}</button></div>`}
+function header(){return `<div class="head"><button class="otto-home-button" type="button" data-action="home" aria-label="Back to Home" title="Back to Home">${eye}</button><strong class="head-title">Focus timer</strong><div class="head-status"><i class="statusdot ${isBusy()?'running':isComplete()?'complete':state.status==='paused'?'paused':''}"></i>${isComplete()?'Completed':state.status==='paused'?'Paused':isBusy()?'In progress':'Ready'}</div><button class="gear ${state.settings?'on':''}" type="button" data-action="settings" title="${state.settings?'Close':'Edit'} durations" aria-label="${state.settings?'Close':'Edit'} durations">${ico(state.settings?'close':'settings')}</button></div>`}
 function normalExpanded(){let done=isComplete();if(done)return `<div class="finish ${state.phase}">${header()}<span class="completion-sparks" aria-hidden="true"><i></i><i></i><i></i></span><div class="focusmain"><div class="timeblock"><div class="finished-title">${state.phase==='focus'?'Focus complete':'Break complete'}</div><div class="finished-sub">${nextHint()}</div></div><button type="button" class="start-next" data-action="next">${nextText()}</button></div><div class="focusfooter"><span style="font-size:10px;color:#aaa">${state.phase==='focus'?((state.finished-1)%4+1)+' of 4 focus sessions':'Ready for your next focus'}</span>${btn('reset','reset','Reset current session')}</div></div>`;
 const cycle=(state.finished>0&&state.finished%4===0&&(state.phase==='long'||(state.phase==='focus'&&isComplete())))?4:state.finished%4;
 // Linear progress intentionally removed from Compact and Expanded.
@@ -1385,7 +1380,7 @@ function App(){
   el("main",{className:"preview-stage","aria-label":"Otto prototype",
    onClick:e=>{if(prefs.clickOutside&&presentation==="pinned"&&!e.target.closest(".notch"))collapse()}},
    el("div",{className:"mount",style:{top:placement==="attached"?0:Math.max(16,prefs.topOffset+20)}},
-    el("div",{className:"notch"+(placement==="attached"?" attached":""),
+    el("div",{className:"notch"+(placement==="attached"?" attached":""),"data-logo-expression":prefs.expression.toLowerCase(),"data-logo-reactive":prefs.reactive,
       style:{"--w":dim[0]+"px","--h":dim[1]+"px","--rad":presentation==="compact"||event?"999px":"27px",maxHeight:page==="agent"&&!drawer&&presentation!=="compact"?"calc(100dvh - 92px)":undefined},
       onMouseEnter:enter,onMouseLeave:leave,
       onPointerDownCapture:()=>{if(presentation==="preview")setPresentation("pinned")}},

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { TimerSnapshot } from "../../platform/tauri/focus";
-import { Eyes, IconButton, Text, VisuallyHidden } from "../../shared/ui";
+import { IconButton, OttoHomeButton, Text } from "../../shared/ui";
 import { statusLabel } from "./view-model";
 
 export function FocusHeader({
@@ -32,14 +32,7 @@ export function FocusHeader({
   }[snapshot.status];
   return (
     <header className="flex h-[42px] shrink-0 items-center gap-[9px] border-b border-otto-focus-line px-[17px]">
-      <button
-        type="button"
-        className="otto-focus-home grid h-[29px] w-8 shrink-0 place-items-center rounded-otto-panel border-0 bg-otto-raised transition-colors duration-150 hover:bg-otto-line-mid"
-        onClick={onHome}
-      >
-        <Eyes mini />
-        <VisuallyHidden>Back to Home</VisuallyHidden>
-      </button>
+      <OttoHomeButton onClick={onHome} />
       <Text as="strong" variant="title" className="min-w-0 flex-1 truncate font-[550]!">
         Focus timer
       </Text>

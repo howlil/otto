@@ -165,14 +165,15 @@ afterEach(() => {
 });
 
 describe("Otto shell hover and pin interaction", () => {
-  test("Music opens from Home and returns to Home", async () => {
-    await mount();
+  test("Music opens from Home and returns to Home with the same selected logo expression", async () => {
+    await mount({ expression: "happy" });
 
     fireEvent.click(compactButton());
     await waitFor(() => expect(isExpanded()).toBe(true));
     fireEvent.click(screen.getByRole("button", { name: /Music No media session/i }));
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Music" })).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Back to Home" }).querySelector("[data-expression]")?.getAttribute("data-expression")).toBe("happy");
 
     fireEvent.click(screen.getByRole("button", { name: "Back to Home" }));
     await waitFor(() =>

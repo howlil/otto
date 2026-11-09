@@ -11,7 +11,7 @@ motion: {ease: "cubic-bezier(0.22, 1, 0.36, 1)", reduced: "disable nonessential 
 Product: a Windows desktop notch that lets someone ask a locally installed AI CLI for help without leaving the active task; music and Pomodoro are secondary modes.
 Character: quiet, precise, gently expressive.
 World: a single opaque dark instrument at the top edge of the working desktop; the surrounding native window remains transparent and never paints a second backdrop.
-Identity: idle Compact shows only paired robot eyes; active modules use task-specific identity. Keep the surrounding chrome restrained; subtle tonal gradients are reserved for approved module artwork, with no gratuitous glow or generic card layouts.
+Identity: idle Compact shows only paired robot eyes and keeps its existing geometry and behavior. Expanded Home is the source of truth for the Otto logo: `shared/ui/OttoLogo` owns its 34×34 tile and contained eye pair, and `OttoHomeButton` reuses it in Agent, Music and Focus. Logo expression/reactivity is a read-only projection of shell preferences, never per-page state; module activity icons remain task-specific. Keep the surrounding chrome restrained; subtle tonal gradients are reserved for approved module artwork, with no gratuitous glow or generic card layouts.
 Per-surface moments and interaction graphs belong in the current PR/task, not in this durable file.
 
 ## Guardrails

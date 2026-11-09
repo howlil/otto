@@ -8,7 +8,7 @@ import type { useMusic } from "./features/music";
 import { GlobalSettings } from "./features/shell";
 import type { AppUpdateState, useNotchShell } from "./features/shell";
 import type { OsEventView } from "./platform/tauri";
-import { Eyes, VisuallyHidden } from "./shared/ui";
+import { Eyes, OttoLogo, VisuallyHidden } from "./shared/ui";
 import { ShellCompactSurface } from "./ShellCompactSurface";
 
 type AgentModel = ReturnType<typeof useAgent>;
@@ -42,12 +42,7 @@ export function CompactEyesButton({
       onClick={onToggle}
     >
       {settled ? (
-        <span
-          className="grid h-[34px] w-[34px] place-items-center rounded-otto-panel bg-otto-raised-soft text-otto-control-text transition-[background,transform] duration-[190ms] ease-otto group-hover:bg-otto-line-mid group-active:scale-[0.96]"
-          data-otto-logo="true"
-        >
-          <Eyes expression={prefs.expression} reactive={prefs.reactive} compact />
-        </span>
+        <OttoLogo expression={prefs.expression} reactive={prefs.reactive} />
       ) : (
         <Eyes expression={prefs.expression} reactive={prefs.reactive} compact />
       )}
