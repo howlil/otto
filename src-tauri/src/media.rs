@@ -57,7 +57,7 @@ impl MediaAction {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaSnapshot {
     pub seq: u64,
@@ -65,6 +65,10 @@ pub struct MediaSnapshot {
     pub playback: MediaPlayback,
     pub title: Option<String>,
     pub artist: Option<String>,
+    pub album: Option<String>,
+    pub source_id: Option<String>,
+    pub observed_at_ms: Option<u64>,
+    pub playback_rate: Option<f64>,
     pub artwork_data_url: Option<String>,
     pub position_ms: Option<u64>,
     pub duration_ms: Option<u64>,
@@ -82,6 +86,10 @@ impl MediaSnapshot {
             playback: MediaPlayback::Unknown,
             title: None,
             artist: None,
+            album: None,
+            source_id: None,
+            observed_at_ms: None,
+            playback_rate: None,
             artwork_data_url: None,
             position_ms: None,
             duration_ms: None,
@@ -184,6 +192,10 @@ mod tests {
             playback: MediaPlayback::Playing,
             title: Some("Orbit".to_string()),
             artist: Some("Otto".to_string()),
+            album: None,
+            source_id: None,
+            observed_at_ms: None,
+            playback_rate: None,
             artwork_data_url: None,
             position_ms: Some(1_200),
             duration_ms: Some(3_600),

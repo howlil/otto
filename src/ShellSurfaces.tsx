@@ -83,7 +83,7 @@ export function SurfaceBody({
   const { expanded, isAgent, isMusic, page } = shell;
   if (!expanded) {
     if (osEvent) return <OsEventCapsule event={osEvent} />;
-    if (isAgent) {
+    if (isAgent)
       return (
         <AgentCapsule
           snapshot={agent.snapshot}
@@ -95,12 +95,13 @@ export function SurfaceBody({
           motionClass={nudgeMotion}
         />
       );
-    }
     return isMusic ? (
       <MusicCapsule
         snapshot={music.snapshot}
         buttonRef={shell.compactButton}
         onOpen={() => shell.open("music")}
+        busy={music.busy}
+        onToggle={() => music.control("toggle")}
       />
     ) : null;
   }
@@ -139,17 +140,7 @@ export function SurfaceBody({
     );
   }
   if (isMusic) {
-    return (
-      <MusicPanel
-        snapshot={music.snapshot}
-        error={music.error}
-        busy={music.busy}
-        onBack={() => shell.open("home")}
-        onRefresh={music.refresh}
-        onControl={music.control}
-        motionClass={nudgeMotion}
-      />
-    );
+    return <MusicPanel music={music} onBack={() => shell.open("home")} motionClass={nudgeMotion} />;
   }
   return (
     <AgentPanel

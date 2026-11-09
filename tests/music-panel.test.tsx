@@ -1,7 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
-import { cleanup, fireEvent, render } from "@testing-library/react";
-import { MusicPanel } from "../src/features/music";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { MusicPanel, MusicCapsule } from "../src/features/music";
+import { SeekBar } from "../src/features/music/MusicPlayback";
 import type { MediaSnapshot } from "../src/platform/tauri";
+import { useLyrics } from "../src/features/music/useLyrics";
 
 afterEach(cleanup);
 
@@ -22,18 +24,14 @@ const unavailable: MediaSnapshot = {
 
 function renderPanel(snapshot: MediaSnapshot, onControl = async () => {}) {
   let refreshed = 0;
-  const view = render(
-    <MusicPanel
-      snapshot={snapshot}
-      error={null}
-      busy={false}
+  function Panel() {
+    const lyrics = useLyrics(snapshot);
+    return <MusicPanel
+      music={{ snapshot, lyrics, error: null, busy: false, refresh: async () => { refreshed += 1; }, control: onControl }}
       onBack={() => {}}
-      onRefresh={async () => {
-        refreshed += 1;
-      }}
-      onControl={onControl}
-    />,
-  );
+    />;
+  }
+  const view = render(<Panel />);
   return { view, refreshed: () => refreshed };
 }
 
@@ -45,6 +43,45 @@ test("Music shows an explicit empty state instead of fabricated track details", 
   expect(view.queryByText("Media playing")).toBeNull();
   fireEvent.click(view.getByRole("button", { name: "Retry" }));
   expect(refreshed()).toBe(1);
+});
+
+test("Music opens lyrics with explicit online consent instead of a disabled dead end", () => {
+  const { view } = renderPanel({ ...unavailable, status: "available", title: "Orbit", artist: "Otto" });
+  fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
+  expect(view.getByText(/title, artist, album and duration/i)).toBeTruthy();
+  expect(view.getByRole("button", { name: "Enable online lyrics" })).toBeTruthy();
+});
+
+test("Music shows elapsed time and duration instead of a percentage", () => {
+  const { view } = renderPanel({ ...unavailable, status: "available", positionMs: 74000, durationMs: 232000, minSeekMs: 0, maxSeekMs: 232000, controls: { toggle: true, previous: false, next: false, seek: true } });
+  expect(view.getByText("1:14")).toBeTruthy();
+  expect(view.getByText("3:52")).toBeTruthy();
+});
+
+test("seek previews a drag locally and submits only its final position", async () => {
+  const positions: number[] = [];
+  let finish: () => void = () => {};
+  const pending = new Promise<void>((resolve) => { finish = resolve; });
+  const view = render(<SeekBar snapshot={{ ...unavailable, status: "available", durationMs: 232000, minSeekMs: 0, maxSeekMs: 232000, controls: { toggle: true, seek: true, previous: false, next: false } }} position={1000} busy={false} onControl={async (_, position) => { positions.push(position); await pending; }} />);
+  const slider = view.getByRole("slider");
+  fireEvent.change(slider, { target: { value: "40000" } });
+  fireEvent.change(slider, { target: { value: "74000" } });
+  expect(view.getByText("1:14")).toBeTruthy();
+  expect(positions).toEqual([]);
+  fireEvent.pointerUp(slider);
+  expect(positions).toEqual([74000]);
+  await act(async () => { finish(); });
+  expect(view.getByText("0:01")).toBeTruthy();
+});
+
+test("Compact playback does not navigate or fabricate playing state", () => {
+  let opened = false;
+  let toggled = false;
+  const view = render(<MusicCapsule snapshot={{ ...unavailable, status: "available", title: "Orbit", artist: "Otto", playback: "paused", controls: { toggle: true, seek: false, previous: false, next: false } }} buttonRef={null} busy={false} onOpen={() => { opened = true; }} onToggle={async () => { toggled = true; }} />);
+  fireEvent.click(view.getByRole("button", { name: "Play media" }));
+  expect(toggled).toBe(true);
+  expect(opened).toBe(false);
+  expect(view.getByRole("button", { name: "Play media" })).toBeTruthy();
 });
 
 test("Music only enables the controls reported by the active session", () => {

@@ -87,6 +87,7 @@ export type NotchSurface =
   | "agentCompact"
   | "musicCompact"
   | "musicPlayer"
+  | "musicLyrics"
   | "agentReady"
   | "agentThinking"
   | "agentFull"
@@ -136,6 +137,10 @@ export type MediaSnapshot = {
   playback: MediaPlayback;
   title: string | null;
   artist: string | null;
+  album?: string | null;
+  sourceId?: string | null;
+  observedAtMs?: number | null;
+  playbackRate?: number | null;
   artworkDataUrl: string | null;
   positionMs: number | null;
   durationMs: number | null;
@@ -223,6 +228,26 @@ export async function subscribeOsEvents(
 
 export async function setOsEventsEnabled(enabled: boolean): Promise<void> {
   if (nativeAvailable) await invoke("os_events_set_enabled", { enabled });
+}
+
+export type LyricsRecord = {
+  trackName: string;
+  artistName: string;
+  albumName: string;
+  duration: number;
+  instrumental: boolean;
+  plainLyrics: string | null;
+  syncedLyrics: string | null;
+};
+
+export type LyricsResult = { key: string; record: LyricsRecord | null };
+
+export async function setOnlineLyrics(enabled: boolean): Promise<void> {
+  return invoke("media_set_online_lyrics", { enabled });
+}
+
+export async function getMediaLyrics(refresh = false): Promise<LyricsResult> {
+  return invoke("media_lyrics", { refresh });
 }
 
 export async function getMediaSnapshot(): Promise<MediaSnapshot> {
