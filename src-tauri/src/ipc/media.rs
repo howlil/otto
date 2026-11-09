@@ -1,6 +1,21 @@
+use crate::lyrics::{LyricsResult, LyricsRuntime};
 use crate::media::{MediaAction, MediaRuntime, MediaSnapshot};
 use std::sync::Arc;
 use tauri::{State, ipc::Channel};
+
+#[tauri::command]
+pub fn media_set_online_lyrics(runtime: State<'_, LyricsRuntime>, enabled: bool) {
+    runtime.set_enabled(enabled);
+}
+
+#[tauri::command]
+pub async fn media_lyrics(
+    runtime: State<'_, LyricsRuntime>,
+    media: State<'_, Arc<MediaRuntime>>,
+    refresh: bool,
+) -> Result<LyricsResult, String> {
+    runtime.lookup(&media, refresh).await
+}
 
 #[tauri::command]
 pub fn media_snapshot(runtime: State<'_, Arc<MediaRuntime>>) -> MediaSnapshot {

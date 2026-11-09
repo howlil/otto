@@ -10,6 +10,8 @@ import {
   type MediaSubscription,
 } from "../../platform/tauri/media";
 
+import { useLyrics } from "./useLyrics";
+
 const controls = { toggle: false, previous: false, next: false, seek: false };
 
 function initialSnapshot(): MediaSnapshot {
@@ -45,7 +47,11 @@ function initialSnapshot(): MediaSnapshot {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "System media could not be reached.";
+  return typeof error === "string"
+    ? error
+    : error instanceof Error
+      ? error.message
+      : "System media could not be reached.";
 }
 
 export function useMusic() {
@@ -54,8 +60,12 @@ export function useMusic() {
   const [busy, setBusy] = useState(false);
   const subscription = useRef<MediaSubscription | null>(null);
   const operating = useRef(false);
+  const latestSequence = useRef(-1);
+  const lyrics = useLyrics(snapshot);
   const receive = useCallback((next: MediaSnapshot) => {
-    setSnapshot((current) => (next.seq >= current.seq ? next : current));
+    if (next.seq < latestSequence.current) return;
+    latestSequence.current = next.seq;
+    setSnapshot(next);
     setError(null);
   }, []);
 
@@ -63,9 +73,9 @@ export function useMusic() {
     if (!nativeAvailable) return;
     let active = true;
     void getMediaSnapshot()
-      .then(receive)
+      .then((next) => active && receive(next))
       .catch((reason: unknown) => active && setError(errorMessage(reason)));
-    void subscribeMedia(receive)
+    void subscribeMedia((next) => active && receive(next))
       .then((next) => {
         if (active) subscription.current = next;
         else void next.unsubscribe();
@@ -109,5 +119,5 @@ export function useMusic() {
     [receive],
   );
 
-  return { snapshot, error, busy, refresh, control };
+  return { snapshot, error, busy, refresh, control, lyrics };
 }

@@ -80,6 +80,7 @@ const musicStub = {
   busy: false,
   refresh: async () => {},
   control: async () => {},
+  lyrics: { open: false, enabled: false, status: "off", record: null, error: null, key: "", setOpen: () => {}, enable: async () => {}, disable: async () => {}, retry: () => {} },
 } as Parameters<typeof ShellView>[0]["music"];
 const focusStub = {} as Parameters<typeof ShellView>[0]["focus"];
 const updateStub = {

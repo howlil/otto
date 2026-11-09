@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Page, Preferences } from "./preferences";
 import { morphDuration } from "./motion";
-import { useShellFocus } from "./useShellFocus";
+import { useShellFocus, type SubviewEscapeHandler } from "./useShellFocus";
 import { useShellHover } from "./useShellHover";
 
-export function useShellInteraction({ prefs }: { prefs: Preferences }) {
+export function useShellInteraction({
+  prefs,
+  consumeEscape,
+}: {
+  prefs: Preferences;
+  consumeEscape?: SubviewEscapeHandler;
+}) {
   const [page, setPage] = useState<Page>("home");
   const [mode, setMode] = useState<"compact" | "preview" | "pinned">("compact");
   const [eventMotion, setEventMotion] = useState("");
@@ -78,6 +84,7 @@ export function useShellInteraction({ prefs }: { prefs: Preferences }) {
     expanded,
     mode,
     clickOutside: prefs.clickOutside,
+    consumeEscape,
     setPage,
     collapse,
   });

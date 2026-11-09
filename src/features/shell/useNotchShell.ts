@@ -1,19 +1,20 @@
 import { useEffect } from "react";
 import { nativeAvailable } from "../../platform/tauri";
+import type { SubviewEscapeHandler } from "./useShellFocus";
 import { useShellInteraction } from "./useShellInteraction";
 import { useShellPlacement, type PlacementStatus } from "./useShellPlacement";
 import { useShellPreferences } from "./useShellPreferences";
 
 export type { PlacementStatus } from "./useShellPlacement";
 
-export function useNotchShell() {
+export function useNotchShell(consumeEscape?: SubviewEscapeHandler) {
   const preferences = useShellPreferences();
   const placement = useShellPlacement(
     preferences.prefs,
     nativeAvailable,
     preferences.setPlacementPreference,
   );
-  const interaction = useShellInteraction({ prefs: preferences.prefs });
+  const interaction = useShellInteraction({ prefs: preferences.prefs, consumeEscape });
 
   useEffect(() => {
     try {

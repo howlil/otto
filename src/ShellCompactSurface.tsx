@@ -56,6 +56,8 @@ export function ShellCompactSurface({
       snapshot={music.snapshot}
       buttonRef={shell.compactButton}
       onOpen={() => shell.open("music")}
+      busy={music.busy}
+      onToggle={() => music.control("toggle")}
     />
   ) : null;
 }

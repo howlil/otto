@@ -134,17 +134,7 @@ export function SurfaceBody({
     );
   }
   if (isMusic) {
-    return (
-      <MusicPanel
-        snapshot={music.snapshot}
-        error={music.error}
-        busy={music.busy}
-        onBack={() => shell.open("home")}
-        onRefresh={music.refresh}
-        onControl={music.control}
-        motionClass={nudgeMotion}
-      />
-    );
+    return <MusicPanel music={music} onBack={() => shell.open("home")} motionClass={nudgeMotion} />;
   }
   if (page === "focus" || page === "focus-settings") {
     return (

@@ -48,10 +48,18 @@ function motionCue(status: string): string | null {
 const ACTIVE_RUN = new Set(["starting", "streaming", "stopping"]);
 
 export default function App() {
-  const shell = useNotchShell();
+  const music = useMusic();
+  const consumeEscape = useCallback(
+    (page: string) => {
+      if (page !== "music" || !music.lyrics.open) return false;
+      music.lyrics.setOpen(false);
+      return true;
+    },
+    [music.lyrics.open, music.lyrics.setOpen],
+  );
+  const shell = useNotchShell(consumeEscape);
   const osEvents = useOsEvents(shell.prefs.osEventsEnabled);
   const agent = useAgent(shell.expanded && shell.isAgent);
-  const music = useMusic();
   const focus = useFocusTimer();
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
@@ -73,7 +81,7 @@ export default function App() {
     if (osEvents.event && !osEventVisible) osEvents.dismiss();
   }, [osEvents.event, osEvents.dismiss, osEventVisible]);
 
-  const surface = resolveSurface({
+  const resolvedSurface = resolveSurface({
     expanded,
     isAgent,
     isMusic,
@@ -81,6 +89,8 @@ export default function App() {
     agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
     osEvent: osEventVisible,
   });
+  const surface =
+    resolvedSurface === "musicPlayer" && music.lyrics.open ? "musicLyrics" : resolvedSurface;
   const agentHomeCopy = agentHomeSubtitle(agent.snapshot, agent.readiness, agent.error);
   const artProps = {
     tilt: prefs.tilt,

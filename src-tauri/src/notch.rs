@@ -58,6 +58,7 @@ pub fn surface_size(surface: &str) -> Option<(u32, u32)> {
         "musicCompact" => Some((264, 54)),
         "musicPlayer" => Some((444, 178)),
         "focusCompact" => Some((224, 52)),
+        "musicLyrics" => Some((444, 212)),
         "home" => Some((452, 148)),
         "homeSettings" => Some((452, 314)),
         "focus" => Some((408, 174)),
@@ -242,6 +243,7 @@ mod tests {
         assert_eq!(surface_size("focusCompact"), Some((224, 52)));
         assert_eq!(surface_size("focus"), Some((408, 174)));
         assert_eq!(surface_size("focusSettings"), Some((408, 328)));
+        assert_eq!(surface_size("musicLyrics"), Some((444, 212)));
         assert_eq!(surface_size("agentReady"), Some((526, 170)));
         assert_eq!(surface_size("agentFull"), Some((526, 346)));
         assert_eq!(surface_size("agentSettings"), Some((526, 466)));

@@ -409,7 +409,24 @@ impl Worker {
             playback: playback_state(playback.PlaybackStatus().ok()),
             title,
             artist,
-            artwork_data_url: None,
+            album: properties
+                .as_ref()
+                .and_then(|p| p.AlbumTitle().ok())
+                .and_then(non_empty),
+            source_id: session.SourceAppUserModelId().ok().and_then(non_empty),
+            observed_at_ms: timeline
+                .as_ref()
+                .and_then(|t| t.LastUpdatedTime().ok())
+                .and_then(|time| {
+                    u64::try_from(time.UniversalTime / 10_000 - 11_644_473_600_000).ok()
+                }),
+            playback_rate: playback
+                .PlaybackRate()
+                .ok()
+                .and_then(|rate| rate.Value().ok()),
+            artwork_data_url: properties
+                .as_ref()
+                .and_then(super::media_artwork::read_artwork),
             position_ms: position,
             duration_ms: start
                 .zip(end)

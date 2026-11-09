@@ -1,6 +1,7 @@
 mod agent;
 mod focus;
 mod ipc;
+mod lyrics;
 mod media;
 mod notch;
 mod os_events;
@@ -22,6 +23,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(ipc::notch::NotchPlacementState::default())
+        .manage(lyrics::LyricsRuntime::new())
         .invoke_handler(tauri::generate_handler![
             ipc::overlay::overlay_protection_status,
             ipc::overlay::overlay_set_capture_protection,
@@ -50,6 +52,8 @@ pub fn run() {
             ipc::notch::notch_set_surface,
             ipc::notch::notch_set_hit_region,
             ipc::media::media_snapshot,
+            ipc::media::media_set_online_lyrics,
+            ipc::media::media_lyrics,
             ipc::media::media_subscribe,
             ipc::media::media_unsubscribe,
             ipc::media::media_refresh,
