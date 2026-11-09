@@ -1,4 +1,5 @@
 mod agent;
+mod focus;
 mod ipc;
 mod media;
 mod notch;
@@ -53,6 +54,15 @@ pub fn run() {
             ipc::media::media_unsubscribe,
             ipc::media::media_refresh,
             ipc::media::media_control,
+            ipc::focus::focus_timer_snapshot,
+            ipc::focus::focus_timer_subscribe,
+            ipc::focus::focus_timer_unsubscribe,
+            ipc::focus::focus_timer_start,
+            ipc::focus::focus_timer_pause,
+            ipc::focus::focus_timer_reset,
+            ipc::focus::focus_timer_configure,
+            ipc::focus::focus_timer_select_phase,
+            ipc::focus::focus_timer_start_next,
             ipc::os_events::os_events_subscribe,
             ipc::os_events::os_events_unsubscribe,
             ipc::os_events::os_events_set_enabled,
@@ -76,6 +86,9 @@ pub fn run() {
             app.manage(windows::media::MediaController::start(media));
             #[cfg(not(windows))]
             let _ = media;
+            let focus_timer = std::sync::Arc::new(focus::FocusTimerRuntime::new());
+            focus_timer.start_worker();
+            app.manage(focus_timer);
             let os_events = std::sync::Arc::new(os_events::OsEventRuntime::new());
             app.manage(os_events.clone());
             #[cfg(windows)]

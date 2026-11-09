@@ -1,5 +1,7 @@
 import { AgentCapsule, AgentPanel } from "./features/agent";
 import type { useAgent } from "./features/agent";
+import { FocusCapsule, FocusPanel } from "./features/focus";
+import type { FocusTimerModel } from "./features/focus";
 import { HomeSurface } from "./features/home";
 import { MusicCapsule, MusicPanel } from "./features/music";
 import type { useMusic } from "./features/music";
@@ -11,6 +13,7 @@ import { Eyes, VisuallyHidden } from "./shared/ui";
 
 type AgentModel = ReturnType<typeof useAgent>;
 type MusicModel = ReturnType<typeof useMusic>;
+type FocusModel = FocusTimerModel;
 type ShellModel = ReturnType<typeof useNotchShell>;
 
 export function CompactEyesButton({
@@ -56,6 +59,7 @@ export function CompactEyesButton({
 export function SurfaceBody({
   agent,
   music,
+  focus,
   shell,
   agentHomeCopy,
   musicHomeCopy,
@@ -67,6 +71,7 @@ export function SurfaceBody({
 }: {
   agent: AgentModel;
   music: MusicModel;
+  focus: FocusModel;
   shell: ShellModel;
   agentHomeCopy: string;
   musicHomeCopy: string;
@@ -83,6 +88,19 @@ export function SurfaceBody({
   const { expanded, isAgent, isMusic, page } = shell;
   if (!expanded) {
     if (osEvent) return <OsEventCapsule event={osEvent} />;
+    if (page === "focus" || page === "focus-settings") {
+      return (
+        <FocusCapsule
+          snapshot={focus.snapshot}
+          pending={focus.pending}
+          buttonRef={shell.compactButton}
+          onOpen={() => shell.open("focus")}
+          onStart={() => void focus.start()}
+          onPause={() => void focus.pause()}
+          onStartNext={() => void focus.startNext()}
+        />
+      );
+    }
     if (isAgent) {
       return (
         <AgentCapsule
@@ -114,6 +132,7 @@ export function SurfaceBody({
         onOpenSettings={() => shell.open("global-settings")}
         onOpenAgent={() => shell.open("agent")}
         onOpenMusic={() => shell.open("music")}
+        onOpenFocus={() => shell.open("focus")}
         motionClass={nudgeMotion}
       />
     );
@@ -148,6 +167,17 @@ export function SurfaceBody({
         onRefresh={music.refresh}
         onControl={music.control}
         motionClass={nudgeMotion}
+      />
+    );
+  }
+  if (page === "focus" || page === "focus-settings") {
+    return (
+      <FocusPanel
+        focus={focus}
+        settings={page === "focus-settings"}
+        onSettings={() => shell.open("focus-settings")}
+        onSettingsBack={() => shell.setPage("focus")}
+        onHome={() => shell.open("home")}
       />
     );
   }

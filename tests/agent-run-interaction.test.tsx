@@ -108,6 +108,8 @@ const update = {
   checkForUpdate: async () => {},
   installUpdate: async () => {},
 } as Parameters<typeof ShellView>[0]["appUpdate"];
+const musicStub = {} as Parameters<typeof ShellView>[0]["music"];
+const focusStub = {} as Parameters<typeof ShellView>[0]["focus"];
 
 function Harness() {
   const shell = useNotchShell();
@@ -115,9 +117,12 @@ function Harness() {
   return (
     <ShellView
       agent={agent}
+      music={musicStub}
+      focus={focusStub}
       shell={shell}
       surfaceError={null}
       agentHomeCopy="Ask your CLI"
+      musicHomeCopy="No media session"
       artProps={{ tilt: 43, gradient: 80 }}
       gutter={0}
       onContentMeasured={() => {}}

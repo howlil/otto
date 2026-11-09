@@ -18,6 +18,7 @@ export function HomeSurface({
   onOpenSettings,
   onOpenAgent,
   onOpenMusic,
+  onOpenFocus,
   motionClass = "",
 }: {
   homeGear: RefObject<HTMLButtonElement | null>;
@@ -27,6 +28,7 @@ export function HomeSurface({
   onOpenSettings: () => void;
   onOpenAgent: () => void;
   onOpenMusic: () => void;
+  onOpenFocus: () => void;
   motionClass?: string;
 }) {
   return (
@@ -60,11 +62,11 @@ export function HomeSurface({
         />
         <HomeCard
           name="Focus"
-          subtitle="Coming soon"
-          disabled
+          subtitle="Pomodoro"
           artwork={focusArt}
           {...artProps}
           entryMotion="motion-safe:animate-otto-home-choice-3 motion-reduce:animate-none"
+          onClick={onOpenFocus}
         />
       </main>
     </section>

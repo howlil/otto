@@ -26,6 +26,14 @@ describe("Otto shell surface ownership", () => {
     ).toBe("musicPlayer");
   });
 
+  test("Focus owns compact, timer, and settings native surfaces", () => {
+    expect(resolveSurface({ ...request, page: "focus" })).toBe("focusCompact");
+    expect(resolveSurface({ ...request, expanded: true, page: "focus" })).toBe("focus");
+    expect(resolveSurface({ ...request, expanded: true, page: "focus-settings" })).toBe(
+      "focusSettings",
+    );
+  });
+
   test("a transient OS event replaces the compact capsule, never an expanded surface", () => {
     expect(resolveSurface({ ...request, osEvent: true })).toBe("osEvent");
     expect(resolveSurface({ ...request, page: "agent", isAgent: true, osEvent: true })).toBe(

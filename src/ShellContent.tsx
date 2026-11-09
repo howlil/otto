@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { useAgent } from "./features/agent";
+import type { FocusTimerModel } from "./features/focus";
 import type { AppUpdateState, useNotchShell } from "./features/shell";
 import type { useMusic } from "./features/music";
 import type { OsEventView } from "./platform/tauri";
@@ -10,6 +11,7 @@ type Direction = "forward" | "back" | "center";
 type FrameSize = { width: number; height: number } | null;
 type AgentModel = ReturnType<typeof useAgent>;
 type MusicModel = ReturnType<typeof useMusic>;
+type FocusModel = FocusTimerModel;
 type ShellModel = ReturnType<typeof useNotchShell>;
 
 function surfaceKey(
@@ -20,7 +22,10 @@ function surfaceKey(
   osEvent: OsEventView | null,
 ) {
   if (osEvent) return `os-event-${osEvent.id}`;
-  if (!expanded) return isAgent ? "compact-agent" : isMusic ? "compact-music" : "compact-home";
+  if (!expanded) {
+    if (page === "focus" || page === "focus-settings") return "compact-focus";
+    return isAgent ? "compact-agent" : isMusic ? "compact-music" : "compact-home";
+  }
   return isAgent ? "agent" : isMusic ? "music" : page;
 }
 
@@ -31,6 +36,8 @@ function isCompactExpandedPair(a: string, b: string): boolean {
     (a === "compact-agent" && b === "agent") ||
     (a === "agent" && b === "compact-agent") ||
     (a === "compact-music" && b === "music") ||
+    (a === "compact-focus" && b === "focus") ||
+    (a === "focus" && b === "compact-focus")
     (a === "music" && b === "compact-music")
   );
 }
@@ -47,6 +54,7 @@ function transitionDirection(previousKey: string | null, currentKey: string): Di
 export function ShellContent({
   agent,
   music,
+  focus,
   shell,
   agentHomeCopy,
   musicHomeCopy,
@@ -58,6 +66,7 @@ export function ShellContent({
 }: {
   agent: AgentModel;
   music: MusicModel;
+  focus: FocusModel;
   shell: ShellModel;
   agentHomeCopy: string;
   musicHomeCopy: string;
@@ -114,6 +123,7 @@ export function ShellContent({
         <SurfaceBody
           agent={agent}
           music={music}
+          focus={focus}
           shell={shell}
           agentHomeCopy={agentHomeCopy}
           musicHomeCopy={musicHomeCopy}

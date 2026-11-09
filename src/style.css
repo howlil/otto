@@ -136,6 +136,12 @@
   --animate-otto-home-choice-3: otto-home-choice 180ms var(--ease-otto) 215ms both;
   --animate-otto-nudge: otto-nudge 0.42s var(--ease-otto);
   --animate-otto-shake: otto-shake 0.35s ease-out;
+  --animate-otto-focus-start: otto-focus-start 360ms var(--ease-otto);
+  --animate-otto-focus-pause: otto-focus-pause 290ms var(--ease-otto);
+  --animate-otto-focus-reset: otto-focus-reset 410ms var(--ease-otto);
+  --animate-otto-focus-phase: otto-focus-phase 380ms var(--ease-otto);
+  --animate-otto-focus-complete: otto-focus-complete 420ms var(--ease-otto);
+  --animate-otto-focus-spark: otto-focus-spark 620ms var(--ease-otto) both;
 
   @keyframes otto-event-meter {
     from {
@@ -209,6 +215,90 @@
     }
     75% {
       transform: translateX(-1px);
+    }
+  }
+
+  @keyframes otto-focus-start {
+    0% {
+      opacity: 0.65;
+      transform: scale(0.9);
+    }
+    55% {
+      opacity: 1;
+      transform: scale(1.07);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes otto-focus-pause {
+    0%,
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    50% {
+      opacity: 0.6;
+      transform: translateY(2px);
+    }
+  }
+
+  @keyframes otto-focus-reset {
+    0% {
+      transform: rotate(-7deg) scale(0.92);
+    }
+    65% {
+      transform: rotate(3deg) scale(1.04);
+    }
+    100% {
+      transform: none;
+    }
+  }
+
+  @keyframes otto-focus-phase {
+    0% {
+      opacity: 0.4;
+      transform: translateX(9px);
+    }
+    70% {
+      opacity: 1;
+      transform: translateX(-2px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes otto-focus-complete {
+    0% {
+      opacity: 0.7;
+      transform: scale(0.87);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.09);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes otto-focus-spark {
+    0% {
+      opacity: 0;
+      transform: translateY(3px) scale(0.4);
+    }
+    50% {
+      opacity: 0.9;
+      transform: translateY(-7px) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-12px) scale(0.5);
     }
   }
 }
@@ -553,6 +643,14 @@ h4.md-h {
 }
 .katex-display {
   margin: 4px 0;
+}
+
+.otto-focus-spark:nth-child(2) {
+  animation-delay: 65ms;
+}
+
+.otto-focus-spark:nth-child(3) {
+  animation-delay: 130ms;
 }
 
 [data-reduced="true"],

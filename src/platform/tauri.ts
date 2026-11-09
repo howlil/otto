@@ -80,6 +80,24 @@ export type AgentSnapshot = {
   error: string | null;
 };
 
+export type TimerPhase = "focus" | "short" | "long";
+export type TimerStatus = "ready" | "running" | "paused" | "completed";
+
+export type TimerDurations = {
+  focus: number;
+  short: number;
+  long: number;
+};
+
+export type TimerSnapshot = {
+  revision: number;
+  phase: TimerPhase;
+  status: TimerStatus;
+  remainingSeconds: number;
+  durations: TimerDurations;
+  completedFocusSessions: number;
+};
+
 export type NotchSurface =
   | "idle"
   | "home"
@@ -87,6 +105,9 @@ export type NotchSurface =
   | "agentCompact"
   | "musicCompact"
   | "musicPlayer"
+  | "focusCompact"
+  | "focus"
+  | "focusSettings"
   | "agentReady"
   | "agentThinking"
   | "agentFull"
@@ -162,6 +183,10 @@ export async function setOverlayCaptureProtection(enabled: boolean): Promise<boo
 export async function getAgentSnapshot(): Promise<AgentSnapshot> {
   return invoke<AgentSnapshot>("agent_snapshot");
 }
+
+export async function getFocusTimerSnapshot(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_snapshot");
+}
 export async function listAgentHistory(): Promise<AgentConversationSummary[]> {
   return invoke<AgentConversationSummary[]>("agent_history_list");
 }
@@ -198,6 +223,11 @@ export type AgentSubscription = {
   unsubscribe: () => Promise<void>;
 };
 
+export type FocusTimerSubscription = {
+  channel: Channel<TimerSnapshot>;
+  unsubscribe: () => Promise<void>;
+};
+
 export async function subscribeAgent(
   onSnapshot: (snapshot: AgentSnapshot) => void,
 ): Promise<AgentSubscription> {
@@ -208,6 +238,45 @@ export async function subscribeAgent(
     channel,
     unsubscribe: () => invoke("agent_unsubscribe", { subscriptionId }),
   };
+}
+
+export async function subscribeFocusTimer(
+  onSnapshot: (snapshot: TimerSnapshot) => void,
+): Promise<FocusTimerSubscription> {
+  const channel = new Channel<TimerSnapshot>();
+  channel.onmessage = onSnapshot;
+  const subscriptionId = await invoke<number>("focus_timer_subscribe", { onEvent: channel });
+  return {
+    channel,
+    unsubscribe: () => invoke("focus_timer_unsubscribe", { subscriptionId }),
+  };
+}
+
+export async function startFocusTimer(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_start");
+}
+
+export async function pauseFocusTimer(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_pause");
+}
+
+export async function resetFocusTimer(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_reset");
+}
+
+export async function configureFocusTimer(durations: TimerDurations): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_configure", { durations });
+}
+
+export async function selectFocusTimerPhase(
+  phase: TimerPhase,
+  discardActive: boolean,
+): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_select_phase", { phase, discardActive });
+}
+
+export async function startNextFocusTimer(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_start_next");
 }
 export async function subscribeOsEvents(
   onEvent: (event: OsEventView) => void,

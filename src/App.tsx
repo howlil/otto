@@ -6,6 +6,7 @@ import {
   resolveAgentSurface,
   useAgent,
 } from "./features/agent";
+import { useFocusTimer } from "./features/focus";
 import { mediaHomeSubtitle, useMusic } from "./features/music";
 import { shouldPresentOsEvent, useOsEvents } from "./features/os-events";
 import {
@@ -51,6 +52,7 @@ export default function App() {
   const osEvents = useOsEvents(shell.prefs.osEventsEnabled);
   const agent = useAgent(shell.expanded && shell.isAgent);
   const music = useMusic();
+  const focus = useFocusTimer();
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
   const appUpdate = useAppUpdate();
@@ -134,6 +136,7 @@ export default function App() {
     <ShellView
       agent={agent}
       music={music}
+      focus={focus}
       shell={shell}
       surfaceError={surfaceError}
       agentHomeCopy={agentHomeCopy}

@@ -293,6 +293,50 @@ async function audit() {
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Return to Home"))',
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
   );
+  await transition(
+    "Home to Focus",
+    'Array.from(document.querySelectorAll("button")).find((button) => button.querySelector("strong")?.textContent?.trim() === "Focus")',
+    '(() => { const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect(); return Boolean(document.querySelector("[data-surface=\\"focus\\"]")) && Math.round(stage?.width ?? 0) === 408 && Math.round(stage?.height ?? 0) === 174; })()',
+  );
+  await clickTarget(
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Start timer"))',
+  );
+  await until("Focus running", () =>
+    execute('return Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Pause timer"));'),
+  );
+  await clickTarget(
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Pause timer"))',
+  );
+  await until("Focus paused", () =>
+    execute('return Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Resume timer"));'),
+  );
+  await clickTarget(
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Short")',
+  );
+  await until("Focus phase confirmation", () =>
+    execute('return document.querySelector("[role=dialog]")?.textContent?.includes("Switch to Short break?") ?? false;'),
+  );
+  await clickTarget(
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Switch phase")',
+  );
+  await until("Short break ready", () =>
+    execute('return Array.from(document.querySelectorAll("button[aria-pressed=\\"true\\"]")).some((button) => button.textContent?.trim() === "Short");'),
+  );
+  await transition(
+    "Focus to Focus Settings",
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Edit durations"))',
+    '(() => { const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect(); return document.body.innerText.includes("Session lengths") && Math.round(stage?.width ?? 0) === 408 && Math.round(stage?.height ?? 0) === 328; })()',
+  );
+  await transition(
+    "Focus Settings to Focus",
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Done")',
+    'Boolean(document.querySelector("[data-surface=\\"focus\\"]")) && Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Edit durations"))',
+  );
+  await transition(
+    "Focus to Home",
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Back to Home"))',
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
+  );
 }
 
 try {

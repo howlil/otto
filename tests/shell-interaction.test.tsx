@@ -81,6 +81,7 @@ const musicStub = {
   refresh: async () => {},
   control: async () => {},
 } as Parameters<typeof ShellView>[0]["music"];
+const focusStub = {} as Parameters<typeof ShellView>[0]["focus"];
 const updateStub = {
   state: { status: "idle" },
   checkForUpdate: async () => {},
@@ -94,6 +95,7 @@ function Harness() {
     <ShellView
       agent={agentStub}
       music={musicStub}
+      focus={focusStub}
       shell={shell}
       surfaceError={null}
       agentHomeCopy="Ask your CLI"

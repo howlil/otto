@@ -10,6 +10,8 @@ mock.module("@tauri-apps/api/core", () => ({
 }));
 
 const agent = {} as Parameters<typeof ShellContent>[0]["agent"];
+const music = {} as Parameters<typeof ShellContent>[0]["music"];
+const focus = {} as Parameters<typeof ShellContent>[0]["focus"];
 const appUpdate = {
   state: { status: "idle" },
   checkForUpdate: async () => {},
@@ -60,8 +62,11 @@ describe("OS event surface", () => {
     const view = render(
       <ShellContent
         agent={agent}
+        music={music}
+        focus={focus}
         shell={shell}
         agentHomeCopy="Ask your CLI"
+        musicHomeCopy="No media session"
         artProps={{ tilt: 43, gradient: 80 }}
         onContentMeasured={() => {}}
         appUpdate={appUpdate}
@@ -79,9 +84,12 @@ describe("OS event surface", () => {
     const view = render(
       <ShellView
         agent={agent}
+        music={music}
+        focus={focus}
         shell={shell as Parameters<typeof ShellView>[0]["shell"]}
         surfaceError={null}
         agentHomeCopy="Ask your CLI"
+        musicHomeCopy="No media session"
         artProps={{ tilt: 43, gradient: 80 }}
         gutter={0}
         size={{ width: 92, height: 42 }}
@@ -106,6 +114,8 @@ describe("OS event surface", () => {
     const view = render(
       <ShellView
         agent={agent}
+        music={music}
+        focus={focus}
         shell={{
           ...shell,
           placement: {
@@ -116,6 +126,7 @@ describe("OS event surface", () => {
         } as Parameters<typeof ShellView>[0]["shell"]}
         surfaceError={null}
         agentHomeCopy="Ask your CLI"
+        musicHomeCopy="No media session"
         artProps={{ tilt: 43, gradient: 80 }}
         gutter={12}
         size={{ width: 234, height: 52 }}

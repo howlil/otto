@@ -4,17 +4,20 @@ import type { RefObject } from "react";
 import { morphMilliseconds } from "./features/shell";
 import type { SurfaceSize, useAppUpdate, useNotchShell } from "./features/shell";
 import type { useAgent } from "./features/agent";
+import type { FocusTimerModel } from "./features/focus";
 import type { useMusic } from "./features/music";
 import type { OsEventView } from "./platform/tauri";
 import { ShellContent } from "./ShellContent";
 
 type AgentModel = ReturnType<typeof useAgent>;
 type MusicModel = ReturnType<typeof useMusic>;
+type FocusModel = FocusTimerModel;
 type ShellModel = ReturnType<typeof useNotchShell>;
 
 export function ShellView({
   agent,
   music,
+  focus,
   shell,
   surfaceError,
   agentHomeCopy,
@@ -32,6 +35,7 @@ export function ShellView({
 }: {
   agent: AgentModel;
   music: MusicModel;
+  focus: FocusModel;
   shell: ShellModel;
   surfaceError: string | null;
   agentHomeCopy: string;
@@ -90,6 +94,7 @@ export function ShellView({
           <ShellContent
             agent={agent}
             music={music}
+            focus={focus}
             shell={shell}
             agentHomeCopy={agentHomeCopy}
             musicHomeCopy={musicHomeCopy}

@@ -64,6 +64,10 @@ export function useShellFocus({
         setPage("agent");
         return;
       }
+      if (page === "focus-settings") {
+        setPage("focus");
+        return;
+      }
       if (page === "global-settings") {
         setPage("home");
         return;

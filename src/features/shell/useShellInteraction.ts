@@ -46,7 +46,13 @@ export function useShellInteraction({ prefs }: { prefs: Preferences }) {
     beginMorph();
     setMode("compact");
     setPage((current) =>
-      current === "global-settings" ? "home" : current === "agent-settings" ? "agent" : current,
+      current === "global-settings"
+        ? "home"
+        : current === "agent-settings"
+          ? "agent"
+          : current === "focus-settings"
+            ? "focus"
+            : current,
     );
   }, [beginMorph, hover.clearTimers]);
   collapseRef.current = collapse;
