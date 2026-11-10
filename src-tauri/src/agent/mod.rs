@@ -1750,7 +1750,7 @@ mod tests {
     #[tokio::test]
     async fn provider_cannot_change_while_session_is_owned() {
         let runtime = AgentRuntime::new();
-        assert!(runtime.select_provider("opencode".into()).await.is_err());
+        assert!(runtime.select_provider("unknown".into()).await.is_err());
         runtime
             .select_provider("agy".into())
             .await

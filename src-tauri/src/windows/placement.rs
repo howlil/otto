@@ -1,9 +1,11 @@
 #[cfg(test)]
 pub const SHOULDER: f64 = 12.0;
 #[cfg(test)]
-pub const ATTACHED_RADIUS: f64 = 24.0;
+pub const ATTACHED_RADIUS: f64 = 18.0;
 #[cfg(test)]
-pub const CARD_RADIUS: f64 = 27.0;
+pub const CARD_RADIUS: f64 = 18.0;
+#[cfg(test)]
+pub const COMPACT_RADIUS: f64 = 13.0;
 #[cfg(test)]
 const ARC_SEGMENTS: usize = 10;
 
@@ -46,8 +48,8 @@ pub fn shape_for(silhouette: Silhouette, height: f64, scale: f64) -> Shape {
     let limit = (height / 2.0).max(0.0);
     match silhouette {
         Silhouette::Capsule => Shape {
-            top: limit,
-            bottom: limit,
+            top: (COMPACT_RADIUS * scale).min(limit),
+            bottom: (COMPACT_RADIUS * scale).min(limit),
             gutter: 0.0,
         },
         Silhouette::Card => {
@@ -448,16 +450,16 @@ mod tests {
         assert_eq!(
             shape_for(Silhouette::Card, 346.0, 1.0),
             Shape {
-                top: 27.0,
-                bottom: 27.0,
+                top: 18.0,
+                bottom: 18.0,
                 gutter: 0.0
             }
         );
         assert_eq!(
             shape_for(Silhouette::Capsule, 42.0, 1.0),
             Shape {
-                top: 21.0,
-                bottom: 21.0,
+                top: 13.0,
+                bottom: 13.0,
                 gutter: 0.0
             }
         );
@@ -470,7 +472,7 @@ mod tests {
             }
         );
         assert_eq!(attached().gutter, 12.0);
-        assert_eq!(attached().bottom, 24.0);
+        assert_eq!(attached().bottom, 18.0);
     }
 
     #[test]
@@ -571,15 +573,16 @@ mod tests {
     }
 
     #[test]
-    fn capsule_region_excludes_its_rounded_corners() {
-        let shape = shape_for(Silhouette::Capsule, 42.0, 1.0);
-        let region = create_region_at(shape, 92.0, 42.0, 0, 0).unwrap();
-        assert!(region_contains(region, 46, 21));
-        for inset in [2, 4] {
+    fn compact_notch_region_excludes_its_rounded_corners() {
+        let shape = shape_for(Silhouette::Capsule, 32.0, 1.0);
+        let region = create_region_at(shape, 185.0, 32.0, 0, 0).unwrap();
+        assert!(region_contains(region, 92, 16));
+        assert!(region_contains(region, 4, 4));
+        for inset in [1, 2] {
             assert!(!region_contains(region, inset, inset));
-            assert!(!region_contains(region, 92 - inset, inset));
-            assert!(!region_contains(region, inset, 42 - inset));
-            assert!(!region_contains(region, 92 - inset, 42 - inset));
+            assert!(!region_contains(region, 185 - inset, inset));
+            assert!(!region_contains(region, inset, 32 - inset));
+            assert!(!region_contains(region, 185 - inset, 32 - inset));
         }
         unsafe { DeleteObject(region as _) };
     }
@@ -589,8 +592,9 @@ mod tests {
         let css = include_str!("../../../src/style.css");
         for token in [
             "--otto-shoulder: 12px;",
-            "--radius-otto-attached: 24px;",
-            "--radius-otto-expanded: 27px;",
+            "--radius-otto-attached: 18px;",
+            "--radius-otto-compact: 13px;",
+            "--radius-otto-expanded: 18px;",
         ] {
             assert!(css.contains(token), "style.css is missing {token}");
         }

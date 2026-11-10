@@ -4,32 +4,19 @@ import { SHOULDER_PX, type NotchShape } from "../placement";
 export type SurfaceSize = { width: number; height: number };
 export const HOST_CAPACITY: SurfaceSize = { width: 550, height: 610 };
 
-export function compactRadiusFor(surface: NotchSurface, host: NotchHost | null): number {
-  const compact = surface.startsWith("agent")
-    ? "agentCompact"
-    : surface.startsWith("music")
-      ? "musicCompact"
-      : surface.startsWith("focus")
-        ? "focusCompact"
-        : surface === "osEvent"
-          ? "osEvent"
-          : "idle";
-  return (host?.layouts[compact][1] ?? 42) / 2;
-}
-
 export function surfaceLayout(
   surface: NotchSurface,
   shape: NotchShape,
   contentHeight: number | undefined,
-  host: Pick<NotchHost, "width" | "height" | "layouts" | "scale"> | null,
+  host: Pick<NotchHost, "width" | "height" | "layouts" | "scale" | "contentTop"> | null,
 ): SurfaceSize {
-  const [width, baseHeight] = host?.layouts[surface] ?? [92, 42];
+  const [width, baseHeight] = host?.layouts[surface] ?? [185, 32];
   const dynamic =
     (surface.startsWith("agent") && surface !== "agentCompact") || surface === "homeSettings";
   const minimum = surface.startsWith("agent") && surface !== "agentSettings" ? 170 : 1;
   const height =
     dynamic && contentHeight !== undefined && Number.isFinite(contentHeight)
-      ? Math.max(minimum, contentHeight)
+      ? Math.max(minimum, contentHeight) + (host?.contentTop ?? 0)
       : baseHeight;
   const bounds = host ?? HOST_CAPACITY;
   const scale = host?.scale ?? 1;

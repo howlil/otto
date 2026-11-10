@@ -194,7 +194,7 @@ describe("OS event surface", () => {
         musicHomeCopy="No media session"
         artProps={{ tilt: 43, gradient: 80 }}
         gutter={12}
-        size={{ width: 234, height: 52 }}
+        size={{ width: 234, height: 44 }}
         morphMs={0}
         stageRef={{ current: null }}
         onContentMeasured={() => {}}
@@ -215,8 +215,11 @@ describe("OS event surface", () => {
     expect(surface?.classList.contains("h-full")).toBe(true);
     expect(surface?.classList.contains("overflow-hidden")).toBe(true);
     expect(stage?.querySelectorAll(".otto-shoulder-l, .otto-shoulder-r")).toHaveLength(2);
-    expect(stage?.querySelector("main > .inset-0")).toBeTruthy();
-    expect(stage?.querySelector("main > .inset-0")?.getAttribute("style")).toBeNull();
+    const content = stage?.querySelector<HTMLElement>("main > div");
+    expect(content?.style.top).toBe("0px");
+    expect(content?.classList.contains("inset-x-0")).toBe(true);
+    expect(content?.classList.contains("bottom-0")).toBe(true);
+    expect(content?.style.padding).toBe("");
     expect(view.getByRole("status")).toBeTruthy();
   });
 });

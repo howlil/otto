@@ -1,5 +1,5 @@
 import { afterAll, afterEach, expect, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { useCallback } from "react";
 import { TransitionContent } from "../src/shared/ui/TransitionContent";
 import type { LyricsResult, MediaSnapshot } from "../src/platform/tauri";
@@ -47,9 +47,12 @@ test("lyrics failure remains recoverable and closing ignores pending results", a
   fireEvent.click(view.getByRole("button", { name: "Open Music" }));
   fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
   await waitFor(() => expect(requests).toHaveLength(1));
-  await act(async () => { requests[0].reject(new Error("Offline")); });
-  await waitFor(() => expect(view.getByText("Offline")).toBeTruthy());
-  fireEvent.click(view.getByRole("button", { name: "Retry lyrics" }));
+  await act(async () => { requests[0].reject(new Error("LRCLIB returned invalid lyrics.")); });
+  await waitFor(() => expect(view.getByText("Lyrics unavailable")).toBeTruthy());
+  expect(view.queryByText("LRCLIB returned invalid lyrics.")).toBeNull();
+  const lyricPane = view.container.querySelector(".otto-lyrics-pane");
+  expect(lyricPane).toBeTruthy();
+  fireEvent.click(within(lyricPane as HTMLElement).getByRole("button", { name: "Try again" }));
   await waitFor(() => expect(requests).toHaveLength(2));
   fireEvent.click(view.getByRole("button", { name: "Player" }));
   await act(async () => { requests[1].resolve({ key: trackKey(snapshot), record }); });
@@ -164,8 +167,8 @@ test("a mismatched lookup result is recoverable rather than displaying another t
   fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
   await waitFor(() => expect(requests).toHaveLength(1));
   await act(async () => { requests[0].resolve({ key: "other track", record }); });
-  expect(view.getByText("The media item changed. Retry lyrics.")).toBeTruthy();
-  expect(view.getByRole("button", { name: "Retry lyrics" })).toBeTruthy();
+  expect(view.getByText("Lyrics unavailable")).toBeTruthy();
+  expect(view.getByRole("button", { name: "Try again" })).toBeTruthy();
   expect(view.queryByRole("button", { name: "Words" })).toBeNull();
 });
 
@@ -183,8 +186,8 @@ test("closing before the permission handshake completes cannot start a late look
 });
 
 test.each([
-  [null, "No matching lyrics found for this version."],
-  [{ ...record, instrumental: true, syncedLyrics: null, plainLyrics: null }, "Instrumental · no lyrics"],
+  [null, "Lyrics not found"],
+  [{ ...record, instrumental: true, syncedLyrics: null, plainLyrics: null }, "Instrumental"],
   [{ ...record, syncedLyrics: null, plainLyrics: "Unsynced words" }, "Unsynced words"],
 ])("missing, instrumental and plain lyrics remain truthful", async (response, text) => {
   const view = render(<NavigationPlayer media={snapshot} />);

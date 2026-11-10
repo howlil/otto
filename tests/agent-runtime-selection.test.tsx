@@ -52,6 +52,7 @@ let runs: Array<{ text: string; provider: string; model: string | null; effort: 
 let selectionError: string | null = null;
 let pushSnapshot: ((snapshot: unknown) => void) | null = null;
 let readSnapshot = async () => idle;
+let providerReadiness = readyReadiness;
 let changeProvider = async () => {};
 let changeRuntime = async () => {};
 
@@ -67,12 +68,18 @@ function deferred<T>() {
 
 mock.module("../src/platform/tauri", () => ({
   nativeAvailable: true,
+  codexInstalled: async () => false,
+  getCodexReadiness: async () => readyReadiness,
   getAgentSnapshot: () => readSnapshot(),
   subscribeAgent: async (onSnapshot: (snapshot: unknown) => void) => {
     pushSnapshot = onSnapshot;
     return { channel: { onmessage: null }, unsubscribe: async () => {} };
   },
-  getAgentReadiness: async () => readyReadiness,
+  getAgentReadiness: async (_provider: string, _requestId: number, model: string | null) => ({
+    ...providerReadiness,
+    model: model ?? providerReadiness.model,
+    thinkingEffort: model === "model-b" ? "low" : providerReadiness.thinkingEffort,
+  }),
   cancelAgentReadiness: async () => {},
   selectAgentProvider: () => changeProvider(),
   selectAgentRuntimeOptions: async (model: string | null, effort: string | null) => {
@@ -103,9 +110,12 @@ mock.module("../src/platform/tauri", () => ({
 
 const { useAgent } = await import("../src/features/agent/useAgent");
 
-const awaitReady = async (hook: { result: { current: { readiness: { status: string } } } }) => {
+const awaitReady = async (hook: {
+  result: { current: { readiness: { status: string; model: string | null }; model: string | null } };
+}) => {
   await waitFor(() => {
     expect(hook.result.current.readiness.status).toBe("ready");
+    expect(hook.result.current.readiness.model).toBe(hook.result.current.model);
   });
 };
 
@@ -126,11 +136,29 @@ afterEach(() => {
   selectionError = null;
   pushSnapshot = null;
   readSnapshot = async () => idle;
+  providerReadiness = readyReadiness;
   changeProvider = async () => {};
   changeRuntime = async () => {};
 });
 
 describe("Agent runtime selection reaches the next run", () => {
+  test("does not submit when provider readiness is unavailable", async () => {
+    providerReadiness = {
+      ...readyReadiness,
+      status: "missing",
+      message: "Pi CLI was not found.",
+      recovery: "Install Pi, then Retry.",
+    };
+    const hook = renderHook(() => useAgent(true));
+    await waitFor(() => {
+      expect(hook.result.current.readiness.status).toBe("missing");
+    });
+    await act(async () => hook.result.current.setDraft("Keep this draft"));
+    await act(async () => { await hook.result.current.send(); });
+    expect(runs).toEqual([]);
+    expect(hook.result.current.draft).toBe("Keep this draft");
+  });
+
   test("a current bootstrap restores the native provider and model", async () => {
     readSnapshot = async () => ({
       ...idle, provider: "pi", model: "model-b", thinkingEffort: "low", seq: 7,
@@ -167,6 +195,7 @@ describe("Agent runtime selection reaches the next run", () => {
     await act(async () => { switching.resolve(); await pending; });
     expect(hook.result.current.locked).toBe(false);
     expect(hook.result.current.model).toBe("model-b");
+    await awaitReady(hook);
     await act(async () => { await hook.result.current.send(); });
     expect(runs).toEqual([
       { text: "Wait for the model", provider: "pi", model: "model-b", effort: "low" },
@@ -191,6 +220,7 @@ describe("Agent runtime selection reaches the next run", () => {
     expect(hook.result.current.model).toBe("model-b");
     expect(hook.result.current.thinkingEffort).toBe("low");
     await act(async () => hook.result.current.setDraft("Use the confirmed runtime"));
+    await awaitReady(hook);
     await act(async () => { await hook.result.current.send(); });
     expect(runs).toEqual([
       { text: "Use the confirmed runtime", provider: "pi", model: "model-b", effort: "low" },
@@ -256,6 +286,7 @@ describe("Agent runtime selection reaches the next run", () => {
     await act(async () => {
       await hook.result.current.setModel("model-b");
     });
+    await awaitReady(hook);
     expect(selections).toEqual([["model-b", "low"]]);
     expect(hook.result.current.model).toBe("model-b");
     expect(hook.result.current.thinkingEffort).toBe("low");

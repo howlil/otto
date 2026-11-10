@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type FormEvent, type Ref } from "react";
 import type { AgentProvider, CapturePhase } from "../../platform/tauri";
 import { IconButton, TextArea, VisuallyHidden } from "../../shared/ui";
+import { providerLabel } from "./history-model";
 
 const PROMPT_LINE_HEIGHT = 19;
 const PROMPT_MAX_HEIGHT = 105;
@@ -107,7 +108,7 @@ export function AgentComposer({
           ref={prompt}
           id="otto-prompt"
           rows={1}
-          placeholder={`Ask ${provider === "pi" ? "Pi" : provider === "agy" ? "Agy" : "Codex"}…`}
+          placeholder={`Ask ${providerLabel(provider)}…`}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           className={`otto-scrollbar-hidden resize-none border-0 bg-transparent px-1 text-otto-md leading-[1.5] text-otto-text outline-none shadow-none placeholder:text-otto-text-subtle ${expanded ? "block max-h-[105px] min-h-[19px] w-full" : "min-h-[19px] min-w-0 max-h-[19px] flex-1"}`}

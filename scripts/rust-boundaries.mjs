@@ -33,7 +33,7 @@ for (const path of rustFiles(coreRoot)) {
   const source = readFileSync(path, "utf8");
   const forbidden = [
     /\b(?:crate|super)::windows::\b/,
-    /\b(?:crate::agent::|super::)?providers::(?:codex|pi|agy)::/,
+    /\b(?:crate::agent::|super::)?providers::(?:codex|pi|agy|opencode)::/,
   ];
   if (forbidden.some((pattern) => pattern.test(source))) {
     failures.push(`F6: ${relative(root, path)} imports a concrete native adapter`);
@@ -44,7 +44,7 @@ for (const path of rustFiles(osEventsRoot)) {
   const source = readFileSync(path, "utf8");
   const forbidden = [
     /\b(?:crate|super)::windows::\b/,
-    /\b(?:crate::agent::|super::)?providers::(?:codex|pi|agy)::/,
+    /\b(?:crate::agent::|super::)?providers::(?:codex|pi|agy|opencode)::/,
     /\bWebviewWindow\b/,
   ];
   if (forbidden.some((pattern) => pattern.test(source))) {

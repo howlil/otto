@@ -9,7 +9,7 @@ export type AgentStatus =
   | "stopped"
   | "failed";
 
-export type AgentProvider = "codex" | "pi" | "agy";
+export type AgentProvider = "codex" | "pi" | "agy" | "opencode";
 export type CaptureSource = "window" | "fullScreen";
 export type CapturePhase =
   | "idle"
@@ -184,6 +184,14 @@ export async function getOverlayProtectionStatus(): Promise<boolean> {
 
 export async function setOverlayCaptureProtection(enabled: boolean): Promise<boolean> {
   return invoke<boolean>("overlay_set_capture_protection", { enabled });
+}
+
+export async function getTaskbarAutoHide(): Promise<boolean> {
+  return invoke<boolean>("taskbar_auto_hide_state");
+}
+
+export async function setTaskbarOttoMode(enabled: boolean): Promise<boolean> {
+  return invoke<boolean>("taskbar_set_otto_mode", { enabled });
 }
 
 export async function getAgentSnapshot(): Promise<AgentSnapshot> {
@@ -403,9 +411,19 @@ export async function onNotchFocusChanged(
 export type NotchShape = "capsule" | "card" | "attached";
 export type NotchPlacement = "floating" | "attached";
 
+export type DisplayGeometry = {
+  source: "physical-notch" | "notchless" | "approximate";
+  notchWidth: number;
+  notchHeight: number;
+  safeTop: number;
+  menuTop: number;
+};
+
 export type NotchLayouts = Record<NotchSurface, readonly [number, number]>;
 
 export type NotchHost = {
+  display?: DisplayGeometry;
+  contentTop?: number;
   revision: number;
   placement: NotchPlacement;
   width: number;

@@ -1,5 +1,6 @@
 import type { AgentSnapshot, NotchSurface, ProviderReadiness } from "../../platform/tauri";
 import { agentStatusLabel, captureIsWorking, capturePhaseLabel } from "./status";
+import { providerLabel } from "./history-model";
 
 export function resolveAgentSurface(
   snapshot: AgentSnapshot,
@@ -24,7 +25,7 @@ export function compactLabel(
   if (readiness === "authRequired") return "Sign in required";
   if (installed === false) return "Unavailable";
   if (snapshot.status === "completed") return "Answer ready";
-  return snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex";
+  return providerLabel(snapshot.provider);
 }
 
 export function compactDetail(
@@ -33,8 +34,7 @@ export function compactDetail(
   readiness: ProviderReadiness,
   error?: string | null,
 ): string {
-  const provider =
-    snapshot.provider === "pi" ? "Pi" : snapshot.provider === "agy" ? "Agy" : "Codex";
+  const provider = providerLabel(snapshot.provider);
   if (captureIsWorking(snapshot.capture.phase)) {
     return `${provider} · ${capturePhaseLabel(snapshot.capture.phase)}`;
   }

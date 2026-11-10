@@ -33,7 +33,7 @@ export function CompactEyesButton({
   return (
     <button
       ref={buttonRef}
-      className={`group absolute top-0 z-[4] grid place-items-center border-0 bg-transparent p-0 text-inherit ${reducedMotion ? "" : "transition-[left,top,translate,width,height] ease-otto"} ${settled ? "left-4 top-3 h-[34px] w-[34px] translate-x-0" : "left-1/2 h-[42px] w-[92px] -translate-x-1/2"}`}
+      className={`group absolute top-0 z-[4] grid place-items-center border-0 bg-transparent p-0 text-inherit ${reducedMotion ? "" : "transition-[left,top,translate,width,height] ease-otto"} ${settled ? "left-4 top-3 h-[34px] w-[34px] translate-x-0" : "left-1/2 h-[var(--otto-idle-height,32px)] w-[var(--otto-idle-width,185px)] -translate-x-1/2"}`}
       style={reducedMotion ? undefined : { transitionDuration: "var(--otto-morph-duration)" }}
       type="button"
       aria-expanded={expanded}
@@ -122,6 +122,10 @@ export function SurfaceBody({
         captureProtectionPending={shell.captureProtectionPending}
         captureProtectionError={shell.captureProtectionError}
         setCaptureProtection={shell.setCaptureProtection}
+        taskbarReplacementSupported={shell.taskbarReplacementSupported}
+        taskbarReplacementPending={shell.taskbarReplacementPending}
+        taskbarReplacementError={shell.taskbarReplacementError}
+        setTaskbarReplacement={shell.setTaskbarReplacement}
         osEventsError={shell.osEventsError}
         placement={shell.placement}
         motionClass={nudgeMotion}

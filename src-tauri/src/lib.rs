@@ -2,13 +2,18 @@ mod agent;
 mod focus;
 mod ipc;
 mod lyrics;
+#[cfg(target_os = "macos")]
+mod macos_display;
 mod media;
 mod notch;
+mod notch_sizing;
 mod os_events;
 #[cfg(windows)]
 mod windows;
 
 use tauri::Manager;
+#[cfg(windows)]
+use tauri::window::Color;
 
 pub fn run() {
     #[cfg(windows)]
@@ -25,8 +30,11 @@ pub fn run() {
         .manage(ipc::notch::NotchHostState::default())
         .manage(lyrics::LyricsRuntime::new())
         .invoke_handler(tauri::generate_handler![
+            ipc::shell_shortcut::shell_shortcut,
             ipc::overlay::overlay_protection_status,
             ipc::overlay::overlay_set_capture_protection,
+            ipc::taskbar::taskbar_auto_hide_state,
+            ipc::taskbar::taskbar_set_otto_mode,
             ipc::agent::agent_snapshot,
             ipc::agent::agent_history_list,
             ipc::agent::agent_history_open,
@@ -71,6 +79,8 @@ pub fn run() {
             ipc::os_events::os_events_set_enabled,
         ])
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.manage(macos_display::DisplayWatch::start(app.handle().clone())?);
             #[cfg(windows)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -100,7 +110,16 @@ pub fn run() {
             let _ = os_events;
             #[cfg(windows)]
             app.manage(windows::capture::start_hotkey(app.handle().clone()));
+            #[cfg(windows)]
+            {
+                app.manage(windows::shell_shortcut::start(app.handle().clone())?);
+                app.manage(windows::taskbar::TaskbarState::default());
+            }
             if let Some(window) = app.get_webview_window("main") {
+                #[cfg(windows)]
+                if let Err(error) = window.set_background_color(Some(Color(0, 0, 0, 0))) {
+                    eprintln!("Otto transparent background unavailable: {error}");
+                }
                 #[cfg(windows)]
                 {
                     if let Err(error) = windows::overlay::configure(&window) {
@@ -110,6 +129,18 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("failed to start Otto");
+        .build(tauri::generate_context!())
+        .expect("failed to start Otto")
+        .run(|_app, _event| {
+            #[cfg(windows)]
+            if matches!(_event, tauri::RunEvent::Exit)
+                && let Some(taskbar) = _app.try_state::<windows::taskbar::TaskbarState>()
+            {
+                let _ = taskbar.restore();
+            }
+            #[cfg(target_os = "macos")]
+            if matches!(_event, tauri::RunEvent::Exit) {
+                _app.unmanage::<macos_display::DisplayWatch>();
+            }
+        });
 }

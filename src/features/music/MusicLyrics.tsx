@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MediaCommand, MediaSnapshot } from "../../platform/tauri/media";
-import { Button, IconButton, Text, useTransitionActive } from "../../shared/ui";
+import { IconButton, Text, useTransitionActive } from "../../shared/ui";
 import { LyricsContent } from "./LyricsContent";
 import { Artwork } from "./MusicPlayback";
 import { parseLyrics } from "./lyrics-model";
@@ -41,21 +41,25 @@ export function MusicLyrics({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1 pt-1">
-      <div className="grid min-h-0 flex-1 grid-cols-[1fr_3fr] gap-3">
-        <div className="min-w-0">
+      <div className="otto-lyrics-layout">
+        <div className="flex min-w-0 flex-col items-start justify-center">
           <Artwork snapshot={snapshot} lyrics />
-          <Text as="strong" variant="meta" className="mt-1 block truncate">
+          <Text as="strong" variant="meta" className="mt-1 block w-full min-w-0 truncate">
             {mediaTitle(snapshot)}
           </Text>
-          <Text as="span" variant="caption" className="block truncate text-otto-text-tertiary">
+          <Text
+            as="span"
+            variant="caption"
+            className="block w-full min-w-0 truncate text-otto-text-tertiary"
+          >
             {mediaDetail(snapshot)}
           </Text>
         </div>
-        <div className="relative min-h-0 min-w-0">
+        <div className="otto-lyrics-pane">
           <section
             ref={list}
             aria-labelledby="otto-music-title"
-            className="h-full overflow-y-auto overscroll-contain [scrollbar-width:none]"
+            className={`otto-lyrics-lines min-h-0 ${!follow && lines.length > 0 ? "otto-lyrics-lines-manual" : ""}`}
             onWheel={() => setFollow(false)}
             onPointerDown={() => setFollow(false)}
             onKeyDown={(event) => {
@@ -76,25 +80,21 @@ export function MusicLyrics({
             />
           </section>
           {!follow && lines.length > 0 && (
-            <Button
-              className="absolute right-1 bottom-0"
-              size="xs"
+            <IconButton
+              className="absolute right-1 top-1/2 z-[1] -translate-y-1/2"
+              variant="outlined"
+              icon="chevronDown"
+              label="Follow"
+              title="Follow current lyric"
               onClick={() => {
                 onRestoreFocus();
                 setFollow(true);
               }}
-            >
-              Follow
-            </Button>
+            />
           )}
         </div>
       </div>
       <div className="flex min-h-6 shrink-0 items-center gap-2 text-otto-text-tertiary">
-        {(lyrics.error || lyrics.status === "missing") && (
-          <Button size="link" onClick={lyrics.retry}>
-            Retry lyrics
-          </Button>
-        )}
         <IconButton
           className="ml-auto"
           variant="round"

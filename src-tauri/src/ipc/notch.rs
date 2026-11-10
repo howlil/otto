@@ -1,4 +1,5 @@
 use crate::notch::{RectPx, RegionOrder, RegionPx, host_bounds};
+use crate::notch_sizing::{DisplayGeometry, content_top, drawable_monitor, resolve_layouts};
 use std::sync::Mutex;
 use tauri::{Manager, State, WebviewWindow};
 #[cfg(not(windows))]
@@ -13,6 +14,8 @@ pub struct NotchHost {
     height: f64,
     scale: f64,
     layouts: std::collections::BTreeMap<&'static str, (u32, u32)>,
+    display: DisplayGeometry,
+    content_top: u32,
 }
 
 #[derive(Clone)]
@@ -129,17 +132,28 @@ fn configure_host(
         .current_monitor()
         .map_err(|error| error.to_string())?
         .ok_or("Monitor unavailable.")?;
-    let scale = window.scale_factor().map_err(|error| error.to_string())?;
+    let scale = monitor.scale_factor();
     let size = monitor.size();
     let origin = monitor.position();
     let work = monitor.work_area();
+    #[cfg(target_os = "macos")]
+    let display = crate::macos_display::measure(window).unwrap_or_else(|_| {
+        crate::notch_sizing::approximate_geometry(f64::from(work.position.y - origin.y) / scale)
+    });
+    #[cfg(not(target_os = "macos"))]
+    let display = DisplayGeometry::default();
     let bounds = host_bounds(
-        RectPx {
-            x: origin.x,
-            y: origin.y,
-            width: size.width,
-            height: size.height,
-        },
+        drawable_monitor(
+            &display,
+            placement == "attached",
+            RectPx {
+                x: origin.x,
+                y: origin.y,
+                width: size.width,
+                height: size.height,
+            },
+            scale,
+        ),
         i64::from(work.position.y) + i64::from(work.size.height),
         scale,
         (width, height),
@@ -158,6 +172,7 @@ fn configure_host(
         && host.attempt == attempt
         && host.view.scale == scale
         && host.view.placement == placement
+        && host.view.display == display
     {
         return Ok(host.view.clone());
     }
@@ -175,11 +190,13 @@ fn configure_host(
     state.order.sequence = 0;
     let host = NotchHost {
         revision: state.order.revision,
+        content_top: content_top(&display, placement == "attached"),
+        layouts: resolve_layouts(&display, placement == "attached"),
+        display,
         placement,
         width: f64::from(bounds.width) / scale,
         height: f64::from(bounds.height) / scale,
         scale,
-        layouts: crate::notch::surface_layouts(),
     };
     state.host = Some(ConfiguredHost {
         view: host.clone(),

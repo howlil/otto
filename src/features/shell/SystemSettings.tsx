@@ -24,6 +24,10 @@ export function SystemSettings({
   captureProtectionPending,
   captureProtectionError,
   onCaptureProtectionChange,
+  taskbarReplacementSupported,
+  taskbarReplacementPending,
+  taskbarReplacementError,
+  onTaskbarReplacementChange,
   osEventsError,
 }: {
   prefs: Preferences;
@@ -33,13 +37,16 @@ export function SystemSettings({
   captureProtectionPending: boolean;
   captureProtectionError: string | null;
   onCaptureProtectionChange: (enabled: boolean) => Promise<void>;
+  taskbarReplacementSupported: boolean;
+  taskbarReplacementPending: boolean;
+  taskbarReplacementError: string | null;
+  onTaskbarReplacementChange: (enabled: boolean) => Promise<void>;
   osEventsError: string | null;
 }) {
   return (
     <div className="mt-3 border-t border-otto-line-soft pt-2">
       <Toggle
         title="Show OS events"
-        help="Show transient volume, brightness, network, Bluetooth and battery updates."
         checked={prefs.osEventsEnabled}
         onChange={(osEventsEnabled) => change({ osEventsEnabled })}
       />
@@ -62,6 +69,23 @@ export function SystemSettings({
           captureProtectionError,
           captureProtected,
         )}
+      </Text>
+      <Toggle
+        title="Use Otto as taskbar"
+        help="Hides the Windows taskbar while Otto stays available at the top edge."
+        checked={prefs.replaceTaskbar}
+        disabled={!taskbarReplacementSupported || taskbarReplacementPending}
+        onChange={(enabled) => void onTaskbarReplacementChange(enabled)}
+      />
+      <Text as="p" variant="caption" className="mt-2 text-otto-text-tertiary" role="status">
+        {!taskbarReplacementSupported
+          ? "Requires Otto for Windows."
+          : taskbarReplacementPending
+            ? "Applying Otto Dock mode…"
+            : (taskbarReplacementError ??
+              (prefs.replaceTaskbar
+                ? "Windows taskbar is hidden while Otto runs."
+                : "Windows taskbar is controlled by Windows."))}
       </Text>
     </div>
   );

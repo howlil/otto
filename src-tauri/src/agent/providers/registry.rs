@@ -17,6 +17,11 @@ impl ProviderId {
                 pending_model_selection: true,
                 completed_followup_without_probe: false,
             },
+            Self::Opencode => RuntimeCapabilities {
+                image_transport: false,
+                pending_model_selection: false,
+                completed_followup_without_probe: false,
+            },
             Self::Agy => RuntimeCapabilities {
                 image_transport: false,
                 pending_model_selection: false,
@@ -32,8 +37,10 @@ impl ProviderId {
             Self::Pi => super::pi::executable().is_some(),
             #[cfg(windows)]
             Self::Agy => super::agy::executable().is_some(),
+            #[cfg(windows)]
+            Self::Opencode => super::opencode::executable().is_some(),
             #[cfg(not(windows))]
-            Self::Pi | Self::Agy => false,
+            Self::Pi | Self::Agy | Self::Opencode => false,
         }
     }
 
@@ -63,6 +70,9 @@ impl ProviderId {
     pub(in crate::agent) fn capture_unavailable_reason(self) -> Option<&'static str> {
         match self {
             Self::Agy => Some("Agy headless streaming accepts text only. Select Codex or Pi."),
+            Self::Opencode => {
+                Some("OpenCode chat accepts text only. Select Codex or Pi for screenshots.")
+            }
             Self::Codex | Self::Pi => None,
         }
     }
@@ -73,7 +83,10 @@ impl ProviderId {
 
     pub fn validate(self, has_image: bool) -> Result<(), String> {
         if has_image && !self.image_transport() {
-            return Err("Agy chat accepts text only.".into());
+            return Err(self
+                .capture_unavailable_reason()
+                .unwrap_or("This provider accepts text only.")
+                .into());
         }
         Ok(())
     }
@@ -85,8 +98,10 @@ impl ProviderId {
             Self::Pi => super::pi::readiness(cwd, model).await,
             #[cfg(windows)]
             Self::Agy => super::agy::readiness(cwd, model).await,
+            #[cfg(windows)]
+            Self::Opencode => super::opencode::readiness(cwd, model).await,
             #[cfg(not(windows))]
-            Self::Pi | Self::Agy => ProviderReadiness::new(
+            Self::Pi | Self::Agy | Self::Opencode => ProviderReadiness::new(
                 "unsupported",
                 "Local CLI adapters require Windows.",
                 "Run Otto on Windows.",
@@ -116,8 +131,10 @@ impl ProviderId {
             Self::Pi => super::pi::run(controls, events, initial).await,
             #[cfg(windows)]
             Self::Agy => super::agy::run(controls, events, initial).await,
+            #[cfg(windows)]
+            Self::Opencode => super::opencode::run(controls, events, initial).await,
             #[cfg(not(windows))]
-            Self::Pi | Self::Agy => {
+            Self::Pi | Self::Agy | Self::Opencode => {
                 let run_id = events.snapshot().run_id;
                 events.fail(run_id, "This provider requires Windows.");
             }
@@ -129,15 +146,72 @@ impl ProviderId {
 mod tests {
     use super::*;
 
+    #[cfg(windows)]
+    async fn installed_readiness(provider: ProviderId) {
+        let cwd = std::fs::canonicalize(std::env::temp_dir()).unwrap();
+        let ready = provider.readiness(&cwd, None).await;
+        println!(
+            "{}: {} — {}",
+            provider.as_str(),
+            ready.status,
+            ready.message
+        );
+        assert!(
+            matches!(ready.status.as_str(), "ready" | "authRequired"),
+            "{}",
+            ready.recovery
+        );
+        if ready.status == "ready" {
+            assert!(ready.tool_free_admission);
+            assert!(!ready.models.is_empty());
+            assert!(ready.model.is_some());
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "requires installed Pi and user-managed authentication"]
+    async fn installed_pi_readiness_matches_the_real_cli() {
+        installed_readiness(ProviderId::Pi).await;
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "requires installed Agy and user-managed authentication"]
+    async fn installed_agy_readiness_respects_tool_free_admission() {
+        let ready = ProviderId::Agy.readiness(&std::env::temp_dir(), None).await;
+        println!("agy: {} — {}", ready.status, ready.message);
+        if ready.status == "unsupported" {
+            assert!(!ready.tool_free_admission);
+            assert!(ready.message.contains("tools"));
+        } else {
+            assert!(matches!(ready.status.as_str(), "ready" | "authRequired"));
+            assert_eq!(ready.tool_free_admission, ready.status == "ready");
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "requires installed OpenCode and user-managed authentication"]
+    async fn installed_opencode_readiness_matches_the_real_cli() {
+        installed_readiness(ProviderId::Opencode).await;
+    }
+
     #[test]
     fn provider_registry_rejects_unknown_and_unsupported_privileges() {
-        assert!(ProviderId::parse("opencode").is_none());
+        assert!(ProviderId::parse("unknown").is_none());
         assert!(ProviderId::parse("Codex").is_none());
-        for id in ["codex", "pi", "agy"] {
+        for id in ["codex", "pi", "agy", "opencode"] {
             assert_eq!(ProviderId::parse(id).unwrap().as_str(), id);
             assert!(ProviderId::parse(id).unwrap().validate(false).is_ok());
         }
         assert!(ProviderId::Agy.validate(true).is_err());
+        assert!(ProviderId::Opencode.validate(true).is_err());
+        assert!(
+            !ProviderId::Opencode
+                .capabilities()
+                .completed_followup_without_probe
+        );
         assert!(ProviderId::Pi.validate(true).is_ok());
         assert!(ProviderId::Codex.validate(false).is_ok());
     }

@@ -35,6 +35,10 @@ export function GlobalSettings({
   captureProtectionPending,
   captureProtectionError,
   setCaptureProtection,
+  taskbarReplacementSupported,
+  taskbarReplacementPending,
+  taskbarReplacementError,
+  setTaskbarReplacement,
   osEventsError,
   placement,
   motionClass = "",
@@ -55,14 +59,22 @@ export function GlobalSettings({
   captureProtectionPending: boolean;
   captureProtectionError: string | null;
   setCaptureProtection: (enabled: boolean) => Promise<void>;
+  taskbarReplacementSupported: boolean;
+  taskbarReplacementPending: boolean;
+  taskbarReplacementError: string | null;
+  setTaskbarReplacement: (enabled: boolean) => Promise<void>;
   osEventsError: string | null;
   placement: PlacementStatus;
 }) {
   const active = useTransitionActive();
   const [tab, setTab] = useState<SettingsTab>("appearance");
   const restoreDefaults = () => {
-    change(defaults);
+    change({
+      ...defaults,
+      replaceTaskbar: taskbarReplacementSupported ? prefs.replaceTaskbar : false,
+    });
     if (captureProtectionSupported) void setCaptureProtection(defaults.hideFromCapture);
+    void setTaskbarReplacement(false);
   };
   const back = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLElement>(null);
@@ -135,6 +147,10 @@ export function GlobalSettings({
                   captureProtectionPending={captureProtectionPending}
                   captureProtectionError={captureProtectionError}
                   onCaptureProtectionChange={setCaptureProtection}
+                  taskbarReplacementSupported={taskbarReplacementSupported}
+                  taskbarReplacementPending={taskbarReplacementPending}
+                  taskbarReplacementError={taskbarReplacementError}
+                  onTaskbarReplacementChange={setTaskbarReplacement}
                   osEventsError={osEventsError}
                 />
                 <UpdateSettings update={update} />

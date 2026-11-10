@@ -85,17 +85,6 @@ async function findCss(selector) {
   return value["element-6066-11e4-a52e-4f735466cecf"];
 }
 
-async function movePointer(action) {
-  await call("POST", endpoint("/actions"), {
-    actions: [{
-      type: "pointer",
-      id: "otto-mouse",
-      parameters: { pointerType: "mouse" },
-      actions: [action],
-    }],
-  });
-}
-
 async function clickTarget(selector) {
   const marked = await execute(`
     const target = ${selector};
@@ -109,11 +98,26 @@ async function clickTarget(selector) {
   await execute('document.querySelector(\'[data-e2e-target="true"]\')?.removeAttribute("data-e2e-target");');
 }
 
+async function moveNativePointer(point) {
+  const origin = await executeAsync(`
+    const done = arguments[arguments.length - 1];
+    window.__TAURI_INTERNALS__.invoke("plugin:window|inner_position", { label: "main" })
+      .then(position => done({ ...position, scale: devicePixelRatio }), error => done({ error: String(error) }));
+  `);
+  assert.equal(origin.error, undefined, "native pointer origin unavailable");
+  const x = Math.round(origin.x + point.x * origin.scale);
+  const y = Math.round(origin.y + point.y * origin.scale);
+  const result = spawnSync(shell, ["-NoProfile", "-NonInteractive", "-Command",
+    `Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public static class OttoPointer { [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(System.IntPtr context); }'; $null = [OttoPointer]::SetProcessDpiAwarenessContext([System.IntPtr]::new(-4)); if (-not [OttoPointer]::SetCursorPos(${x}, ${y})) { exit 1 }`],
+    { encoding: "utf8", windowsHide: true });
+  assert.equal(result.status, 0, `native pointer movement failed: ${result.stderr}`);
+}
+
 async function hoverPreview() {
-  const element = await until("compact hover target", () => findCss('button[aria-expanded="false"]'));
-  await movePointer({ type: "pointerMove", duration: 0, origin: { "element-6066-11e4-a52e-4f735466cecf": element }, x: 1, y: 1 });
+  const point = await execute(`const rect = document.querySelector('button[aria-expanded="false"]').getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };`);
+  await moveNativePointer(point);
   await until("hover preview", () => execute('return document.querySelector("button[aria-expanded]")?.getAttribute("aria-expanded") === "true";'));
-  await movePointer({ type: "pointerMove", duration: 0, origin: "viewport", x: 0, y: 0 });
+  await moveNativePointer({ x: 0, y: 0 });
   await until("hover collapse", () => execute('return document.querySelector("button[aria-expanded]")?.getAttribute("aria-expanded") === "false";'));
 }
 
@@ -246,7 +250,7 @@ async function start() {
   await execute(`
     const key = 'otto.preferences.v1';
     const preferences = JSON.parse(localStorage.getItem(key) || '{}');
-    localStorage.setItem(key, JSON.stringify({ ...preferences, clickOutside: false }));
+    localStorage.setItem(key, JSON.stringify({ ...preferences, clickOutside: false, hoverExpand: true, motion: "fluid" }));
   `);
   await call("POST", endpoint("/refresh"), {});
   await until("compact Home", () => execute('return Boolean(document.querySelector("button[aria-expanded=\\"false\\"]"));'));
@@ -257,7 +261,7 @@ async function nativeInteractionAudit() {
   assert.equal(processProbe.status, 0, "cannot identify the controller-owned Otto process");
   const processId = processProbe.stdout.trim();
   assert.match(processId, /^\d+$/, "native probe requires exactly one Otto process");
-  const keepToggle = 'Array.from(document.querySelectorAll("label")).find(label => label.textContent.includes("Keep expanded when switching apps"))';
+  const keepToggle = 'Array.from(document.querySelectorAll("label")).find(label => label.textContent.includes("Keep expanded"))';
   for (const [placement, keepExpanded] of [["floating", true], ["attached", true], ["attached", false], ["floating", false]]) {
     if (await execute('return Boolean(document.querySelector(\'button[aria-expanded="false"]\'));')) {
       await clickTarget('document.querySelector(\'button[aria-expanded="false"]\')');
@@ -377,7 +381,7 @@ async function audit() {
   assert.equal(focusAppearance.homeEyes, true, "Focus Home must render Otto eyes");
   assert.equal(focusAppearance.headerHeight, 42, "Focus header must match the canonical height");
   assert.equal(focusAppearance.countdownSize, "39px", "Focus countdown must retain its display scale");
-  assert.equal(focusAppearance.phaseSize, "10px", "Global button inheritance must not override Focus typography");
+  assert.equal(focusAppearance.phaseSize, "11px", "Global button inheritance must not override Focus typography");
   await clickTarget(
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Start timer"))',
   );
@@ -411,7 +415,7 @@ async function audit() {
     const preset = Array.from(document.querySelectorAll('button')).find(button => button.textContent?.trim() === '15m');
     return getComputedStyle(preset).fontSize;
   `);
-  assert.equal(presetSize, "10px", "Focus presets must retain canonical typography in WebView2");
+  assert.equal(presetSize, "11px", "Focus presets must retain canonical typography in WebView2");
   await transition(
     "Focus Settings to Focus",
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Done")',
@@ -424,11 +428,69 @@ async function audit() {
   );
 }
 
+async function captureSizing(label, width, height = null) {
+  await until(`${label} settled`, () => execute(`
+    const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect();
+    return Math.abs((stage?.width ?? 0) - ${width}) < 0.5
+      && (${height === null ? "true" : `Math.abs((stage?.height ?? 0) - ${height}) < 0.5`})
+      && !document.getAnimations().some(animation => animation.playState === "running"
+        && Number.isFinite(animation.effect?.getComputedTiming().endTime));
+  `));
+  const geometry = await execute(`
+    const main = document.querySelector("main");
+    const css = getComputedStyle(main);
+    const frame = document.querySelector("[data-placement]");
+    return { attached: frame.dataset.placement === "attached", expanded: frame.dataset.expanded === "true",
+      top: parseFloat(css.borderTopLeftRadius), bottom: parseFloat(css.borderBottomLeftRadius) };
+  `);
+  const radius = geometry.expanded ? 18 : 13;
+  assert.equal(geometry.top, geometry.attached ? 0 : radius, `${label}: top corner geometry`);
+  assert.equal(geometry.bottom, radius, `${label}: bottom corner geometry`);
+  await capture(label);
+}
+
+async function sizingComparison() {
+    for (const placement of ["floating", "attached"]) {
+      await execute(`
+        const key = "otto.preferences.v1";
+        const prefs = JSON.parse(localStorage.getItem(key) || "{}");
+        delete prefs.sizingPreset;
+        localStorage.setItem(key, JSON.stringify({ ...prefs, placement: ${JSON.stringify(placement)}, hoverExpand: false, clickOutside: false }));
+        location.reload();
+      `);
+      await until("native sizing ready", () => execute(`return document.querySelector('[data-sizing="mac-native"][data-placement="${placement}"]') && document.querySelector('button[aria-expanded="false"]');`));
+      await captureSizing(`mac-native-${placement}-idle`, 185, 32);
+      await clickTarget('document.querySelector("button[aria-expanded]")');
+      await until("expanded Home", () => execute('return document.querySelector("[data-expanded=true]") && document.body.innerText.includes("Pomodoro");'));
+      await captureSizing(`mac-native-${placement}-home`, 452, 148);
+      await clickTarget('Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Pomodoro"))');
+      await until("expanded Focus", () => execute('return Boolean(document.querySelector("[data-surface=focus]"));'));
+      await captureSizing(`mac-native-${placement}-focus-expanded`, 408, 174);
+      await execute(`document.querySelector("main").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));`);
+      await until("compact Focus", () => execute('return Boolean(document.querySelector("[data-expanded=false]"));'));
+      await captureSizing(`mac-native-${placement}-focus-compact`, 224, 44);
+      for (const module of [{ name: "Agent", compactWidth: 228, compactHeight: 40, width: 526, height: null },
+        { name: "Music", compactWidth: 264, compactHeight: 44, width: 444, height: 178 }]) {
+        await execute(`document.querySelector("main").dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true }));`);
+        await captureSizing(`mac-native-${placement}-${module.name}-compact`, module.compactWidth, module.compactHeight);
+        await clickTarget(`Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Open ${module.name}"))`);
+        await until(`${module.name} expanded`, () => execute('return Boolean(document.querySelector("[data-expanded=true]"));'));
+        await captureSizing(`mac-native-${placement}-${module.name}-expanded`, module.width, module.height);
+        await execute(`document.querySelector("main").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));`);
+        await until(`${module.name} compact`, () => execute('return Boolean(document.querySelector("[data-expanded=false]"));'));
+      }
+    }
+  console.log("PASS: native sizing and notch-corner comparison (Windows approximate geometry, not a physical Mac)");
+}
+
 try {
   await start();
-  await audit();
-  await nativeInteractionAudit();
-  console.log("PASS: native transition matrix");
+  if (process.env.OTTO_SIZING_COMPARISON === "1") await sizingComparison();
+  else {
+    await audit();
+    await nativeInteractionAudit();
+    console.log("PASS: native transition matrix");
+  }
 } catch (error) {
   console.error("FAIL: native transition matrix", error);
   process.exitCode = 1;

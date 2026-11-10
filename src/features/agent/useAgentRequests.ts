@@ -13,6 +13,7 @@ import {
   stopCodex,
   type AgentProvider,
   type AgentSnapshot,
+  type ProviderReadiness,
 } from "../../platform/tauri/agent";
 import { clearAcceptedDraft, restoreRejectedDraft, type SubmittedDraft } from "./draft-state";
 
@@ -64,6 +65,7 @@ export function useAgentRequestActions({
   draft,
   draftEpoch,
   provider,
+  readiness,
   model,
   thinkingEffort,
   refreshProvider,
@@ -79,6 +81,7 @@ export function useAgentRequestActions({
   draft: string;
   draftEpoch: RefObject<number>;
   provider: AgentProvider;
+  readiness: ProviderReadiness;
   model: string | null;
   thinkingEffort: string | null;
   refreshProvider: () => Promise<void>;
@@ -91,7 +94,15 @@ export function useAgentRequestActions({
 }) {
   const send = useCallback(async () => {
     const question = draft.trim();
-    if (!question || busy || isRuntimePending() || submitted.current) return;
+    if (
+      !question ||
+      busy ||
+      isRuntimePending() ||
+      submitted.current ||
+      readiness.status !== "ready"
+    ) {
+      return;
+    }
     clearError();
     const request: SubmittedDraft = {
       text: draft,
@@ -120,6 +131,7 @@ export function useAgentRequestActions({
     markAccepted,
     model,
     provider,
+    readiness.status,
     refreshProvider,
     setDraft,
     setRequestError,

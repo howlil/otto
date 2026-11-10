@@ -8,7 +8,7 @@ import {
 } from "./motion";
 import type { NotchShape } from "./placement";
 import { createGeometryQueue } from "./surface-sync";
-import { HOST_CAPACITY, surfaceLayout, compactRadiusFor } from "./surface-sync/layout";
+import { HOST_CAPACITY, surfaceLayout } from "./surface-sync/layout";
 import { useNotchHost } from "./surface-sync/useNotchHost";
 import { useRenderedRegion } from "./surface-sync/useRenderedRegion";
 
@@ -104,7 +104,7 @@ export function useNotchSurfaceSync({
       nativeSize: host ?? HOST_CAPACITY,
       scale: recovery.scale,
       morphMs: 0,
-      compactRadius: compactRadiusFor(surface, host),
+      sizingHost: host,
       stageRef,
       placement: recovery.region.shoulder > 0 ? ("attached" as const) : ("floating" as const),
       recovery,
@@ -114,7 +114,7 @@ export function useNotchSurfaceSync({
     nativeSize: host ?? HOST_CAPACITY,
     scale: host?.scale ?? 1,
     morphMs: motion.duration,
-    compactRadius: compactRadiusFor(surface, host),
+    sizingHost: host,
     stageRef,
     placement: host?.placement ?? "floating",
     recovery,

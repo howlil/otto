@@ -98,6 +98,7 @@ export function useAgent(readinessActive: boolean) {
     draft,
     draftEpoch,
     provider,
+    readiness,
     model,
     thinkingEffort,
     refreshProvider,

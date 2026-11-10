@@ -43,9 +43,24 @@ function isCompactExpandedPair(a: string, b: string): boolean {
   );
 }
 
-function transitionDirection(previousKey: string | null, currentKey: string): Direction {
+function isModuleSwitch(previousKey: string, currentKey: string): boolean {
+  const previous = previousKey.replace("compact-", "");
+  const current = currentKey.replace("compact-", "");
+  return (
+    previous !== current &&
+    ["agent", "music", "focus"].includes(previous) &&
+    ["agent", "music", "focus"].includes(current)
+  );
+}
+
+function transitionDirection(
+  previousKey: string | null,
+  currentKey: string,
+  moduleDirection: Direction,
+): Direction {
   if (!previousKey || previousKey === currentKey) return "center";
   if (isCompactExpandedPair(previousKey, currentKey)) return "center";
+  if (isModuleSwitch(previousKey, currentKey)) return moduleDirection;
   if (previousKey.startsWith("os-event-") || currentKey.startsWith("os-event-")) return "center";
   if (currentKey === "home" || currentKey === "compact-home") return "back";
   if (previousKey === "home" || previousKey === "compact-home") return "forward";
@@ -83,14 +98,20 @@ export function ShellContent({
 }) {
   const { expanded, isAgent, isMusic, page } = shell;
   const currentKey = surfaceKey(expanded, isAgent, isMusic, page, osEvent);
-  const [directionState, setDirectionState] = useState<{ key: string; direction: Direction }>({
+  const [directionState, setDirectionState] = useState<{
+    key: string;
+    direction: Direction;
+    moduleSlide: boolean;
+  }>({
     key: currentKey,
     direction: "center",
+    moduleSlide: false,
   });
   if (directionState.key !== currentKey) {
     setDirectionState({
       key: currentKey,
-      direction: transitionDirection(directionState.key, currentKey),
+      direction: transitionDirection(directionState.key, currentKey, shell.moduleDirection),
+      moduleSlide: isModuleSwitch(directionState.key, currentKey),
     });
   }
   const nudgeMotion = shell.reducedMotion
@@ -115,7 +136,7 @@ export function ShellContent({
       )}
       <TransitionContent
         transitionKey={currentKey}
-        kind={expanded ? "page" : "compact"}
+        kind={directionState.moduleSlide ? "module" : expanded ? "page" : "compact"}
         direction={directionState.direction}
         reducedMotion={shell.reducedMotion}
         className="h-full w-full"

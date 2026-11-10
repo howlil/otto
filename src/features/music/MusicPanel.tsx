@@ -130,11 +130,6 @@ export function MusicPanel({
           onControl={onControl}
         />
       )}
-      {!available && lyrics.error && (
-        <Text as="p" variant="caption" role="status">
-          {lyrics.error}
-        </Text>
-      )}
       {error && available && (
         <div className="flex shrink-0 items-center gap-2 text-otto-text-secondary">
           <Text as="p" variant="caption" className="min-w-0 flex-1" role="status">
