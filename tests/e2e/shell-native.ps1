@@ -555,6 +555,7 @@ try {
   }
 
   $escapeDelivered = $false
+  $escapeWidths = @()
   $escapeCollapsed = $false
   $shrinkHeldWide = $false
   $foregroundBefore = [OttoProbe.Native]::GetForegroundWindow()
@@ -564,9 +565,12 @@ try {
     [OttoProbe.Native]::keybd_event($VK_ESCAPE, 0x01, 0, [UIntPtr]::Zero)
     [OttoProbe.Native]::keybd_event($VK_ESCAPE, 0x01, 2, [UIntPtr]::Zero)
     $escapeDelivered = $true
-    Start-Sleep -Milliseconds 80
+    for ($sample = 0; $sample -lt 20; $sample++) {
+      [System.Windows.Forms.Application]::DoEvents()
+      Start-Sleep -Milliseconds 50
+      $escapeWidths += (Get-RectSize (Get-Rect $hwnd)).Width
+    }
     $shrinkHeldWide = (Get-RectSize (Get-HostRect $hwnd)).Width -eq $hostSize.Width
-    Start-Sleep -Milliseconds 900
     $afterEscape = Get-Rect $hwnd
     $afterEscapeSize = Get-RectSize $afterEscape
     $escapeCollapsed = $afterEscapeSize.Width -le $compactSize.Width
@@ -754,6 +758,7 @@ try {
     escape = [ordered]@{
       delivered = $escapeDelivered
       collapsed = $escapeCollapsed
+      widthSamples = $escapeWidths
     }
     notes = @($notes)
     failures = @($failures)
