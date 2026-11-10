@@ -2321,6 +2321,9 @@ name = "otto"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-core-graphics",
  "png",
  "reqwest",
  "serde",
@@ -2640,7 +2643,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

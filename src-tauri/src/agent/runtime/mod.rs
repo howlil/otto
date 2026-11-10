@@ -17,6 +17,7 @@ pub enum ProviderId {
     Codex,
     Pi,
     Agy,
+    Opencode,
 }
 
 #[cfg(test)]
@@ -46,6 +47,7 @@ impl ProviderId {
             "codex" => Some(Self::Codex),
             "pi" => Some(Self::Pi),
             "agy" => Some(Self::Agy),
+            "opencode" => Some(Self::Opencode),
             _ => None,
         }
     }
@@ -55,6 +57,7 @@ impl ProviderId {
             Self::Codex => "codex",
             Self::Pi => "pi",
             Self::Agy => "agy",
+            Self::Opencode => "opencode",
         }
     }
 }

@@ -9,6 +9,7 @@ import {
   CircleCheck,
   CirclePlus,
   Clock3,
+  ChevronDown,
   ChevronLeft,
   CircleAlert,
   Copy,
@@ -43,6 +44,7 @@ import {
 const icons = {
   settings: Settings,
   back: ChevronLeft,
+  chevronDown: ChevronDown,
   forward: ArrowRight,
   close: X,
   camera: Camera,

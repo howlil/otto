@@ -34,6 +34,10 @@ function Harness() {
       captureProtectionPending={false}
       captureProtectionError={null}
       setCaptureProtection={async () => {}}
+      taskbarReplacementSupported
+      taskbarReplacementPending={false}
+      taskbarReplacementError={null}
+      setTaskbarReplacement={async () => {}}
       osEventsError={null}
       placement={placement}
     />
@@ -51,20 +55,23 @@ describe("Global settings information architecture", () => {
     fireEvent.click(screen.getByRole("button", { name: "System" }));
     expect(screen.getByRole("heading", { name: "System" })).toBeTruthy();
     expect(screen.getByText("Software update")).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: /Use Otto as taskbar/ })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Placement" }));
     expect(screen.getByRole("heading", { name: "Placement" })).toBeTruthy();
   });
 
-  test("disables hover timing while hover expansion is off and restores it when enabled", () => {
+  test("keeps interaction controls concise without motion or hover timing settings", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Interaction" }));
-
-    const hoverIntent = screen.getByText("Hover intent").closest("label")?.querySelector("input");
-    if (!(hoverIntent instanceof HTMLInputElement)) throw new Error("Hover intent range missing");
-    expect(hoverIntent.disabled).toBe(true);
-
-    fireEvent.click(screen.getByRole("checkbox", { name: "Expand on hover" }));
-    expect(hoverIntent.disabled).toBe(false);
+    expect(Boolean(screen.queryByText("Hover timing"))).toBe(false);
+    expect(Boolean(screen.queryByText("Motion profile"))).toBe(false);
+    expect(Boolean(screen.queryByText("Hide Otto"))).toBe(false);
+    expect(screen.getByLabelText("Expand / compact shortcut")).toBeTruthy();
+    const hover = screen.getByRole("checkbox", { name: "Expand on hover" }) as HTMLInputElement;
+    expect(hover.checked).toBe(false);
+    fireEvent.click(hover);
+    expect(hover.checked).toBe(true);
+    expect(screen.getByRole("checkbox", { name: "Keep expanded" })).toBeTruthy();
   });
 });

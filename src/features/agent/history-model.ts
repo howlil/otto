@@ -9,6 +9,7 @@ const providerLabels: Record<AgentProvider, string> = {
   codex: "Codex",
   pi: "Pi",
   agy: "Agy",
+  opencode: "OpenCode",
 };
 
 export function providerLabel(provider: AgentProvider): string {

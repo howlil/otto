@@ -117,8 +117,8 @@ export default function App() {
     morphMs,
     stageRef,
     placement: surfacePlacement,
-    compactRadius,
     recovery,
+    sizingHost,
   } = useNotchSurfaceSync({
     surface,
     shape: requestedShape,
@@ -157,8 +157,8 @@ export default function App() {
       artProps={artProps}
       gutter={notchGutter(notchShape(surfacePlacement, expanded))}
       placement={surfacePlacement}
-      compactRadius={compactRadius}
       recovery={recovery}
+      sizingHost={sizingHost}
       onRetrySurface={() => {
         setSurfaceError(null);
         shell.placement.retry();

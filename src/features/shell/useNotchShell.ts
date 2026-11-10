@@ -4,6 +4,8 @@ import type { SubviewEscapeHandler } from "./useShellFocus";
 import { useShellInteraction } from "./useShellInteraction";
 import { useShellPlacement, type PlacementStatus } from "./useShellPlacement";
 import { useShellPreferences } from "./useShellPreferences";
+import { useShellShortcut } from "./useShellShortcut";
+import { useModuleNavigation } from "./useModuleNavigation";
 
 export type { PlacementStatus } from "./useShellPlacement";
 
@@ -15,7 +17,15 @@ export function useNotchShell(consumeEscape?: SubviewEscapeHandler) {
     preferences.setPlacementPreference,
   );
   const interaction = useShellInteraction({ prefs: preferences.prefs, consumeEscape });
-
+  useShellShortcut(() => {
+    if (interaction.expanded) interaction.dismiss();
+    else interaction.open(interaction.page);
+  });
+  const moduleNavigation = useModuleNavigation(
+    interaction.page,
+    interaction.setPage,
+    interaction.clearTimers,
+  );
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -24,9 +34,9 @@ export function useNotchShell(consumeEscape?: SubviewEscapeHandler) {
       );
     } catch {}
   }, [placement.placement.applied, preferences.prefs]);
-
   return {
     ...interaction,
+    ...moduleNavigation,
     ...preferences,
     placement: placement.placement satisfies PlacementStatus,
     syncPlacement: placement.syncPlacement,

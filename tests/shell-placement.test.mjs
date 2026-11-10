@@ -36,8 +36,8 @@ describe("Notch placement geometry", () => {
   test("native geometry tokens match the stylesheet the UI renders with", () => {
     const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
     expect(css).toContain("--otto-shoulder: 12px;");
-    expect(css).toContain("--radius-otto-attached: 24px;");
-    expect(css).toContain("--radius-otto-expanded: 27px;");
+    expect(css).toContain("--radius-otto-attached: 18px;");
+    expect(css).toContain("--radius-otto-expanded: 18px;");
   });
 });
 

@@ -15,13 +15,23 @@ export function useTransitionActive(): boolean {
   return useContext(TransitionActivity);
 }
 
-type TransitionKind = "page" | "tab" | "compact";
+type TransitionKind = "page" | "tab" | "compact" | "module";
 type Direction = "forward" | "back" | "center";
 type FrameSize = { width: number; height: number } | null | undefined;
 type Frame = { key: string; node: ReactNode; size: FrameSize };
 
 function frameStyle(size: FrameSize): CSSProperties | undefined {
   return size ? { width: size.width, height: size.height } : undefined;
+}
+
+function transitionClasses(kind: TransitionKind, direction: Direction): [string, string] {
+  if (kind === "module") {
+    const side = direction === "back" ? "back" : "forward";
+    return [`otto-module-${side}-enter`, `otto-module-${side}-exit`];
+  }
+  if (kind === "tab") return ["otto-tab-enter", "otto-tab-exit"];
+  if (kind === "compact") return ["otto-compact-enter", "otto-compact-exit"];
+  return [`otto-page-${direction}-enter`, `otto-page-${direction}-exit`];
 }
 
 export function TransitionContent({
@@ -67,26 +77,8 @@ export function TransitionContent({
 
   const isTab = kind === "tab";
   const layout = isTab ? "min-w-0" : "flex h-full min-h-0 w-full flex-col";
-  const enter = reducedMotion
-    ? ""
-    : isTab
-      ? "otto-tab-enter"
-      : kind === "compact"
-        ? "otto-compact-enter"
-        : direction === "center"
-          ? "otto-page-center-enter"
-          : direction === "back"
-            ? "otto-page-back-enter"
-            : "otto-page-forward-enter";
-  const exit = isTab
-    ? "otto-tab-exit"
-    : kind === "compact"
-      ? "otto-compact-exit"
-      : direction === "center"
-        ? "otto-page-center-exit"
-        : direction === "back"
-          ? "otto-page-back-exit"
-          : "otto-page-forward-exit";
+  const [incoming, exit] = transitionClasses(kind, direction);
+  const enter = reducedMotion ? "" : incoming;
 
   return (
     <div className={`relative min-w-0 ${className}`}>

@@ -1,3 +1,6 @@
+#[cfg(all(test, windows))]
+mod acceptance;
+
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 pub(crate) fn authentication_required(detail: &str) -> bool {
@@ -122,6 +125,8 @@ pub mod agy;
 pub mod codex;
 #[cfg(windows)]
 mod job;
+#[cfg(windows)]
+pub mod opencode;
 #[cfg(windows)]
 pub mod pi;
 pub mod registry;

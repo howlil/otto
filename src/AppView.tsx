@@ -5,7 +5,7 @@ import type { SurfaceSize, useAppUpdate, useNotchShell } from "./features/shell"
 import type { useAgent } from "./features/agent";
 import type { FocusTimerModel } from "./features/focus";
 import type { useMusic } from "./features/music";
-import type { OsEventView, NotchPlacement } from "./platform/tauri";
+import type { OsEventView, NotchPlacement, NotchHost } from "./platform/tauri";
 import type { RecoveryFrame } from "./features/shell";
 import { ShellContent } from "./ShellContent";
 import { OttoLogoProvider } from "./shared/ui";
@@ -35,10 +35,11 @@ export function ShellView({
   osEvent,
   onDismissOsEvent,
   placement = shell.placement.applied,
-  compactRadius = 21,
   recovery,
   onRetrySurface,
+  sizingHost,
 }: {
+  sizingHost?: NotchHost | null;
   agent: AgentModel;
   music: MusicModel;
   focus: FocusModel;
@@ -61,7 +62,6 @@ export function ShellView({
   osEvent: OsEventView | null;
   onDismissOsEvent: () => void;
   placement?: NotchPlacement;
-  compactRadius?: number;
   recovery?: RecoveryFrame | null;
   onRetrySurface?: () => void;
 }) {
@@ -77,12 +77,13 @@ export function ShellView({
         morphMs={morphMs}
         stageRef={stageRef}
         recovery={recovery}
+        sizingHost={sizingHost}
+        expanded={shell.expanded}
       >
         <main
-          className={`relative isolate h-full w-full overflow-hidden border border-otto-line bg-otto-surface text-otto-text ${attached ? "rounded-t-none rounded-b-otto-attached border-t-transparent" : shell.expanded ? "rounded-otto-expanded" : "rounded-otto-island"} transition-[border-radius] duration-[var(--otto-morph-duration)] ease-otto`}
+          className={`relative isolate h-full w-full overflow-hidden border border-otto-line bg-otto-surface text-otto-text ${attached ? "rounded-t-none rounded-b-otto-attached border-t-transparent" : shell.expanded ? "rounded-otto-expanded" : "rounded-otto-compact"} transition-[border-radius] duration-[var(--otto-morph-duration)] ease-otto`}
           style={
             {
-              "--radius-otto-island": `${compactRadius}px`,
               ...(recovery
                 ? {
                     borderTopLeftRadius: recovery.region.radius.top / recovery.scale,
@@ -96,12 +97,14 @@ export function ShellView({
           data-reduced={shell.reducedMotion ? "true" : undefined}
           onPointerEnter={osEvent ? undefined : shell.handleEnter}
           onPointerLeave={shell.handleLeave}
+          onWheel={osEvent ? undefined : shell.onModuleWheel}
           onKeyDown={(event) => {
             if (osEvent) {
               event.preventDefault();
               onDismissOsEvent();
               return;
             }
+            shell.onModuleKey(event);
             shell.handleEscape(event);
           }}
           onPointerDown={() => {
@@ -112,7 +115,7 @@ export function ShellView({
             if (shell.expanded && !shell.pinned) shell.pin();
           }}
         >
-          <div className="absolute inset-0">
+          <div className="absolute inset-x-0 bottom-0" style={{ top: sizingHost?.contentTop ?? 0 }}>
             <ShellContent
               agent={agent}
               music={music}
@@ -124,7 +127,14 @@ export function ShellView({
               onContentMeasured={onContentMeasured}
               appUpdate={appUpdate}
               osEvent={osEvent}
-              frameSize={size}
+              frameSize={
+                size
+                  ? {
+                      width: size.width,
+                      height: Math.max(1, size.height - (sizingHost?.contentTop ?? 0)),
+                    }
+                  : size
+              }
             />
             <SurfaceError
               message={surfaceError}

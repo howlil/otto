@@ -1,10 +1,13 @@
 use super::authentication_required;
+mod admission;
+
 use super::job::Job;
 use super::transport::JsonlProcess;
 use crate::agent::events::{AgentEvent, ProviderEvents};
 #[cfg(test)]
 use crate::agent::{CaptureSnapshot, ChatMessage, Snapshot};
 use crate::agent::{Control, ModelOption, ProviderReadiness, RunPhase, UsageSnapshot};
+use admission::safe_init;
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -220,32 +223,6 @@ async fn read_frame<R: AsyncBufRead + Unpin>(
     parsed
 }
 
-fn safe_init(frame: &Value) -> Result<String, String> {
-    if frame["event"] != "init"
-        || frame["init"]
-            .get("agent")
-            .is_some_and(|agent| agent.as_str() != Some(AGENT_NAME))
-    {
-        return Err("Agy did not confirm Otto's tool-free agent profile.".into());
-    }
-    let Some(tools) = frame["init"]["tools"].as_array() else {
-        return Err("Agy did not disclose its available tools.".into());
-    };
-    if frame["init"]["permission_mode"] != "strict" {
-        return Err("Agy did not confirm Otto's isolated permission policy.".into());
-    }
-    if !tools.is_empty() {
-        return Err("Agy exposed tools outside Otto's chat policy.".into());
-    }
-    let Some(session) = frame["conversation_id"]
-        .as_str()
-        .filter(|value| !value.is_empty())
-    else {
-        return Err("Agy did not return a conversation identity.".into());
-    };
-    Ok(session.to_owned())
-}
-
 fn model_discovery_args() -> &'static [&'static str] {
     &["--output-format", "json", "models"]
 }
@@ -404,7 +381,7 @@ pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderR
         Err(reason) => ProviderReadiness::new(
             "unsupported",
             &reason,
-            "Update Agy or check Otto's agent profile, then Retry.",
+            "Use Pi, Codex, or OpenCode for chat until Agy can confirm a tool-free session; updating Agy may restore compatibility.",
         ),
     }
 }
@@ -674,6 +651,34 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    #[ignore = "requires installed Agy; reports capability names only"]
+    async fn installed_agy_admission_matches_the_real_cli() {
+        ensure_profile().unwrap();
+        let mut rpc = Rpc::launch_with_options(&std::env::temp_dir(), None, None).unwrap();
+        let frame = timeout(Duration::from_secs(20), rpc.read())
+            .await
+            .unwrap()
+            .unwrap();
+        rpc.terminate().await;
+        println!(
+            "Agy advertised tools: {}; permission: {}",
+            frame["init"]["tools"]
+                .as_array()
+                .map(Vec::len)
+                .unwrap_or_default(),
+            frame["init"]["permission_mode"]
+        );
+        if frame["init"]["tools"]
+            .as_array()
+            .is_some_and(|tools| !tools.is_empty())
+        {
+            assert!(safe_init(&frame).is_err());
+        } else {
+            assert!(safe_init(&frame).is_ok());
+        }
+    }
     use tokio::io::{AsyncWriteExt, BufReader};
 
     #[tokio::test]

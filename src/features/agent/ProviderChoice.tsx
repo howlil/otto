@@ -3,9 +3,9 @@ import codexLogo from "../../assets/providers/codex.svg";
 import antigravityLogo from "../../assets/providers/antigravity.svg";
 import piLogo from "../../assets/providers/pi.svg";
 
-export type ProviderName = "Codex" | "Agy" | "Pi";
+export type ProviderName = "Codex" | "Agy" | "Pi" | "OpenCode";
 
-const logos: Record<ProviderName, string> = {
+const logos: Partial<Record<ProviderName, string>> = {
   Codex: codexLogo,
   Agy: antigravityLogo,
   Pi: piLogo,
@@ -38,7 +38,11 @@ export function ProviderChoice({
       title={status}
     >
       <span className="relative flex size-9 items-center justify-center rounded-otto-control bg-otto-raised-deep">
-        <img src={logos[name]} alt="" className="size-7 object-contain" draggable={false} />
+        {logos[name] ? (
+          <img src={logos[name]} alt="" className="size-7 object-contain" draggable={false} />
+        ) : (
+          <Icon name="terminal" size={28} />
+        )}
         {selected && (
           <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-otto-invert-bg text-otto-invert-text">
             <Icon name="check" size={10} />

@@ -9,6 +9,7 @@ const providers: ReadonlyArray<{
   { name: "Codex", command: "codex" },
   { name: "Agy", command: "agy" },
   { name: "Pi", command: "pi" },
+  { name: "OpenCode", command: "opencode" },
 ];
 
 function readinessMessage(readiness: ProviderReadiness): string {
@@ -77,7 +78,7 @@ export function ProviderSettings({
       <fieldset className="border-0 p-0" aria-labelledby="otto-provider-label">
         <ActiveIndicatorGroup
           activeKey={provider}
-          className="grid min-w-0 grid-cols-3 gap-2"
+          className="grid min-w-0 grid-cols-4 gap-2"
           indicatorClassName="rounded-otto-card border border-otto-line-focused bg-otto-selected"
         >
           {providers.map(({ name, command }) => (

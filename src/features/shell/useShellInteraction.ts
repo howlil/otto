@@ -90,6 +90,7 @@ export function useShellInteraction({
     compactButton: focus.compactButton,
     homeGear: focus.homeGear,
     collapse,
+    dismiss,
     open,
     back,
     clearTimers: hover.clearTimers,

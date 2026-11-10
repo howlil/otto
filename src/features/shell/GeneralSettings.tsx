@@ -16,7 +16,7 @@ export function GeneralSettings({
     <SettingsSection title="Appearance">
       <div className="mb-[14px]">
         <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
-          Idle expression
+          Expression
         </Text>
         <SegmentedControl
           value={prefs.expression}
@@ -31,14 +31,14 @@ export function GeneralSettings({
       </div>
       <div className="mb-[14px]">
         <Text as="span" variant="meta" className="mb-2 block text-otto-text-secondary">
-          Idle response
+          Eye movement
         </Text>
         <SegmentedControl
           value={prefs.reactive}
           onChange={(reactive) => change({ reactive })}
           choices={[
-            { value: "quiet", label: "Quiet" },
-            { value: "alive", label: "Alive" },
+            { value: "quiet", label: "Still" },
+            { value: "alive", label: "Animated" },
           ]}
         />
       </div>
@@ -53,11 +53,11 @@ export function GeneralSettings({
       </Button>
       <details className="mt-3 border-t border-otto-line-soft pt-2">
         <summary className="cursor-pointer list-none text-otto-sm text-otto-text-secondary">
-          Artwork tuning
+          Artwork
         </summary>
         <div className="pt-1">
           <Range
-            label="Artwork tilt"
+            label="Tilt"
             value={prefs.tilt}
             min={0}
             max={65}
@@ -65,7 +65,7 @@ export function GeneralSettings({
             onChange={(tilt) => change({ tilt })}
           />
           <Range
-            label="Tonal gradient"
+            label="Shading"
             value={prefs.gradient}
             min={0}
             max={100}

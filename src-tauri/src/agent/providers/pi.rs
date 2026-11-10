@@ -1,3 +1,8 @@
+mod cancellation;
+mod events;
+
+use cancellation::{await_controlled, stop_process};
+
 use super::job::Job;
 use super::transport::JsonlProcess;
 use super::{BoundedLineError, read_bounded_line};
@@ -8,9 +13,9 @@ use crate::agent::{
     CapturedImage, Control, ModelOption, ProviderReadiness, RunPhase, UsageSnapshot,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use events::TurnObserver;
 use serde_json::{Value, json};
 use std::{
-    future::Future,
     io::Cursor,
     path::{Path, PathBuf},
     process::Stdio,
@@ -525,85 +530,6 @@ fn begin(display_text: &str, run_id: u64, events: &ProviderEvents) {
     });
 }
 
-fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
-    let snapshot = events.snapshot();
-    if snapshot.run_id != id || snapshot.status != RunPhase::Streaming {
-        return false;
-    }
-    match frame["type"].as_str() {
-        Some("message_update") if frame["assistantMessageEvent"]["type"] == "text_delta" => {
-            if let Some(delta) = frame["assistantMessageEvent"]["delta"].as_str() {
-                events.emit(AgentEvent::TextDelta {
-                    run_id: id,
-                    delta: delta.to_owned(),
-                });
-            }
-        }
-        Some("message_end") if frame["message"]["role"] == "assistant" => {
-            if matches!(
-                frame["message"]["stopReason"].as_str(),
-                Some("error" | "aborted")
-            ) {
-                events.fail(id, "Pi could not finish the answer.");
-                return true;
-            }
-            if let Some(parts) = frame["message"]["content"].as_array() {
-                let answer: String = parts
-                    .iter()
-                    .filter_map(|part| {
-                        (part["type"] == "text")
-                            .then(|| part["text"].as_str())
-                            .flatten()
-                    })
-                    .collect();
-                events.emit(AgentEvent::TextFinal {
-                    run_id: id,
-                    text: answer,
-                });
-            }
-        }
-        Some("agent_settled") => {
-            if frame["aborted"] == true {
-                events.fail(id, "Pi aborted the request.");
-            } else if snapshot
-                .messages
-                .last()
-                .is_none_or(|item| item.role != "assistant" || item.text.trim().is_empty())
-            {
-                events.fail(id, "Pi finished without an answer.");
-            } else {
-                events.emit(AgentEvent::Completed { run_id: id });
-            }
-            return true;
-        }
-        _ => {}
-    }
-    false
-}
-
-async fn await_controlled<T, F>(
-    controls: &mut mpsc::Receiver<Control>,
-    events: &ProviderEvents,
-    run_id: u64,
-    operation: F,
-) -> Result<Option<T>, String>
-where
-    F: Future<Output = Result<T, String>>,
-{
-    tokio::select! {
-        biased;
-        control = controls.recv() => {
-            if matches!(control, Some(Control::Stop)) {
-                events.stopped(run_id);
-            } else {
-                events.fail(run_id, "Pi request was interrupted.");
-            }
-            Ok(None)
-        }
-        result = operation => result.map(Some),
-    }
-}
-
 pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, initial: Control) {
     let Control::Ask {
         text,
@@ -626,20 +552,17 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         }
     };
 
-    let configured = tokio::select! {
-        response = rpc.configure(model.as_deref(), thinking_effort.as_deref()) => response,
-        control = controls.recv() => {
-            if matches!(control, Some(Control::Stop)) {
-                events.stopped(run_id);
-            } else {
-                events.fail(run_id, "Pi startup interrupted.");
-            }
-            rpc.terminate().await;
+    let configured = await_controlled(
+        &mut controls,
+        rpc.configure(model.as_deref(), thinking_effort.as_deref()),
+    )
+    .await;
+    let (active_model, active_thinking, image_input, session) = match configured {
+        Ok(Some(configured)) => configured,
+        Ok(None) => {
+            stop_process(&mut rpc, &mut controls, &events, run_id).await;
             return;
         }
-    };
-    let (active_model, active_thinking, image_input, session) = match configured {
-        Ok(configured) => configured,
         Err(reason) => {
             events.fail(run_id, &reason);
             rpc.terminate().await;
@@ -663,15 +586,13 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
     let mut active_capture = capture;
     let prepared = await_controlled(
         &mut controls,
-        &events,
-        run_id,
         prompt_command(run_id, &text, active_capture.as_ref()),
     )
     .await;
     let request = match prepared {
         Ok(Some(request)) => request,
         Ok(None) => {
-            rpc.terminate().await;
+            stop_process(&mut rpc, &mut controls, &events, run_id).await;
             return;
         }
         Err(reason) => {
@@ -680,9 +601,9 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
             return;
         }
     };
-    let sent = await_controlled(&mut controls, &events, run_id, rpc.send(request)).await;
+    let sent = await_controlled(&mut controls, rpc.send(request)).await;
     if matches!(sent, Ok(None)) {
-        rpc.terminate().await;
+        stop_process(&mut rpc, &mut controls, &events, run_id).await;
         return;
     }
     if sent.is_err() {
@@ -695,15 +616,15 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
     let mut acknowledged = false;
     let mut settled: Option<Value> = None;
     let mut buffered: Vec<Value> = Vec::new();
+    let mut observer = TurnObserver::default();
     loop {
         tokio::select! {
             control = controls.recv() => match control {
                 Some(Control::Stop) if active.is_some() => {
-                    let _ = rpc.send(json!({"type":"abort"})).await;
+                    let _ = timeout(Duration::from_secs(1), rpc.send(json!({"type":"abort"}))).await;
                     if let Some(id) = active {
-                        events.stopped(id);
+                        stop_process(&mut rpc, &mut controls, &events, id).await;
                     }
-                    rpc.terminate().await;
                     break;
                 }
                 Some(Control::Close {claimed, finished}) => {
@@ -719,15 +640,13 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     }
                     let configured = await_controlled(
                         &mut controls,
-                        &events,
-                        run_id,
                         rpc.configure(model.as_deref(), thinking_effort.as_deref()),
                     )
                     .await;
                     let (active_model, active_thinking, selected_images, _) = match configured {
                         Ok(Some(configured)) => configured,
                         Ok(None) => {
-                            rpc.terminate().await;
+                            stop_process(&mut rpc, &mut controls, &events, run_id).await;
                             break;
                         }
                         Err(reason) => {
@@ -746,15 +665,13 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     });
                     let prepared = await_controlled(
                         &mut controls,
-                        &events,
-                        run_id,
                         prompt_command(run_id, &text, capture.as_ref()),
                     )
                     .await;
                     let request = match prepared {
                         Ok(Some(request)) => request,
                         Ok(None) => {
-                            rpc.terminate().await;
+                            stop_process(&mut rpc, &mut controls, &events, run_id).await;
                             break;
                         }
                         Err(reason) => {
@@ -764,13 +681,11 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     };
                     let sent = await_controlled(
                         &mut controls,
-                        &events,
-                        run_id,
                         rpc.send(request),
                     )
                     .await;
                     if matches!(sent, Ok(None)) {
-                        rpc.terminate().await;
+                        stop_process(&mut rpc, &mut controls, &events, run_id).await;
                         break;
                     }
                     if let Err(reason) = sent {
@@ -784,6 +699,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     acknowledged = false;
                     settled = None;
                     buffered.clear();
+                    observer = TurnObserver::default();
                 }
                 None => { rpc.terminate().await; break; }
                 _ => {}
@@ -801,7 +717,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                             acknowledged = true;
                             begin(&pending_display_text, id, &events);
                             for event in buffered.drain(..) {
-                                observe(&event, id, &events);
+                                observer.observe(&event, id, &events);
                             }
                         },
                         Ok(false) => {},
@@ -809,9 +725,9 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     }
                     if value["type"] == "agent_settled" {
                         settled = Some(value);
-                    } else if value["type"] == "message_update" || value["type"] == "message_end" {
+                    } else if matches!(value["type"].as_str(), Some("message_start" | "message_update" | "message_end" | "auto_retry_end")) {
                         if acknowledged {
-                            observe(&value, id, &events);
+                            observer.observe(&value, id, &events);
                         } else if buffered.len() < 256 {
                             buffered.push(value);
                         } else {
@@ -837,15 +753,11 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                                                 if !finished.is_closed()
                                                     && !claimed.swap(true, Ordering::SeqCst) =>
                                             {
-                                                events.stopped(id);
                                                 Some(finished)
                                             }
-                                            _ => {
-                                                events.stopped(id);
-                                                None
-                                            }
+                                            _ => None,
                                         };
-                                        rpc.terminate().await;
+                                        stop_process(&mut rpc, &mut controls, &events, id).await;
                                         if let Some(finished) = close_ack {
                                             let _ = finished.send(());
                                         }
@@ -856,7 +768,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                                     events.emit(AgentEvent::UsageUpdated { run_id: id, usage });
                                 }
                             }
-                            observe(&settlement, id, &events);
+                            observer.observe(&settlement, id, &events);
                             active = None;
                             drop(active_capture.take());
                     }
@@ -989,23 +901,24 @@ mod tests {
     fn pi_only_finishes_on_settled_and_rejects_stale_events() {
         let tx = state();
         let events = ProviderEvents::new(tx.clone());
-        assert!(!observe(&json!({"type":"agent_end"}), 7, &events));
-        observe(
+        let mut observer = TurnObserver::default();
+        assert!(!observer.observe(&json!({"type":"agent_end"}), 7, &events));
+        observer.observe(
             &json!({"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"partial"}}),
             7,
             &events,
         );
         assert_eq!(tx.borrow().messages[0].text, "partial");
-        observe(
+        observer.observe(
             &json!({"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"final"}]}}),
             7,
             &events,
         );
         assert_eq!(tx.borrow().messages[0].text, "final");
-        assert!(!observe(&json!({"type":"agent_settled"}), 6, &events));
-        assert!(observe(&json!({"type":"agent_settled"}), 7, &events));
+        assert!(!observer.observe(&json!({"type":"agent_settled"}), 6, &events));
+        assert!(observer.observe(&json!({"type":"agent_settled"}), 7, &events));
         assert_eq!(tx.borrow().status, "completed");
-        observe(
+        observer.observe(
             &json!({"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"late"}}),
             7,
             &events,
@@ -1017,23 +930,20 @@ mod tests {
     fn pi_failed_or_empty_answer_never_looks_completed() {
         let tx = state();
         let events = ProviderEvents::new(tx.clone());
-        assert!(observe(
+        let mut observer = TurnObserver::default();
+        assert!(!observer.observe(
             &json!({"type":"message_end","message":{"role":"assistant","stopReason":"error","content":[{"type":"text","text":"partial"}]}}),
             7,
             &events,
         ));
-        assert_eq!(tx.borrow().status, "failed");
+        assert_eq!(tx.borrow().status, "streaming");
         assert!(tx.borrow().messages[0].text.is_empty());
-        assert!(!observe(
-            &json!({"type":"agent_settled","aborted":false}),
-            7,
-            &events
-        ));
+        assert!(observer.observe(&json!({"type":"agent_settled","aborted":false}), 7, &events));
         assert_eq!(tx.borrow().status, "failed");
 
         let empty = state();
         let empty_events = ProviderEvents::new(empty.clone());
-        assert!(observe(
+        assert!(TurnObserver::default().observe(
             &json!({"type":"agent_settled","aborted":false}),
             7,
             &empty_events
@@ -1046,7 +956,7 @@ mod tests {
 
         let aborted = state();
         let aborted_events = ProviderEvents::new(aborted.clone());
-        assert!(observe(
+        assert!(TurnObserver::default().observe(
             &json!({"type":"agent_settled","aborted":true}),
             7,
             &aborted_events
@@ -1131,19 +1041,13 @@ mod tests {
     #[tokio::test]
     async fn stop_interrupts_an_unresponsive_pi_setup_before_prompt() {
         let snapshot = state();
-        let events = ProviderEvents::new(snapshot.clone());
         let (sender, mut controls) = mpsc::channel(1);
         sender.send(Control::Stop).await.unwrap();
-        let result = await_controlled(
-            &mut controls,
-            &events,
-            7,
-            std::future::pending::<Result<(), String>>(),
-        )
-        .await
-        .unwrap();
+        let result = await_controlled(&mut controls, std::future::pending::<Result<(), String>>())
+            .await
+            .unwrap();
         assert!(result.is_none());
-        assert_eq!(snapshot.borrow().status, "stopped");
+        assert_eq!(snapshot.borrow().status, "streaming");
     }
 
     #[test]

@@ -16,7 +16,7 @@ pub(crate) struct JsonlProcess {
     #[cfg(windows)]
     job: Job,
     child: Child,
-    stdin: ChildStdin,
+    stdin: Option<ChildStdin>,
     stdout: BufReader<ChildStdout>,
 }
 
@@ -28,6 +28,22 @@ impl JsonlProcess {
         cwd: &Path,
         piped_stderr: bool,
         start_error: &'static str,
+    ) -> Result<(Self, Option<ChildStderr>), String>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        Self::launch_env(name, binary, args, cwd, piped_stderr, start_error, &[])
+    }
+
+    pub(crate) fn launch_env<I, S>(
+        name: &str,
+        binary: &Path,
+        args: I,
+        cwd: &Path,
+        piped_stderr: bool,
+        start_error: &'static str,
+        env: &[(OsString, OsString)],
     ) -> Result<(Self, Option<ChildStderr>), String>
     where
         I: IntoIterator<Item = S>,
@@ -52,6 +68,7 @@ impl JsonlProcess {
         let mut command = Command::new(binary);
         command
             .args(args)
+            .envs(env.iter().cloned())
             .current_dir(cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -79,7 +96,7 @@ impl JsonlProcess {
                 #[cfg(windows)]
                 job,
                 child,
-                stdin,
+                stdin: Some(stdin),
                 stdout: BufReader::new(stdout),
             },
             stderr,
@@ -97,14 +114,28 @@ impl JsonlProcess {
     ) -> Result<(), String> {
         let mut line = payload;
         line.push(b'\n');
-        self.stdin
+        let stdin = self.stdin.as_mut().ok_or(disconnected)?;
+        stdin
             .write_all(&line)
             .await
             .map_err(|_| disconnected.to_string())?;
-        self.stdin
-            .flush()
+        stdin.flush().await.map_err(|_| disconnected.to_string())
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn close_input(&mut self) {
+        self.stdin.take();
+    }
+
+    #[cfg(windows)]
+    pub(crate) async fn wait_success(&mut self) -> Result<(), String> {
+        self.child
+            .wait()
             .await
-            .map_err(|_| disconnected.to_string())
+            .map_err(|_| "Provider exit was not confirmed.".to_string())?
+            .success()
+            .then_some(())
+            .ok_or_else(|| "Provider exited unsuccessfully.".to_string())
     }
 
     pub(crate) async fn terminate_tree(&mut self) {

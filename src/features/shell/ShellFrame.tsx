@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode, RefObject } from "react";
+import type { NotchHost } from "../../platform/tauri";
 import type { SurfaceSize } from "./useNotchSurfaceSync";
 import type { Placement } from "./preferences";
 import type { RecoveryFrame } from "./surface-sync/useRenderedRegion";
@@ -13,7 +14,11 @@ export function ShellFrame({
   stageRef,
   children,
   recovery,
+  sizingHost,
+  expanded = false,
 }: {
+  sizingHost?: NotchHost | null;
+  expanded?: boolean;
   placement: Placement;
   gutter: number;
   size: SurfaceSize | null;
@@ -29,6 +34,8 @@ export function ShellFrame({
   const correction = (Math.round(center * scale) - center * scale) / scale;
   const style: CSSProperties = {
     ["--otto-morph-duration" as string]: `${morphMs}ms`,
+    ["--otto-idle-width" as string]: `${sizingHost?.layouts.idle[0] ?? 185}px`,
+    ["--otto-idle-height" as string]: `${(sizingHost?.layouts.idle[1] ?? 32) - (sizingHost?.contentTop ?? 0)}px`,
     ...(recovery
       ? { ["--otto-shoulder" as string]: `${recovery.region.shoulder / recovery.scale}px` }
       : {}),
@@ -37,6 +44,8 @@ export function ShellFrame({
     <div
       className="relative h-full w-full"
       data-placement={attached ? "attached" : "floating"}
+      data-sizing="mac-native"
+      data-expanded={expanded ? "true" : "false"}
       style={style}
     >
       <div

@@ -2,12 +2,12 @@ pub const MAX_TOP_OFFSET: u32 = 64;
 
 pub fn surface_layouts() -> std::collections::BTreeMap<&'static str, (u32, u32)> {
     [
-        ("idle", (92, 42)),
-        ("agentCompact", (228, 50)),
-        ("musicCompact", (264, 54)),
+        ("idle", (185, 32)),
+        ("agentCompact", (228, 40)),
+        ("musicCompact", (264, 44)),
         ("musicPlayer", (444, 178)),
         ("musicLyrics", (444, 212)),
-        ("focusCompact", (224, 52)),
+        ("focusCompact", (224, 44)),
         ("focus", (408, 174)),
         ("focusSettings", (408, 328)),
         ("home", (452, 148)),
@@ -17,7 +17,7 @@ pub fn surface_layouts() -> std::collections::BTreeMap<&'static str, (u32, u32)>
         ("agentFull", (526, 346)),
         ("agentError", (526, 270)),
         ("agentSettings", (526, 466)),
-        ("osEvent", (234, 52)),
+        ("osEvent", (234, 44)),
     ]
     .into()
 }

@@ -20,6 +20,7 @@ export type Preferences = {
   leaveDelay: number;
   clickOutside: boolean;
   hideFromCapture: boolean;
+  replaceTaskbar: boolean;
   osEventsEnabled: boolean;
   motion: Motion;
   tilt: number;
@@ -36,6 +37,7 @@ export const defaults: Preferences = {
   leaveDelay: 340,
   clickOutside: true,
   hideFromCapture: true,
+  replaceTaskbar: false,
   osEventsEnabled: true,
   motion: "fluid",
   tilt: 43,

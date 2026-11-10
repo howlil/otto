@@ -598,8 +598,8 @@ try {
   $scale = if ($dpi -gt 0) { $dpi / 96 } else { 1 }
   $compactWidthCss = $compactSize.Width / $scale
   $compactHeightCss = $compactSize.Height / $scale
-  if ([math]::Abs($compactWidthCss - 92) -gt 1 -and [math]::Abs($compactWidthCss - 228) -gt 1) {
-    $notes.Add("the compact surface is $([math]::Round($compactWidthCss, 1)) css px wide, which matches neither documented compact surface (92 or 228)")
+  if ([math]::Abs($compactWidthCss - 185) -gt 1 -and [math]::Abs($compactWidthCss - 228) -gt 1) {
+    $notes.Add("the compact surface is $([math]::Round($compactWidthCss, 1)) css px wide, which matches neither documented compact surface (185 or 228)")
     $dump = New-Object System.Collections.Generic.List[string]
     $listCallback = [OttoProbe.Native+EnumProc] {
       param($enumHwnd, $enumParam)

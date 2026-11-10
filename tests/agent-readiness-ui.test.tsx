@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { AgentCapsule } from "../src/features/agent/AgentCapsule";
 import { AgentTranscript } from "../src/features/agent/AgentTranscript";
+import { ProviderSettings } from "../src/features/agent/AgentSettingsSections";
 
 const snapshot = (overrides = {}) => ({
   runId: 1,
@@ -79,6 +80,31 @@ const sendButton = () => screen.getByRole("button", { name: "Send prompt" });
 afterEach(cleanup);
 
 describe("Agent readiness surfaced through the rendered chat", () => {
+  test("OpenCode is selectable alongside existing providers and respects run locking", () => {
+    const selected: string[] = [];
+    const props = {
+      readiness: readiness(), providerStatus: "Ready", onRetry: () => {},
+      provider: "opencode" as const, onSelect: (provider: string) => selected.push(provider),
+      locked: false,
+    };
+    const view = render(<ProviderSettings {...props} />);
+    const button = screen.getByRole("button", { name: /OpenCode opencode/ });
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /Codex codex/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Antigravity agy/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Pi pi/ })).toBeTruthy();
+    fireEvent.click(button);
+    expect(selected).toEqual(["opencode"]);
+    view.rerender(<ProviderSettings {...props} locked />);
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(button);
+    expect(selected).toEqual(["opencode"]);
+  });
+
+  test("OpenCode compact identity is not mislabeled as Codex", () => {
+    capsule({ provider: "opencode" });
+    expect(screen.getByRole("button", { name: /OpenCode/ })).toBeTruthy();
+  });
   test("an expired sign-in is reported with recovery instead of a ready claim", () => {
     transcript({
       readiness: readiness({

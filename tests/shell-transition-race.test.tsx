@@ -19,6 +19,13 @@ let holdRegions = false;
 let resolveRegion: ((applied: boolean) => void) | null = null;
 let rejectRegion: ((reason: Error) => void) | null = null;
 let moved: ((event: { payload: { x: number; y: number } }) => void) | null = null;
+let displayChanged: (() => void) | null = null;
+mock.module("@tauri-apps/api/event", () => ({
+  listen: async (_name: string, callback: () => void) => {
+    displayChanged = callback;
+    return () => { displayChanged = null; };
+  },
+}));
 mock.module("@tauri-apps/api/core", () => ({
   isTauri: () => true,
   invoke: (command: string, payload: unknown) => {
@@ -77,6 +84,26 @@ test("expanding Home commits content and motion at the target width without resi
   expect(view.container.querySelector<HTMLElement>("[data-surface-window]")?.style.width).toBe("550px");
   await act(async () => { await Promise.resolve(); });
   expect(hostCalls).toHaveLength(1);
+});
+
+test("the shell uses notch corners rather than pill rounding", async () => {
+  const view = render(<HomeHarness expanded={false} />);
+  expect(view.container.querySelector("main")?.classList.contains("rounded-otto-compact")).toBe(true);
+  expect(view.container.querySelector("main")?.classList.contains("rounded-otto-island")).toBe(false);
+  view.rerender(<HomeHarness expanded />);
+  expect(view.container.querySelector("main")?.classList.contains("rounded-otto-expanded")).toBe(true);
+});
+
+test("native display parameter changes refresh geometry even without a window move or DPI change", async () => {
+  const view = renderHook(() => useNotchSurfaceSync({ surface: "idle", shape: "capsule",
+    topOffset: 20, measuredHeight: undefined, reducedMotion: true,
+    durationMs: 0, attempt: 0, onObserved: () => {}, onError: () => {} }));
+  await waitFor(() => expect(hostCalls).toHaveLength(1));
+  await waitFor(() => expect(displayChanged).not.toBeNull());
+  capacity = { width: 500, height: 580 };
+  act(() => displayChanged?.());
+  await waitFor(() => expect(view.result.current.nativeSize.width).toBe(500));
+  expect(hostCalls).toHaveLength(2);
 });
 
 test("attached shoulders share the animated body anchor", () => {

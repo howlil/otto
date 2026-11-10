@@ -43,6 +43,7 @@
   --color-otto-raised-deep: #2f3034;
   --color-otto-ink-deep: #1b1d21;
   --color-otto-text-tertiary: #97979d;
+  --color-otto-mask-opaque: #000;
   --color-otto-line-hover: #575962;
   --color-otto-input-selected: #b8bdc9;
   --color-otto-icon-muted: #c4c4c7;
@@ -127,16 +128,19 @@
   --font-otto-mono: Consolas, monospace;
   --font-otto-focus: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 
-  --text-otto-2xs: 9px;
-  --text-otto-xs: 10px;
+  --text-otto-2xs: 10px;
+  --text-otto-xs: 11px;
   --text-otto-sm: 11px;
-  --text-otto-md: 12px;
+  --text-otto-md: 13px;
   --text-otto-lg: 13px;
   --text-otto-xl: 14px;
   --text-otto-2xl: 15px;
   --text-otto-focus-countdown: 39px;
   --text-otto-focus-compact: 18px;
   --text-otto-focus-completion: 21px;
+  --text-otto-lyrics: 13px;
+  --text-otto-lyrics-active: 17px;
+  --otto-lyrics-rail: 104px;
 
   --radius-otto-control: 9px;
   --radius-otto-panel: 10px;
@@ -144,8 +148,9 @@
   --radius-otto-card: 12px;
   --radius-otto-launcher: 15px;
   --radius-otto-island: 9999px;
-  --radius-otto-expanded: 27px;
-  --radius-otto-attached: 24px;
+  --radius-otto-compact: 13px;
+  --radius-otto-expanded: 18px;
+  --radius-otto-attached: 18px;
   --otto-shoulder: 12px;
   --otto-morph-duration: 420ms;
   --otto-selection-duration: 180ms;
@@ -370,7 +375,7 @@
   background: transparent;
 }
 body {
-  font-size: 12px;
+  font-size: var(--text-otto-md);
   line-height: normal;
   -webkit-font-smoothing: antialiased;
 }
@@ -385,6 +390,10 @@ body,
 }
 * {
   box-sizing: border-box;
+}
+
+[data-expanded="false"] {
+  --radius-otto-attached: var(--radius-otto-compact);
 }
 
 .otto-shoulder-l,
@@ -422,6 +431,70 @@ body,
 
 .otto-scrollbar-hidden::-webkit-scrollbar {
   display: none;
+}
+
+.otto-lyrics-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: var(--otto-lyrics-rail) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.otto-lyrics-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.otto-lyrics-lines {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 4px 2px 8px 0;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--color-otto-mask-opaque) 15%,
+    var(--color-otto-mask-opaque) 84%,
+    transparent
+  );
+}
+
+.otto-lyrics-lines::-webkit-scrollbar {
+  display: none;
+}
+
+.otto-lyrics-lines-manual {
+  padding-right: 32px;
+}
+
+.otto-lyrics-line {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-otto-control);
+  background: transparent;
+  color: var(--color-otto-text-tertiary);
+  text-align: left;
+  font-size: var(--text-otto-lyrics);
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 4px 2px;
+  transition: color var(--otto-selection-duration) ease;
+}
+
+.otto-lyrics-line:hover:not(:disabled) {
+  color: var(--color-otto-hover-text);
+}
+
+.otto-lyrics-line[aria-current="true"] {
+  color: var(--color-otto-text-bright);
+  font-size: var(--text-otto-lyrics-active);
 }
 
 button,
@@ -526,6 +599,26 @@ button:disabled {
 
 .otto-page-center-exit {
   animation: otto-page-center-exit 125ms ease-in both;
+}
+
+.otto-module-forward-enter {
+  --otto-enter-x: 24px;
+  animation: otto-page-enter 200ms var(--ease-otto) both;
+}
+
+.otto-module-back-enter {
+  --otto-enter-x: -24px;
+  animation: otto-page-enter 200ms var(--ease-otto) both;
+}
+
+.otto-module-forward-exit {
+  --otto-exit-x: -16px;
+  animation: otto-page-exit 140ms var(--ease-otto) both;
+}
+
+.otto-module-back-exit {
+  --otto-exit-x: 16px;
+  animation: otto-page-exit 140ms var(--ease-otto) both;
 }
 
 .otto-compact-enter {
@@ -762,6 +855,10 @@ h4.md-h {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .otto-module-forward-enter,
+  .otto-module-back-enter,
+  .otto-module-forward-exit,
+  .otto-module-back-exit,
   .otto-page-forward-enter,
   .otto-page-back-enter,
   .otto-page-center-enter,
