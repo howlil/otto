@@ -242,6 +242,7 @@ async function start() {
   );
   session = created.sessionId;
   assert.ok(session, "Missing WebDriver session");
+  await until("Otto document ready before preferences", () => execute('return Boolean(document.querySelector("button[aria-expanded=\\"false\\"]"));'));
   await execute(`
     const key = 'otto.preferences.v1';
     const preferences = JSON.parse(localStorage.getItem(key) || '{}');
