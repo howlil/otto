@@ -10,6 +10,7 @@ const root = resolve(import.meta.dirname, '../..');
 const app = resolve(process.env.OTTO_E2E_APP || join(root, 'src-tauri/target/debug/otto.exe'));
 const temp = mkdtempSync(join(tmpdir(), 'otto-p8-'));
 const gate = join(temp, 'stream');
+const profile = join(temp, 'webview');
 const agentMarker = join(process.env.LOCALAPPDATA, 'site.howlil.otto/agent-active.marker');
 const port = Number(process.env.OTTO_E2E_PORT || 4540);
 let server;
@@ -221,6 +222,7 @@ async function start() {
       ...process.env,
       PATH: join(root, 'tests/e2e/bin') + delimiter + process.env.PATH,
       OTTO_E2E_GATE: gate,
+      WEBVIEW2_USER_DATA_FOLDER: profile,
     },
   });
   server.stdout.on('data', collectDriverOutput);
