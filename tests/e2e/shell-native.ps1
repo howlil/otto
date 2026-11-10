@@ -638,7 +638,7 @@ try {
     [System.Windows.Forms.Application]::DoEvents()
     $underlayBounds = Get-HostRect $form.Handle
     $notes.Add("Underlay requested $($form.Bounds); observed $($underlayBounds.Left),$($underlayBounds.Top),$($underlayBounds.Right),$($underlayBounds.Bottom)")
-    foreach ($inset in @(2, 4)) {
+    foreach ($inset in @(1, 2)) {
       $bodyInset = if ($observedPlacement -eq "attached") { [int][math]::Round(12 * $scale) } else { 0 }
       $points = @(
         @(($compact.Left + $inset), ($compact.Top + $inset)),
