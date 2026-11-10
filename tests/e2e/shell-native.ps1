@@ -33,9 +33,6 @@ Add-Type -Namespace OttoProbe -Name Native -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT point);
 [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
 [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
-[StructLayout(LayoutKind.Sequential)] public struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public UIntPtr dwExtraInfo; }
-[StructLayout(LayoutKind.Sequential)] public struct INPUT { public uint type; public MOUSEINPUT mi; }
-[DllImport("user32.dll", SetLastError=true)] public static extern uint SendInput(uint count, INPUT[] inputs, int size);
 [DllImport("user32.dll")] public static extern int GetWindowRgn(IntPtr hwnd, IntPtr region);
 [DllImport("gdi32.dll")] public static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
 [DllImport("gdi32.dll")] public static extern int GetRgnBox(IntPtr region, out RECT rect);
@@ -127,21 +124,8 @@ function Get-RectSize($rect) {
 }
 
 function Move-MouseInput([int]$x, [int]$y) {
-  $virtualLeft = [OttoProbe.Native]::GetSystemMetrics(76)
-  $virtualTop = [OttoProbe.Native]::GetSystemMetrics(77)
-  $virtualWidth = [OttoProbe.Native]::GetSystemMetrics(78)
-  $virtualHeight = [OttoProbe.Native]::GetSystemMetrics(79)
-  $mouse = New-Object OttoProbe.Native+MOUSEINPUT
-  $mouse.dx = [int][math]::Round(($x - $virtualLeft) * 65535 / [math]::Max(1, $virtualWidth - 1))
-  $mouse.dy = [int][math]::Round(($y - $virtualTop) * 65535 / [math]::Max(1, $virtualHeight - 1))
-  $mouse.dwFlags = 0x0001 -bor 0x8000 -bor 0x4000
-  $input = New-Object OttoProbe.Native+INPUT
-  $input.type = 0
-  $input.mi = $mouse
-  $inputs = [OttoProbe.Native+INPUT[]]@($input)
-  $sent = [OttoProbe.Native]::SendInput(1, $inputs, [Runtime.InteropServices.Marshal]::SizeOf($inputs[0]))
-  if ($sent -ne 1) {
-    throw "SendInput failed while moving the pointer to $x,$y"
+  if (-not [OttoProbe.Native]::SetCursorPos($x, $y)) {
+    throw "Windows refused to move the pointer to $x,$y"
   }
 }
 
@@ -152,7 +136,7 @@ function Click-MouseInput([int]$x, [int]$y, [int]$expectedOwner) {
   $actual = New-Object OttoProbe.Native+POINT
   [OttoProbe.Native]::GetCursorPos([ref]$actual) | Out-Null
   if ($actual.X -ne $x -or $actual.Y -ne $y) {
-    throw "Native click cancelled: pointer left the owned target before button input"
+    throw "Native click cancelled: requested $x,$y but observed $($actual.X),$($actual.Y) before button input"
   }
   $owner = Get-PointOwnerPid $actual.X $actual.Y
   if ($expectedOwner -le 0 -or $owner -ne $expectedOwner) {
