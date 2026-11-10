@@ -12,6 +12,7 @@ export function useShellFocus({
   clickOutside,
   setPage,
   collapse,
+  dismiss,
   consumeEscape,
 }: {
   page: Page;
@@ -20,6 +21,7 @@ export function useShellFocus({
   clickOutside: boolean;
   setPage: Dispatch<SetStateAction<Page>>;
   collapse: () => void;
+  dismiss: () => void;
   consumeEscape?: SubviewEscapeHandler;
 }) {
   const previousPage = useRef<Page>(page);
@@ -77,10 +79,10 @@ export function useShellFocus({
         setPage("home");
         return;
       }
-      collapse();
+      dismiss();
       requestAnimationFrame(() => compactButton.current?.focus({ preventScroll: true }));
     },
-    [collapse, page, setPage, consumeEscape],
+    [dismiss, page, setPage, consumeEscape],
   );
   useEffect(() => {
     if (!expanded) return;

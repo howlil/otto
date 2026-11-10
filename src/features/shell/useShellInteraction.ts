@@ -60,6 +60,10 @@ export function useShellInteraction({
   const back = useCallback(() => {
     setPage("home");
   }, []);
+  const dismiss = useCallback(() => {
+    collapse();
+    hover.suppressUntilLeave();
+  }, [collapse, hover.suppressUntilLeave]);
   const focus = useShellFocus({
     page,
     expanded,
@@ -68,6 +72,7 @@ export function useShellInteraction({
     consumeEscape,
     setPage,
     collapse,
+    dismiss,
   });
   const navigate = useCallback((next: Page) => setPage(next), []);
 

@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 let focusListener: ((focused: boolean) => void) | null = null;
+let cursorFailure = false;
 const invocations: Array<{ command: string; payload: unknown }> = [];
 const surfaceSizes: Record<string, { width: number; height: number }> = {
   idle: { width: 92, height: 42 },
@@ -42,7 +43,10 @@ mock.module("@tauri-apps/api/core", () => ({
 
 const originalElementFromPoint = document.elementFromPoint;
 mock.module("@tauri-apps/api/window", () => ({
-  cursorPosition: async () => ({ x: 10, y: 10 }),
+  cursorPosition: async () => {
+    if (cursorFailure) throw new Error("Pointer query unavailable");
+    return { x: 10, y: 10 };
+  },
   getCurrentWindow: () => ({
     innerPosition: async () => ({ x: 0, y: 0 }),
     scaleFactor: async () => 1,
@@ -160,6 +164,7 @@ afterEach(() => {
   cleanup();
   document.elementFromPoint = originalElementFromPoint;
   focusListener = null;
+  cursorFailure = false;
   localStorage.clear();
   invocations.length = 0;
 });
@@ -297,6 +302,50 @@ describe("Otto shell blur and escape interaction", () => {
 
     await new Promise((done) => setTimeout(done, 20));
     expect(isExpanded()).toBe(true);
+  });
+
+  test("Escape stays compact through layout-generated pointer events and rearms after a confirmed leave", async () => {
+    const { surface } = await mount();
+    await hover(surface);
+    fireEvent.pointerDown(surface);
+    document.elementFromPoint = () => surface;
+    fireEvent.keyDown(surface, { key: "Escape" });
+    await waitFor(() => expect(isExpanded()).toBe(false));
+    fireEvent.pointerOut(surface, { pointerType: "mouse", relatedTarget: document.body });
+    fireEvent.pointerOver(surface, { pointerType: "mouse", relatedTarget: null });
+    await new Promise((done) => setTimeout(done, 30));
+    expect(isExpanded()).toBe(false);
+    document.elementFromPoint = () => null;
+    fireEvent.pointerOut(surface, { pointerType: "mouse", relatedTarget: document.body });
+    await new Promise((done) => setTimeout(done, 20));
+    await hover(surface);
+  });
+
+  test("a failed pointer check cannot undo Escape and explicit activation still works", async () => {
+    const { surface } = await mount();
+    await hover(surface);
+    fireEvent.pointerDown(surface);
+    cursorFailure = true;
+    fireEvent.keyDown(surface, { key: "Escape" });
+    await waitFor(() => expect(isExpanded()).toBe(false));
+    fireEvent.pointerOut(surface, { pointerType: "mouse", relatedTarget: document.body });
+    fireEvent.pointerOver(surface, { pointerType: "mouse", relatedTarget: null });
+    await new Promise((done) => setTimeout(done, 30));
+    expect(isExpanded()).toBe(false);
+    fireEvent.click(compactButton());
+    await waitFor(() => expect(isExpanded()).toBe(true));
+  });
+
+  test("Escape with the pointer already outside allows the next genuine hover", async () => {
+    const { surface } = await mount();
+    await hover(surface);
+    fireEvent.pointerDown(surface);
+    document.elementFromPoint = () => null;
+    fireEvent.pointerOut(surface, { pointerType: "mouse", relatedTarget: document.body });
+    fireEvent.keyDown(surface, { key: "Escape" });
+    await waitFor(() => expect(isExpanded()).toBe(false));
+    await new Promise((done) => setTimeout(done, 20));
+    await hover(surface);
   });
 
   test("Escape restores the capsule and returns focus to it", async () => {
