@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 
 mock.module("@tauri-apps/api/core", () => ({
   isTauri: () => true,
@@ -45,8 +45,8 @@ function persisted(): Record<string, unknown> {
   return JSON.parse(localStorage.getItem("otto.preferences.v1") ?? "{}");
 }
 
-async function shellHook() {
-  save();
+async function shellHook(preferences: Record<string, unknown> = {}) {
+  save(preferences);
   const view = renderHook(() => useNotchShell());
   await act(async () => {});
   return view;
@@ -84,6 +84,31 @@ describe("Notch placement recovery", () => {
     expect(result.current.placement.requested).toBe("attached");
     expect(result.current.placement.error).toBeNull();
     expect(persisted().placement).toBe("attached");
+  });
+
+  test("a confirmed native placement change rearms hover after Escape dismissal", async () => {
+    const { result } = await shellHook({ hoverExpand: true, hoverDelay: 0 });
+    const surface = document.createElement("main");
+    document.body.append(surface);
+    const enter = {
+      currentTarget: surface,
+      pointerType: "mouse",
+    } as Parameters<typeof result.current.handleEnter>[0];
+
+    act(() => result.current.syncPlacement("attached"));
+    act(() => result.current.handleEnter(enter));
+    await waitFor(() => expect(result.current.expanded).toBe(true));
+
+    act(() => result.current.dismiss());
+    expect(result.current.expanded).toBe(false);
+
+    act(() => result.current.syncPlacement("floating"));
+    expect(result.current.placement.applied).toBe("floating");
+    await act(async () => {});
+    act(() => result.current.handleEnter(enter));
+
+    await waitFor(() => expect(result.current.expanded).toBe(true));
+    surface.remove();
   });
 
   test("retry clears the failure and requests the geometry again", async () => {

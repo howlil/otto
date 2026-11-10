@@ -16,7 +16,11 @@ export function useNotchShell(consumeEscape?: SubviewEscapeHandler) {
     nativeAvailable,
     preferences.setPlacementPreference,
   );
-  const interaction = useShellInteraction({ prefs: preferences.prefs, consumeEscape });
+  const interaction = useShellInteraction({
+    prefs: preferences.prefs,
+    surfaceKey: placement.placement.applied,
+    consumeEscape,
+  });
   useShellShortcut(() => {
     if (interaction.expanded) interaction.dismiss();
     else interaction.open(interaction.page);

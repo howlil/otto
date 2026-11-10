@@ -1,13 +1,15 @@
 import { useCallback, useRef, useState } from "react";
-import type { Page, Preferences } from "./preferences";
+import type { Page, Placement, Preferences } from "./preferences";
 import { useShellFocus, type SubviewEscapeHandler } from "./useShellFocus";
 import { useShellHover } from "./useShellHover";
 
 export function useShellInteraction({
   prefs,
+  surfaceKey = "floating",
   consumeEscape,
 }: {
   prefs: Preferences;
+  surfaceKey?: Placement;
   consumeEscape?: SubviewEscapeHandler;
 }) {
   const [page, setPage] = useState<Page>("home");
@@ -28,6 +30,7 @@ export function useShellInteraction({
     prefs,
     expanded,
     pinned,
+    surfaceKey,
     onCollapse: requestCollapse,
     onPreview: () => setMode("preview"),
   });

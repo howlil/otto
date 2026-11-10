@@ -14,12 +14,14 @@ export function useShellHover({
   prefs,
   expanded,
   pinned,
+  surfaceKey,
   onCollapse,
   onPreview,
 }: {
   prefs: Preferences;
   expanded: boolean;
   pinned: boolean;
+  surfaceKey: string;
   onCollapse: () => void;
   onPreview: () => void;
 }) {
@@ -59,6 +61,13 @@ export function useShellHover({
     suppressed.current = true;
     rearmAfterLeave(surface);
   }, [clearTimers, rearmAfterLeave]);
+
+  useEffect(() => {
+    if (surfaceKey === "floating" || surfaceKey === "attached") {
+      suppressed.current = false;
+      clearTimers();
+    }
+  }, [clearTimers, surfaceKey]);
 
   const handleEnter = (event: PointerEvent<HTMLElement>) => {
     if (!hoverEnabled.current) return;
