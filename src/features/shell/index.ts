@@ -25,3 +25,4 @@ export {
 export { ShellFrame } from "./ShellFrame";
 export { useNotchSurfaceSync, type SurfaceSize } from "./useNotchSurfaceSync";
 export { SurfaceError } from "./SurfaceError";
+export type { RecoveryFrame } from "./surface-sync/useRenderedRegion";

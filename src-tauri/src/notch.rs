@@ -1,261 +1,269 @@
-#[cfg(windows)]
-use crate::windows::placement::{Silhouette, shape_for};
-
 pub const MAX_TOP_OFFSET: u32 = 64;
 
-pub fn content_size(
-    surface: &str,
-    content_height: Option<u32>,
-    available_height: u32,
-) -> Option<(u32, u32)> {
-    let (width, base_height) = surface_size(surface)?;
-    if !matches!(
-        surface,
-        "agentReady"
-            | "agentThinking"
-            | "agentFull"
-            | "agentError"
-            | "homeSettings"
-            | "agentSettings"
-    ) {
-        return Some((width, base_height));
-    }
-    let min_height = if matches!(
-        surface,
-        "agentReady" | "agentThinking" | "agentFull" | "agentError"
-    ) {
-        170
-    } else {
-        1
-    };
-    let max_height = 610.min(available_height.max(min_height));
-    let height = content_height
-        .map(|value| value.clamp(min_height, max_height))
-        .unwrap_or(base_height);
-    Some((width, height))
+pub fn surface_layouts() -> std::collections::BTreeMap<&'static str, (u32, u32)> {
+    [
+        ("idle", (92, 42)),
+        ("agentCompact", (228, 50)),
+        ("musicCompact", (264, 54)),
+        ("musicPlayer", (444, 178)),
+        ("musicLyrics", (444, 212)),
+        ("focusCompact", (224, 52)),
+        ("focus", (408, 174)),
+        ("focusSettings", (408, 328)),
+        ("home", (452, 148)),
+        ("homeSettings", (452, 314)),
+        ("agentReady", (526, 170)),
+        ("agentThinking", (526, 236)),
+        ("agentFull", (526, 346)),
+        ("agentError", (526, 270)),
+        ("agentSettings", (526, 466)),
+        ("osEvent", (234, 52)),
+    ]
+    .into()
 }
 
-pub fn surface_target(
-    surface: &str,
-    shape: &str,
-    content_height: Option<u32>,
-    available_height: u32,
-) -> Option<(u32, u32, f64, f64)> {
-    let (body_width, height) = content_size(surface, content_height, available_height)?;
-    let gutter = attached_gutter(shape);
-    Some((
-        body_width,
-        height,
-        f64::from(body_width) + gutter * 2.0,
-        f64::from(height),
-    ))
+#[derive(Clone, Copy, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct RectPx {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
 }
 
-pub fn surface_size(surface: &str) -> Option<(u32, u32)> {
-    match surface {
-        "idle" => Some((92, 42)),
-        "agentCompact" => Some((228, 50)),
-        "musicCompact" => Some((264, 54)),
-        "musicPlayer" => Some((444, 178)),
-        "focusCompact" => Some((224, 52)),
-        "musicLyrics" => Some((444, 212)),
-        "home" => Some((452, 148)),
-        "homeSettings" => Some((452, 314)),
-        "focus" => Some((408, 174)),
-        "focusSettings" => Some((408, 328)),
-        "agentReady" => Some((526, 170)),
-        "agentThinking" => Some((526, 236)),
-        "agentFull" => Some((526, 346)),
-        "agentError" => Some((526, 270)),
-        "agentSettings" => Some((526, 466)),
-        "osEvent" => Some((234, 52)),
-        _ => None,
-    }
+#[derive(Clone, Copy, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct RadiusPx {
+    pub top: u32,
+    pub bottom: u32,
 }
 
-pub fn needs_region_update(
-    previous: Option<&(String, i32, i32)>,
-    shape: &str,
-    size: (i32, i32),
-) -> bool {
-    match previous {
-        Some((previous_shape, width, height)) => {
-            previous_shape != shape || (*width, *height) != size
+#[derive(Clone, Copy, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegionPx {
+    pub host_revision: u32,
+    pub sequence: u32,
+    pub body: RectPx,
+    pub radius: RadiusPx,
+    pub shoulder: u32,
+}
+
+impl RegionPx {
+    pub fn validate(&self, host: (u32, u32)) -> Result<(), String> {
+        let body = self.body;
+        let right = i64::from(body.x) + i64::from(body.width) + i64::from(self.shoulder);
+        let bottom = i64::from(body.y) + i64::from(body.height);
+        if body.width == 0
+            || body.height == 0
+            || i64::from(body.x) < i64::from(self.shoulder)
+            || body.y < 0
+            || right > i64::from(host.0)
+            || bottom > i64::from(host.1)
+            || self.radius.top > body.width.min(body.height) / 2
+            || self.radius.bottom > body.width.min(body.height) / 2
+            || self.shoulder > body.height
+            || (self.shoulder > 0 && self.radius.top > 0)
+        {
+            return Err("Notch region is outside the configured host.".into());
         }
-        None => true,
+        Ok(())
+    }
+
+    pub fn same_shape(&self, previous: &Self) -> bool {
+        self.body == previous.body
+            && self.radius == previous.radius
+            && self.shoulder == previous.shoulder
     }
 }
 
-pub fn window_size(current: (f64, f64), target: (f64, f64), defer_shrink: bool) -> (f64, f64) {
-    if defer_shrink {
-        (current.0.max(target.0), current.1.max(target.1))
-    } else {
-        target
+#[derive(Default)]
+pub struct RegionOrder {
+    pub revision: u32,
+    pub sequence: u32,
+}
+
+impl RegionOrder {
+    pub fn accepts(&self, region: &RegionPx) -> bool {
+        region.host_revision == self.revision && region.sequence > self.sequence
     }
 }
 
-pub fn top_inset(attached: bool, top_offset: u32) -> u32 {
-    if attached { 0 } else { top_offset }
-}
-
-pub fn placement_origin(
-    bounds_x: i32,
-    bounds_y: i32,
-    bounds_width: u32,
-    physical_width: i32,
+pub fn host_bounds(
+    monitor: RectPx,
+    bottom: i64,
     scale: f64,
-    inset: u32,
-) -> (i32, i32) {
-    let x = bounds_x + (bounds_width as i32 - physical_width) / 2;
-    let y = bounds_y + (f64::from(inset) * scale).round() as i32;
-    (x, y)
-}
-
-pub fn attached_gutter(shape: &str) -> f64 {
-    #[cfg(windows)]
+    capacity: (u32, u32),
+    attached: bool,
+    top_offset: u32,
+) -> Result<RectPx, String> {
+    if !scale.is_finite()
+        || scale <= 0.0
+        || top_offset > MAX_TOP_OFFSET
+        || capacity.0 == 0
+        || capacity.1 == 0
+        || capacity.0 > 8192
+        || capacity.1 > 8192
     {
-        Silhouette::parse(shape)
-            .map(|silhouette| shape_for(silhouette, 0.0, 1.0).gutter)
-            .unwrap_or(0.0)
+        return Err("Invalid notch host geometry.".into());
     }
-    #[cfg(not(windows))]
-    {
-        let _ = shape;
-        0.0
-    }
-}
-
-pub fn hit_region_plan(current: (i32, i32), target: (i32, i32)) -> Option<(i32, i32, i32, i32)> {
-    if current == target || current.0 <= 0 || current.1 <= 0 || target.0 <= 0 || target.1 <= 0 {
-        return None;
-    }
-    Some((
-        ((current.0 - target.0) / 2).max(0),
-        0,
-        target.0.min(current.0),
-        target.1.min(current.1),
-    ))
+    let width = ((f64::from(capacity.0) * scale).round() as u32)
+        .min(monitor.width)
+        .max(1);
+    let inset = if attached {
+        0
+    } else {
+        (f64::from(top_offset) * scale).round() as i64
+    };
+    let y = i64::from(monitor.y) + inset;
+    let available = (bottom - y - (16.0 * scale).round() as i64).max(1) as u32;
+    let height = ((f64::from(capacity.1) * scale).round() as u32)
+        .min(available)
+        .max(1);
+    Ok(RectPx {
+        x: monitor.x + ((monitor.width - width) / 2) as i32,
+        y: y as i32,
+        width,
+        height,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn hit_region_tracks_the_visible_surface_inside_a_larger_window() {
-        assert_eq!(hit_region_plan((678, 222), (678, 222)), None);
-        assert_eq!(
-            hit_region_plan((678, 222), (138, 63)),
-            Some((270, 0, 138, 63))
-        );
-        assert_eq!(
-            hit_region_plan((138, 63), (678, 222)),
-            Some((0, 0, 138, 63))
-        );
-        assert_eq!(hit_region_plan((0, 0), (138, 63)), None);
-        assert_eq!(hit_region_plan((678, 222), (0, 63)), None);
+
+    fn region() -> RegionPx {
+        RegionPx {
+            host_revision: 3,
+            sequence: 8,
+            body: RectPx {
+                x: 100,
+                y: 0,
+                width: 300,
+                height: 80,
+            },
+            radius: RadiusPx {
+                top: 27,
+                bottom: 27,
+            },
+            shoulder: 0,
+        }
     }
 
     #[test]
-    fn window_geometry_only_grows_when_the_shrink_is_deferred() {
-        assert_eq!(
-            window_size((92.0, 42.0), (452.0, 148.0), false),
-            (452.0, 148.0)
+    fn stale_host_and_reordered_frames_cannot_replace_the_current_region() {
+        let order = RegionOrder {
+            revision: 3,
+            sequence: 8,
+        };
+        assert!(!order.accepts(&region()));
+        assert!(!order.accepts(&RegionPx {
+            sequence: 7,
+            ..region()
+        }));
+        assert!(!order.accepts(&RegionPx {
+            host_revision: 2,
+            sequence: 100,
+            ..region()
+        }));
+        assert!(order.accepts(&RegionPx {
+            sequence: 9,
+            ..region()
+        }));
+    }
+
+    #[test]
+    fn region_bounds_include_both_shoulders_and_reject_invalid_radii() {
+        assert!(region().validate((550, 610)).is_ok());
+        let attached = RegionPx {
+            shoulder: 12,
+            radius: RadiusPx { top: 0, bottom: 24 },
+            ..region()
+        };
+        assert!(attached.validate((550, 610)).is_ok());
+        assert!(
+            RegionPx {
+                body: RectPx {
+                    x: 0,
+                    ..attached.body
+                },
+                ..attached
+            }
+            .validate((550, 610))
+            .is_err()
         );
-        assert_eq!(
-            window_size((92.0, 42.0), (452.0, 148.0), true),
-            (452.0, 148.0)
+        assert!(
+            RegionPx {
+                body: RectPx {
+                    width: 500,
+                    ..attached.body
+                },
+                ..attached
+            }
+            .validate((550, 610))
+            .is_err()
         );
-        assert_eq!(
-            window_size((452.0, 148.0), (92.0, 42.0), false),
-            (92.0, 42.0)
+        assert!(
+            RegionPx {
+                radius: RadiusPx { top: 41, bottom: 0 },
+                ..region()
+            }
+            .validate((550, 610))
+            .is_err()
         );
-        assert_eq!(
-            window_size((452.0, 148.0), (92.0, 42.0), true),
-            (452.0, 148.0)
-        );
-        assert_eq!(
-            window_size((452.0, 148.0), (526.0, 620.0), true),
-            (526.0, 620.0)
-        );
-        assert_eq!(
-            window_size((526.0, 620.0), (526.0, 170.0), true),
-            (526.0, 620.0)
+        assert!(
+            RegionPx {
+                body: RectPx {
+                    height: 0,
+                    ..region().body
+                },
+                ..region()
+            }
+            .validate((550, 610))
+            .is_err()
         );
     }
 
     #[test]
-    fn window_region_work_is_skipped_while_the_silhouette_is_unchanged() {
-        let capsule = Some(("capsule".to_string(), 138, 63));
-        assert!(needs_region_update(None, "capsule", (138, 63)));
-        assert!(!needs_region_update(capsule.as_ref(), "capsule", (138, 63)));
-        assert!(needs_region_update(capsule.as_ref(), "capsule", (678, 222)));
-        assert!(needs_region_update(capsule.as_ref(), "card", (138, 63)));
-        assert!(needs_region_update(capsule.as_ref(), "attached", (138, 63)));
+    fn deduplication_includes_position_radius_and_shoulders() {
+        assert!(region().same_shape(&RegionPx {
+            sequence: 9,
+            ..region()
+        }));
+        assert!(!region().same_shape(&RegionPx {
+            body: RectPx {
+                x: 101,
+                ..region().body
+            },
+            ..region()
+        }));
+        assert!(!region().same_shape(&RegionPx {
+            radius: RadiusPx {
+                top: 26,
+                bottom: 27
+            },
+            ..region()
+        }));
     }
 
     #[test]
-    fn dynamic_surface_height_is_bounded() {
-        assert_eq!(content_size("agentFull", Some(98), 900), Some((526, 170)));
-        assert_eq!(content_size("agentFull", Some(410), 900), Some((526, 410)));
-        assert_eq!(content_size("agentFull", Some(850), 900), Some((526, 610)));
-        assert_eq!(content_size("agentFull", Some(580), 420), Some((526, 420)));
+    fn host_capacity_is_monitor_bounded_and_attached_ignores_floating_offset() {
+        let monitor = RectPx {
+            x: -1920,
+            y: -240,
+            width: 1920,
+            height: 1080,
+        };
+        let floating = host_bounds(monitor, 800, 1.5, (550, 610), false, 20).unwrap();
         assert_eq!(
-            content_size("agentSettings", Some(580), 900),
-            Some((526, 580))
+            floating,
+            RectPx {
+                x: -1373,
+                y: -210,
+                width: 825,
+                height: 915
+            }
         );
-        assert_eq!(
-            content_size("homeSettings", Some(190), 900),
-            Some((452, 190))
-        );
-        assert_eq!(content_size("home", Some(580), 900), Some((452, 148)));
-    }
-
-    #[test]
-    fn attached_placement_ignores_the_floating_offset_and_keeps_the_screen_edge() {
-        assert_eq!(top_inset(true, 40), 0);
-        assert_eq!(top_inset(false, 40), 40);
-        assert_eq!(
-            placement_origin(0, 0, 1920, 550, 1.0, top_inset(true, 40)).1,
-            0
-        );
-        assert_eq!(
-            placement_origin(0, 0, 1920, 92, 1.25, top_inset(false, 20)),
-            ((1920 - 92) / 2, 25)
-        );
-        assert_eq!(
-            placement_origin(-1920, -240, 2560, 374, 1.0, 0),
-            (-1920 + (2560 - 374) / 2, -240)
-        );
-    }
-
-    #[test]
-    fn attached_placement_reserves_shoulder_space_in_the_window_width() {
-        assert_eq!(attached_gutter("attached"), 12.0);
-        assert_eq!(attached_gutter("capsule"), 0.0);
-        assert_eq!(attached_gutter("card"), 0.0);
-    }
-
-    #[test]
-    fn approved_home_agent_and_settings_sizes() {
-        assert_eq!(surface_size("home"), Some((452, 148)));
-        assert_eq!(surface_size("musicCompact"), Some((264, 54)));
-        assert_eq!(surface_size("musicPlayer"), Some((444, 178)));
-        assert_eq!(surface_size("focusCompact"), Some((224, 52)));
-        assert_eq!(surface_size("focus"), Some((408, 174)));
-        assert_eq!(surface_size("focusSettings"), Some((408, 328)));
-        assert_eq!(surface_size("musicLyrics"), Some((444, 212)));
-        assert_eq!(surface_size("agentReady"), Some((526, 170)));
-        assert_eq!(surface_size("agentFull"), Some((526, 346)));
-        assert_eq!(surface_size("agentSettings"), Some((526, 466)));
-        assert_eq!(surface_size("osEvent"), Some((234, 52)));
-        assert_eq!(surface_size("unknown"), None);
-    }
-
-    #[test]
-    fn surface_target_keeps_attached_shoulder_space_outside_the_body() {
-        assert_eq!(
-            surface_target("osEvent", "attached", None, 900),
-            Some((234, 52, 258.0, 52.0))
-        );
+        let attached = host_bounds(monitor, 200, 1.5, (550, 610), true, 64).unwrap();
+        assert_eq!(attached.y, -240);
+        assert_eq!(attached.height, 416);
+        assert!(host_bounds(monitor, 800, 0.0, (550, 610), false, 20).is_err());
     }
 }

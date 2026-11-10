@@ -16,22 +16,29 @@ type LyricsState = {
 const empty: LyricsState = { key: "", status: "off", record: null, error: null };
 
 export function useLyrics(snapshot: MediaSnapshot) {
-  const [enabled, setEnabled] = useState(false);
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<LyricsState>(empty);
   const [attempt, setAttempt] = useState(0);
   const generation = useRef(0);
-  const permissionRevision = useRef(0);
+  const permission = useRef(Promise.resolve());
   const key = trackKey(snapshot);
   const available = snapshot.status === "available";
+  const setPermission = useCallback((enabled: boolean) => {
+    permission.current = permission.current.catch(() => {}).then(() => setOnlineLyrics(enabled));
+    return permission.current;
+  }, []);
 
-  useEffect(() => {
+  const observe = useCallback(() => {
     const revision = ++generation.current;
-    if (!enabled || !available) return;
+    if (!available) return () => {};
+    const current = () => revision === generation.current;
     setState({ key, status: "loading", record: null, error: null });
-    void getMediaLyrics(attempt > 0)
-      .then((result) => {
-        if (revision !== generation.current || result.key !== key) return;
+    void setPermission(true)
+      .then(async () => {
+        if (!current()) return;
+        const result = await getMediaLyrics(attempt > 0);
+        if (!current()) return;
+        if (result.key !== key) throw new Error("The media item changed. Retry lyrics.");
         setState({
           key,
           status: result.record ? "ready" : "missing",
@@ -40,7 +47,7 @@ export function useLyrics(snapshot: MediaSnapshot) {
         });
       })
       .catch((reason: unknown) => {
-        if (revision !== generation.current) return;
+        if (!current()) return;
         setState({
           key,
           status: "error",
@@ -54,62 +61,25 @@ export function useLyrics(snapshot: MediaSnapshot) {
         });
       });
     return () => {
+      if (!current()) return;
       generation.current += 1;
+      void setPermission(false).catch(() => {});
     };
-  }, [enabled, available, key, attempt]);
+  }, [available, key, attempt, setPermission]);
 
   useEffect(
     () => () => {
       generation.current += 1;
-      permissionRevision.current += 1;
-      void setOnlineLyrics(false).catch(() => {});
+      void setPermission(false).catch(() => {});
     },
-    [],
+    [setPermission],
   );
 
-  const enable = useCallback(async () => {
-    const revision = ++permissionRevision.current;
-    try {
-      await setOnlineLyrics(true);
-      if (revision === permissionRevision.current) setEnabled(true);
-    } catch {
-      if (revision === permissionRevision.current)
-        setState({
-          key,
-          status: "error",
-          record: null,
-          error: "Online lyrics could not be enabled. Try again.",
-        });
-    }
-  }, [key]);
-
-  const disable = useCallback(async () => {
-    permissionRevision.current += 1;
-    generation.current += 1;
-    setEnabled(false);
-    setState(empty);
-    try {
-      await setOnlineLyrics(false);
-    } catch {
-      setState({
-        ...empty,
-        key,
-        error: "Lyrics permission could not be updated. Retry disabling it.",
-      });
-    }
-  }, [key]);
-
-  const current =
-    enabled && available && state.key === key
-      ? state
-      : { ...empty, error: state.key === key ? state.error : null };
   return {
-    ...current,
-    enabled,
+    ...(available && state.key === key ? state : empty),
     open,
     setOpen,
-    enable,
-    disable,
+    observe,
     retry: () => setAttempt((value) => value + 1),
   };
 }

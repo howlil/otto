@@ -8,6 +8,8 @@ const initial: MediaSnapshot = {
   durationMs: 232000, minSeekMs: 0, maxSeekMs: 232000,
   controls: { toggle: true, previous: true, next: true, seek: true }, message: "Connected",
 };
+let observed = initial;
+let refresh: () => Promise<MediaSnapshot> = async () => observed;
 let attempts = 0;
 let releases = 0;
 let callbacks: Array<(snapshot: MediaSnapshot) => void> = [];
@@ -15,8 +17,8 @@ let subscribe: (callback: (snapshot: MediaSnapshot) => void) => Promise<MediaSub
 const commands: unknown[][] = [];
 mock.module("../src/platform/tauri/media", () => ({
   nativeAvailable: true,
-  getMediaSnapshot: async () => initial,
-  refreshMedia: async () => initial,
+  getMediaSnapshot: async () => observed,
+  refreshMedia: async () => refresh(),
   subscribeMedia: async (callback: (snapshot: MediaSnapshot) => void) => {
     attempts += 1;
     callbacks.push(callback);
@@ -38,7 +40,7 @@ function connected() {
   return Promise.resolve({ unsubscribe: async () => { releases += 1; } });
 }
 
-afterEach(() => { cleanup(); attempts = 0; releases = 0; callbacks = []; commands.length = 0; });
+afterEach(() => { cleanup(); observed = initial; refresh = async () => observed; attempts = 0; releases = 0; callbacks = []; commands.length = 0; });
 afterAll(() => mock.restore());
 
 test("Retry Music restores live updates after subscription failure without duplicate subscriptions", async () => {
@@ -60,6 +62,55 @@ test("Retry Music restores live updates after subscription failure without dupli
   expect(attempts).toBe(2);
   view.unmount();
   await waitFor(() => expect(releases).toBe(1));
+});
+
+test("standby Check again exposes pending work and renders only the returned session", async () => {
+  observed = { ...initial, status: "unavailable", title: null, artist: null };
+  subscribe = connected;
+  let finish: (snapshot: MediaSnapshot) => void = () => {};
+  refresh = () => new Promise(resolve => { finish = resolve; });
+  const view = render(<Player />);
+  await waitFor(() => expect(view.getByRole("heading", { name: "Play something to get started" })).toBeTruthy());
+  const check = view.getByRole("button", { name: "Check again" });
+  act(() => check.focus());
+  fireEvent.click(check);
+  await waitFor(() => expect(view.getByRole("button", { name: "Checking media…" }).hasAttribute("disabled")).toBe(true));
+  expect(view.queryByText("Orbit")).toBeNull();
+  expect(view.getByRole("button", { name: "Lyrics" }).hasAttribute("disabled")).toBe(true);
+  await act(async () => { finish({ ...initial, seq: 2 }); });
+  await waitFor(() => expect(view.getByText("Orbit")).toBeTruthy());
+  expect(view.queryByRole("button", { name: "Check again" })).toBeNull();
+  expect(document.activeElement).toBe(view.getByRole("button", { name: "Lyrics" }));
+});
+
+test("a session arriving in the background does not move focus into Music", async () => {
+  observed = { ...initial, status: "unavailable", title: null, artist: null };
+  subscribe = connected;
+  const view = render(<><input /><Player /></>);
+  await waitFor(() => expect(view.getByRole("button", { name: "Check again" })).toBeTruthy());
+  const outside = view.getByRole("textbox");
+  act(() => outside.focus());
+  act(() => callbacks[0]({ ...initial, seq: 2 }));
+  await waitFor(() => expect(view.getByText("Orbit")).toBeTruthy());
+  expect(document.activeElement).toBe(outside);
+});
+
+test("a failed standby check offers one recovery action and a repeated empty result stays standby", async () => {
+  observed = { ...initial, status: "unavailable", title: null, artist: null };
+  subscribe = connected;
+  const view = render(<Player />);
+  await waitFor(() => expect(view.getByRole("button", { name: "Check again" })).toBeTruthy());
+  refresh = async () => { throw new Error("Media connection interrupted"); };
+  fireEvent.click(view.getByRole("button", { name: "Check again" }));
+  await waitFor(() => expect(view.getByText("Couldn’t update Music")).toBeTruthy());
+  expect(view.getByText(/Media connection interrupted/)).toBeTruthy();
+  expect(view.queryByRole("button", { name: "Check again" })).toBeNull();
+  expect(view.getAllByRole("button", { name: "Retry Music" })).toHaveLength(1);
+  refresh = async () => ({ ...observed, seq: 2 });
+  fireEvent.click(view.getByRole("button", { name: "Retry Music" }));
+  await waitFor(() => expect(view.getByRole("heading", { name: "Play something to get started" })).toBeTruthy());
+  expect(view.queryByText(/Media connection interrupted/)).toBeNull();
+  expect(view.queryByText("Orbit")).toBeNull();
 });
 
 test("playback commands carry the displayed track identity rather than a later observation", async () => {

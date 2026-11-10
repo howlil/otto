@@ -27,13 +27,6 @@ export function statusLabel(status: TimerStatus): string {
   return "Ready";
 }
 
-export function timerHint(snapshot: TimerSnapshot): string {
-  const phase = snapshot.phase === "focus" ? "Focus session" : phaseLabel(snapshot.phase);
-  if (snapshot.status === "running") return `${phase} · Keep going`;
-  if (snapshot.status === "paused") return `${phase} · Timer paused`;
-  return `${phase} · Ready to start`;
-}
-
 export function primaryActionLabel(snapshot: TimerSnapshot): string {
   if (snapshot.status === "completed") return nextActionLabel(snapshot);
   if (snapshot.status === "running") return "Pause timer";
@@ -70,10 +63,6 @@ export function nextActionLabel(snapshot: TimerSnapshot): string {
 
 export function completionTitle(snapshot: TimerSnapshot): string {
   return snapshot.phase === "focus" ? "Focus complete" : "Break complete";
-}
-
-export function completionHint(snapshot: TimerSnapshot): string {
-  return snapshot.phase === "focus" ? "Your focus session is complete." : "Your break is complete.";
 }
 
 export function durationNote(status: TimerStatus): string {

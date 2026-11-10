@@ -8,6 +8,7 @@ import type {
 } from "../../platform/tauri";
 import { AgentSettingsNavigation, type AgentSettingsTab } from "./AgentSettingsNavigation";
 import { AgentSettingsDetails } from "./AgentSettingsDetails";
+import { useTransitionActive } from "../../shared/ui";
 
 export type AgentSettingsProps = {
   readiness: ProviderReadiness;
@@ -31,6 +32,7 @@ export type AgentSettingsProps = {
 };
 
 export function AgentSettings(props: AgentSettingsProps) {
+  const active = useTransitionActive();
   const [tab, setTab] = useState<AgentSettingsTab>("assistant");
   const root = useRef<HTMLElement>(null);
   const scrollViewport = useRef<HTMLDivElement>(null);
@@ -40,7 +42,7 @@ export function AgentSettings(props: AgentSettingsProps) {
   useLayoutEffect(() => {
     const element = root.current;
     const viewport = scrollViewport.current;
-    if (!element || !viewport) return;
+    if (!active || !element || !viewport) return;
     const measure = () => {
       const navigationHeight = element.querySelector("nav")?.offsetHeight ?? 0;
       const contentHeight = viewport.firstElementChild?.scrollHeight ?? viewport.scrollHeight;
@@ -52,7 +54,7 @@ export function AgentSettings(props: AgentSettingsProps) {
     observer.observe(viewport);
     if (viewport.firstElementChild) observer.observe(viewport.firstElementChild);
     return () => observer.disconnect();
-  }, [props.onMeasured]);
+  }, [active, props.onMeasured]);
 
   return (
     <section ref={root} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

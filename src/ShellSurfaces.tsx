@@ -33,7 +33,7 @@ export function CompactEyesButton({
   return (
     <button
       ref={buttonRef}
-      className={`group absolute top-0 z-[4] grid place-items-center border-0 bg-transparent p-0 text-inherit ${reducedMotion ? "" : "transition-[left,top,width,height,transform] ease-otto"} ${settled ? "left-4 top-3 h-[34px] w-[34px] translate-x-0" : "left-1/2 h-[42px] w-[92px] -translate-x-1/2"}`}
+      className={`group absolute top-0 z-[4] grid place-items-center border-0 bg-transparent p-0 text-inherit ${reducedMotion ? "" : "transition-[left,top,translate,width,height] ease-otto"} ${settled ? "left-4 top-3 h-[34px] w-[34px] translate-x-0" : "left-1/2 h-[42px] w-[92px] -translate-x-1/2"}`}
       style={reducedMotion ? undefined : { transitionDuration: "var(--otto-morph-duration)" }}
       type="button"
       aria-expanded={expanded}

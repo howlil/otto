@@ -1,12 +1,12 @@
 import type { CSSProperties } from "react";
 import { ShellFrame, SurfaceError } from "./features/shell";
 import type { RefObject } from "react";
-import { morphMilliseconds } from "./features/shell";
 import type { SurfaceSize, useAppUpdate, useNotchShell } from "./features/shell";
 import type { useAgent } from "./features/agent";
 import type { FocusTimerModel } from "./features/focus";
 import type { useMusic } from "./features/music";
-import type { OsEventView } from "./platform/tauri";
+import type { OsEventView, NotchPlacement } from "./platform/tauri";
+import type { RecoveryFrame } from "./features/shell";
 import { ShellContent } from "./ShellContent";
 import { OttoLogoProvider } from "./shared/ui";
 
@@ -27,12 +27,17 @@ export function ShellView({
   gutter,
   size,
   nativeSize,
+  scale = 1,
   morphMs,
   stageRef,
   onContentMeasured,
   appUpdate,
   osEvent,
   onDismissOsEvent,
+  placement = shell.placement.applied,
+  compactRadius = 21,
+  recovery,
+  onRetrySurface,
 }: {
   agent: AgentModel;
   music: MusicModel;
@@ -46,6 +51,7 @@ export function ShellView({
   gutter: number;
   size: SurfaceSize | null;
   nativeSize: SurfaceSize | null;
+  scale?: number;
   morphMs: number;
   stageRef: RefObject<HTMLDivElement | null>;
   artProps: {
@@ -54,23 +60,37 @@ export function ShellView({
   };
   osEvent: OsEventView | null;
   onDismissOsEvent: () => void;
+  placement?: NotchPlacement;
+  compactRadius?: number;
+  recovery?: RecoveryFrame | null;
+  onRetrySurface?: () => void;
 }) {
-  const attached = shell.placement.applied === "attached";
+  const attached = placement === "attached";
   return (
     <OttoLogoProvider value={shell.prefs}>
       <ShellFrame
-        placement={shell.placement.applied}
+        placement={placement}
         gutter={gutter}
         size={size}
         nativeSize={nativeSize}
+        scale={scale}
         morphMs={morphMs}
         stageRef={stageRef}
+        recovery={recovery}
       >
         <main
           className={`relative isolate h-full w-full overflow-hidden border border-otto-line bg-otto-surface text-otto-text ${attached ? "rounded-t-none rounded-b-otto-attached border-t-transparent" : shell.expanded ? "rounded-otto-expanded" : "rounded-otto-island"} transition-[border-radius] duration-[var(--otto-morph-duration)] ease-otto`}
           style={
             {
-              "--otto-morph-duration": morphMilliseconds(shell.prefs.motion),
+              "--radius-otto-island": `${compactRadius}px`,
+              ...(recovery
+                ? {
+                    borderTopLeftRadius: recovery.region.radius.top / recovery.scale,
+                    borderTopRightRadius: recovery.region.radius.top / recovery.scale,
+                    borderBottomLeftRadius: recovery.region.radius.bottom / recovery.scale,
+                    borderBottomRightRadius: recovery.region.radius.bottom / recovery.scale,
+                  }
+                : {}),
             } as CSSProperties
           }
           data-reduced={shell.reducedMotion ? "true" : undefined}
@@ -106,7 +126,11 @@ export function ShellView({
               osEvent={osEvent}
               frameSize={size}
             />
-            <SurfaceError message={surfaceError} expanded={shell.expanded} />
+            <SurfaceError
+              message={surfaceError}
+              expanded={shell.expanded}
+              onRetry={onRetrySurface}
+            />
           </div>
         </main>
       </ShellFrame>

@@ -85,6 +85,10 @@ fn apply_tool_style(hwnd: HWND) -> io::Result<()> {
     }
 }
 
+pub fn ensure_tool_style(window: &WebviewWindow) -> io::Result<()> {
+    apply_tool_style(window.hwnd().map_err(io::Error::other)?.0 as HWND)
+}
+
 fn read_affinity(hwnd: HWND) -> io::Result<u32> {
     let mut affinity = 0u32;
     if unsafe { GetWindowDisplayAffinity(hwnd, &mut affinity) } == 0 {

@@ -132,7 +132,7 @@ test("leaving duration settings restores focus to its trigger, including Escape"
   close.focus();
   fireEvent.keyDown(close, { key: "Escape" });
   await waitFor(() => expect(document.activeElement === screen.getByRole("button", { name: "Edit durations" })).toBe(true));
-  expect(screen.queryByText("Session lengths")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Focus presets" })).toBeNull();
 });
 
 test("a background Focus snapshot preserves the active surface and keyboard focus", () => {

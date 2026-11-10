@@ -72,21 +72,61 @@ test("the combined shell preserves Compact playback controls without navigation"
   expect(view.getByRole("button", { name: "Play media" }).hasAttribute("disabled")).toBe(true);
 });
 
-test("Music shows an explicit empty state instead of fabricated track details", () => {
-  const { view, refreshed } = renderPanel(unavailable);
-
-  expect(view.getByText("No media session")).toBeTruthy();
+test("Music standby explains playback, disables Lyrics with a reason and keeps Check again quiet", () => {
+  const { view, refreshed } = renderPanel({ ...unavailable, title: "Stale title", artworkDataUrl: "data:image/png;base64,stale" });
+  expect(view.getByRole("heading", { name: "Play something to get started" })).toBeTruthy();
   expect(view.getByText(unavailable.message)).toBeTruthy();
-  expect(view.queryByText("Media playing")).toBeNull();
-  fireEvent.click(view.getByRole("button", { name: "Retry" }));
+  expect(view.queryByText("Stale title")).toBeNull();
+  expect(view.container.querySelector("img")).toBeNull();
+  expect(view.queryByRole("slider")).toBeNull();
+  expect(view.queryByRole("button", { name: "Play media" })).toBeNull();
+  const lyrics = view.getByRole("button", { name: "Lyrics" });
+  expect(lyrics.hasAttribute("disabled")).toBe(true);
+  expect(document.getElementById(lyrics.getAttribute("aria-describedby")!)?.textContent).toBe(unavailable.message);
+  fireEvent.click(view.getByRole("button", { name: "Check again" }));
   expect(refreshed()).toBe(1);
 });
 
-test("Music opens lyrics with explicit online consent instead of a disabled dead end", () => {
+test("an unavailable observation keeps the native diagnostic visible for recovery", () => {
+  const message = "System media session could not be read: session unavailable";
+  const { view } = renderPanel({ ...unavailable, message });
+  expect(view.getByText(message)).toBeTruthy();
+  expect(view.getByRole("button", { name: "Check again" })).toBeTruthy();
+});
+
+test("initial detection and unsupported media do not masquerade as an empty session", () => {
+  const loading = renderPanel({ ...unavailable, status: "loading", message: "Checking system media." }).view;
+  expect(loading.getByText("Checking media")).toBeTruthy();
+  expect(loading.queryByRole("button", { name: "Check again" })).toBeNull();
+  expect(loading.queryByRole("button", { name: "Retry Music" })).toBeNull();
+  loading.unmount();
+  const unsupported = renderPanel({ ...unavailable, status: "unsupported", message: "Windows media access is unavailable on this installation." }).view;
+  expect(unsupported.getByText("Music unavailable")).toBeTruthy();
+  expect(unsupported.getByText("Windows media access is unavailable on this installation.")).toBeTruthy();
+  expect(unsupported.queryByRole("heading", { name: "Play something to get started" })).toBeNull();
+  expect(unsupported.getByRole("button", { name: "Retry Music" })).toBeTruthy();
+});
+
+test("Compact standby keeps an expand action without artwork or unavailable playback controls", () => {
+  let opened = false;
+  const view = render(<MusicCapsule snapshot={{ ...unavailable, message: "", title: "Stale title", artworkDataUrl: "data:image/png;base64,stale", controls: { toggle: true, seek: false, previous: false, next: false } }} buttonRef={null} busy={false} onOpen={() => { opened = true; }} onToggle={async () => {}} />);
+  expect(view.getByText("No active media")).toBeTruthy();
+  expect(view.getByText("Start playback in a media app")).toBeTruthy();
+  expect(view.container.querySelector("img")).toBeNull();
+  expect(view.queryByRole("button", { name: "Play media" })).toBeNull();
+  fireEvent.click(view.getByRole("button", { name: /Open Music/ }));
+  expect(opened).toBe(true);
+});
+
+test("Music uses icon navigation without source labels and opens lyrics without an enable step", () => {
   const { view } = renderPanel({ ...unavailable, status: "available", title: "Orbit", artist: "Otto" });
-  fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
-  expect(view.getByText(/title, artist, album and duration/i)).toBeTruthy();
-  expect(view.getByRole("button", { name: "Enable online lyrics" })).toBeTruthy();
+  expect(view.queryByText("System media")).toBeNull();
+  const lyrics = view.getByRole("button", { name: "Lyrics" });
+  expect(lyrics.querySelector("svg")).toBeTruthy();
+  fireEvent.click(lyrics);
+  expect(view.getByRole("button", { name: "Player" }).querySelector("svg")).toBeTruthy();
+  expect(view.queryByText(/LRCLIB|Sends title, artist, album/)).toBeNull();
+  expect(view.queryByRole("button", { name: "Enable online lyrics" })).toBeNull();
 });
 
 test("Music shows elapsed time and duration instead of a percentage", () => {

@@ -240,11 +240,15 @@ test("compact completion starts the next phase only through its primary action",
   expect(starts).toBe(1);
 });
 
-test("short breaks render the canonical padded countdown", () => {
+test.each([
+  ["ready", "Ready", "Start timer"],
+  ["running", "In progress", "Pause timer"],
+  ["paused", "Paused", "Resume timer"],
+] as const)("expanded %s breaks keep countdown, phase and status without repeated hints", (status, label, action) => {
   const recorded = calls();
   render(
     <FocusPanel
-      focus={focusModel(timerSnapshot({ phase: "short", remainingSeconds: 300 }), recorded)}
+      focus={focusModel(timerSnapshot({ phase: "short", status, remainingSeconds: 300 }), recorded)}
       settings={false}
       onSettings={() => {}}
       onSettingsBack={() => {}}
@@ -252,6 +256,10 @@ test("short breaks render the canonical padded countdown", () => {
     />,
   );
   expect(screen.getByText("05:00")).toBeTruthy();
+  expect(screen.getByText(label)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Short" }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByRole("button", { name: action })).toBeTruthy();
+  expect(screen.queryByText(/Ready to start|Keep going|Timer paused/) === null).toBe(true);
 });
 
 test("cycle dots restart after four sessions but retain the completed long-break cycle", () => {
@@ -269,6 +277,15 @@ test("cycle dots restart after four sessions but retain the completed long-break
   expect(screen.queryByText("0/4") !== null).toBe(true);
   view.rerender(panel(timerSnapshot({ phase: "long", completedFocusSessions: 4 })));
   expect(screen.queryByText("4/4") !== null).toBe(true);
+  view.rerender(panel(timerSnapshot({ status: "completed", remainingSeconds: 0, completedFocusSessions: 4 })));
+  expect(screen.getByRole("heading", { name: "Focus complete" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Start long break" })).toBeTruthy();
+  expect(screen.queryByText("Your focus session is complete.") === null).toBe(true);
+  view.rerender(panel(timerSnapshot({ phase: "long", status: "completed", remainingSeconds: 0, completedFocusSessions: 4 })));
+  expect(screen.getByRole("heading", { name: "Break complete" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Start focus" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Reset current session" })).toBeTruthy();
+  expect(screen.queryByText(/Your break is complete|Ready for your next focus/) === null).toBe(true);
 });
 
 test("duration settings send the complete adjusted duration contract", async () => {
@@ -283,6 +300,8 @@ test("duration settings send the complete adjusted duration contract", async () 
     />,
   );
 
+  expect(screen.getByRole("heading", { name: "Focus presets" })).toBeTruthy();
+  expect(screen.queryByText("Session lengths") === null).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "50m" }));
 
   await waitFor(() =>

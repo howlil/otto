@@ -40,7 +40,7 @@ export function MusicCapsule({
         onClick={onOpen}
       >
         <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-otto-compact-icon text-otto-text-bright">
-          {snapshot.artworkDataUrl ? (
+          {snapshot.status === "available" && snapshot.artworkDataUrl ? (
             <img
               className="h-full w-full object-cover"
               src={snapshot.artworkDataUrl}
@@ -69,24 +69,26 @@ export function MusicCapsule({
         </span>
         <VisuallyHidden>Open Music</VisuallyHidden>
       </button>
-      <span className="relative">
-        {playing && (
-          <span className="pointer-events-none absolute inset-0 grid place-items-center">
-            <Spectrum />
-          </span>
-        )}
-        <IconButton
-          variant="round"
-          icon={playing ? "pause" : "play"}
-          label={playing ? "Pause media" : "Play media"}
-          className={playing ? "[&_svg]:invisible" : ""}
-          disabled={busy || !snapshot.controls.toggle}
-          onClick={(event) => {
-            event.stopPropagation();
-            void onToggle();
-          }}
-        />
-      </span>
+      {snapshot.status === "available" && (
+        <span className="relative">
+          {playing && (
+            <span className="pointer-events-none absolute inset-0 grid place-items-center">
+              <Spectrum />
+            </span>
+          )}
+          <IconButton
+            variant="round"
+            icon={playing ? "pause" : "play"}
+            label={playing ? "Pause media" : "Play media"}
+            className={playing ? "[&_svg]:invisible" : ""}
+            disabled={busy || !snapshot.controls.toggle}
+            onClick={(event) => {
+              event.stopPropagation();
+              void onToggle();
+            }}
+          />
+        </span>
+      )}
     </div>
   );
 }

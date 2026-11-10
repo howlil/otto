@@ -3,13 +3,11 @@ import { Button, IconButton, Text } from "../../shared/ui";
 import { focusStatusMotionClass, useFocusFeedbackMotion } from "./focus-motion";
 import {
   completedFocusCycle,
-  completionHint,
   completionTitle,
   formatRemaining,
   nextActionLabel,
   phaseChoices,
   primaryActionLabel,
-  timerHint,
 } from "./view-model";
 
 function PhaseSelector({
@@ -84,9 +82,6 @@ function CompletedBody({ snapshot, pending, onReset, onStartNext }: TimerBodyPro
           >
             {completionTitle(snapshot)}
           </Text>
-          <Text as="p" variant="meta" className="mb-0 mt-1 text-otto-text-secondary">
-            {completionHint(snapshot)}
-          </Text>
         </div>
         <Button
           variant="primary"
@@ -98,18 +93,18 @@ function CompletedBody({ snapshot, pending, onReset, onStartNext }: TimerBodyPro
         </Button>
       </div>
       <footer className="flex h-[49px] shrink-0 items-center justify-between gap-2 px-[18px] pb-[11px] pt-[3px]">
-        <Text as="span" variant="meta" className="text-otto-label-faded">
-          {snapshot.phase === "focus"
-            ? `${completedFocusCycle(snapshot)} of 4 focus sessions`
-            : "Ready for your next focus"}
-        </Text>
+        {snapshot.phase === "focus" && (
+          <Text as="span" variant="meta" className="text-otto-label-faded">
+            {completedFocusCycle(snapshot)} of 4 focus sessions
+          </Text>
+        )}
         <IconButton
           icon="reset"
           label="Reset current session"
           variant="round"
           disabled={pending}
           onClick={onReset}
-          className="otto-focus-control"
+          className="ml-auto otto-focus-control"
         />
       </footer>
     </>
@@ -153,9 +148,6 @@ export function FocusTimerBody(props: TimerBodyProps) {
                   className="m-0 text-otto-focus-countdown! font-normal! leading-[1.05]! tracking-[-0.045em] tabular-nums"
                 >
                   {formatRemaining(snapshot.remainingSeconds)}
-                </Text>
-                <Text as="p" variant="meta" className="mb-0 mt-[5px] text-otto-focus-hint">
-                  {timerHint(snapshot)}
                 </Text>
               </div>
             </div>

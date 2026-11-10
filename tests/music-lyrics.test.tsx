@@ -1,12 +1,14 @@
 import { afterAll, afterEach, expect, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { useCallback } from "react";
+import { TransitionContent } from "../src/shared/ui/TransitionContent";
 import type { LyricsResult, MediaSnapshot } from "../src/platform/tauri";
 
 let requests: Array<{ resolve: (value: LyricsResult) => void; reject: (error: Error) => void }> = [];
 let permission = false;
+let grant: () => Promise<void> = async () => {};
 mock.module("../src/platform/tauri/media", () => ({
-  setOnlineLyrics: async (enabled: boolean) => { permission = enabled; },
+  setOnlineLyrics: async (enabled: boolean) => { if (enabled) await grant(); permission = enabled; },
   getMediaLyrics: () => new Promise<LyricsResult>((resolve, reject) => requests.push({ resolve, reject })),
 }));
 const { useLyrics } = await import("../src/features/music/useLyrics");
@@ -16,46 +18,52 @@ const { MusicPanel } = await import("../src/features/music/MusicPanel");
 const { useNotchShell } = await import("../src/features/shell/useNotchShell");
 const record = { trackName: "Orbit", artistName: "Otto", albumName: "Signals", duration: 232, instrumental: false, plainLyrics: "Words", syncedLyrics: "[00:01]Words" };
 
-afterEach(() => { cleanup(); requests = []; permission = false; });
+afterEach(async () => { cleanup(); await act(async () => {}); requests = []; permission = false; grant = async () => {}; });
 afterAll(() => mock.restore());
 
-test("lyrics send no lookup before explicit consent and discard old-track results", async () => {
-  const { result, rerender } = renderHook(({ media }) => useLyrics(media), { initialProps: { media: snapshot } });
+test("lyrics wait for their visible view, update tracks automatically and discard stale results", async () => {
+  const view = render(<NavigationPlayer media={snapshot} />);
   expect(requests).toHaveLength(0);
-  await act(async () => { await result.current.enable(); });
+  fireEvent.click(view.getByRole("button", { name: "Open Music" }));
+  expect(requests).toHaveLength(0);
+  fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
   await waitFor(() => expect(requests).toHaveLength(1));
   expect(permission).toBe(true);
   const next = { ...snapshot, title: "Next" };
-  rerender({ media: next });
+  view.rerender(<NavigationPlayer media={next} />);
   await waitFor(() => expect(requests).toHaveLength(2));
   await act(async () => { requests[0].resolve({ key: trackKey(snapshot), record }); });
-  expect(result.current.record).toBeNull();
-  await act(async () => { requests[1].resolve({ key: trackKey(next), record: { ...record, trackName: "Next" } }); });
-  await waitFor(() => expect(result.current.record?.trackName).toBe("Next"));
-  await act(async () => { await result.current.disable(); });
-  expect(result.current.record).toBeNull();
-  expect(permission).toBe(false);
+  expect(view.queryByRole("button", { name: "Words" })).toBeNull();
+  await act(async () => { requests[1].resolve({ key: trackKey(next), record: { ...record, trackName: "Next", syncedLyrics: "[00:01]Next words" } }); });
+  await waitFor(() => expect(view.getByRole("button", { name: "Next words" })).toBeTruthy());
+  fireEvent.click(view.getByRole("button", { name: "Player" }));
+  await waitFor(() => expect(permission).toBe(false));
+  view.rerender(<NavigationPlayer media={{ ...next, title: "Hidden track" }} />);
+  expect(requests).toHaveLength(2);
 });
 
-test("lyrics failure remains recoverable and disabling ignores pending results", async () => {
-  const { result } = renderHook(() => useLyrics(snapshot));
-  await act(async () => { await result.current.enable(); });
+test("lyrics failure remains recoverable and closing ignores pending results", async () => {
+  const view = render(<NavigationPlayer media={snapshot} />);
+  fireEvent.click(view.getByRole("button", { name: "Open Music" }));
+  fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
   await waitFor(() => expect(requests).toHaveLength(1));
   await act(async () => { requests[0].reject(new Error("Offline")); });
-  await waitFor(() => expect(result.current.error).toBe("Offline"));
-  act(() => result.current.retry());
+  await waitFor(() => expect(view.getByText("Offline")).toBeTruthy());
+  fireEvent.click(view.getByRole("button", { name: "Retry lyrics" }));
   await waitFor(() => expect(requests).toHaveLength(2));
-  await act(async () => { await result.current.disable(); requests[1].resolve({ key: trackKey(snapshot), record }); });
-  expect(result.current.record).toBeNull();
-  expect(result.current.status).toBe("off");
+  fireEvent.click(view.getByRole("button", { name: "Player" }));
+  await act(async () => { requests[1].resolve({ key: trackKey(snapshot), record }); });
+  expect(view.queryByRole("button", { name: "Words" })).toBeNull();
+  expect(view.getByRole("button", { name: "Lyrics" })).toBeTruthy();
+  await waitFor(() => expect(permission).toBe(false));
 });
 
-test("lyrics journey enables online lookup, follows lines, seeks only supported timestamps and returns to Player", async () => {
+test("lyrics journey automatically looks up lyrics, follows lines, seeks only supported timestamps and returns to Player", async () => {
   const seeking: number[] = [];
   const view = render(<NavigationPlayer media={snapshot} onControl={async (_, position) => { if (position != null) seeking.push(position); }} />);
   fireEvent.click(view.getByRole("button", { name: "Open Music" }));
   fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
-  fireEvent.click(view.getByRole("button", { name: "Enable online lyrics" }));
+  expect(view.queryByRole("button", { name: "Enable online lyrics" })).toBeNull();
   await waitFor(() => expect(requests).toHaveLength(1));
   await act(async () => { requests[0].resolve({ key: trackKey(snapshot), record: { ...record, syncedLyrics: "[00:00]First\n[00:02]Second\n[99:00]Out of range" } }); });
   await waitFor(() => expect(view.getByRole("button", { name: "First" }).getAttribute("aria-current")).toBe("true"));
@@ -91,10 +99,10 @@ function NavigationPlayer({ media, onControl = async () => {}, busy = false }: {
 
 async function enableFromKeyboard(view: ReturnType<typeof render>) {
   fireEvent.click(view.getByRole("button", { name: "Open Music" }));
-  fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
-  const enable = view.getByRole("button", { name: "Enable online lyrics" });
-  act(() => enable.focus());
-  fireEvent.click(enable);
+  const lyrics = view.getByRole("button", { name: "Lyrics" });
+  act(() => lyrics.focus());
+  fireEvent.click(lyrics);
+  expect(view.queryByRole("button", { name: "Enable online lyrics" })).toBeNull();
   await waitFor(() => expect(requests).toHaveLength(1));
   await act(async () => { requests[0].resolve({ key: trackKey(snapshot), record }); });
 }
@@ -117,20 +125,19 @@ test("Lyrics playback stays in the subview and obeys observed capability and pen
   expect(controls).toEqual(["toggle"]);
 });
 
-test("online permission remains revocable after the media session disappears", async () => {
+test("missing sessions and navigation stop automatic lookups without a disable button", async () => {
   const view = render(<NavigationPlayer media={snapshot} />);
   await enableFromKeyboard(view);
   const absent = { ...snapshot, seq: 2, status: "unavailable" as const, title: null, artist: null, album: null };
   view.rerender(<NavigationPlayer media={absent} />);
-  expect(permission).toBe(true);
-  expect(view.queryByRole("button", { name: "Disable online lyrics" }) !== null).toBe(true);
-  fireEvent.click(view.getByRole("button", { name: "Disable online lyrics" }));
   await waitFor(() => expect(permission).toBe(false));
+  expect(view.queryByRole("button", { name: "Disable online lyrics" })).toBeNull();
+  fireEvent.click(view.getByRole("button", { name: "Open Agent" }));
   view.rerender(<NavigationPlayer media={{ ...snapshot, seq: 3, title: "Next" }} />);
   expect(requests).toHaveLength(1);
 });
 
-test("consent completion restores focus and body-targeted Escape returns to Player before collapse", async () => {
+test("automatic lookup keeps keyboard focus and body-targeted Escape returns to Player before collapse", async () => {
   const view = render(<NavigationPlayer media={snapshot} />);
   await enableFromKeyboard(view);
   expect(document.activeElement === view.getByRole("button", { name: "Player" })).toBe(true);
@@ -149,6 +156,72 @@ test("Music subview Escape does not intercept navigation on another feature", as
   expect(view.getByTestId("shell-mode").textContent).toBe("compact");
   fireEvent.click(view.getByRole("button", { name: "Open Music" }));
   expect(view.queryByRole("button", { name: "Player" }) !== null).toBe(true);
+});
+
+test("a mismatched lookup result is recoverable rather than displaying another track or loading forever", async () => {
+  const view = render(<NavigationPlayer media={snapshot} />);
+  fireEvent.click(view.getByRole("button", { name: "Open Music" }));
+  fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
+  await waitFor(() => expect(requests).toHaveLength(1));
+  await act(async () => { requests[0].resolve({ key: "other track", record }); });
+  expect(view.getByText("The media item changed. Retry lyrics.")).toBeTruthy();
+  expect(view.getByRole("button", { name: "Retry lyrics" })).toBeTruthy();
+  expect(view.queryByRole("button", { name: "Words" })).toBeNull();
+});
+
+test("closing before the permission handshake completes cannot start a late lookup", async () => {
+  let finish: () => void = () => {};
+  grant = () => new Promise(resolve => { finish = resolve; });
+  const view = render(<NavigationPlayer media={snapshot} />);
+  fireEvent.click(view.getByRole("button", { name: "Open Music" }));
+  fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
+  await act(async () => {});
+  fireEvent.click(view.getByRole("button", { name: "Player" }));
+  await act(async () => { finish(); });
+  expect(requests).toHaveLength(0);
+  expect(permission).toBe(false);
+});
+
+test.each([
+  [null, "No matching lyrics found for this version."],
+  [{ ...record, instrumental: true, syncedLyrics: null, plainLyrics: null }, "Instrumental · no lyrics"],
+  [{ ...record, syncedLyrics: null, plainLyrics: "Unsynced words" }, "Unsynced words"],
+])("missing, instrumental and plain lyrics remain truthful", async (response, text) => {
+  const view = render(<NavigationPlayer media={snapshot} />);
+  fireEvent.click(view.getByRole("button", { name: "Open Music" }));
+  fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
+  await waitFor(() => expect(requests).toHaveLength(1));
+  await act(async () => { requests[0].resolve({ key: trackKey(snapshot), record: response }); });
+  expect(view.getByText(text)).toBeTruthy();
+  expect(view.queryByRole("button", { name: "Unsynced words" })).toBeNull();
+});
+
+function RetainedLyrics({ shown, media }: { shown: boolean; media: MediaSnapshot }) {
+  const lyrics = useLyrics(media);
+  return <TransitionContent transitionKey={shown ? "lyrics" : "other"} reducedMotion={false}>
+    {shown ? <MusicPanel music={{ snapshot: media, lyrics: { ...lyrics, open: true }, error: null, busy: false, refresh: async () => {}, control: async () => {} }} onBack={() => {}} /> : <span>Other surface</span>}
+  </TransitionContent>;
+}
+
+test("retained outgoing Lyrics cannot continue automatic metadata lookups", async () => {
+  const view = render(<RetainedLyrics shown media={snapshot} />);
+  await waitFor(() => expect(requests).toHaveLength(1));
+  view.rerender(<RetainedLyrics shown={false} media={snapshot} />);
+  await waitFor(() => expect(permission).toBe(false));
+  view.rerender(<RetainedLyrics shown={false} media={{ ...snapshot, title: "Other track" }} />);
+  await act(async () => { requests[0].resolve({ key: trackKey(snapshot), record }); });
+  expect(requests).toHaveLength(1);
+  expect(view.getByText("Other surface")).toBeTruthy();
+});
+
+test("unknown player position does not fabricate an active synchronized line", async () => {
+  const view = render(<NavigationPlayer media={{ ...snapshot, positionMs: null }} />);
+  fireEvent.click(view.getByRole("button", { name: "Open Music" }));
+  fireEvent.click(view.getByRole("button", { name: "Lyrics" }));
+  await waitFor(() => expect(requests).toHaveLength(1));
+  const current = { ...snapshot, positionMs: null };
+  await act(async () => { requests[0].resolve({ key: trackKey(current), record: { ...record, syncedLyrics: "[00:00]Words" } }); });
+  expect(view.getByRole("button", { name: "Words" }).getAttribute("aria-current")).toBeNull();
 });
 
 test("LRC handles multiple timestamps and invalid timestamps without inventing timing", () => {

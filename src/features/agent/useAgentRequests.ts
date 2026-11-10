@@ -60,6 +60,7 @@ export function useAgentSubmission(
 
 export function useAgentRequestActions({
   busy,
+  isRuntimePending,
   draft,
   draftEpoch,
   provider,
@@ -74,6 +75,7 @@ export function useAgentRequestActions({
   setRequestError,
 }: {
   busy: boolean;
+  isRuntimePending: () => boolean;
   draft: string;
   draftEpoch: RefObject<number>;
   provider: AgentProvider;
@@ -89,7 +91,7 @@ export function useAgentRequestActions({
 }) {
   const send = useCallback(async () => {
     const question = draft.trim();
-    if (!question || busy || submitted.current) return;
+    if (!question || busy || isRuntimePending() || submitted.current) return;
     clearError();
     const request: SubmittedDraft = {
       text: draft,
@@ -114,6 +116,7 @@ export function useAgentRequestActions({
     clearError,
     draft,
     draftEpoch,
+    isRuntimePending,
     markAccepted,
     model,
     provider,
@@ -139,6 +142,7 @@ export function useAgentRequestActions({
 
 export function useNewAgentChat({
   busy,
+  isRuntimePending,
   clearError,
   setModelValue,
   setThinkingEffortValue,
@@ -146,6 +150,7 @@ export function useNewAgentChat({
   submitted,
 }: {
   busy: boolean;
+  isRuntimePending: () => boolean;
   clearError: () => void;
   setModelValue: Dispatch<SetStateAction<string | null>>;
   setThinkingEffortValue: Dispatch<SetStateAction<string | null>>;
@@ -153,7 +158,7 @@ export function useNewAgentChat({
   submitted: SubmittedState;
 }) {
   return useCallback(async () => {
-    if (busy) return false;
+    if (busy || isRuntimePending()) return false;
     clearError();
     try {
       await newAgentChat();
@@ -165,5 +170,13 @@ export function useNewAgentChat({
       setRequestError(reason);
       return false;
     }
-  }, [busy, clearError, setModelValue, setRequestError, setThinkingEffortValue, submitted]);
+  }, [
+    busy,
+    clearError,
+    isRuntimePending,
+    setModelValue,
+    setRequestError,
+    setThinkingEffortValue,
+    submitted,
+  ]);
 }

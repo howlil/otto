@@ -1,26 +1,27 @@
 import { useCallback, useEffect, useRef, type PointerEvent } from "react";
 import type { Preferences } from "./preferences";
+import { notchPointerPosition } from "../../platform/tauri/shell";
 
 export function useShellHover({
   prefs,
   expanded,
   pinned,
-  beginMorph,
   onCollapse,
   onPreview,
 }: {
   prefs: Preferences;
   expanded: boolean;
   pinned: boolean;
-  beginMorph: () => void;
   onCollapse: () => void;
   onPreview: () => void;
 }) {
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverEnabled = useRef(true);
+  const leaveRevision = useRef(0);
 
   const clearTimers = useCallback(() => {
+    leaveRevision.current += 1;
     if (enterTimer.current) clearTimeout(enterTimer.current);
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
     enterTimer.current = null;
@@ -36,6 +37,7 @@ export function useShellHover({
   const handleEnter = (event: PointerEvent<HTMLElement>) => {
     if (!hoverEnabled.current) return;
     if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+    leaveRevision.current += 1;
     if (leaveTimer.current) {
       clearTimeout(leaveTimer.current);
       leaveTimer.current = null;
@@ -44,7 +46,6 @@ export function useShellHover({
     if (!pinned && !expanded && prefs.hoverExpand) {
       enterTimer.current = setTimeout(() => {
         enterTimer.current = null;
-        beginMorph();
         onPreview();
       }, prefs.hoverDelay);
     }
@@ -56,8 +57,24 @@ export function useShellHover({
       enterTimer.current = null;
     }
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    const revision = ++leaveRevision.current;
+    const surface = event.currentTarget;
     if (!pinned && expanded) {
-      leaveTimer.current = setTimeout(() => onCollapse(), prefs.leaveDelay);
+      const confirmLeave = async () => {
+        leaveTimer.current = null;
+        const point = await notchPointerPosition().catch(() => null);
+        if (revision !== leaveRevision.current || !surface.isConnected) return;
+        const hit = point ? document.elementFromPoint(point.x, point.y) : null;
+        if (hit && surface.contains(hit)) {
+          leaveTimer.current = setTimeout(
+            () => void confirmLeave(),
+            Math.max(16, prefs.leaveDelay),
+          );
+          return;
+        }
+        onCollapse();
+      };
+      leaveTimer.current = setTimeout(() => void confirmLeave(), prefs.leaveDelay);
     }
   };
 

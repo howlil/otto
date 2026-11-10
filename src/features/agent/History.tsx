@@ -1,5 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Button, IconButton, StatusMessage, Text, TextField } from "../../shared/ui";
+import {
+  Button,
+  IconButton,
+  StatusMessage,
+  Text,
+  TextField,
+  useTransitionActive,
+} from "../../shared/ui";
 import { filterConversations, normalizeTitle, orderConversations } from "./history-model";
 import { HistoryDeleteAllPrompt } from "./HistoryDeleteAllPrompt";
 import { HistoryRows } from "./HistoryRows";
@@ -73,6 +80,7 @@ export function History({
   onDone: () => void;
   onMeasured: (height: number) => void;
 }) {
+  const active = useTransitionActive();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -89,7 +97,7 @@ export function History({
 
   useLayoutEffect(() => {
     const element = viewport.current;
-    if (!element) return;
+    if (!active || !element) return;
     const measure = () =>
       onMeasured(51 + (element.firstElementChild?.scrollHeight ?? element.scrollHeight) + 16);
     measure();
@@ -98,7 +106,7 @@ export function History({
     observer.observe(element);
     if (element.firstElementChild) observer.observe(element.firstElementChild);
     return () => observer.disconnect();
-  }, [onMeasured]);
+  }, [active, onMeasured]);
 
   const commitRename = (id: string) => {
     setRenamingId(null);

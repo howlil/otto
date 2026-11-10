@@ -1,8 +1,13 @@
+#[cfg(test)]
 pub const SHOULDER: f64 = 12.0;
+#[cfg(test)]
 pub const ATTACHED_RADIUS: f64 = 24.0;
+#[cfg(test)]
 pub const CARD_RADIUS: f64 = 27.0;
+#[cfg(test)]
 const ARC_SEGMENTS: usize = 10;
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Silhouette {
     Capsule,
@@ -10,6 +15,7 @@ pub enum Silhouette {
     Attached,
 }
 
+#[cfg(test)]
 impl Silhouette {
     pub fn parse(value: &str) -> Result<Self, String> {
         match value {
@@ -35,6 +41,7 @@ impl Shape {
     }
 }
 
+#[cfg(test)]
 pub fn shape_for(silhouette: Silhouette, height: f64, scale: f64) -> Shape {
     let limit = (height / 2.0).max(0.0);
     match silhouette {
@@ -106,6 +113,7 @@ pub fn contains(shape: Shape, width: f64, height: f64, x: f64, y: f64) -> bool {
     true
 }
 
+#[cfg(test)]
 pub fn polygon(shape: Shape, width: f64, height: f64) -> Vec<(f64, f64)> {
     let gutter = shape.gutter;
     let top = shape.top;
@@ -194,14 +202,58 @@ fn sample_points(shape: Shape, width: f64, height: f64) -> Vec<(i32, i32)> {
         .collect()
 }
 
+fn left_boundary(shape: Shape, height: f64, y: f64) -> f64 {
+    let mut left = shape.gutter - shoulder_extension(shape.gutter, y);
+    if shape.top > 0.0 && y < shape.top {
+        left = left.max(
+            shape.gutter + shape.top
+                - (shape.top.powi(2) - (shape.top - y).powi(2))
+                    .max(0.0)
+                    .sqrt(),
+        );
+    }
+    if shape.bottom > 0.0 && y > height - shape.bottom {
+        left = left.max(
+            shape.gutter + shape.bottom
+                - (shape.bottom.powi(2) - (y - height + shape.bottom).powi(2))
+                    .max(0.0)
+                    .sqrt(),
+        );
+    }
+    left
+}
+
 fn to_points(shape: Shape, width: f64, height: f64, offset_x: i32, offset_y: i32) -> Vec<POINT> {
-    polygon(shape, width, height)
-        .into_iter()
-        .map(|(x, y)| POINT {
-            x: x.round() as i32 + offset_x,
-            y: y.round() as i32 + offset_y,
+    let rows: Vec<_> = (0..height.ceil() as i32)
+        .map(|y| {
+            let top = f64::from(y);
+            let bottom = (top + 1.0).min(height);
+            let edge = left_boundary(shape, height, top).min(left_boundary(shape, height, bottom));
+            (y, edge.floor() as i32, (width - edge).ceil() as i32)
         })
-        .collect()
+        .collect();
+    let mut points = Vec::with_capacity(rows.len() * 4);
+    for &(y, left, _) in &rows {
+        points.push(POINT {
+            x: left + offset_x,
+            y: y + offset_y,
+        });
+        points.push(POINT {
+            x: left + offset_x,
+            y: y + 1 + offset_y,
+        });
+    }
+    for &(y, _, right) in rows.iter().rev() {
+        points.push(POINT {
+            x: right + offset_x,
+            y: y + 1 + offset_y,
+        });
+        points.push(POINT {
+            x: right + offset_x,
+            y: y + offset_y,
+        });
+    }
+    points
 }
 
 pub fn create_region_at(
@@ -252,96 +304,89 @@ fn window_region(hwnd: HWND) -> io::Result<*mut std::ffi::c_void> {
     Ok(probe)
 }
 
-pub fn has_region(window: &WebviewWindow) -> io::Result<bool> {
+fn reported_geometry(region: &crate::notch::RegionPx) -> (Shape, f64, f64, i32, i32) {
+    (
+        Shape {
+            top: f64::from(region.radius.top),
+            bottom: f64::from(region.radius.bottom),
+            gutter: f64::from(region.shoulder),
+        },
+        f64::from(region.body.width) + 2.0 * f64::from(region.shoulder),
+        f64::from(region.body.height),
+        region.body.x - region.shoulder as i32,
+        region.body.y,
+    )
+}
+
+pub fn apply_reported_region(
+    window: &WebviewWindow,
+    region: &crate::notch::RegionPx,
+    previous: Option<&crate::notch::RegionPx>,
+    verify: bool,
+) -> io::Result<()> {
+    use windows_sys::Win32::Graphics::Gdi::{CombineRgn, InvalidateRgn, RGN_DIFF};
     let hwnd = window.hwnd().map_err(io::Error::other)?.0 as HWND;
-    match window_region(hwnd) {
-        Ok(probe) => {
-            unsafe { DeleteObject(probe as _) };
-            Ok(true)
+    let (shape, width, height, x, y) = reported_geometry(region);
+    let next = create_region_at(shape, width, height, x, y)?;
+    let old = if let Some(previous) = previous {
+        let (shape, width, height, x, y) = reported_geometry(previous);
+        match create_region_at(shape, width, height, x, y) {
+            Ok(region) => region,
+            Err(error) => {
+                unsafe {
+                    DeleteObject(next as _);
+                }
+                return Err(error);
+            }
         }
-        Err(_) => Ok(false),
-    }
-}
-
-pub fn apply_region_at(
-    window: &WebviewWindow,
-    shape: Shape,
-    width: f64,
-    height: f64,
-    offset_x: i32,
-    offset_y: i32,
-) -> io::Result<()> {
-    let hwnd = window.hwnd().map_err(io::Error::other)?.0 as HWND;
-    let region = create_region_at(shape, width, height, offset_x, offset_y)?;
-    if unsafe { SetWindowRgn(hwnd, region, 1) } == 0 {
-        unsafe { DeleteObject(region as _) };
-        return Err(io::Error::last_os_error());
-    }
-    let applied = window_region(hwnd)?;
-    let matches = region_matches(applied, shape, width, height, offset_x, offset_y);
-    unsafe { DeleteObject(applied as _) };
-    if matches {
-        Ok(())
     } else {
-        Err(io::Error::other(
-            "The notch window region was not retained.",
-        ))
-    }
-}
-
-pub fn apply_rect_region(
-    window: &WebviewWindow,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-) -> io::Result<()> {
-    let hwnd = window.hwnd().map_err(io::Error::other)?.0 as HWND;
-    let region = unsafe { CreateRectRgn(x, y, x + width.max(1), y + height.max(1)) };
-    if region.is_null() {
-        return Err(io::Error::last_os_error());
-    }
-    if unsafe { SetWindowRgn(hwnd, region, 1) } == 0 {
-        unsafe { DeleteObject(region as _) };
-        return Err(io::Error::last_os_error());
-    }
-    Ok(())
-}
-
-pub fn clear_region(window: &WebviewWindow) -> io::Result<()> {
-    let hwnd = window.hwnd().map_err(io::Error::other)?.0 as HWND;
-    unsafe { SetWindowRgn(hwnd, std::ptr::null_mut(), 1) };
-    if has_region(window)? {
-        return Err(io::Error::other("The notch window region was not cleared."));
-    }
-    Ok(())
-}
-
-pub fn apply_hit_region(
-    window: &WebviewWindow,
-    silhouette: Silhouette,
-    scale: f64,
-    current: (i32, i32),
-    target: (i32, i32),
-    plan: Option<(i32, i32, i32, i32)>,
-) -> io::Result<()> {
-    let Some((x, y, width, height)) = plan else {
-        return Ok(());
+        unsafe { CreateRectRgn(0, 0, 0, 0) }
     };
-    if matches!(silhouette, Silhouette::Attached) {
-        apply_region_at(
-            window,
-            shape_for(silhouette, f64::from(height), scale),
-            f64::from(width),
-            f64::from(height),
-            x,
-            y,
-        )
-    } else if target.0 < current.0 || target.1 < current.1 {
-        apply_rect_region(window, x, y, width, height)
-    } else {
-        clear_region(window)
+    let exposed = unsafe { CreateRectRgn(0, 0, 0, 0) };
+    if old.is_null() || exposed.is_null() {
+        unsafe {
+            DeleteObject(next as _);
+            DeleteObject(old as _);
+            DeleteObject(exposed as _);
+        }
+        return Err(io::Error::last_os_error());
     }
+    let combined = unsafe { CombineRgn(exposed, next, old, RGN_DIFF) };
+    if combined == RGN_ERROR || unsafe { SetWindowRgn(hwnd, next, 0) } == 0 {
+        unsafe {
+            DeleteObject(next as _);
+            DeleteObject(old as _);
+            DeleteObject(exposed as _);
+        }
+        return Err(io::Error::last_os_error());
+    }
+    let retained = !verify
+        || window_region(hwnd).is_ok_and(|applied| {
+            let matches = region_matches(applied, shape, width, height, x, y);
+            unsafe {
+                DeleteObject(applied as _);
+            }
+            matches
+        });
+    if !retained {
+        if unsafe { SetWindowRgn(hwnd, old, 1) } == 0 {
+            unsafe {
+                DeleteObject(old as _);
+            }
+        }
+        unsafe {
+            DeleteObject(exposed as _);
+        }
+        return Err(io::Error::other(
+            "Windows did not retain Otto's silhouette.",
+        ));
+    }
+    unsafe {
+        InvalidateRgn(hwnd, exposed, 0);
+        DeleteObject(exposed as _);
+        DeleteObject(old as _);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -350,6 +395,35 @@ mod tests {
 
     fn attached() -> Shape {
         shape_for(Silhouette::Attached, 346.0, 1.0)
+    }
+
+    #[test]
+    fn native_region_preserves_the_visible_curve_fringe_at_fractional_dpi() {
+        for scale in [1.0, 1.5, 2.0] {
+            for silhouette in [Silhouette::Capsule, Silhouette::Card, Silhouette::Attached] {
+                let width = 116.0 * scale;
+                let height = 54.0 * scale;
+                let shape = shape_for(silhouette, height, scale);
+                let region = create_region_at(shape, width, height, 0, 0).unwrap();
+                for y in 0..height as i32 {
+                    for x in 0..width as i32 {
+                        let covered = [0.01, 0.5, 0.99].into_iter().any(|dx| {
+                            [0.01, 0.5, 0.99].into_iter().any(|dy| {
+                                contains(shape, width, height, f64::from(x) + dx, f64::from(y) + dy)
+                            })
+                        });
+                        assert!(
+                            !covered || region_contains(region, x, y),
+                            "clipped fringe: {silhouette:?}, scale={scale}, pixel={x},{y}"
+                        );
+                    }
+                }
+                assert!(!region_contains(region, -1, height as i32 / 2));
+                assert!(!region_contains(region, width as i32, height as i32 / 2));
+                assert!(!region_contains(region, 0, height as i32 - 1));
+                unsafe { DeleteObject(region as _) };
+            }
+        }
     }
 
     #[test]

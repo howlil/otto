@@ -34,7 +34,9 @@ export function useOsEvents(enabled = true) {
       return;
     }
     let active = true;
-    void subscribeOsEvents(show)
+    void subscribeOsEvents((next) => {
+      if (active) show(next);
+    })
       .then((next) => {
         if (active) subscription.current = next;
         else void next.unsubscribe();

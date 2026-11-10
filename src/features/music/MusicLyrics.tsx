@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MediaCommand, MediaSnapshot } from "../../platform/tauri/media";
-import { Button, IconButton, Text } from "../../shared/ui";
-import { LyricsConsent, LyricsContent } from "./LyricsContent";
+import { Button, IconButton, Text, useTransitionActive } from "../../shared/ui";
+import { LyricsContent } from "./LyricsContent";
 import { Artwork } from "./MusicPlayback";
 import { parseLyrics } from "./lyrics-model";
 import type { LyricsController } from "./useLyrics";
@@ -22,11 +22,14 @@ export function MusicLyrics({
   onControl: (command: MediaCommand, positionMs?: number) => Promise<void>;
   onRestoreFocus: () => void;
 }) {
+  const visible = useTransitionActive();
+  useEffect(() => (visible ? lyrics.observe() : undefined), [visible, lyrics.observe]);
   const [follow, setFollow] = useState(true);
   const list = useRef<HTMLElement>(null);
   const lines = useMemo(() => parseLyrics(lyrics.record?.syncedLyrics ?? null), [lyrics.record]);
   const active = lines.reduce(
-    (current, line, index) => (line.timeMs <= position ? index : current),
+    (current, line, index) =>
+      snapshot.positionMs != null && line.timeMs <= position ? index : current,
     -1,
   );
   useEffect(() => {
@@ -36,7 +39,6 @@ export function MusicLyrics({
         ?.scrollIntoView?.({ block: "center", behavior: "instant" });
   }, [active, follow]);
 
-  if (!lyrics.enabled) return <LyricsConsent lyrics={lyrics} />;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1 pt-1">
       <div className="grid min-h-0 flex-1 grid-cols-[1fr_3fr] gap-3">
@@ -88,9 +90,6 @@ export function MusicLyrics({
         </div>
       </div>
       <div className="flex min-h-6 shrink-0 items-center gap-2 text-otto-text-tertiary">
-        <Text as="span" variant="caption">
-          LRCLIB · {lines.length ? "Line-synced" : "Lyrics"}
-        </Text>
         {(lyrics.error || lyrics.status === "missing") && (
           <Button size="link" onClick={lyrics.retry}>
             Retry lyrics

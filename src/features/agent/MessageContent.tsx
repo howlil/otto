@@ -1,3 +1,4 @@
+import "katex/dist/katex.min.css";
 import { isValidElement, memo, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown, { type ExtraProps } from "react-markdown";
 import remarkBreaks from "remark-breaks";

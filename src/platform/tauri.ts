@@ -403,101 +403,48 @@ export async function onNotchFocusChanged(
 export type NotchShape = "capsule" | "card" | "attached";
 export type NotchPlacement = "floating" | "attached";
 
-export async function setNotchHitRegion(
-  width: number,
-  height: number,
-  shape: NotchShape,
-): Promise<void> {
-  if (!nativeAvailable || width <= 0 || height <= 0) return;
-  await invoke("notch_set_hit_region", {
-    width: Math.round(width),
-    height: Math.round(height),
-    shape,
-  });
-}
+export type NotchLayouts = Record<NotchSurface, readonly [number, number]>;
 
-export type AppliedSurface = {
+export type NotchHost = {
+  revision: number;
   placement: NotchPlacement;
   width: number;
   height: number;
-  outerWidth: number | null;
-  outerHeight: number | null;
-  geometryConfirmed: boolean;
+  scale: number;
+  layouts: NotchLayouts;
 };
 
-export type NotchSurfaceRequest = {
-  surface: NotchSurface;
-  shape: NotchShape;
-  topOffset?: number;
-  contentHeight?: number;
-  deferShrink?: boolean;
+export type NotchRegionPx = {
+  hostRevision: number;
+  sequence: number;
+  body: { x: number; y: number; width: number; height: number };
+  radius: { top: number; bottom: number };
+  shoulder: number;
 };
 
-function normalizeSurface(
-  value: {
-    placement: string;
-    width: number;
-    height: number;
-    outerWidth?: number | null;
-    outerHeight?: number | null;
-    geometryConfirmed?: boolean;
-  },
-  geometryConfirmedDefault: boolean,
-): AppliedSurface {
-  return {
-    placement: value.placement === "attached" ? "attached" : "floating",
-    width: value.width,
-    height: value.height,
-    outerWidth: value.outerWidth ?? null,
-    outerHeight: value.outerHeight ?? null,
-    geometryConfirmed: value.geometryConfirmed ?? geometryConfirmedDefault,
-  };
+const notchClientId = crypto.randomUUID();
+
+async function invokeNotch<T>(command: string, payload: Record<string, unknown>): Promise<T> {
+  const start = performance.now();
+  try {
+    return await invoke<T>(command, payload);
+  } finally {
+    performance.clearMeasures(command);
+    performance.measure(command, { start, end: performance.now() });
+  }
 }
 
-export async function measureNotchSurface(
-  request: Omit<NotchSurfaceRequest, "deferShrink">,
-): Promise<AppliedSurface> {
-  const { surface, shape, topOffset = 20, contentHeight } = request;
-  if (!nativeAvailable) {
-    return {
-      placement: "floating",
-      width: 0,
-      height: 0,
-      outerWidth: null,
-      outerHeight: null,
-      geometryConfirmed: false,
-    };
-  }
-  const measured = await invoke<{
-    placement: string;
-    width: number;
-    height: number;
-    outerWidth?: number | null;
-    outerHeight?: number | null;
-    geometryConfirmed?: boolean;
-  }>("notch_measure_surface", { surface, shape, topOffset, contentHeight });
-  return normalizeSurface(measured, false);
+export async function configureNotchHost(
+  placement: NotchPlacement,
+  topOffset: number,
+  capacity: { width: number; height: number },
+  attempt = 0,
+): Promise<NotchHost> {
+  return invokeNotch("notch_configure_host", {
+    request: { placement, topOffset, ...capacity, clientId: notchClientId, attempt },
+  });
 }
 
-export async function setNotchSurface(request: NotchSurfaceRequest): Promise<AppliedSurface> {
-  const { surface, shape, topOffset = 20, contentHeight, deferShrink = false } = request;
-  if (!nativeAvailable) {
-    return {
-      placement: "floating",
-      width: 0,
-      height: 0,
-      outerWidth: null,
-      outerHeight: null,
-      geometryConfirmed: false,
-    };
-  }
-  const applied = await invoke<{
-    placement: string;
-    width: number;
-    height: number;
-    outerWidth?: number | null;
-    outerHeight?: number | null;
-    geometryConfirmed?: boolean;
-  }>("notch_set_surface", { surface, shape, topOffset, contentHeight, deferShrink });
-  return normalizeSurface(applied, true);
+export async function setNotchRegion(region: NotchRegionPx): Promise<boolean> {
+  return invokeNotch("notch_set_region", { region });
 }

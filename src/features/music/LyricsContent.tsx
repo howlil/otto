@@ -1,31 +1,7 @@
 import type { MediaSnapshot } from "../../platform/tauri/media";
-import { Button, Text } from "../../shared/ui";
+import { Text } from "../../shared/ui";
 import type { LyricLine } from "./lyrics-model";
 import type { LyricsController } from "./useLyrics";
-
-export function LyricsConsent({ lyrics }: { lyrics: LyricsController }) {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col justify-center gap-2 text-otto-text-secondary">
-      <Text as="p" variant="meta">
-        Online lyrics sends the title, artist, album and duration to LRCLIB. No audio or account
-        credentials are sent.
-      </Text>
-      {lyrics.error && (
-        <Text as="p" variant="caption" role="status">
-          {lyrics.error}
-        </Text>
-      )}
-      <Button size="xs" onClick={() => void lyrics.enable()}>
-        Enable online lyrics
-      </Button>
-      {lyrics.error && (
-        <Button size="link" onClick={() => void lyrics.disable()}>
-          Disable online lyrics
-        </Button>
-      )}
-    </div>
-  );
-}
 
 export function LyricsContent({
   lyrics,
@@ -42,7 +18,7 @@ export function LyricsContent({
   busy: boolean;
   onSeek: (time: number) => void;
 }) {
-  if (lyrics.status === "loading")
+  if (lyrics.status === "loading" || lyrics.status === "off")
     return (
       <Text as="p" variant="meta" role="status">
         Looking up lyrics…

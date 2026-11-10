@@ -8,7 +8,7 @@ mod os_events;
 #[cfg(windows)]
 mod windows;
 
-use tauri::{Manager, PhysicalPosition};
+use tauri::Manager;
 
 pub fn run() {
     #[cfg(windows)]
@@ -22,7 +22,7 @@ pub fn run() {
     };
 
     tauri::Builder::default()
-        .manage(ipc::notch::NotchPlacementState::default())
+        .manage(ipc::notch::NotchHostState::default())
         .manage(lyrics::LyricsRuntime::new())
         .invoke_handler(tauri::generate_handler![
             ipc::overlay::overlay_protection_status,
@@ -48,9 +48,8 @@ pub fn run() {
             ipc::agent::agent_configure_capture_source,
             ipc::agent::agent_capture_target_title,
             ipc::agent::agent_capture_now,
-            ipc::notch::notch_measure_surface,
-            ipc::notch::notch_set_surface,
-            ipc::notch::notch_set_hit_region,
+            ipc::notch::notch_configure_host,
+            ipc::notch::notch_set_region,
             ipc::media::media_snapshot,
             ipc::media::media_set_online_lyrics,
             ipc::media::media_lyrics,
@@ -102,22 +101,6 @@ pub fn run() {
             #[cfg(windows)]
             app.manage(windows::capture::start_hotkey(app.handle().clone()));
             if let Some(window) = app.get_webview_window("main") {
-                #[cfg(windows)]
-                {
-                    if let Err(error) = windows::overlay::configure(&window) {
-                        eprintln!("Otto capture protection unavailable: {error}");
-                    }
-                }
-                if let Some(monitor) = window.current_monitor()? {
-                    let size = window.outer_size()?;
-                    let bounds = monitor.size();
-                    let origin = monitor.position();
-                    window.set_position(PhysicalPosition::new(
-                        origin.x + (bounds.width.saturating_sub(size.width) / 2) as i32,
-                        origin.y + 20,
-                    ))?;
-                }
-                window.show()?;
                 #[cfg(windows)]
                 {
                     if let Err(error) = windows::overlay::configure(&window) {

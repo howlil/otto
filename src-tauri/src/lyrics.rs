@@ -25,23 +25,92 @@ fn normalized(value: &str) -> String {
         .to_lowercase()
 }
 
+const DISPLAY_ARTIST_SEPARATORS: [&str; 3] = [" - ", " — ", " – "];
+
+fn has_display_artist(snapshot: &MediaSnapshot) -> bool {
+    snapshot
+        .album
+        .as_ref()
+        .is_none_or(|album| album.trim().is_empty())
+        && snapshot.duration_ms.is_some()
+        && snapshot.artist.as_ref().is_some_and(|artist| {
+            DISPLAY_ARTIST_SEPARATORS
+                .iter()
+                .any(|separator| artist.contains(separator))
+        })
+}
+
+fn matches_artist(record: &LyricsRecord, snapshot: &MediaSnapshot) -> bool {
+    let Some(artist) = snapshot.artist.as_ref() else {
+        return false;
+    };
+    normalized(artist) == normalized(&record.artist_name)
+        || (has_display_artist(snapshot)
+            && !record.artist_name.trim().is_empty()
+            && !record.album_name.trim().is_empty()
+            && DISPLAY_ARTIST_SEPARATORS.iter().any(|separator| {
+                normalized(artist)
+                    == normalized(&format!(
+                        "{}{separator}{}",
+                        record.artist_name, record.album_name
+                    ))
+            }))
+}
+
 fn matches_track(record: &LyricsRecord, snapshot: &MediaSnapshot) -> bool {
     snapshot
         .title
         .as_ref()
         .is_some_and(|title| normalized(title) == normalized(&record.track_name))
-        && snapshot
-            .artist
-            .as_ref()
-            .is_some_and(|artist| normalized(artist) == normalized(&record.artist_name))
+        && matches_artist(record, snapshot)
         && snapshot
             .album
             .as_ref()
             .filter(|album| !album.trim().is_empty())
             .is_none_or(|album| normalized(album) == normalized(&record.album_name))
-        && snapshot.duration_ms.is_some_and(|duration| {
-            record.duration.is_finite() && (record.duration - duration as f64 / 1000.0).abs() <= 2.0
+        && record.duration.is_finite()
+        && (1.0..=3600.0).contains(&record.duration)
+        && snapshot
+            .duration_ms
+            .is_none_or(|duration| (record.duration - duration as f64 / 1000.0).abs() <= 2.0)
+}
+
+fn select_search_result(
+    records: Vec<LyricsRecord>,
+    snapshot: &MediaSnapshot,
+) -> Option<LyricsRecord> {
+    if records.len() > 20 || (snapshot.duration_ms.is_none() && records.len() == 20) {
+        return None;
+    }
+    let mut candidates: Vec<_> = records
+        .into_iter()
+        .filter(|record| matches_track(record, snapshot))
+        .collect();
+    if snapshot.duration_ms.is_none() && candidates.len() != 1 {
+        return None;
+    }
+    if has_display_artist(snapshot)
+        && let Some(first) = candidates.first()
+        && candidates.iter().any(|candidate| {
+            normalized(&candidate.artist_name) != normalized(&first.artist_name)
+                || normalized(&candidate.album_name) != normalized(&first.album_name)
         })
+    {
+        return None;
+    }
+    candidates.sort_by(|left, right| {
+        let quality = |record: &LyricsRecord| {
+            (
+                record
+                    .synced_lyrics
+                    .as_ref()
+                    .is_some_and(|text| !text.trim().is_empty()),
+                record.plain_lyrics.is_some(),
+            )
+        };
+        quality(right).cmp(&quality(left))
+    });
+    candidates.into_iter().next()
 }
 
 #[derive(Clone, Serialize)]
@@ -93,8 +162,12 @@ impl LyricsRuntime {
         media: &MediaRuntime,
         refresh: bool,
     ) -> Result<LyricsResult, String> {
-        self.lookup_at(media, refresh, "https://lrclib.net/api/get")
-            .await
+        tokio::time::timeout(
+            Duration::from_secs(8),
+            self.lookup_at(media, refresh, "https://lrclib.net/api/get"),
+        )
+        .await
+        .map_err(|_| "Lyrics lookup timed out. Retry lyrics.".to_string())?
     }
 
     async fn lookup_at(
@@ -105,18 +178,19 @@ impl LyricsRuntime {
     ) -> Result<LyricsResult, String> {
         let mut state = self.state.lock().await;
         if !self.enabled.load(Ordering::SeqCst) {
-            return Err("Enable online lyrics before searching LRCLIB.".into());
+            return Err("Open Lyrics before searching LRCLIB.".into());
         }
         let revision = self.revision.load(Ordering::SeqCst);
         let snapshot = media.snapshot();
         let title = snapshot.title.as_deref().filter(|s| !s.trim().is_empty());
         let artist = snapshot.artist.as_deref().filter(|s| !s.trim().is_empty());
-        let (Some(title), Some(artist), Some(duration)) = (title, artist, snapshot.duration_ms)
-        else {
-            return Err("Lyrics need a title, artist and known duration from the player.".into());
+        let (Some(title), Some(artist)) = (title, artist) else {
+            return Err("Lyrics need a title and artist from the player.".into());
         };
         if snapshot.status != MediaStatus::Available
-            || !(1000..=3_600_000).contains(&duration)
+            || snapshot
+                .duration_ms
+                .is_some_and(|duration| !(1000..=3_600_000).contains(&duration))
             || title.len() > 1024
             || artist.len() > 1024
         {
@@ -135,12 +209,13 @@ impl LyricsRuntime {
         {
             return Err("LRCLIB is rate limited. Please wait before retrying.".into());
         }
-        let duration = (duration as f64 / 1000.0).to_string();
-        let mut query = vec![
-            ("track_name", title),
-            ("artist_name", artist),
-            ("duration", &duration),
-        ];
+        let duration = snapshot
+            .duration_ms
+            .map(|duration| (duration as f64 / 1000.0).to_string());
+        let mut query = vec![("track_name", title), ("artist_name", artist)];
+        if let Some(duration) = duration.as_deref() {
+            query.push(("duration", duration));
+        }
         if let Some(album) = snapshot
             .album
             .as_deref()
@@ -148,6 +223,59 @@ impl LyricsRuntime {
         {
             query.push(("album_name", album));
         }
+        let mut record = if duration.is_some() {
+            match self.fetch(endpoint, &query, &mut state).await? {
+                Some(body) => {
+                    let record: LyricsRecord = serde_json::from_slice(&body)
+                        .map_err(|_| "LRCLIB returned invalid lyrics.".to_string())?;
+                    matches_track(&record, &snapshot).then_some(record)
+                }
+                None => None,
+            }
+        } else {
+            None
+        };
+        if record.is_none() {
+            self.ensure_current(media, revision, &key)?;
+            query.retain(|(name, _)| *name != "duration");
+            if has_display_artist(&snapshot) {
+                query.retain(|(name, _)| *name != "artist_name");
+            }
+            let search = format!(
+                "{}/search",
+                endpoint
+                    .rsplit_once('/')
+                    .ok_or("Invalid lyrics endpoint.")?
+                    .0
+            );
+            if let Some(body) = self.fetch(&search, &query, &mut state).await? {
+                let records: Vec<LyricsRecord> = serde_json::from_slice(&body)
+                    .map_err(|_| "LRCLIB returned invalid lyrics.".to_string())?;
+                record = select_search_result(records, &snapshot);
+            }
+        }
+        self.ensure_current(media, revision, &key)?;
+        let result = LyricsResult { key, record };
+        state.cached = Some(result.clone());
+        Ok(result)
+    }
+
+    fn ensure_current(&self, media: &MediaRuntime, revision: u64, key: &str) -> Result<(), String> {
+        if !self.enabled.load(Ordering::SeqCst)
+            || revision != self.revision.load(Ordering::SeqCst)
+            || track_key(&media.snapshot()) != key
+        {
+            return Err("The media item or lyrics permission changed.".into());
+        }
+        Ok(())
+    }
+
+    async fn fetch(
+        &self,
+        endpoint: &str,
+        query: &[(&str, &str)],
+        state: &mut LookupState,
+    ) -> Result<Option<Vec<u8>>, String> {
         let client = self
             .client
             .as_ref()
@@ -171,8 +299,8 @@ impl LyricsRuntime {
             state.retry_at = Instant::now().checked_add(Duration::from_secs(seconds));
             return Err("LRCLIB is rate limited. Please wait before retrying.".into());
         }
-        let record = if response.status() == reqwest::StatusCode::NOT_FOUND {
-            None
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            Ok(None)
         } else {
             if !response.status().is_success() {
                 return Err("LRCLIB is unavailable. Try again later.".into());
@@ -188,19 +316,8 @@ impl LyricsRuntime {
                 }
                 body.extend_from_slice(&chunk);
             }
-            let record: LyricsRecord = serde_json::from_slice(&body)
-                .map_err(|_| "LRCLIB returned invalid lyrics.".to_string())?;
-            matches_track(&record, &snapshot).then_some(record)
-        };
-        if !self.enabled.load(Ordering::SeqCst)
-            || revision != self.revision.load(Ordering::SeqCst)
-            || track_key(&media.snapshot()) != key
-        {
-            return Err("The media item or lyrics permission changed.".into());
+            Ok(Some(body))
         }
-        let result = LyricsResult { key, record };
-        state.cached = Some(result.clone());
-        Ok(result)
     }
 }
 
@@ -223,19 +340,36 @@ mod tests {
         body: String,
         on_request: impl FnOnce(String) + Send + 'static,
     ) -> (String, std::thread::JoinHandle<()>) {
+        let mut on_request = Some(on_request);
+        let mut responses = vec![(status.to_string(), body.clone())];
+        if status == "404 Not Found" {
+            responses.push((status.to_string(), body));
+        }
+        server_steps(responses, move |request| {
+            if let Some(callback) = on_request.take() {
+                callback(request);
+            }
+        })
+    }
+
+    fn server_steps(
+        responses: Vec<(String, String)>,
+        mut on_request: impl FnMut(String) + Send + 'static,
+    ) -> (String, std::thread::JoinHandle<()>) {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = format!("http://{}/api/get", listener.local_addr().unwrap());
-        let status = status.to_string();
         let handle = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            stream
-                .set_read_timeout(Some(Duration::from_secs(3)))
-                .unwrap();
-            let mut request = vec![0; 8192];
-            let count = stream.read(&mut request).unwrap();
-            on_request(String::from_utf8_lossy(&request[..count]).to_string());
-            write!(stream, "HTTP/1.1 {status}\r\nContent-Length: {}\r\nContent-Type: application/json\r\nRetry-After: 60\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            for (status, body) in responses {
+                let (mut stream, _) = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(3)))
+                    .unwrap();
+                let mut request = vec![0; 8192];
+                let count = stream.read(&mut request).unwrap();
+                on_request(String::from_utf8_lossy(&request[..count]).to_string());
+                write!(stream, "HTTP/1.1 {status}\r\nContent-Length: {}\r\nContent-Type: application/json\r\nRetry-After: 60\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            }
         });
         (endpoint, handle)
     }
@@ -245,12 +379,210 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn online_lyrics_require_explicit_permission_before_network() {
+    async fn online_lyrics_require_an_active_view_lease_before_network() {
         let media = MediaRuntime::new();
         media.publish(observed());
         let runtime = LyricsRuntime::new();
         let result = runtime.lookup_at(&media, false, "http://127.0.0.1:1").await;
-        assert!(result.err().unwrap().contains("Enable online lyrics"));
+        assert!(result.err().unwrap().contains("Open Lyrics"));
+    }
+
+    #[tokio::test]
+    async fn display_artist_finds_only_verified_album_and_duration_from_any_source() {
+        let media = MediaRuntime::new();
+        let mut snapshot = observed();
+        snapshot.source_id = Some("BrowserMediaSession".into());
+        snapshot.artist = Some("Otto — Signals".into());
+        snapshot.album = None;
+        media.publish(snapshot.clone());
+        let runtime = LyricsRuntime::new();
+        runtime.set_enabled(true);
+        let valid: serde_json::Value = serde_json::from_str(&record_json()).unwrap();
+        let mut wrong_album = valid.clone();
+        wrong_album["albumName"] = serde_json::json!("Other");
+        let mut wrong_duration = valid.clone();
+        wrong_duration["duration"] = serde_json::json!(300);
+        let mut wrong_artist = valid.clone();
+        wrong_artist["artistName"] = serde_json::json!("Other");
+        let mut wrong_title = valid.clone();
+        wrong_title["trackName"] = serde_json::json!("Other");
+        let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observed_requests = requests.clone();
+        let (endpoint, server) = server_steps(
+            vec![
+                ("404 Not Found".into(), "{}".into()),
+                (
+                    "200 OK".into(),
+                    serde_json::json!([
+                        wrong_album,
+                        wrong_duration,
+                        wrong_artist,
+                        wrong_title,
+                        valid
+                    ])
+                    .to_string(),
+                ),
+            ],
+            move |request| observed_requests.lock().unwrap().push(request),
+        );
+        let result = runtime.lookup_at(&media, false, &endpoint).await.unwrap();
+        server.join().unwrap();
+        assert_eq!(result.key, track_key(&snapshot));
+        let record = result
+            .record
+            .expect("verified lyrics for the observed media");
+        assert_eq!(record.track_name, "Orbit");
+        assert_eq!(record.artist_name, "Otto");
+        assert_eq!(record.album_name, "Signals");
+        assert_eq!(record.duration, 232.0);
+        assert_eq!(record.synced_lyrics.as_deref(), Some("[00:01.00]Words"));
+        assert_eq!(media.snapshot().artist, snapshot.artist);
+        let requests = requests.lock().unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[1].starts_with("GET /api/search?"));
+        assert!(requests[1].contains("track_name=Orbit"));
+        assert!(!requests[1].contains("artist_name="));
+        assert!(!requests[1].contains("album_name="));
+    }
+
+    #[test]
+    fn combined_artist_requires_known_duration_and_missing_album_not_a_player_name() {
+        let record: LyricsRecord = serde_json::from_str(&record_json()).unwrap();
+        let mut snapshot = observed();
+        snapshot.source_id = Some("AppleInc.AppleMusicWin_nzyj5cx40ttqa!App".into());
+        snapshot.artist = Some("Otto - Signals".into());
+        snapshot.album = None;
+        for separator in [" - ", " — ", " – "] {
+            snapshot.artist = Some(format!("Otto{separator}Signals"));
+            assert!(matches_track(&record, &snapshot));
+        }
+        snapshot.artist = Some("Otto - Signals".into());
+        let mut other = snapshot.clone();
+        other.source_id = Some("OtherPlayer".into());
+        assert!(matches_track(&record, &other));
+        other.source_id = None;
+        assert!(matches_track(&record, &other));
+        other = snapshot.clone();
+        other.duration_ms = None;
+        assert!(!matches_track(&record, &other));
+        other = snapshot.clone();
+        other.album = Some("Signals".into());
+        assert!(!matches_track(&record, &other));
+        other = snapshot.clone();
+        other.artist = Some("Otto - Other".into());
+        assert!(!matches_track(&record, &other));
+        other = snapshot;
+        other.artist = Some("Otto".into());
+        assert!(matches_track(&record, &other));
+    }
+
+    #[test]
+    fn combined_artist_rejects_ambiguous_splits_and_preserves_hyphenated_names() {
+        let mut snapshot = observed();
+        snapshot.source_id = Some("AppleInc.AppleMusicWin_nzyj5cx40ttqa!App".into());
+        snapshot.artist = Some("Otto - Ensemble - Signals".into());
+        snapshot.album = None;
+        let mut record: LyricsRecord = serde_json::from_str(&record_json()).unwrap();
+        record.artist_name = "Otto - Ensemble".into();
+        assert!(select_search_result(vec![record.clone()], &snapshot).is_some());
+        let mut ambiguous = record.clone();
+        ambiguous.artist_name = "Otto".into();
+        ambiguous.album_name = "Ensemble - Signals".into();
+        assert!(select_search_result(vec![record.clone(), ambiguous], &snapshot).is_none());
+        assert!(select_search_result(vec![record.clone(), record], &snapshot).is_some());
+    }
+
+    #[tokio::test]
+    async fn missing_player_duration_uses_search_and_accepts_only_a_unique_identity() {
+        let media = MediaRuntime::new();
+        let mut snapshot = observed();
+        snapshot.duration_ms = None;
+        media.publish(snapshot);
+        let runtime = LyricsRuntime::new();
+        runtime.set_enabled(true);
+        let (endpoint, server) = server("200 OK", format!("[{}]", record_json()), |request| {
+            assert!(request.starts_with("GET /api/search?"));
+            assert!(!request.contains("duration="));
+        });
+        let result = runtime.lookup_at(&media, false, &endpoint).await.unwrap();
+        assert_eq!(
+            result.record.unwrap().synced_lyrics.as_deref(),
+            Some("[00:01.00]Words")
+        );
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn missing_exact_lookup_searches_and_rejects_wrong_versions() {
+        let media = MediaRuntime::new();
+        media.publish(observed());
+        let runtime = LyricsRuntime::new();
+        runtime.set_enabled(true);
+        let valid: serde_json::Value = serde_json::from_str(&record_json()).unwrap();
+        let mut wrong = valid.clone();
+        wrong["duration"] = serde_json::json!(300);
+        let mut other_artist = valid.clone();
+        other_artist["artistName"] = serde_json::json!("Other");
+        let (endpoint, server) = server_steps(
+            vec![
+                ("404 Not Found".into(), "{}".into()),
+                (
+                    "200 OK".into(),
+                    serde_json::json!([wrong, other_artist, valid]).to_string(),
+                ),
+            ],
+            |_| {},
+        );
+        let result = runtime.lookup_at(&media, false, &endpoint).await.unwrap();
+        assert_eq!(result.record.unwrap().duration, 232.0);
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn unknown_duration_rejects_ambiguous_versions_and_foreign_tracks() {
+        for body in [
+            format!("[{},{}]", record_json(), record_json()),
+            format!("[{}]", record_json().replace("Otto", "Other")),
+        ] {
+            let media = MediaRuntime::new();
+            let mut snapshot = observed();
+            snapshot.duration_ms = None;
+            media.publish(snapshot);
+            let runtime = LyricsRuntime::new();
+            runtime.set_enabled(true);
+            let (endpoint, server) = server("200 OK", body, |_| {});
+            assert!(
+                runtime
+                    .lookup_at(&media, false, &endpoint)
+                    .await
+                    .unwrap()
+                    .record
+                    .is_none()
+            );
+            server.join().unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn permission_revoked_during_exact_lookup_prevents_search_egress() {
+        let media = MediaRuntime::new();
+        media.publish(observed());
+        let runtime = std::sync::Arc::new(LyricsRuntime::new());
+        runtime.set_enabled(true);
+        let changed = runtime.clone();
+        let (endpoint, server) =
+            server_steps(vec![("404 Not Found".into(), "{}".into())], move |_| {
+                changed.set_enabled(false)
+            });
+        assert!(
+            runtime
+                .lookup_at(&media, false, &endpoint)
+                .await
+                .err()
+                .unwrap()
+                .contains("changed")
+        );
+        server.join().unwrap();
     }
 
     #[tokio::test]

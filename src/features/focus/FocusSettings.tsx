@@ -76,14 +76,9 @@ export function FocusSettings({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[9px] px-[18px] pb-[15px] pt-3 animate-otto-focus-settings motion-reduce:animate-none">
       <div>
-        <div className="flex items-center justify-between gap-3">
-          <Text as="h2" variant="label" className="m-0 font-[550]! text-otto-focus-text">
-            Session lengths
-          </Text>
-          <Text as="span" variant="caption" className="text-otto-label-muted">
-            Focus presets
-          </Text>
-        </div>
+        <Text as="h2" variant="label" className="m-0 font-[550]! text-otto-focus-text">
+          Focus presets
+        </Text>
         <div className="mt-[9px] flex gap-[5px]">
           {[15, 25, 50].map((value) => (
             <button

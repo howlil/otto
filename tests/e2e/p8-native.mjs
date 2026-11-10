@@ -10,6 +10,7 @@ const root = resolve(import.meta.dirname, '../..');
 const app = resolve(process.env.OTTO_E2E_APP || join(root, 'src-tauri/target/debug/otto.exe'));
 const temp = mkdtempSync(join(tmpdir(), 'otto-p8-'));
 const gate = join(temp, 'stream');
+const agentMarker = join(process.env.LOCALAPPDATA, 'site.howlil.otto/agent-active.marker');
 const port = Number(process.env.OTTO_E2E_PORT || 4540);
 let server;
 let session;
@@ -328,6 +329,7 @@ try {
     assert.ok(available(name), name + ' must be installed on PATH');
   const existing = runningInstances();
   if (existing.length > 0) throw new Error(startupDiagnosis().trim());
+  assert.equal(existsSync(agentMarker), false, 'Resolve the active Agent run before native E2E');
   await start();
   await p8();
   console.log('PASS: P8 native background continuity and focus hold');
@@ -336,11 +338,28 @@ try {
   process.exitCode = 1;
 } finally {
   releaseForeground();
-  if (session) try { await call('DELETE', endpoint()); } catch {}
-  if (server) {
-    const pid = server.pid;
-    server.kill();
-    if (pid) spawnSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+  if (server && existsSync(gate + '.ready') && existsSync(agentMarker)) {
+    writeFileSync(gate + '.release', 'release');
+    try {
+      await until('owned fixture completion before cleanup', () => !existsSync(agentMarker), 10000);
+    } catch (error) {
+      console.error(String(error));
+      process.exitCode = 1;
+    }
   }
-  rmSync(temp, { recursive: true, force: true });
+  if (server && existsSync(agentMarker)) {
+    console.error('An Agent run is active; preserving owned Otto, driver and fixture profile: ' + temp);
+    process.exitCode = 1;
+    server.unref();
+    server.stdout?.unref?.();
+    server.stderr?.unref?.();
+  } else {
+    if (session) try { await call('DELETE', endpoint()); } catch {}
+    if (server) {
+      const pid = server.pid;
+      server.kill();
+      if (pid) spawnSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+    }
+    rmSync(temp, { recursive: true, force: true });
+  }
 }

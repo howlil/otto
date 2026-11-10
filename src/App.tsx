@@ -102,7 +102,6 @@ export default function App() {
       ? contentHeights[page]
       : undefined;
   const requestedShape = notchShape(shell.placement.requested, expanded);
-  const gutter = notchGutter(notchShape(shell.placement.applied, expanded));
   const onSurfaceObserved = useCallback(
     (observed: NotchPlacement) => {
       setSurfaceError(null);
@@ -114,8 +113,12 @@ export default function App() {
   const {
     size: surfaceSize,
     nativeSize,
+    scale: surfaceScale,
     morphMs,
     stageRef,
+    placement: surfacePlacement,
+    compactRadius,
+    recovery,
   } = useNotchSurfaceSync({
     surface,
     shape: requestedShape,
@@ -152,9 +155,17 @@ export default function App() {
       agentHomeCopy={agentHomeCopy}
       musicHomeCopy={mediaHomeSubtitle(music.snapshot)}
       artProps={artProps}
-      gutter={gutter}
+      gutter={notchGutter(notchShape(surfacePlacement, expanded))}
+      placement={surfacePlacement}
+      compactRadius={compactRadius}
+      recovery={recovery}
+      onRetrySurface={() => {
+        setSurfaceError(null);
+        shell.placement.retry();
+      }}
       size={surfaceSize}
       nativeSize={nativeSize}
+      scale={surfaceScale}
       morphMs={morphMs}
       stageRef={stageRef}
       onContentMeasured={onContentMeasured}

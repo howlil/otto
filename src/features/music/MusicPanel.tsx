@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FocusEvent } from "react";
 import type { MediaCommand, MediaSnapshot } from "../../platform/tauri/media";
-import { Button, OttoHomeButton, StatusMessage, Text } from "../../shared/ui";
+import { Button, IconButton, OttoHomeButton, Text } from "../../shared/ui";
+import { MusicAvailability } from "./MusicAvailability";
 import { MusicLyrics } from "./MusicLyrics";
 import { Artwork, PlaybackControls, SeekBar } from "./MusicPlayback";
 import { playbackPosition, trackKey } from "./lyrics-model";
@@ -56,7 +57,40 @@ export function MusicPanel({
     return () => clearInterval(timer);
   }, [snapshot]);
   const available = snapshot.status === "available";
+  const lyricsDisabled = !available && !lyrics.open;
   const position = playbackPosition(snapshot, now);
+  function renderContent() {
+    if (!available)
+      return (
+        <MusicAvailability snapshot={snapshot} error={error} busy={busy} onRefresh={onRefresh} />
+      );
+    if (lyrics.open)
+      return (
+        <MusicLyrics
+          key={`lyrics:${trackKey(snapshot)}`}
+          snapshot={snapshot}
+          lyrics={lyrics}
+          position={position}
+          busy={busy}
+          onControl={onControl}
+          onRestoreFocus={focus.restoreFocus}
+        />
+      );
+    return (
+      <main className="flex min-h-0 flex-1 items-center gap-3 py-2">
+        <Artwork snapshot={snapshot} />
+        <div className="min-w-0 flex-1">
+          <Text as="strong" variant="heading" className="block truncate text-otto-text-bright">
+            {mediaTitle(snapshot)}
+          </Text>
+          <Text as="span" variant="meta" className="mt-1 block truncate text-otto-text-secondary">
+            {mediaDetail(snapshot)}
+          </Text>
+        </div>
+        <PlaybackControls snapshot={snapshot} busy={busy} onControl={onControl} />
+      </main>
+    );
+  }
   return (
     <section
       aria-labelledby="otto-music-title"
@@ -69,57 +103,24 @@ export function MusicPanel({
         <Text as="h1" id="otto-music-title" variant="title" className="text-otto-text-bright">
           Music
         </Text>
-        <Text as="span" variant="caption" className="ml-auto text-otto-text-tertiary">
-          System media
-        </Text>
-        {(lyrics.enabled || (!available && lyrics.error)) && (
-          <Button variant="quiet" size="link" onClick={() => void lyrics.disable()}>
-            Disable online lyrics
-          </Button>
-        )}
-        <Button
+        <IconButton
           ref={focus.lyricsButton}
-          variant="secondary"
-          size="xs"
-          disabled={!available && !lyrics.open}
+          className="ml-auto"
+          icon={lyrics.open ? "music" : "lyrics"}
+          label={lyrics.open ? "Player" : "Lyrics"}
+          disabled={lyricsDisabled}
+          aria-describedby={lyricsDisabled ? "otto-music-session-hint" : undefined}
+          title={
+            lyricsDisabled
+              ? "An active media session is required"
+              : lyrics.open
+                ? "Player"
+                : "Lyrics"
+          }
           onClick={() => lyrics.setOpen(!lyrics.open)}
-        >
-          {lyrics.open ? "Player" : "Lyrics"}
-        </Button>
-      </header>
-      {!available ? (
-        <main className="flex min-h-0 flex-1 items-center">
-          <StatusMessage
-            title={mediaTitle(snapshot)}
-            action={{ label: "Retry", onClick: () => void onRefresh(), disabled: busy }}
-          >
-            {mediaDetail(snapshot)}
-          </StatusMessage>
-        </main>
-      ) : lyrics.open ? (
-        <MusicLyrics
-          key={`lyrics:${trackKey(snapshot)}`}
-          snapshot={snapshot}
-          lyrics={lyrics}
-          position={position}
-          busy={busy}
-          onControl={onControl}
-          onRestoreFocus={focus.restoreFocus}
         />
-      ) : (
-        <main className="flex min-h-0 flex-1 items-center gap-3 py-2">
-          <Artwork snapshot={snapshot} />
-          <div className="min-w-0 flex-1">
-            <Text as="strong" variant="heading" className="block truncate text-otto-text-bright">
-              {mediaTitle(snapshot)}
-            </Text>
-            <Text as="span" variant="meta" className="mt-1 block truncate text-otto-text-secondary">
-              {mediaDetail(snapshot)}
-            </Text>
-          </div>
-          <PlaybackControls snapshot={snapshot} busy={busy} onControl={onControl} />
-        </main>
-      )}
+      </header>
+      {renderContent()}
       {available && (
         <SeekBar
           key={`seek:${trackKey(snapshot)}`}
@@ -134,7 +135,7 @@ export function MusicPanel({
           {lyrics.error}
         </Text>
       )}
-      {error && (
+      {error && available && (
         <div className="flex shrink-0 items-center gap-2 text-otto-text-secondary">
           <Text as="p" variant="caption" className="min-w-0 flex-1" role="status">
             Music update failed: {error}

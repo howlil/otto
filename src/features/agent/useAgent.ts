@@ -45,12 +45,16 @@ export function useAgent(readinessActive: boolean) {
   const captureBusy = captureIsWorking(snapshot.capture.phase);
   const { readiness, refreshProvider } = useProviderReadiness(provider, model, readinessActive);
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
+  const sequence = useRef(-1);
   const receive = useCallback((next: AgentSnapshot) => {
-    setSnapshot((prev) => (next.seq >= prev.seq ? next : prev));
+    if (next.seq < sequence.current) return false;
+    sequence.current = next.seq;
+    setSnapshot(next);
+    return true;
   }, []);
   const acceptSnapshot = useCallback(
     (next: AgentSnapshot) => {
-      receive(next);
+      if (!receive(next)) return;
       setProvider(next.provider);
       setModelValue((current) => next.model ?? current);
       setThinkingEffortValue((current) => next.thinkingEffort ?? current);
@@ -90,6 +94,7 @@ export function useAgent(readinessActive: boolean) {
   const history = useAgentHistory({ onOpened: onHistoryOpened });
   const actions = useAgentRequestActions({
     busy: operationBusy,
+    isRuntimePending: runtime.isPending,
     draft,
     draftEpoch,
     provider,
@@ -105,6 +110,7 @@ export function useAgent(readinessActive: boolean) {
   });
   const newSession = useNewAgentChat({
     busy: operationBusy,
+    isRuntimePending: runtime.isPending,
     clearError: connection.clearError,
     setModelValue,
     setThinkingEffortValue,

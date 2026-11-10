@@ -20,16 +20,11 @@ mock.module("@tauri-apps/api/core", () => ({
       return (payload as { enabled: boolean }).enabled;
     }
     if (command === "overlay_protection_status") return true;
-    if (command === "notch_set_surface") {
-      const surface = (payload as { surface?: string })?.surface ?? "idle";
-      const size = surfaceSizes[surface] ?? surfaceSizes.idle;
-      return { placement: "floating", width: size.width, height: size.height };
-    }
-    if (command === "notch_measure_surface") {
-      const surface = (payload as { surface?: string })?.surface ?? "idle";
-      const size = surfaceSizes[surface] ?? surfaceSizes.idle;
-      return { placement: "floating", width: size.width, height: size.height };
-    }
+    if (command === "notch_configure_host") return {
+      revision: 1, placement: "floating", width: 550, height: 610, scale: 1,
+      layouts: Object.fromEntries(Object.entries(surfaceSizes).map(([key, value]) => [key, [value.width, value.height]])),
+    };
+    if (command === "notch_set_region") return true;
     return null;
   },
   Channel: class {
@@ -45,8 +40,12 @@ mock.module("@tauri-apps/api/core", () => ({
   transformCallback: (callback: unknown) => callback,
 }));
 
+const originalElementFromPoint = document.elementFromPoint;
 mock.module("@tauri-apps/api/window", () => ({
+  cursorPosition: async () => ({ x: 10, y: 10 }),
   getCurrentWindow: () => ({
+    innerPosition: async () => ({ x: 0, y: 0 }),
+    scaleFactor: async () => 1,
     onFocusChanged: async (handler: (event: { payload: boolean }) => void) => {
       focusListener = (focused) => handler({ payload: focused });
       return () => {
@@ -159,6 +158,7 @@ afterAll(() => {
 
 afterEach(() => {
   cleanup();
+  document.elementFromPoint = originalElementFromPoint;
   focusListener = null;
   localStorage.clear();
   invocations.length = 0;
@@ -216,6 +216,18 @@ describe("Otto shell hover and pin interaction", () => {
 
     fireEvent.pointerOut(surface, { pointerType: "mouse", relatedTarget: document.body });
 
+    await waitFor(() => expect(isExpanded()).toBe(false));
+  });
+
+  test("a layout-generated leave cannot collapse the preview while the pointer still hits Otto", async () => {
+    const { surface } = await mount();
+    await hover(surface);
+    let checked = false;
+    document.elementFromPoint = () => { checked = true; return surface; };
+    fireEvent.pointerOut(surface, { pointerType: "mouse", relatedTarget: document.body });
+    await waitFor(() => expect(checked).toBe(true));
+    expect(isExpanded()).toBe(true);
+    document.elementFromPoint = () => null;
     await waitFor(() => expect(isExpanded()).toBe(false));
   });
 
@@ -357,11 +369,6 @@ describe("Otto shell blur and escape interaction", () => {
   });
 });
 
-const surfaceCalls = () =>
-  invocations
-    .filter((entry) => entry.command === "notch_set_surface")
-    .map((entry) => entry.payload as { surface: string; deferShrink: boolean });
-
 function SurfaceHarness({
   surface,
   reducedMotion = false,
@@ -388,10 +395,13 @@ function SurfaceHarness({
       style={{ width: nativeSize?.width ?? size?.width, height: nativeSize?.height ?? size?.height }}
     >
       <div
-        ref={stageRef}
+        ref={(element) => {
+          stageRef.current = element;
+          if (element) element.getBoundingClientRect = () => new DOMRect(0, 0, Number.parseFloat(element.style.width), Number.parseFloat(element.style.height));
+        }}
         data-surface-stage="true"
         style={{ width: size?.width, height: size?.height, transitionDuration: `${morphMs}ms` }}
-      />
+      ><main style={{ borderTopLeftRadius: 21, borderBottomLeftRadius: 21 }} /></div>
     </div>
   );
 }
@@ -400,62 +410,26 @@ const stage = () => document.querySelector<HTMLElement>("[data-surface-stage]");
 const surfaceWindow = () => document.querySelector<HTMLElement>("[data-surface-window]");
 
 describe("Otto surface geometry", () => {
-  test("growing applies immediately and defers only the shrink until the morph settles", async () => {
+  test("expansion and collapse change the body without resizing or reconfiguring its host", async () => {
     const view = render(<SurfaceHarness surface="idle" />);
-    await waitFor(() => expect(stage()?.style.width).toBe("92px"));
+    await waitFor(() => expect(invocations.some(entry => entry.command === "notch_configure_host")).toBe(true));
+    await waitFor(() => expect(surfaceWindow()?.style.width).toBe("550px"));
     invocations.length = 0;
-
     view.rerender(<SurfaceHarness surface="home" />);
-
-    await waitFor(() =>
-      expect(surfaceCalls().some((call) => call.surface === "home" && call.deferShrink)).toBe(true),
-    );
-    await waitFor(() => expect(stage()?.style.width).toBe("452px"));
-
-    await waitFor(
-      () =>
-        expect(
-          surfaceCalls().some((call) => call.surface === "home" && call.deferShrink === false),
-        ).toBe(true),
-      { timeout: 2000 },
-    );
-  });
-
-  test("collapsing keeps the wide window until the surface has shrunk", async () => {
-    const view = render(<SurfaceHarness surface="home" />);
-    await waitFor(() => expect(stage()?.style.width).toBe("452px"));
-    invocations.length = 0;
-
+    expect(stage()?.style.width).toBe("452px");
+    expect(surfaceWindow()?.style.width).toBe("550px");
     view.rerender(<SurfaceHarness surface="idle" />);
-
-    await waitFor(() =>
-      expect(surfaceCalls().some((call) => call.surface === "idle" && call.deferShrink)).toBe(true),
-    );
-    const calls = surfaceCalls();
-    expect(calls.filter((call) => call.surface === "idle" && call.deferShrink === false)).toHaveLength(0);
-    await waitFor(() => expect(stage()?.style.width).toBe("92px"));
-    expect(surfaceWindow()?.style.width).toBe("452px");
-
-    await waitFor(
-      () =>
-        expect(
-          surfaceCalls().some((call) => call.surface === "idle" && call.deferShrink === false),
-        ).toBe(true),
-      { timeout: 2000 },
-    );
-    await waitFor(() => expect(surfaceWindow()?.style.width).toBe("92px"));
+    expect(stage()?.style.width).toBe("92px");
+    expect(surfaceWindow()?.style.width).toBe("550px");
+    expect(invocations.filter(entry => entry.command === "notch_configure_host" || entry.command === "notch_set_surface")).toHaveLength(0);
   });
 
   test("reduced motion applies the target geometry without an animated settle", async () => {
     const view = render(<SurfaceHarness surface="idle" reducedMotion />);
-    await waitFor(() => expect(stage()?.style.width).toBe("92px"));
-    invocations.length = 0;
-
+    await waitFor(() => expect(surfaceWindow()?.style.width).toBe("550px"));
     view.rerender(<SurfaceHarness surface="home" reducedMotion />);
-
-    await waitFor(() => expect(stage()?.style.width).toBe("452px"));
-    await new Promise((done) => setTimeout(done, 120));
-    expect(surfaceCalls().every((call) => call.deferShrink === false)).toBe(true);
+    expect(stage()?.style.width).toBe("452px");
+    expect(stage()?.style.transitionDuration).toBe("0ms");
   });
 });
 
@@ -469,9 +443,8 @@ describe("Otto native hit region", () => {
       expect(
         invocations.some(
           (entry) =>
-            entry.command === "notch_set_hit_region" &&
-            (entry.payload as { width: number; shape: string }).width === 452 &&
-            (entry.payload as { width: number; shape: string }).shape === "card",
+            entry.command === "notch_set_region" &&
+            (entry.payload as { region: { body: { width: number } } }).region.body.width === 452,
         ),
       ).toBe(true),
     );
@@ -489,7 +462,7 @@ describe("Otto shell morph anchoring", () => {
     expect(compactButton().dataset.anchor).toBe("corner");
     expect(compactButton().className).toContain("left-4");
     expect(compactButton().className).not.toContain("left-1/2");
-    expect(compactButton().className).toContain("transition-[left,top,width,height,transform]");
+    expect(compactButton().className).toContain("transition-[left,top,translate,width,height]");
     expect(compactButton().querySelector("[data-otto-logo]")?.className).toContain(
       "rounded-otto-panel",
     );
