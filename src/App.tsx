@@ -6,6 +6,8 @@ import {
   resolveAgentSurface,
   useAgent,
 } from "./features/agent";
+import { useFocusTimer } from "./features/focus";
+import { mediaHomeSubtitle, useMusic } from "./features/music";
 import { shouldPresentOsEvent, useOsEvents } from "./features/os-events";
 import {
   morphDuration,
@@ -46,13 +48,23 @@ function motionCue(status: string): string | null {
 const ACTIVE_RUN = new Set(["starting", "streaming", "stopping"]);
 
 export default function App() {
-  const shell = useNotchShell();
+  const music = useMusic();
+  const consumeEscape = useCallback(
+    (page: string) => {
+      if (page !== "music" || !music.lyrics.open) return false;
+      music.lyrics.setOpen(false);
+      return true;
+    },
+    [music.lyrics.open, music.lyrics.setOpen],
+  );
+  const shell = useNotchShell(consumeEscape);
   const osEvents = useOsEvents(shell.prefs.osEventsEnabled);
   const agent = useAgent(shell.expanded && shell.isAgent);
+  const focus = useFocusTimer();
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
   const appUpdate = useAppUpdate();
-  const { page, expanded, prefs, reducedMotion, isAgent, setEventMotion } = shell;
+  const { page, expanded, prefs, reducedMotion, isAgent, isMusic, setEventMotion } = shell;
   const onContentMeasured = useCallback(
     (height: number) => {
       setContentHeights((current) => updateMeasuredHeights(current, page, height));
@@ -69,13 +81,16 @@ export default function App() {
     if (osEvents.event && !osEventVisible) osEvents.dismiss();
   }, [osEvents.event, osEvents.dismiss, osEventVisible]);
 
-  const surface = resolveSurface({
+  const resolvedSurface = resolveSurface({
     expanded,
     isAgent,
+    isMusic,
     page,
     agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
     osEvent: osEventVisible,
   });
+  const surface =
+    resolvedSurface === "musicPlayer" && music.lyrics.open ? "musicLyrics" : resolvedSurface;
   const agentHomeCopy = agentHomeSubtitle(agent.snapshot, agent.readiness, agent.error);
   const artProps = {
     tilt: prefs.tilt,
@@ -87,7 +102,6 @@ export default function App() {
       ? contentHeights[page]
       : undefined;
   const requestedShape = notchShape(shell.placement.requested, expanded);
-  const gutter = notchGutter(notchShape(shell.placement.applied, expanded));
   const onSurfaceObserved = useCallback(
     (observed: NotchPlacement) => {
       setSurfaceError(null);
@@ -99,8 +113,12 @@ export default function App() {
   const {
     size: surfaceSize,
     nativeSize,
+    scale: surfaceScale,
     morphMs,
     stageRef,
+    placement: surfacePlacement,
+    compactRadius,
+    recovery,
   } = useNotchSurfaceSync({
     surface,
     shape: requestedShape,
@@ -130,13 +148,24 @@ export default function App() {
   return (
     <ShellView
       agent={agent}
+      music={music}
+      focus={focus}
       shell={shell}
       surfaceError={surfaceError}
       agentHomeCopy={agentHomeCopy}
+      musicHomeCopy={mediaHomeSubtitle(music.snapshot)}
       artProps={artProps}
-      gutter={gutter}
+      gutter={notchGutter(notchShape(surfacePlacement, expanded))}
+      placement={surfacePlacement}
+      compactRadius={compactRadius}
+      recovery={recovery}
+      onRetrySurface={() => {
+        setSurfaceError(null);
+        shell.placement.retry();
+      }}
       size={surfaceSize}
       nativeSize={nativeSize}
+      scale={surfaceScale}
       morphMs={morphMs}
       stageRef={stageRef}
       onContentMeasured={onContentMeasured}

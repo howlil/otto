@@ -36,7 +36,7 @@ export function isContentResize(previous: NotchGeometry | null, next: NotchGeome
 
 export function measuredNotchHeight(height: number): number {
   if (!Number.isFinite(height)) return 170;
-  return Math.max(1, Math.min(610, Math.ceil(height / 8) * 8));
+  return Math.max(1, Math.min(610, Math.round(height)));
 }
 
 const morphDurations: Record<Motion, number> = { fluid: 420, gentle: 300, reduced: 0 };

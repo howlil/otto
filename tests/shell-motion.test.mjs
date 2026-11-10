@@ -43,10 +43,14 @@ describe("native notch motion policy", () => {
     expect(morphMilliseconds("gentle")).toBe("300ms");
   });
 
-  test("batches measurement jitter into 8px buckets within native bounds", () => {
-    expect(measuredNotchHeight(170)).toBe(176);
-    expect(measuredNotchHeight(171)).toBe(176);
-    expect(measuredNotchHeight(179)).toBe(184);
+  test("measurement noise cannot inflate padding while real growth remains visible", () => {
+    const stable = updateMeasuredHeights({}, "agent", 303.9);
+    expect(stable.agent).toBe(304);
+    expect(updateMeasuredHeights(stable, "agent", 304.1)).toBe(stable);
+    expect(updateMeasuredHeights(stable, "agent", 305)).toEqual({ agent: 305 });
+    expect(measuredNotchHeight(170)).toBe(170);
+    expect(measuredNotchHeight(171)).toBe(171);
+    expect(measuredNotchHeight(179)).toBe(179);
     expect(measuredNotchHeight(900)).toBe(610);
     expect(measuredNotchHeight(Number.NaN)).toBe(170);
   });
@@ -54,8 +58,8 @@ describe("native notch motion policy", () => {
   test("retains separate layout measurements across Agent and Settings", () => {
     const agent = updateMeasuredHeights({}, "agent", 170);
     const settings = updateMeasuredHeights(agent, "agent-settings", 346);
-    expect(settings.agent).toBe(176);
-    expect(settings["agent-settings"]).toBe(352);
-    expect(updateMeasuredHeights(settings, "agent", 171)).toBe(settings);
+    expect(settings.agent).toBe(170);
+    expect(settings["agent-settings"]).toBe(346);
+    expect(updateMeasuredHeights(settings, "agent", 170.1)).toBe(settings);
   });
 });

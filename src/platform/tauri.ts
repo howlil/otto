@@ -80,11 +80,35 @@ export type AgentSnapshot = {
   error: string | null;
 };
 
+export type TimerPhase = "focus" | "short" | "long";
+export type TimerStatus = "ready" | "running" | "paused" | "completed";
+
+export type TimerDurations = {
+  focus: number;
+  short: number;
+  long: number;
+};
+
+export type TimerSnapshot = {
+  revision: number;
+  phase: TimerPhase;
+  status: TimerStatus;
+  remainingSeconds: number;
+  durations: TimerDurations;
+  completedFocusSessions: number;
+};
+
 export type NotchSurface =
   | "idle"
   | "home"
   | "homeSettings"
   | "agentCompact"
+  | "musicCompact"
+  | "musicPlayer"
+  | "focusCompact"
+  | "focus"
+  | "focusSettings"
+  | "musicLyrics"
   | "agentReady"
   | "agentThinking"
   | "agentFull"
@@ -117,6 +141,41 @@ export type OsEventSubscription = {
   unsubscribe: () => Promise<void>;
 };
 
+export type MediaStatus = "loading" | "available" | "unavailable" | "unsupported";
+export type MediaPlayback = "playing" | "paused" | "stopped" | "unknown";
+export type MediaCommand = "toggle" | "previous" | "next" | "seek";
+
+export type MediaControls = {
+  toggle: boolean;
+  previous: boolean;
+  next: boolean;
+  seek: boolean;
+};
+
+export type MediaSnapshot = {
+  seq: number;
+  status: MediaStatus;
+  playback: MediaPlayback;
+  title: string | null;
+  artist: string | null;
+  album?: string | null;
+  sourceId?: string | null;
+  sessionRevision?: number | null;
+  observedAtMs?: number | null;
+  playbackRate?: number | null;
+  artworkDataUrl: string | null;
+  positionMs: number | null;
+  durationMs: number | null;
+  minSeekMs: number | null;
+  maxSeekMs: number | null;
+  controls: MediaControls;
+  message: string;
+};
+
+export type MediaSubscription = {
+  unsubscribe: () => Promise<void>;
+};
+
 export const nativeAvailable = isTauri();
 
 export async function getOverlayProtectionStatus(): Promise<boolean> {
@@ -129,6 +188,10 @@ export async function setOverlayCaptureProtection(enabled: boolean): Promise<boo
 
 export async function getAgentSnapshot(): Promise<AgentSnapshot> {
   return invoke<AgentSnapshot>("agent_snapshot");
+}
+
+export async function getFocusTimerSnapshot(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_snapshot");
 }
 export async function listAgentHistory(): Promise<AgentConversationSummary[]> {
   return invoke<AgentConversationSummary[]>("agent_history_list");
@@ -166,6 +229,11 @@ export type AgentSubscription = {
   unsubscribe: () => Promise<void>;
 };
 
+export type FocusTimerSubscription = {
+  channel: Channel<TimerSnapshot>;
+  unsubscribe: () => Promise<void>;
+};
+
 export async function subscribeAgent(
   onSnapshot: (snapshot: AgentSnapshot) => void,
 ): Promise<AgentSubscription> {
@@ -176,6 +244,45 @@ export async function subscribeAgent(
     channel,
     unsubscribe: () => invoke("agent_unsubscribe", { subscriptionId }),
   };
+}
+
+export async function subscribeFocusTimer(
+  onSnapshot: (snapshot: TimerSnapshot) => void,
+): Promise<FocusTimerSubscription> {
+  const channel = new Channel<TimerSnapshot>();
+  channel.onmessage = onSnapshot;
+  const subscriptionId = await invoke<number>("focus_timer_subscribe", { onEvent: channel });
+  return {
+    channel,
+    unsubscribe: () => invoke("focus_timer_unsubscribe", { subscriptionId }),
+  };
+}
+
+export async function startFocusTimer(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_start");
+}
+
+export async function pauseFocusTimer(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_pause");
+}
+
+export async function resetFocusTimer(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_reset");
+}
+
+export async function configureFocusTimer(durations: TimerDurations): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_configure", { durations });
+}
+
+export async function selectFocusTimerPhase(
+  phase: TimerPhase,
+  discardActive: boolean,
+): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_select_phase", { phase, discardActive });
+}
+
+export async function startNextFocusTimer(): Promise<TimerSnapshot> {
+  return invoke<TimerSnapshot>("focus_timer_start_next");
 }
 export async function subscribeOsEvents(
   onEvent: (event: OsEventView) => void,
@@ -191,6 +298,54 @@ export async function subscribeOsEvents(
 
 export async function setOsEventsEnabled(enabled: boolean): Promise<void> {
   if (nativeAvailable) await invoke("os_events_set_enabled", { enabled });
+}
+
+export type LyricsRecord = {
+  trackName: string;
+  artistName: string;
+  albumName: string;
+  duration: number;
+  instrumental: boolean;
+  plainLyrics: string | null;
+  syncedLyrics: string | null;
+};
+
+export type LyricsResult = { key: string; record: LyricsRecord | null };
+
+export async function setOnlineLyrics(enabled: boolean): Promise<void> {
+  return invoke("media_set_online_lyrics", { enabled });
+}
+
+export async function getMediaLyrics(refresh = false): Promise<LyricsResult> {
+  return invoke("media_lyrics", { refresh });
+}
+
+export async function getMediaSnapshot(): Promise<MediaSnapshot> {
+  return invoke<MediaSnapshot>("media_snapshot");
+}
+
+export async function subscribeMedia(
+  onSnapshot: (snapshot: MediaSnapshot) => void,
+): Promise<MediaSubscription> {
+  if (!nativeAvailable) return { unsubscribe: async () => {} };
+  const channel = new Channel<MediaSnapshot>();
+  channel.onmessage = onSnapshot;
+  const subscriptionId = await invoke<number>("media_subscribe", { onEvent: channel });
+  return {
+    unsubscribe: () => invoke("media_unsubscribe", { subscriptionId }),
+  };
+}
+
+export async function refreshMedia(): Promise<MediaSnapshot> {
+  return invoke<MediaSnapshot>("media_refresh");
+}
+
+export async function controlMedia(
+  command: MediaCommand,
+  expectedTrack: string,
+  positionMs?: number,
+): Promise<MediaSnapshot> {
+  return invoke<MediaSnapshot>("media_control", { command, expectedTrack, positionMs });
 }
 
 export async function selectAgentProvider(provider: AgentProvider): Promise<void> {
@@ -248,101 +403,48 @@ export async function onNotchFocusChanged(
 export type NotchShape = "capsule" | "card" | "attached";
 export type NotchPlacement = "floating" | "attached";
 
-export async function setNotchHitRegion(
-  width: number,
-  height: number,
-  shape: NotchShape,
-): Promise<void> {
-  if (!nativeAvailable || width <= 0 || height <= 0) return;
-  await invoke("notch_set_hit_region", {
-    width: Math.round(width),
-    height: Math.round(height),
-    shape,
-  });
-}
+export type NotchLayouts = Record<NotchSurface, readonly [number, number]>;
 
-export type AppliedSurface = {
+export type NotchHost = {
+  revision: number;
   placement: NotchPlacement;
   width: number;
   height: number;
-  outerWidth: number | null;
-  outerHeight: number | null;
-  geometryConfirmed: boolean;
+  scale: number;
+  layouts: NotchLayouts;
 };
 
-export type NotchSurfaceRequest = {
-  surface: NotchSurface;
-  shape: NotchShape;
-  topOffset?: number;
-  contentHeight?: number;
-  deferShrink?: boolean;
+export type NotchRegionPx = {
+  hostRevision: number;
+  sequence: number;
+  body: { x: number; y: number; width: number; height: number };
+  radius: { top: number; bottom: number };
+  shoulder: number;
 };
 
-function normalizeSurface(
-  value: {
-    placement: string;
-    width: number;
-    height: number;
-    outerWidth?: number | null;
-    outerHeight?: number | null;
-    geometryConfirmed?: boolean;
-  },
-  geometryConfirmedDefault: boolean,
-): AppliedSurface {
-  return {
-    placement: value.placement === "attached" ? "attached" : "floating",
-    width: value.width,
-    height: value.height,
-    outerWidth: value.outerWidth ?? null,
-    outerHeight: value.outerHeight ?? null,
-    geometryConfirmed: value.geometryConfirmed ?? geometryConfirmedDefault,
-  };
+const notchClientId = crypto.randomUUID();
+
+async function invokeNotch<T>(command: string, payload: Record<string, unknown>): Promise<T> {
+  const start = performance.now();
+  try {
+    return await invoke<T>(command, payload);
+  } finally {
+    performance.clearMeasures(command);
+    performance.measure(command, { start, end: performance.now() });
+  }
 }
 
-export async function measureNotchSurface(
-  request: Omit<NotchSurfaceRequest, "deferShrink">,
-): Promise<AppliedSurface> {
-  const { surface, shape, topOffset = 20, contentHeight } = request;
-  if (!nativeAvailable) {
-    return {
-      placement: "floating",
-      width: 0,
-      height: 0,
-      outerWidth: null,
-      outerHeight: null,
-      geometryConfirmed: false,
-    };
-  }
-  const measured = await invoke<{
-    placement: string;
-    width: number;
-    height: number;
-    outerWidth?: number | null;
-    outerHeight?: number | null;
-    geometryConfirmed?: boolean;
-  }>("notch_measure_surface", { surface, shape, topOffset, contentHeight });
-  return normalizeSurface(measured, false);
+export async function configureNotchHost(
+  placement: NotchPlacement,
+  topOffset: number,
+  capacity: { width: number; height: number },
+  attempt = 0,
+): Promise<NotchHost> {
+  return invokeNotch("notch_configure_host", {
+    request: { placement, topOffset, ...capacity, clientId: notchClientId, attempt },
+  });
 }
 
-export async function setNotchSurface(request: NotchSurfaceRequest): Promise<AppliedSurface> {
-  const { surface, shape, topOffset = 20, contentHeight, deferShrink = false } = request;
-  if (!nativeAvailable) {
-    return {
-      placement: "floating",
-      width: 0,
-      height: 0,
-      outerWidth: null,
-      outerHeight: null,
-      geometryConfirmed: false,
-    };
-  }
-  const applied = await invoke<{
-    placement: string;
-    width: number;
-    height: number;
-    outerWidth?: number | null;
-    outerHeight?: number | null;
-    geometryConfirmed?: boolean;
-  }>("notch_set_surface", { surface, shape, topOffset, contentHeight, deferShrink });
-  return normalizeSurface(applied, true);
+export async function setNotchRegion(region: NotchRegionPx): Promise<boolean> {
+  return invokeNotch("notch_set_region", { region });
 }

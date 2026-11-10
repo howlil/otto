@@ -20,18 +20,12 @@ export function HomeCard({
   gradient: number;
   entryMotion?: string;
 }) {
-  const backgroundClass =
-    name === "Agent"
-      ? "bg-[linear-gradient(118deg,var(--color-otto-art-music-start)_0%,var(--color-otto-art-music-middle)_51%,var(--color-otto-art-music-end)_100%)]"
-      : name === "Music"
-        ? "bg-[linear-gradient(118deg,var(--color-otto-art-card-music-start)_0%,var(--color-otto-art-card-music-middle)_51%,var(--color-otto-art-card-music-end)_100%)]"
-        : "bg-[linear-gradient(118deg,var(--color-otto-art-card-focus-start)_0%,var(--color-otto-art-card-focus-middle)_51%,var(--color-otto-art-card-focus-end)_100%)]";
   return (
     <button
       type="button"
       disabled={disabled}
       title={disabled ? "Coming soon" : undefined}
-      className={`group relative isolate block h-[76px] min-w-0 overflow-hidden rounded-otto-launcher border border-otto-home-card-border p-3 text-left text-otto-text transition-[border-color,background] duration-[260ms] ease-otto [--art-tilt:43deg] before:pointer-events-none before:absolute before:inset-0 before:z-[1] before:bg-[radial-gradient(ellipse_120px_98px_at_78%_25%,var(--color-otto-art-halo),transparent_72%)] before:opacity-100 before:mix-blend-screen after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:bg-[linear-gradient(90deg,var(--color-otto-art-overlay-start)_0%,var(--color-otto-art-overlay-middle)_29%,var(--color-otto-art-overlay-end)_64%,transparent_100%)] enabled:hover:border-otto-line-hover focus-visible:border-otto-line-hover disabled:cursor-not-allowed disabled:opacity-60 ${backgroundClass} ${entryMotion}`}
+      className={`group relative isolate block h-[76px] min-w-0 overflow-hidden rounded-otto-launcher border border-otto-home-card-border bg-otto-raised-soft p-3 text-left text-otto-text transition-[border-color] duration-[260ms] ease-otto [--art-tilt:43deg] after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:bg-[linear-gradient(90deg,var(--color-otto-raised-soft)_0%,transparent_82%)] enabled:hover:border-otto-line-hover focus-visible:border-otto-line-hover disabled:cursor-not-allowed ${entryMotion}`}
       onClick={onClick}
       style={
         { "--art-tilt": `${tilt}deg`, "--art-opacity": String(gradient / 100) } as CSSProperties

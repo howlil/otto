@@ -145,6 +145,41 @@ describe("Agent transcript streaming viewport", () => {
     expect(calls).toEqual([{ top: 1000 }]);
   });
 
+  test("late formatting follows the bottom without a new snapshot but preserves a scrolled-up reader", () => {
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    const notifications: Array<() => void> = [];
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) {
+        notifications.push(() => callback([], this as unknown as ResizeObserver));
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      render(view(1));
+      const feed = screen.getByRole("log");
+      setMetrics(feed, { scrollHeight: 1000, clientHeight: 400, scrollTop: 600 });
+      Object.defineProperty(feed, "scrollTo", {
+        configurable: true,
+        value: ({ top }: { top: number }) => {
+          feed.scrollTop = Math.min(top, feed.scrollHeight - feed.clientHeight);
+        },
+      });
+      setMetrics(feed, { scrollHeight: 1500, clientHeight: 400, scrollTop: 600 });
+      act(() => notifications.forEach((notify) => notify()));
+      expect(feed.scrollTop).toBe(1100);
+      feed.scrollTop = 100;
+      fireEvent.scroll(feed);
+      setMetrics(feed, { scrollHeight: 1800, clientHeight: 400, scrollTop: 100 });
+      act(() => notifications.forEach((notify) => notify()));
+      expect(feed.scrollTop).toBe(100);
+    } finally {
+      cleanup();
+      globalThis.ResizeObserver = OriginalResizeObserver;
+    }
+  });
+
   test("new output does not yank a reader who scrolled up", () => {
     const rendered = render(view(1));
     const { feed, calls } = follow();

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { runPreflight } from './preflight.mjs';
@@ -10,6 +10,7 @@ const root = resolve(import.meta.dirname, '../..');
 const app = resolve(process.env.OTTO_E2E_APP || join(root, 'src-tauri/target/debug/otto.exe'));
 const temp = mkdtempSync(join(tmpdir(), 'otto-p8-'));
 const gate = join(temp, 'stream');
+const agentMarker = join(process.env.LOCALAPPDATA, 'site.howlil.otto/agent-active.marker');
 const port = Number(process.env.OTTO_E2E_PORT || 4540);
 let server;
 let session;
@@ -59,6 +60,7 @@ async function call(method, path, data, timeout = 10000) {
   return payload.value;
 }
 const shell = available('pwsh.exe') ? 'pwsh.exe' : 'powershell.exe';
+const focusShell = available('powershell.exe') ? 'powershell.exe' : shell;
 const foregroundProbe = `
 Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -66,23 +68,37 @@ Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
 [OttoFocus.Native]::GetForegroundWindow().ToInt64()
 `;
 const focusHolderScript = `
+param([string]$ReadyFile)
+$ErrorActionPreference = 'Stop'
+[System.IO.File]::WriteAllText($ReadyFile + '.phase', 'starting')
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Namespace OttoFocus -Name Native -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
-[DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, System.UIntPtr extra);
 '@
+[System.IO.File]::WriteAllText($ReadyFile + '.phase', 'native-loaded')
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Otto focus probe'
 $form.Width = 320
 $form.Height = 120
+$form.TopMost = $true
 $form.Show()
-[OttoFocus.Native]::keybd_event(0x12, 0, 0, [System.UIntPtr]::Zero)
-[OttoFocus.Native]::keybd_event(0x12, 0, 2, [System.UIntPtr]::Zero)
-[OttoFocus.Native]::SetForegroundWindow($form.Handle) | Out-Null
-Start-Sleep -Milliseconds 800
-Write-Output ("handle={0} foreground={1}" -f $form.Handle.ToInt64(), [OttoFocus.Native]::GetForegroundWindow().ToInt64())
-Start-Sleep -Seconds 180
+[System.Windows.Forms.Application]::DoEvents()
+[System.IO.File]::WriteAllText($ReadyFile + '.phase', 'form-shown')
+$form.Activate()
+$form.BringToFront()
+[System.IO.File]::WriteAllText($ReadyFile + '.phase', 'activated')
+for ($attempt = 0; $attempt -lt 20; $attempt++) {
+  [System.Windows.Forms.Application]::DoEvents()
+  if ([OttoFocus.Native]::GetForegroundWindow() -eq $form.Handle) { break }
+  Start-Sleep -Milliseconds 100
+}
+[System.IO.File]::WriteAllText($ReadyFile, ("handle={0} foreground={1}" -f $form.Handle.ToInt64(), [OttoFocus.Native]::GetForegroundWindow().ToInt64()))
+$expires = (Get-Date).AddSeconds(180)
+while ((Get-Date) -lt $expires -and -not $form.IsDisposed) {
+  [System.Windows.Forms.Application]::DoEvents()
+  Start-Sleep -Milliseconds 50
+}
+$form.Close()
 `;
 let focusHolder = null;
 
@@ -101,16 +117,42 @@ function foregroundWindow() {
 
 async function takeForeground() {
   const script = join(temp, 'focus-holder.ps1');
+  const ready = join(temp, 'focus-holder.ready');
   writeFileSync(script, focusHolderScript);
-  focusHolder = spawn(shell, ['-NoProfile', '-NonInteractive', '-File', script], {
+  focusHolder = spawn(focusShell, ['-NoProfile', '-NonInteractive', '-Sta', '-ExecutionPolicy', 'Bypass', '-File', script, '-ReadyFile', ready], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
+  let error = null;
   focusHolder.stdout.on('data', (chunk) => {
-    output += String(chunk);
+    output = (output + String(chunk)).slice(-2000);
   });
-  focusHolder.stderr.on('data', () => {});
-  const match = await until('focus holder window', () => /handle=(\d+) foreground=(\d+)/.exec(output));
+  focusHolder.stderr.on('data', (chunk) => {
+    output = (output + String(chunk)).slice(-2000);
+  });
+  focusHolder.on('error', (cause) => {
+    error = cause;
+  });
+
+  const deadline = Date.now() + 20000;
+  let match = null;
+  while (Date.now() < deadline) {
+    if (existsSync(ready)) {
+      match = /handle=(\d+) foreground=(\d+)/.exec(readFileSync(ready, 'utf8'));
+      if (match) break;
+    }
+    if (error || focusHolder.exitCode !== null) break;
+    await new Promise((done) => setTimeout(done, 100));
+  }
+  if (!match) {
+    throw new Error(
+      'Focus holder failed to initialize: ' +
+      (error?.message ?? ('exit=' + focusHolder.exitCode)) +
+      ', phase=' + (existsSync(ready + '.phase') ? readFileSync(ready + '.phase', 'utf8') : 'not-started') +
+      ', runtime=' + focusShell +
+      (output ? '\nPowerShell: ' + output : ''),
+    );
+  }
   assert.equal(match[2], match[1], 'the focus probe window must own the foreground');
   return match[1];
 }
@@ -287,6 +329,7 @@ try {
     assert.ok(available(name), name + ' must be installed on PATH');
   const existing = runningInstances();
   if (existing.length > 0) throw new Error(startupDiagnosis().trim());
+  assert.equal(existsSync(agentMarker), false, 'Resolve the active Agent run before native E2E');
   await start();
   await p8();
   console.log('PASS: P8 native background continuity and focus hold');
@@ -295,11 +338,28 @@ try {
   process.exitCode = 1;
 } finally {
   releaseForeground();
-  if (session) try { await call('DELETE', endpoint()); } catch {}
-  if (server) {
-    const pid = server.pid;
-    server.kill();
-    if (pid) spawnSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+  if (server && existsSync(gate + '.ready') && existsSync(agentMarker)) {
+    writeFileSync(gate + '.release', 'release');
+    try {
+      await until('owned fixture completion before cleanup', () => !existsSync(agentMarker), 10000);
+    } catch (error) {
+      console.error(String(error));
+      process.exitCode = 1;
+    }
   }
-  rmSync(temp, { recursive: true, force: true });
+  if (server && existsSync(agentMarker)) {
+    console.error('An Agent run is active; preserving owned Otto, driver and fixture profile: ' + temp);
+    process.exitCode = 1;
+    server.unref();
+    server.stdout?.unref?.();
+    server.stderr?.unref?.();
+  } else {
+    if (session) try { await call('DELETE', endpoint()); } catch {}
+    if (server) {
+      const pid = server.pid;
+      server.kill();
+      if (pid) spawnSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+    }
+    rmSync(temp, { recursive: true, force: true });
+  }
 }

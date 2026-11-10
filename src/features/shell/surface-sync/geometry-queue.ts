@@ -1,73 +1,33 @@
-import { setNotchHitRegion, setNotchSurface } from "../../../platform/tauri";
-import type { NotchSurfaceRequest } from "../../../platform/tauri";
-import type { NotchShape } from "../placement";
+import { setNotchRegion, type NotchRegionPx } from "../../../platform/tauri";
 
-type SurfaceQueueItem = {
-  request: NotchSurfaceRequest;
-  isCurrent: () => boolean;
-  apply: (value: Awaited<ReturnType<typeof setNotchSurface>>) => void;
-  report: () => void;
-};
-
-type HitQueueItem = {
-  width: number;
-  height: number;
-  shape: NotchShape;
-  generation: number;
-  isCurrent: () => boolean;
-};
-
-type QueueOperation =
-  | { kind: "surface"; item: SurfaceQueueItem }
-  | { kind: "hit"; item: HitQueueItem };
+type RegionWrite = { region: NotchRegionPx; report: () => void; applied?: () => void };
 
 export function createGeometryQueue() {
-  let pendingSurface: SurfaceQueueItem | null = null;
-  let pendingHit: HitQueueItem | null = null;
-  let generation = 0;
+  let pending: RegionWrite | null = null;
+  let revision = 0;
   let running = false;
   let disposed = false;
-
-  const flushSurface = async (surface: SurfaceQueueItem) => {
-    try {
-      const applied = await setNotchSurface(surface.request);
-      if (!disposed && surface.isCurrent()) surface.apply(applied);
-    } catch {
-      if (!disposed && surface.isCurrent()) surface.report();
-    }
-  };
-
-  const flushHit = async (hit: HitQueueItem) => {
-    if (!isCurrent({ kind: "hit", item: hit })) return;
-    await setNotchHitRegion(hit.width, hit.height, hit.shape);
-  };
-
-  const takeOperation = (): QueueOperation | null => {
-    const surface = pendingSurface;
-    if (surface) {
-      pendingSurface = null;
-      return { kind: "surface", item: surface };
-    }
-    const hit = pendingHit;
-    if (hit) pendingHit = null;
-    return hit ? { kind: "hit", item: hit } : null;
-  };
-
-  const isCurrent = (operation: QueueOperation) => {
-    if (operation.kind === "surface") return operation.item.isCurrent();
-    return operation.item.generation === generation && operation.item.isCurrent();
-  };
+  let generation = 0;
+  let confirmed: string | null = null;
 
   const flush = async () => {
-    if (disposed || running) return;
-    const operation = takeOperation();
-    if (!operation) return;
-    if (!isCurrent(operation)) return void flush();
-
+    if (disposed || running || !pending) return;
+    const next = pending;
+    pending = null;
+    const currentGeneration = generation;
+    const isActive = () => !disposed && currentGeneration === generation;
+    const { sequence: _, ...shape } = next.region;
+    const signature = JSON.stringify(shape);
+    if (next.region.hostRevision !== revision || signature === confirmed) return;
     running = true;
     try {
-      if (operation.kind === "surface") await flushSurface(operation.item);
-      else await flushHit(operation.item);
+      const applied = await setNotchRegion(next.region);
+      if (isActive() && applied) {
+        confirmed = signature;
+        next.applied?.();
+      }
+    } catch {
+      if (isActive()) next.report();
     } finally {
       running = false;
       void flush();
@@ -78,22 +38,22 @@ export function createGeometryQueue() {
     resume() {
       disposed = false;
     },
-    enqueueSurface(item: SurfaceQueueItem) {
+    configure(hostRevision: number) {
+      if (revision === hostRevision) return;
+      revision = hostRevision;
       generation += 1;
-      if (pendingHit && !pendingHit.isCurrent()) pendingHit = null;
-      if (pendingHit) pendingHit.generation = generation;
-      pendingSurface = item;
-      void flush();
+      pending = null;
+      confirmed = null;
     },
-    enqueueHit(width: number, height: number, shape: NotchShape, isCurrent: () => boolean) {
-      pendingHit = { width, height, shape, generation, isCurrent };
+    enqueue(region: NotchRegionPx, report: () => void, applied?: () => void) {
+      pending = { region, report, applied };
       void flush();
     },
     dispose() {
       disposed = true;
       generation += 1;
-      pendingSurface = null;
-      pendingHit = null;
+      pending = null;
+      confirmed = null;
     },
   };
 }

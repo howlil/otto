@@ -3,6 +3,8 @@ import { nativeAvailable, onNotchFocusChanged } from "../../platform/tauri/shell
 import type { Page } from "./preferences";
 import { shouldCollapseOnBlur } from "./surface";
 
+export type SubviewEscapeHandler = (page: Page) => boolean;
+
 export function useShellFocus({
   page,
   expanded,
@@ -10,6 +12,8 @@ export function useShellFocus({
   clickOutside,
   setPage,
   collapse,
+  dismiss,
+  consumeEscape,
 }: {
   page: Page;
   expanded: boolean;
@@ -17,6 +21,8 @@ export function useShellFocus({
   clickOutside: boolean;
   setPage: Dispatch<SetStateAction<Page>>;
   collapse: () => void;
+  dismiss: () => void;
+  consumeEscape?: SubviewEscapeHandler;
 }) {
   const previousPage = useRef<Page>(page);
   const focusPolicy = useRef({ mode, clickOutside });
@@ -60,18 +66,23 @@ export function useShellFocus({
     (event: Pick<KeyboardEvent, "key" | "defaultPrevented" | "preventDefault">) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
+      if (consumeEscape?.(page)) return;
       if (page === "agent-settings") {
         setPage("agent");
+        return;
+      }
+      if (page === "focus-settings") {
+        setPage("focus");
         return;
       }
       if (page === "global-settings") {
         setPage("home");
         return;
       }
-      collapse();
+      dismiss();
       requestAnimationFrame(() => compactButton.current?.focus({ preventScroll: true }));
     },
-    [collapse, page, setPage],
+    [dismiss, page, setPage, consumeEscape],
   );
   useEffect(() => {
     if (!expanded) return;

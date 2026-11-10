@@ -35,8 +35,8 @@ export function useAgentRuntimeActions({
   clearError: () => void;
   setRequestError: (reason: unknown) => void;
 }) {
-  const changingProvider = useRef(false);
-  const changingRuntime = useRef(false);
+  const changing = useRef(false);
+  const isPending = useCallback(() => changing.current, []);
   const [pending, setPending] = useState(false);
   const locked = blocked || pending;
 
@@ -57,46 +57,44 @@ export function useAgentRuntimeActions({
 
   const confirm = useCallback(
     async (nextModel: string | null, nextEffort: string | null) => {
-      if (changingRuntime.current || locked) return false;
-      changingRuntime.current = true;
+      if (changing.current || locked) return;
+      changing.current = true;
       setPending(true);
       try {
         if (provider === "pi" && nativeAvailable) {
           await selectAgentRuntimeOptions(nextModel, nextEffort);
         }
+        setModel(nextModel);
+        setThinkingEffort(nextEffort);
         clearError();
-        return true;
       } catch (reason) {
         setRequestError(reason);
-        return false;
       } finally {
-        changingRuntime.current = false;
+        changing.current = false;
         setPending(false);
       }
     },
-    [clearError, locked, provider, setRequestError],
+    [clearError, locked, provider, setModel, setRequestError, setThinkingEffort],
   );
   const selectModelValue = useCallback(
     async (next: string | null) => {
       const selected = readiness.models.find((option) => option.id === next);
       const effort = selected?.defaultThinkingEffort ?? null;
-      if (!(await confirm(next, effort))) return;
-      setModel(next);
-      setThinkingEffort(effort);
+      await confirm(next, effort);
     },
-    [confirm, readiness.models, setModel, setThinkingEffort],
+    [confirm, readiness.models],
   );
   const selectThinkingEffortValue = useCallback(
     async (next: string | null) => {
-      if (!(await confirm(model ?? readiness.model, next))) return;
-      setThinkingEffort(next);
+      await confirm(model ?? readiness.model, next);
     },
-    [confirm, model, readiness.model, setThinkingEffort],
+    [confirm, model, readiness.model],
   );
   const selectProviderValue = useCallback(
     async (next: AgentProvider) => {
-      if (locked || changingProvider.current || next === provider) return;
-      changingProvider.current = true;
+      if (locked || changing.current || next === provider) return;
+      changing.current = true;
+      setPending(true);
       try {
         if (nativeAvailable) await selectAgentProvider(next);
         setProvider(next);
@@ -106,7 +104,8 @@ export function useAgentRuntimeActions({
       } catch (error) {
         setRequestError(error);
       } finally {
-        changingProvider.current = false;
+        changing.current = false;
+        setPending(false);
       }
     },
     [clearError, locked, provider, setModel, setProvider, setRequestError, setThinkingEffort],
@@ -114,6 +113,7 @@ export function useAgentRuntimeActions({
 
   return {
     pending,
+    isPending,
     locked,
     selectProvider: selectProviderValue,
     selectModel: selectModelValue,

@@ -1,25 +1,36 @@
 import { Icon, Text, VisuallyHidden } from "../../shared/ui";
 
-export function SurfaceError({ message, expanded }: { message: string | null; expanded: boolean }) {
+export function SurfaceError({
+  message,
+  expanded,
+  onRetry,
+}: {
+  message: string | null;
+  expanded: boolean;
+  onRetry?: () => void;
+}) {
   if (!message) return null;
   return (
     <div
-      className={
-        expanded
-          ? "pointer-events-none absolute inset-x-2 bottom-1 z-50 truncate rounded-md bg-otto-surface px-2 py-1 text-center text-otto-text"
-          : "pointer-events-none absolute bottom-1 right-1 z-50 text-otto-text"
-      }
+      className="absolute inset-0 z-50 flex items-center justify-center bg-otto-surface text-otto-text"
       role="alert"
       title={message}
     >
-      {expanded ? (
-        <Text as="span" variant="meta">
-          {message}
-        </Text>
-      ) : (
+      <VisuallyHidden>{message}</VisuallyHidden>
+      <button
+        type="button"
+        className="inline-flex min-h-6 cursor-pointer items-center gap-1 rounded-otto-control px-2"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onRetry?.();
+        }}
+      >
         <Icon name="alert" size={12} />
-      )}
-      {!expanded && <VisuallyHidden>{message}</VisuallyHidden>}
+        <Text as="span" variant="meta">
+          {expanded ? "Retry window" : "Retry"}
+        </Text>
+      </button>
     </div>
   );
 }

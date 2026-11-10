@@ -123,8 +123,10 @@ describe("Notch placement recovery", () => {
       </ShellFrame>,
     );
     const frame = attached.container.querySelector("[data-placement='attached']") as HTMLElement;
-    expect(frame.style.paddingLeft).toBe("12px");
-    expect(frame.style.paddingRight).toBe("12px");
+    expect(frame.style.paddingLeft).toBe("");
+    expect(frame.style.paddingRight).toBe("");
+    expect(attached.container.querySelector(".otto-shoulder-l")?.closest("[data-surface-stage]")).toBeTruthy();
+    expect(attached.container.querySelector(".otto-shoulder-r")?.closest("[data-surface-stage]")).toBeTruthy();
     expect(attached.container.querySelectorAll(".otto-shoulder-l, .otto-shoulder-r").length).toBe(2);
     attached.unmount();
 

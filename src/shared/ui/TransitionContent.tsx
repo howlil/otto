@@ -1,4 +1,6 @@
 import {
+  createContext,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -6,6 +8,12 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+
+const TransitionActivity = createContext(true);
+
+export function useTransitionActive(): boolean {
+  return useContext(TransitionActivity);
+}
 
 type TransitionKind = "page" | "tab" | "compact";
 type Direction = "forward" | "back" | "center";
@@ -33,6 +41,7 @@ export function TransitionContent({
   frameSize?: FrameSize;
   children: ReactNode;
 }) {
+  const active = useTransitionActive();
   const latest = useRef<Frame>({ key: transitionKey, node: children, size: frameSize });
   const [retained, setRetained] = useState<Frame | null>(null);
   const switching = latest.current.key !== transitionKey;
@@ -51,7 +60,7 @@ export function TransitionContent({
     if (!retained) return;
     const timer = window.setTimeout(
       () => setRetained((current) => (current === retained ? null : current)),
-      kind === "compact" ? 280 : kind === "tab" ? 140 : 160,
+      kind === "compact" ? 160 : kind === "tab" ? 140 : 160,
     );
     return () => window.clearTimeout(timer);
   }, [retained, kind]);
@@ -88,12 +97,16 @@ export function TransitionContent({
           inert
           className={`pointer-events-none absolute left-0 top-0 z-10 ${layout} ${exit}`}
           style={frameStyle(outgoing.size)}
+          onAnimationEnd={(event) => {
+            if (event.target !== event.currentTarget) return;
+            setRetained((current) => (current?.key === outgoing.key ? null : current));
+          }}
         >
-          {outgoing.node}
+          <TransitionActivity.Provider value={false}>{outgoing.node}</TransitionActivity.Provider>
         </div>
       )}
       <div key={transitionKey} className={`${layout} ${enter}`} style={frameStyle(frameSize)}>
-        {children}
+        <TransitionActivity.Provider value={active}>{children}</TransitionActivity.Provider>
       </div>
     </div>
   );

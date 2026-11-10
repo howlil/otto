@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Page, Preferences } from "./preferences";
-import { morphDuration } from "./motion";
-import { useShellFocus } from "./useShellFocus";
+import { useShellFocus, type SubviewEscapeHandler } from "./useShellFocus";
 import { useShellHover } from "./useShellHover";
 
-export function useShellInteraction({ prefs }: { prefs: Preferences }) {
+export function useShellInteraction({
+  prefs,
+  consumeEscape,
+}: {
+  prefs: Preferences;
+  consumeEscape?: SubviewEscapeHandler;
+}) {
   const [page, setPage] = useState<Page>("home");
   const [mode, setMode] = useState<"compact" | "preview" | "pinned">("compact");
   const [eventMotion, setEventMotion] = useState("");
-  const [morphing, setMorphing] = useState(false);
-  const morphTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const collapseRef = useRef<() => void>(() => {});
   const expanded = mode !== "compact";
   const pinned = mode === "pinned";
@@ -18,90 +21,72 @@ export function useShellInteraction({ prefs }: { prefs: Preferences }) {
     (typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const isAgent = page === "agent" || page === "agent-settings";
+  const isMusic = page === "music";
 
-  const beginMorph = useCallback(() => {
-    if (reducedMotion) {
-      setMorphing(false);
-      return;
-    }
-    setMorphing(true);
-    if (morphTimer.current) clearTimeout(morphTimer.current);
-    morphTimer.current = setTimeout(() => {
-      morphTimer.current = null;
-      setMorphing(false);
-    }, morphDuration(prefs.motion));
-  }, [prefs.motion, reducedMotion]);
   const requestCollapse = useCallback(() => collapseRef.current(), []);
   const hover = useShellHover({
     prefs,
     expanded,
     pinned,
-    reducedMotion,
-    beginMorph,
     onCollapse: requestCollapse,
     onPreview: () => setMode("preview"),
   });
   const collapse = useCallback(() => {
     hover.clearTimers();
-    beginMorph();
     setMode("compact");
     setPage((current) =>
-      current === "global-settings" ? "home" : current === "agent-settings" ? "agent" : current,
+      current === "global-settings"
+        ? "home"
+        : current === "agent-settings"
+          ? "agent"
+          : current === "focus-settings"
+            ? "focus"
+            : current,
     );
-  }, [beginMorph, hover.clearTimers]);
+  }, [hover.clearTimers]);
   collapseRef.current = collapse;
   const open = useCallback(
     (next: Page, pin = true) => {
       hover.clearTimers();
-      beginMorph();
       setPage(next);
       setMode(pin ? "pinned" : "preview");
     },
-    [beginMorph, hover.clearTimers],
+    [hover.clearTimers],
   );
   const pin = useCallback(() => {
     hover.clearTimers();
     setMode((current) => (current === "preview" ? "pinned" : current));
   }, [hover.clearTimers]);
   const back = useCallback(() => {
-    beginMorph();
     setPage("home");
-  }, [beginMorph]);
+  }, []);
+  const dismiss = useCallback(() => {
+    collapse();
+    hover.suppressUntilLeave();
+  }, [collapse, hover.suppressUntilLeave]);
   const focus = useShellFocus({
     page,
     expanded,
     mode,
     clickOutside: prefs.clickOutside,
+    consumeEscape,
     setPage,
     collapse,
+    dismiss,
   });
-  const navigate = useCallback(
-    (next: Page) => {
-      beginMorph();
-      setPage(next);
-    },
-    [beginMorph],
-  );
-
-  useEffect(
-    () => () => {
-      if (morphTimer.current) clearTimeout(morphTimer.current);
-      morphTimer.current = null;
-    },
-    [],
-  );
+  const navigate = useCallback((next: Page) => setPage(next), []);
 
   return {
     page,
     setPage: navigate,
     expanded,
     pinned,
-    morphing,
     pin,
     eventMotion,
     setEventMotion,
     reducedMotion,
     isAgent,
+    isMusic,
     compactButton: focus.compactButton,
     homeGear: focus.homeGear,
     collapse,

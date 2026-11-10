@@ -5,6 +5,7 @@ import {
   SettingsSection,
   Text,
   TransitionContent,
+  useTransitionActive,
 } from "../../shared/ui";
 import { defaults, type Preferences, type SettingsTab } from "./preferences";
 import { PlacementSettings } from "./PlacementSettings";
@@ -57,6 +58,7 @@ export function GlobalSettings({
   osEventsError: string | null;
   placement: PlacementStatus;
 }) {
+  const active = useTransitionActive();
   const [tab, setTab] = useState<SettingsTab>("appearance");
   const restoreDefaults = () => {
     change(defaults);
@@ -69,14 +71,14 @@ export function GlobalSettings({
   }, []);
   useLayoutEffect(() => {
     const element = root.current;
-    if (!element) return;
+    if (!active || !element) return;
     const measure = () => onMeasured(element.scrollHeight);
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [onMeasured]);
+  }, [active, onMeasured]);
   return (
     <section ref={root} className={`flex min-w-0 flex-col ${motionClass}`}>
       <header className="flex h-[51px] shrink-0 items-center gap-[10px] border-b border-otto-line-soft px-[15px]">

@@ -2,7 +2,7 @@ import { Text } from "../../shared/ui";
 import type { AgentSnapshot } from "../../platform/tauri";
 import { Bars } from "./AgentControls";
 import { agentIsWorking } from "./status";
-import { MessageContent } from "./MessageContent";
+import { DeferredMessageContent } from "./DeferredMessageContent";
 import { CopyAnswerButton } from "./CopyAnswerButton";
 
 export function TranscriptMessages({ snapshot, busy }: { snapshot: AgentSnapshot; busy: boolean }) {
@@ -18,7 +18,7 @@ export function TranscriptMessages({ snapshot, busy }: { snapshot: AgentSnapshot
             </div>
           ) : (
             <div className="min-w-0 w-full break-words text-otto-text-soft-white">
-              <MessageContent text={message.text} />
+              <DeferredMessageContent text={message.text} />
               {!busy && message.text.trim() && (
                 <div className="mt-1 flex items-center gap-[7px]">
                   <CopyAnswerButton value={message.text} label="Copy" />

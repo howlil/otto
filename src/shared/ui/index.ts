@@ -1,5 +1,6 @@
 export { Icon, type IconName } from "./Icon";
 export { Eyes } from "./Eyes";
+export { OttoLogo, OttoLogoProvider, OttoHomeButton } from "./OttoLogo";
 export { IconButton, VisuallyHidden } from "./a11y";
 export { Button } from "./Button";
 export { ActiveIndicatorGroup } from "./ActiveIndicatorGroup";
@@ -19,4 +20,4 @@ export {
 export { StatusMessage, type StatusTone } from "./Status";
 export { Text, type TextVariant } from "./Text";
 export { SettingsSection } from "./SettingsSection";
-export { TransitionContent } from "./TransitionContent";
+export { TransitionContent, useTransitionActive } from "./TransitionContent";

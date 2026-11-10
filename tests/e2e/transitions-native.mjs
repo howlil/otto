@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { runPreflight } from "./preflight.mjs";
+import { createVisualRecorder } from "./visual-capture.mjs";
 
 if (process.platform !== "win32") throw new Error("Native transition E2E requires Windows");
 
@@ -16,6 +17,7 @@ const shell = spawnSync("where.exe", ["pwsh.exe"], { encoding: "utf8" }).status 
   : "powershell.exe";
 let driver;
 let session;
+const visual = createVisualRecorder("transitions");
 
 function available(name) {
   return spawnSync("where.exe", [name], { encoding: "utf8" }).status === 0;
@@ -62,6 +64,10 @@ async function until(label, predicate, timeout = 20000) {
 }
 
 const endpoint = (path = "") => `/session/${session}${path}`;
+
+async function capture(label) {
+  await visual.capture(label, () => call("GET", endpoint("/screenshot")));
+}
 
 async function execute(script) {
   return call("POST", endpoint("/execute/sync"), { script, args: [] });
@@ -113,32 +119,58 @@ async function hoverPreview() {
 
 function assertGeometry(label, frames) {
   assert.ok(frames.length > 8, `${label}: transition produced too few animation samples`);
+  const host = frames[0].window;
   for (const frame of frames) {
+    assert.ok(Math.abs(frame.window.width - host.width) <= 1.5 && Math.abs(frame.window.height - host.height) <= 1.5, `${label}: navigation resized the native host wrapper`);
     assert.ok(frame.stage.width > 0 && frame.stage.height > 0, `${label}: stage became empty`);
     assert.ok(
       frame.stage.width <= frame.window.width + 2 && frame.stage.height <= frame.window.height + 2,
       `${label}: stage exceeded native frame at ${JSON.stringify(frame)}`,
+    );
+    assert.ok(
+      Math.abs(frame.main.width - frame.stage.width) <= 1.5 &&
+        Math.abs(frame.main.height - frame.stage.height) <= 1.5,
+      `${label}: visible surface must track the animated stage at ${JSON.stringify(frame)}`,
+    );
+    assert.ok(
+      frame.windowBackground === "rgba(0, 0, 0, 0)" || frame.windowBackground === "transparent",
+      `${label}: outer window paints an opaque rectangle: ${JSON.stringify(frame)}`,
+    );
+    assert.ok(
+      frame.stageBackground === "rgba(0, 0, 0, 0)" || frame.stageBackground === "transparent",
+      `${label}: animated stage paints an opaque rectangle: ${JSON.stringify(frame)}`,
     );
   }
 }
 
 async function transition(label, selector, expected) {
   await clickTarget(selector);
+  await capture(`${label}-entering`);
   const result = await executeAsync(`
     const done = arguments[arguments.length - 1];
     const started = performance.now();
     const frames = [];
     const sample = (now) => {
-      const stage = document.querySelector('[data-surface-stage]')?.getBoundingClientRect();
-      const frame = document.querySelector('[data-surface-window]')?.getBoundingClientRect();
-      if (stage && frame) {
+      const stageElement = document.querySelector('[data-surface-stage]');
+      const frameElement = document.querySelector('[data-surface-window]');
+      const mainElement = stageElement?.querySelector('main');
+      if (stageElement && frameElement && mainElement) {
+        const stage = stageElement.getBoundingClientRect();
+        const frame = frameElement.getBoundingClientRect();
+        const main = mainElement.getBoundingClientRect();
         frames.push({
           time: Math.round(now - started),
+          scale: window.devicePixelRatio,
+          animating: [stageElement, mainElement].some(element =>
+            element.getAnimations().some(animation => animation.playState === 'running')),
           stage: { left: stage.left, top: stage.top, width: stage.width, height: stage.height },
           window: { left: frame.left, top: frame.top, width: frame.width, height: frame.height },
+          main: { left: main.left, top: main.top, width: main.width, height: main.height },
+          windowBackground: getComputedStyle(frameElement).backgroundColor,
+          stageBackground: getComputedStyle(stageElement).backgroundColor,
         });
       }
-      if (now - started < 1100) requestAnimationFrame(sample);
+      if (now - started < 1100 || (frames.at(-1)?.animating && now - started < 5000)) requestAnimationFrame(sample);
       else done({
         frames,
         expected: Boolean(${expected}),
@@ -158,6 +190,23 @@ async function transition(label, selector, expected) {
     `${label}: expected state did not settle; frames=${result.frames.length}; state=${JSON.stringify(result.state)}`,
   );
   assertGeometry(label, result.frames);
+  const settled = result.frames.at(-1);
+  assert.equal(settled.animating, false, `${label}: geometry did not settle before pixel alignment was checked`);
+  for (const name of ["stage", "main"]) {
+    const rect = settled[name];
+    for (const edge of [rect.left, rect.top, rect.left + rect.width, rect.top + rect.height]) {
+      const physical = edge * settled.scale;
+      assert.ok(
+        Number.isFinite(physical) && Math.abs(physical - Math.round(physical)) < 0.05,
+        `${label}: settled ${name} edge is off the physical pixel grid at scale ${settled.scale}: ${JSON.stringify(rect)}`,
+      );
+    }
+  }
+  const gaps = result.frames.slice(1).map((frame, index) => frame.time - result.frames[index].time);
+  const sorted = gaps.toSorted((a, b) => a - b);
+  const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1] ?? 0;
+  console.log(`MOTION ${label}: frames=${result.frames.length}, p95_gap=${p95}ms, max_gap=${sorted.at(-1) ?? 0}ms`);
+  await capture(`${label}-settled`);
   return result.frames;
 }
 
@@ -168,6 +217,7 @@ async function start() {
     assert.ok(available(name), `${name} must be installed on PATH`);
   }
   assert.equal(runningInstances().length, 0, "Close the existing Otto instance before native E2E");
+  assert.equal(existsSync(join(process.env.LOCALAPPDATA, "site.howlil.otto/agent-active.marker")), false, "Resolve the active Agent run before native E2E");
   driver = spawn("tauri-driver", ["--port", String(port), "--native-port", String(port + 1)], {
     windowsHide: true,
     stdio: "ignore",
@@ -192,7 +242,54 @@ async function start() {
   );
   session = created.sessionId;
   assert.ok(session, "Missing WebDriver session");
+  await until("Otto document ready before preferences", () => execute('return Boolean(document.querySelector("button[aria-expanded=\\"false\\"]"));'));
+  await execute(`
+    const key = 'otto.preferences.v1';
+    const preferences = JSON.parse(localStorage.getItem(key) || '{}');
+    localStorage.setItem(key, JSON.stringify({ ...preferences, clickOutside: false }));
+  `);
+  await call("POST", endpoint("/refresh"), {});
   await until("compact Home", () => execute('return Boolean(document.querySelector("button[aria-expanded=\\"false\\"]"));'));
+}
+
+async function nativeInteractionAudit() {
+  const processProbe = spawnSync(shell, ["-NoProfile", "-NonInteractive", "-Command", "(Get-Process otto -ErrorAction Stop).Id"], { encoding: "utf8", windowsHide: true });
+  assert.equal(processProbe.status, 0, "cannot identify the controller-owned Otto process");
+  const processId = processProbe.stdout.trim();
+  assert.match(processId, /^\d+$/, "native probe requires exactly one Otto process");
+  const keepToggle = 'Array.from(document.querySelectorAll("label")).find(label => label.textContent.includes("Keep expanded when switching apps"))';
+  for (const [placement, keepExpanded] of [["floating", true], ["attached", true], ["attached", false], ["floating", false]]) {
+    if (await execute('return Boolean(document.querySelector(\'button[aria-expanded="false"]\'));')) {
+      await clickTarget('document.querySelector(\'button[aria-expanded="false"]\')');
+    }
+    await clickTarget('Array.from(document.querySelectorAll("button")).find(button => button.textContent.includes("Open Otto settings"))');
+    await clickTarget('document.querySelector(\'button[data-active-key="interaction"]\')');
+    await until("Keep Expanded control", () => execute(`return Boolean((${keepToggle})?.querySelector("input"));`));
+    if (await execute(`return (${keepToggle}).querySelector("input").checked;`) !== keepExpanded) {
+      await clickTarget(keepToggle);
+    }
+    await until("Keep Expanded saved from UI", () => execute(`
+      return (${keepToggle}).querySelector("input").checked === ${keepExpanded}
+        && JSON.parse(localStorage.getItem("otto.preferences.v1")).clickOutside === ${!keepExpanded};
+    `));
+    await clickTarget('document.querySelector(\'button[data-active-key="placement"]\')');
+    await until("placement control", () => execute(`return Boolean(document.querySelector('button[data-active-key="${placement}"]:not([disabled])'));`));
+    await clickTarget(`document.querySelector('button[data-active-key="${placement}"]')`);
+    await until("native placement reflected", () => execute(`return document.querySelector('[data-placement="${placement}"]') && document.querySelector('button[data-active-key="${placement}"][aria-pressed="true"]');`));
+    await clickTarget('Array.from(document.querySelectorAll("button")).find(button => button.textContent.includes("Back to Home"))');
+    await clickTarget('document.querySelector(\'button[aria-expanded="true"]\')');
+    await until("Compact before native handoff", () => execute('return Boolean(document.querySelector(\'button[aria-expanded="false"]\'));'));
+    const probe = spawnSync("powershell.exe", [
+      "-NoProfile", "-Sta", "-ExecutionPolicy", "Bypass", "-File", join(root, "tests/e2e/shell-native.ps1"),
+      "-App", app, "-TargetProcessId", processId, "-SkipCapture", "-ExpectPlacement", placement,
+      ...(keepExpanded ? ["-KeepExpanded"] : []),
+    ], { encoding: "utf8", windowsHide: true, timeout: 120000 });
+    assert.equal(probe.status, 0, `${placement} Keep Expanded=${keepExpanded}: ${probe.error?.message ?? ""}\n${probe.stdout}\n${probe.stderr}`);
+    const report = JSON.parse(probe.stdout.slice(0, probe.stdout.indexOf("PASS: shell native probe")).trim());
+    assert.equal(report.geometry.nativeClicksReceivedUnderneath, 8, "all native corner clicks must reach the window beneath Otto");
+    assert.equal(report.startup.launchedByProbe, false, "the native handoff must not launch another Otto");
+    console.log(`NATIVE ${placement} Keep Expanded=${keepExpanded}: dpi=${report.dpi.value}, blurHeld=${report.focus.outsideClickHeldPinned}, blurCollapsed=${report.focus.outsideClickCollapsedPinned}, Escape=${report.escape.collapsed}, cornerClicks=${report.geometry.nativeClicksReceivedUnderneath}/8`);
+  }
 }
 
 async function audit() {
@@ -207,7 +304,7 @@ async function audit() {
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Back to Home"))',
   );
-  for (const tab of ["interaction", "system", "placement", "appearance"]) {
+  for (const tab of ["interaction", "system", "appearance", "placement"]) {
     await transition(
       `Global Settings ${tab} tab`,
       `document.querySelector('button[data-active-key="${tab}"]')`,
@@ -261,25 +358,97 @@ async function audit() {
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Return to Home"))',
     'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
   );
+  await transition(
+    "Home to Focus",
+    'Array.from(document.querySelectorAll("button")).find((button) => button.querySelector("strong")?.textContent?.trim() === "Focus")',
+    '(() => { const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect(); return Boolean(document.querySelector("[data-surface=\\"focus\\"]")) && Math.round(stage?.width ?? 0) === 408 && Math.round(stage?.height ?? 0) === 174; })()',
+  );
+  const focusAppearance = await execute(`
+    const focus = document.querySelector('[data-surface="focus"]');
+    const countdown = focus.querySelector('p.tabular-nums');
+    const phase = focus.querySelector('button[aria-pressed="true"]');
+    return {
+      homeEyes: Boolean(focus.querySelector('button [data-otto-logo] [data-expression]')),
+      headerHeight: focus.querySelector('header').getBoundingClientRect().height,
+      countdownSize: getComputedStyle(countdown).fontSize,
+      phaseSize: getComputedStyle(phase).fontSize,
+    };
+  `);
+  assert.equal(focusAppearance.homeEyes, true, "Focus Home must render Otto eyes");
+  assert.equal(focusAppearance.headerHeight, 42, "Focus header must match the canonical height");
+  assert.equal(focusAppearance.countdownSize, "39px", "Focus countdown must retain its display scale");
+  assert.equal(focusAppearance.phaseSize, "10px", "Global button inheritance must not override Focus typography");
+  await clickTarget(
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Start timer"))',
+  );
+  await until("Focus running", () =>
+    execute('return Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Pause timer"));'),
+  );
+  await clickTarget(
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Pause timer"))',
+  );
+  await until("Focus paused", () =>
+    execute('return Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Resume timer"));'),
+  );
+  await clickTarget(
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Short")',
+  );
+  await until("Focus phase confirmation", () =>
+    execute('return document.querySelector("[role=dialog]")?.textContent?.includes("Switch to Short break?") ?? false;'),
+  );
+  await clickTarget(
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Switch phase")',
+  );
+  await until("Short break ready", () =>
+    execute('return Array.from(document.querySelectorAll("button[aria-pressed=\\"true\\"]")).some((button) => button.textContent?.trim() === "Short");'),
+  );
+  await transition(
+    "Focus to Focus Settings",
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Edit durations"))',
+    '(() => { const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect(); return document.body.innerText.includes("Focus presets") && Math.round(stage?.width ?? 0) === 408 && Math.round(stage?.height ?? 0) === 328; })()',
+  );
+  const presetSize = await execute(`
+    const preset = Array.from(document.querySelectorAll('button')).find(button => button.textContent?.trim() === '15m');
+    return getComputedStyle(preset).fontSize;
+  `);
+  assert.equal(presetSize, "10px", "Focus presets must retain canonical typography in WebView2");
+  await transition(
+    "Focus Settings to Focus",
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Done")',
+    'Boolean(document.querySelector("[data-surface=\\"focus\\"]")) && Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Edit durations"))',
+  );
+  await transition(
+    "Focus to Home",
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Back to Home"))',
+    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
+  );
 }
 
 try {
   await start();
   await audit();
+  await nativeInteractionAudit();
   console.log("PASS: native transition matrix");
 } catch (error) {
   console.error("FAIL: native transition matrix", error);
   process.exitCode = 1;
 } finally {
-  if (session) {
-    try {
-      await call("DELETE", endpoint());
-    } catch {}
+  if (driver && existsSync(join(process.env.LOCALAPPDATA, "site.howlil.otto/agent-active.marker"))) {
+    console.error("An Agent run is active; preserving the owned Otto, driver and test profile");
+    process.exitCode = 1;
+    driver.unref();
+  } else {
+    if (session) {
+      try {
+        await call("DELETE", endpoint());
+      } catch {}
+    }
+    if (driver) {
+      const pid = driver.pid;
+      driver.kill();
+      if (pid) spawnSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
+    }
+    rmSync(profile, { recursive: true, force: true });
   }
-  if (driver) {
-    const pid = driver.pid;
-    driver.kill();
-    if (pid) spawnSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
-  }
-  rmSync(profile, { recursive: true, force: true });
+  if (visual.enabled) console.log(`Private WebDriver snapshots: ${visual.directory}`);
 }

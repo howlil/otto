@@ -1,13 +1,19 @@
-import { AgentCapsule, AgentPanel } from "./features/agent";
+import { AgentPanel } from "./features/agent";
 import type { useAgent } from "./features/agent";
+import { FocusPanel } from "./features/focus";
+import type { FocusTimerModel } from "./features/focus";
 import { HomeSurface } from "./features/home";
-import { OsEventCapsule } from "./features/os-events";
+import { MusicPanel } from "./features/music";
+import type { useMusic } from "./features/music";
 import { GlobalSettings } from "./features/shell";
 import type { AppUpdateState, useNotchShell } from "./features/shell";
 import type { OsEventView } from "./platform/tauri";
-import { Eyes, VisuallyHidden } from "./shared/ui";
+import { Eyes, OttoLogo, VisuallyHidden } from "./shared/ui";
+import { ShellCompactSurface } from "./ShellCompactSurface";
 
 type AgentModel = ReturnType<typeof useAgent>;
+type MusicModel = ReturnType<typeof useMusic>;
+type FocusModel = FocusTimerModel;
 type ShellModel = ReturnType<typeof useNotchShell>;
 
 export function CompactEyesButton({
@@ -27,7 +33,7 @@ export function CompactEyesButton({
   return (
     <button
       ref={buttonRef}
-      className={`group absolute top-0 z-[4] grid place-items-center border-0 bg-transparent p-0 text-inherit ${reducedMotion ? "" : "transition-[left,top,width,height,transform] ease-otto"} ${settled ? "left-4 top-3 h-[34px] w-[34px] translate-x-0" : "left-1/2 h-[42px] w-[92px] -translate-x-1/2"}`}
+      className={`group absolute top-0 z-[4] grid place-items-center border-0 bg-transparent p-0 text-inherit ${reducedMotion ? "" : "transition-[left,top,translate,width,height] ease-otto"} ${settled ? "left-4 top-3 h-[34px] w-[34px] translate-x-0" : "left-1/2 h-[42px] w-[92px] -translate-x-1/2"}`}
       style={reducedMotion ? undefined : { transitionDuration: "var(--otto-morph-duration)" }}
       type="button"
       aria-expanded={expanded}
@@ -36,12 +42,7 @@ export function CompactEyesButton({
       onClick={onToggle}
     >
       {settled ? (
-        <span
-          className="grid h-[34px] w-[34px] place-items-center rounded-otto-panel bg-otto-raised-soft text-otto-control-text transition-[background,transform] duration-[190ms] ease-otto group-hover:bg-otto-line-mid group-active:scale-[0.96]"
-          data-otto-logo="true"
-        >
-          <Eyes expression={prefs.expression} reactive={prefs.reactive} compact />
-        </span>
+        <OttoLogo expression={prefs.expression} reactive={prefs.reactive} />
       ) : (
         <Eyes expression={prefs.expression} reactive={prefs.reactive} compact />
       )}
@@ -52,8 +53,11 @@ export function CompactEyesButton({
 
 export function SurfaceBody({
   agent,
+  music,
+  focus,
   shell,
   agentHomeCopy,
+  musicHomeCopy,
   artProps,
   appUpdate,
   onContentMeasured,
@@ -61,8 +65,11 @@ export function SurfaceBody({
   osEvent,
 }: {
   agent: AgentModel;
+  music: MusicModel;
+  focus: FocusModel;
   shell: ShellModel;
   agentHomeCopy: string;
+  musicHomeCopy: string;
   artProps: { tilt: number; gradient: number };
   appUpdate: {
     state: AppUpdateState;
@@ -73,29 +80,30 @@ export function SurfaceBody({
   nudgeMotion: string;
   osEvent: OsEventView | null;
 }) {
-  const { expanded, isAgent, page } = shell;
+  const { expanded, isMusic, page } = shell;
   if (!expanded) {
-    if (osEvent) return <OsEventCapsule event={osEvent} />;
-    return isAgent ? (
-      <AgentCapsule
-        snapshot={agent.snapshot}
-        installed={agent.installed}
-        readiness={agent.readiness}
-        error={agent.error}
-        buttonRef={shell.compactButton}
-        onOpen={() => shell.open("agent")}
-        motionClass={nudgeMotion}
+    return (
+      <ShellCompactSurface
+        agent={agent}
+        music={music}
+        focus={focus}
+        shell={shell}
+        nudgeMotion={nudgeMotion}
+        osEvent={osEvent}
       />
-    ) : null;
+    );
   }
   if (page === "home") {
     return (
       <HomeSurface
         homeGear={shell.homeGear}
         agentSubtitle={agentHomeCopy}
+        musicSubtitle={musicHomeCopy}
         artProps={artProps}
         onOpenSettings={() => shell.open("global-settings")}
         onOpenAgent={() => shell.open("agent")}
+        onOpenMusic={() => shell.open("music")}
+        onOpenFocus={() => shell.open("focus")}
         motionClass={nudgeMotion}
       />
     );
@@ -117,6 +125,20 @@ export function SurfaceBody({
         osEventsError={shell.osEventsError}
         placement={shell.placement}
         motionClass={nudgeMotion}
+      />
+    );
+  }
+  if (isMusic) {
+    return <MusicPanel music={music} onBack={() => shell.open("home")} motionClass={nudgeMotion} />;
+  }
+  if (page === "focus" || page === "focus-settings") {
+    return (
+      <FocusPanel
+        focus={focus}
+        settings={page === "focus-settings"}
+        onSettings={() => shell.open("focus-settings")}
+        onSettingsBack={() => shell.setPage("focus")}
+        onHome={() => shell.open("home")}
       />
     );
   }

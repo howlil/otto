@@ -4,6 +4,7 @@ import { resolveSurface, shouldCollapseOnBlur } from "../src/features/shell/surf
 const request = {
   expanded: false,
   isAgent: false,
+  isMusic: false,
   page: "home",
   agentSurface: "agentFull",
   osEvent: false,
@@ -16,6 +17,21 @@ describe("Otto shell surface ownership", () => {
 
   test("Agent compact uses its own capsule instead of Home eyes", () => {
     expect(resolveSurface({ ...request, page: "agent", isAgent: true })).toBe("agentCompact");
+  });
+
+  test("Music owns its compact and player geometry without changing Home focus", () => {
+    expect(resolveSurface({ ...request, page: "music", isMusic: true })).toBe("musicCompact");
+    expect(
+      resolveSurface({ ...request, expanded: true, page: "music", isMusic: true }),
+    ).toBe("musicPlayer");
+  });
+
+  test("Focus owns compact, timer, and settings native surfaces", () => {
+    expect(resolveSurface({ ...request, page: "focus" })).toBe("focusCompact");
+    expect(resolveSurface({ ...request, expanded: true, page: "focus" })).toBe("focus");
+    expect(resolveSurface({ ...request, expanded: true, page: "focus-settings" })).toBe(
+      "focusSettings",
+    );
   });
 
   test("a transient OS event replaces the compact capsule, never an expanded surface", () => {

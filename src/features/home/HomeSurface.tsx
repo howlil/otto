@@ -13,16 +13,22 @@ type ArtProps = {
 export function HomeSurface({
   homeGear,
   agentSubtitle,
+  musicSubtitle,
   artProps,
   onOpenSettings,
   onOpenAgent,
+  onOpenMusic,
+  onOpenFocus,
   motionClass = "",
 }: {
   homeGear: RefObject<HTMLButtonElement | null>;
   agentSubtitle: string;
+  musicSubtitle: string;
   artProps: ArtProps;
   onOpenSettings: () => void;
   onOpenAgent: () => void;
+  onOpenMusic: () => void;
+  onOpenFocus: () => void;
   motionClass?: string;
 }) {
   return (
@@ -48,19 +54,19 @@ export function HomeSurface({
         />
         <HomeCard
           name="Music"
-          subtitle="Coming soon"
-          disabled
+          subtitle={musicSubtitle}
           artwork={musicArt}
           {...artProps}
           entryMotion="motion-safe:animate-otto-home-choice-2 motion-reduce:animate-none"
+          onClick={onOpenMusic}
         />
         <HomeCard
           name="Focus"
-          subtitle="Coming soon"
-          disabled
+          subtitle="Pomodoro"
           artwork={focusArt}
           {...artProps}
           entryMotion="motion-safe:animate-otto-home-choice-3 motion-reduce:animate-none"
+          onClick={onOpenFocus}
         />
       </main>
     </section>
