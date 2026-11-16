@@ -1,26 +1,18 @@
-use super::AGENT_NAME;
 use serde_json::Value;
 
-pub(super) fn safe_init(frame: &Value) -> Result<String, String> {
-    if frame["event"] != "init" || frame["init"]["agent"] != AGENT_NAME {
-        return Err("Agy did not confirm Otto's tool-free agent profile.".into());
+pub(super) fn safe_initialize(result: &Value) -> Result<bool, String> {
+    if result.get("protocolVersion").is_none() || result["agentCapabilities"].is_null() {
+        return Err("Agy ACP server did not confirm protocol capabilities.".into());
     }
-    let Some(tools) = frame["init"]["tools"].as_array() else {
-        return Err("Agy did not disclose its available tools.".into());
-    };
-    if frame["init"]["permission_mode"] != "strict" {
-        return Err("Agy did not confirm Otto's isolated permission policy.".into());
-    }
-    if !tools.is_empty() {
-        return Err(
-            "This Agy version still advertises executable tools for Otto's chat profile.".into(),
-        );
-    }
-    frame["conversation_id"]
+    Ok(result["agentCapabilities"]["promptCapabilities"]["image"] == true)
+}
+
+pub(super) fn safe_session(result: &Value) -> Result<String, String> {
+    result["sessionId"]
         .as_str()
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
-        .ok_or_else(|| "Agy did not return a conversation identity.".into())
+        .ok_or_else(|| "Agy did not return a session identity.".into())
 }
 
 #[cfg(test)]
@@ -29,16 +21,27 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn omitted_null_or_wrong_identity_cannot_admit_a_session() {
-        let mut frame = json!({"event":"init","conversation_id":"session-1","init":{"tools":[],"permission_mode":"strict"}});
-        assert!(safe_init(&frame).is_err());
-        frame["init"]["agent"] = Value::Null;
-        assert!(safe_init(&frame).is_err());
-        frame["init"]["agent"] = json!("default");
-        assert!(safe_init(&frame).is_err());
-        frame["init"]["agent"] = json!(AGENT_NAME);
-        assert_eq!(safe_init(&frame).unwrap(), "session-1");
-        frame["init"]["tools"] = json!(["run_command"]);
-        assert!(safe_init(&frame).is_err());
+    fn acp_handshake_requires_protocol_capabilities_and_session_id() {
+        assert!(safe_initialize(&json!({})).is_err());
+        assert!(
+            safe_initialize(&json!({
+                "protocolVersion": 1,
+                "agentCapabilities": { "promptCapabilities": { "image": true } }
+            }))
+            .unwrap()
+        );
+        assert!(
+            !safe_initialize(&json!({
+                "protocolVersion": 1,
+                "agentCapabilities": { "promptCapabilities": { "image": false } }
+            }))
+            .unwrap()
+        );
+        assert!(safe_session(&json!({})).is_err());
+        assert!(safe_session(&json!({ "sessionId": "" })).is_err());
+        assert_eq!(
+            safe_session(&json!({ "sessionId": "session-1" })).unwrap(),
+            "session-1"
+        );
     }
 }
