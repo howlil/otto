@@ -47,6 +47,7 @@ const readyReadiness = {
 };
 
 let selections: Array<[string | null, string | null]> = [];
+let readinessCalls: Array<{ provider: string; model: string | null }> = [];
 let runs: Array<{ text: string; provider: string; model: string | null; effort: string | null }> =
   [];
 let selectionError: string | null = null;
@@ -75,11 +76,14 @@ mock.module("../src/platform/tauri", () => ({
     pushSnapshot = onSnapshot;
     return { channel: { onmessage: null }, unsubscribe: async () => {} };
   },
-  getAgentReadiness: async (_provider: string, _requestId: number, model: string | null) => ({
-    ...providerReadiness,
-    model: model ?? providerReadiness.model,
-    thinkingEffort: model === "model-b" ? "low" : providerReadiness.thinkingEffort,
-  }),
+  getAgentReadiness: async (provider: string, _requestId: number, model: string | null) => {
+    readinessCalls.push({ provider, model });
+    return {
+      ...providerReadiness,
+      model: model ?? providerReadiness.model,
+      thinkingEffort: model === "model-b" ? "low" : providerReadiness.thinkingEffort,
+    };
+  },
   cancelAgentReadiness: async () => {},
   selectAgentProvider: () => changeProvider(),
   selectAgentRuntimeOptions: async (model: string | null, effort: string | null) => {
@@ -337,5 +341,29 @@ describe("Agent runtime selection reaches the next run", () => {
     });
     expect(selections).toEqual([]);
     expect(hook.result.current.model).toBe(before);
+  });
+
+  test("switching provider resets stale model before readiness probes run", async () => {
+    const hook = await mount();
+    await awaitReady(hook);
+    expect(hook.result.current.model).toBe("model-a");
+    readinessCalls = [];
+    await act(async () => {
+      await hook.result.current.setProvider("agy");
+    });
+    await awaitReady(hook);
+    expect(readinessCalls).toEqual([{ provider: "agy", model: null }]);
+    readSnapshot = async () => ({
+      ...idle,
+      provider: "codex",
+      model: null,
+      thinkingEffort: null,
+      seq: 99,
+    });
+    await act(async () => {
+      await hook.result.current.retryConnection();
+    });
+    expect(hook.result.current.provider).toBe("codex");
+    expect(hook.result.current.model).toBeNull();
   });
 });
