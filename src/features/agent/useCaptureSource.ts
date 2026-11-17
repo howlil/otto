@@ -7,7 +7,9 @@ import {
 
 function savedCaptureSource(): CaptureSource {
   try {
-    return localStorage.getItem("otto.capture.source") === "fullScreen" ? "fullScreen" : "window";
+    const saved = localStorage.getItem("otto.capture.source");
+    if (saved === "fullScreen" || saved === "scrollingWindow") return saved;
+    return "window";
   } catch {
     return "window";
   }

@@ -1,3 +1,4 @@
+use super::capture_scroll::{RgbaFrame, ScrollLimits, capture_scrolling_frames, stitch_frames};
 use crate::agent::{CapturedImage, capture_context};
 use std::{
     fs::{self, OpenOptions},
@@ -39,6 +40,7 @@ use windows_sys::Win32::{
 const HOTKEY_ID: i32 = 0x4f54;
 const MAX_EDGE: i32 = 8192;
 const MAX_PIXELS: u64 = 24_000_000;
+const PW_RENDERFULLCONTENT: u32 = 2;
 const CAPTURE_FILE_PREFIX: &str = "otto-capture-";
 const ORPHAN_CAPTURE_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 const MAX_ORPHAN_REMOVALS: usize = 128;
@@ -181,7 +183,7 @@ pub fn capture_target_title() -> Result<String, String> {
     Ok(String::from_utf16_lossy(&buffer[..copied as usize]))
 }
 
-fn capture_foreground(target: WindowTarget) -> Result<CapturedImage, String> {
+fn window_bounds(target: WindowTarget) -> Result<(HWND, RECT), String> {
     let hwnd = target.handle as HWND;
     if !valid_capture_window(hwnd) || !target.matches(hwnd as isize, window_pid(hwnd)) {
         return Err("Capture target changed before capture. Focus it and retry.".into());
@@ -190,7 +192,39 @@ fn capture_foreground(target: WindowTarget) -> Result<CapturedImage, String> {
     if unsafe { GetWindowRect(hwnd, &mut rect) } == 0 {
         return Err("Cannot read the target window bounds.".into());
     }
-    capture_image(hwnd, rect.right - rect.left, rect.bottom - rect.top, None)
+    Ok((hwnd, rect))
+}
+
+fn capture_foreground(target: WindowTarget) -> Result<CapturedImage, String> {
+    let (hwnd, rect) = window_bounds(target)?;
+    let frame = capture_rgba(hwnd, rect.right - rect.left, rect.bottom - rect.top, None)?;
+    write_png_capture(&frame)
+}
+
+fn capture_scrolling(target: WindowTarget) -> Result<CapturedImage, String> {
+    let (hwnd, rect) = window_bounds(target)?;
+    let frames = capture_scrolling_frames(
+        hwnd,
+        rect,
+        std::process::id(),
+        ScrollLimits {
+            max_height: MAX_EDGE as usize,
+            max_pixels: MAX_PIXELS as usize,
+        },
+        window_pid,
+        || valid_capture_window(hwnd) && target.matches(hwnd as isize, window_pid(hwnd)),
+        || {
+            let (current_hwnd, current_rect) = window_bounds(target)?;
+            capture_rgba(
+                current_hwnd,
+                current_rect.right - current_rect.left,
+                current_rect.bottom - current_rect.top,
+                None,
+            )
+        },
+    )?;
+    let stitched = stitch_frames(&frames, MAX_EDGE as usize, MAX_PIXELS as usize)?;
+    write_png_capture(&stitched)
 }
 
 fn capture_full_screen() -> Result<CapturedImage, String> {
@@ -198,15 +232,16 @@ fn capture_full_screen() -> Result<CapturedImage, String> {
     let y = unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) };
     let width = unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) };
     let height = unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) };
-    capture_image(std::ptr::null_mut(), width, height, Some((x, y)))
+    let frame = capture_rgba(std::ptr::null_mut(), width, height, Some((x, y)))?;
+    write_png_capture(&frame)
 }
 
-fn capture_image(
+fn capture_rgba(
     hwnd: HWND,
     width: i32,
     height: i32,
     screen_origin: Option<(i32, i32)>,
-) -> Result<CapturedImage, String> {
+) -> Result<RgbaFrame, String> {
     if !(1..=MAX_EDGE).contains(&width)
         || !(1..=MAX_EDGE).contains(&height)
         || (width as u64) * (height as u64) > MAX_PIXELS
@@ -258,7 +293,12 @@ fn capture_image(
             )
         }
     } else {
-        unsafe { PrintWindow(hwnd, capture.memory, 0) }
+        let rendered = unsafe { PrintWindow(hwnd, capture.memory, PW_RENDERFULLCONTENT) };
+        if rendered != 0 {
+            rendered
+        } else {
+            unsafe { PrintWindow(hwnd, capture.memory, 0) }
+        }
     };
     if copied == 0 {
         return Err("The requested screen image could not be captured.".into());
@@ -295,6 +335,24 @@ fn capture_image(
         pixel.swap(0, 2);
         pixel[3] = 255;
     }
+    Ok(RgbaFrame {
+        width: width as usize,
+        height: height as usize,
+        pixels,
+    })
+}
+
+fn write_png_capture(frame: &RgbaFrame) -> Result<CapturedImage, String> {
+    let width = i32::try_from(frame.width)
+        .map_err(|_| "Capture size exceeds the supported image limit.".to_string())?;
+    let height = i32::try_from(frame.height)
+        .map_err(|_| "Capture size exceeds the supported image limit.".to_string())?;
+    if !(1..=MAX_EDGE).contains(&width)
+        || !(1..=MAX_EDGE).contains(&height)
+        || (width as u64) * (height as u64) > MAX_PIXELS
+    {
+        return Err("Capture size exceeds the supported image limit.".into());
+    }
     let nonce = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_err(|_| "Cannot create a unique capture file.")?
@@ -313,7 +371,7 @@ fn capture_image(
     png.set_color(png::ColorType::Rgba);
     png.set_depth(png::BitDepth::Eight);
     png.write_header()
-        .and_then(|mut writer| writer.write_image_data(&pixels))
+        .and_then(|mut writer| writer.write_image_data(&frame.pixels))
         .map_err(|_| "Cannot encode the capture.")?;
     Ok(image)
 }
@@ -429,6 +487,7 @@ fn parse_shortcut(value: &str) -> Result<Shortcut, String> {
 enum CaptureSource {
     Window,
     FullScreen,
+    ScrollingWindow,
 }
 
 impl CaptureSource {
@@ -436,6 +495,7 @@ impl CaptureSource {
         match value {
             "window" => Ok(Self::Window),
             "fullScreen" => Ok(Self::FullScreen),
+            "scrollingWindow" => Ok(Self::ScrollingWindow),
             _ => Err("Unknown capture source.".into()),
         }
     }
@@ -452,6 +512,7 @@ enum HotkeyChange {
 enum CaptureIntent {
     Window(WindowTarget),
     FullScreen,
+    ScrollingWindow(WindowTarget),
 }
 
 pub struct CaptureHotkeys {
@@ -512,10 +573,11 @@ fn capture_intent(
     find_window: impl FnOnce() -> Result<WindowTarget, String>,
 ) -> Result<CaptureIntent, String> {
     match source {
-        CaptureSource::Window if !hook_available => {
+        CaptureSource::Window | CaptureSource::ScrollingWindow if !hook_available => {
             Err("Window focus tracking is unavailable.".to_string())
         }
         CaptureSource::Window => find_window().map(CaptureIntent::Window),
+        CaptureSource::ScrollingWindow => find_window().map(CaptureIntent::ScrollingWindow),
         CaptureSource::FullScreen => Ok(CaptureIntent::FullScreen),
     }
 }
@@ -528,6 +590,7 @@ fn dispatch_capture(
     let intent = capture_intent(source, hook_available, select_capture_target)?;
     capture_context::dispatch(app, move || match intent {
         CaptureIntent::Window(window) => capture_foreground(window),
+        CaptureIntent::ScrollingWindow(window) => capture_scrolling(window),
         CaptureIntent::FullScreen => capture_full_screen(),
     })
 }
@@ -741,6 +804,21 @@ mod tests {
         let selected = capture_intent(CaptureSource::Window, true, || Ok(target)).unwrap();
         assert!(matches!(selected, CaptureIntent::Window(actual) if actual == target));
 
+        let scrolling =
+            capture_intent(CaptureSource::ScrollingWindow, true, || Ok(target)).unwrap();
+        assert!(matches!(
+            scrolling,
+            CaptureIntent::ScrollingWindow(actual) if actual == target
+        ));
+
+        let scrolling_no_hook = capture_intent(CaptureSource::ScrollingWindow, false, || {
+            panic!("No window lookup is allowed when foreground tracking is unavailable")
+        });
+        assert_eq!(
+            scrolling_no_hook.err().expect("missing hook must fail"),
+            "Window focus tracking is unavailable."
+        );
+
         let full_screen = capture_intent(CaptureSource::FullScreen, false, || {
             panic!("Full-screen capture must not require a window target or foreground hook")
         });
@@ -769,6 +847,10 @@ mod tests {
         assert_eq!(
             CaptureSource::parse("fullScreen").unwrap(),
             CaptureSource::FullScreen
+        );
+        assert_eq!(
+            CaptureSource::parse("scrollingWindow").unwrap(),
+            CaptureSource::ScrollingWindow
         );
         assert!(CaptureSource::parse("screen").is_err());
         assert!(CaptureSource::parse("").is_err());

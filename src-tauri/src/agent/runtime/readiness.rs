@@ -172,7 +172,7 @@ impl AgentRuntime {
             }
         });
         let reservation = Arc::new(_reservation);
-        let image = capture_with_deadline(&reservation, Duration::from_secs(8), capture).await?;
+        let image = capture_with_deadline(&reservation, Duration::from_secs(12), capture).await?;
         mutate(&self.updates, |state| {
             if state.capture.request_id == request_id {
                 state.capture.phase = "submitting".into();

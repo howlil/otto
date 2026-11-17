@@ -10,7 +10,7 @@ export type AgentStatus =
   | "failed";
 
 export type AgentProvider = "codex" | "pi" | "agy" | "opencode";
-export type CaptureSource = "window" | "fullScreen";
+export type CaptureSource = "window" | "fullScreen" | "scrollingWindow";
 export type CapturePhase =
   | "idle"
   | "preparing"

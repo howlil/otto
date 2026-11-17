@@ -21,6 +21,7 @@ function CaptureSourceField({
         choices={[
           { value: "window", label: "Last focused window" },
           { value: "fullScreen", label: "Full screen" },
+          { value: "scrollingWindow", label: "Scrolling window" },
         ]}
         onChange={(next) => void selectSource(next)}
         disabled={disabled}
@@ -63,7 +64,7 @@ export function AgentCaptureSettings({
   }, [focusCaptureShortcut, available]);
 
   useEffect(() => {
-    if (source === "window" && sourceReady) void refreshTarget();
+    if (source !== "fullScreen" && sourceReady) void refreshTarget();
   }, [source, sourceReady, refreshTarget]);
 
   return (
@@ -120,7 +121,7 @@ export function AgentCaptureSettings({
           Capture source is not confirmed. Retry before using the shortcut.
         </StatusMessage>
       )}
-      {source === "window" && sourceReady && (
+      {source !== "fullScreen" && sourceReady && (
         <div className="mt-2 flex items-center gap-2">
           <Text
             as="span"

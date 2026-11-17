@@ -7,6 +7,7 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 const MAX_CAPTURE_BYTES: u64 = 24 * 1024 * 1024;
 const MAX_CAPTURE_EDGE: u32 = 1920;
+const MAX_SCROLL_CAPTURE_HEIGHT: u32 = 8192;
 const MAX_ENCODED_CAPTURE_BYTES: usize = 4 * 1024 * 1024;
 const PNG_MAGIC: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
@@ -34,7 +35,10 @@ fn png_is_within_edge(bytes: &[u8]) -> Result<bool, String> {
     let reader = decoder
         .read_info()
         .map_err(|_| "Captured image is not a valid supported PNG.".to_string())?;
-    Ok(reader.info().width <= MAX_CAPTURE_EDGE && reader.info().height <= MAX_CAPTURE_EDGE)
+    Ok(
+        reader.info().width <= MAX_CAPTURE_EDGE
+            && reader.info().height <= MAX_SCROLL_CAPTURE_HEIGHT,
+    )
 }
 
 fn normalize_png_capture(bytes: &[u8]) -> Result<Vec<u8>, String> {
@@ -54,7 +58,9 @@ fn normalize_png_capture(bytes: &[u8]) -> Result<Vec<u8>, String> {
         .next_frame(&mut decoded)
         .map_err(|_| "Captured image could not be decoded.".to_string())?;
     let source = &decoded[..frame.buffer_size()];
-    let mut scale = (MAX_CAPTURE_EDGE as f64 / frame.width.max(frame.height) as f64).min(1.0);
+    let width_scale = MAX_CAPTURE_EDGE as f64 / frame.width as f64;
+    let height_scale = MAX_SCROLL_CAPTURE_HEIGHT as f64 / frame.height as f64;
+    let mut scale = width_scale.min(height_scale).min(1.0);
     for _ in 0..6 {
         let width = (frame.width as f64 * scale).round().max(1.0) as u32;
         let height = (frame.height as f64 * scale).round().max(1.0) as u32;
@@ -211,6 +217,31 @@ mod tests {
             read_bounded_line(&mut invalid, 1).await,
             Err(BoundedLineError::InvalidUtf8)
         );
+    }
+
+    #[test]
+    fn encode_png_capture_preserves_tall_scrolling_resolution() {
+        let path =
+            std::env::temp_dir().join(format!("otto-tall-capture-{}.png", std::process::id()));
+        let width = 800_u32;
+        let height = 3000_u32;
+        let pixels = vec![120_u8; width as usize * height as usize * 4];
+        let file = std::fs::File::create(&path).unwrap();
+        let mut encoder = png::Encoder::new(file, width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+        writer.write_image_data(&pixels).unwrap();
+        drop(writer);
+
+        let encoded = encode_png_capture(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        let decoded_png = STANDARD.decode(encoded).unwrap();
+        let reader = png::Decoder::new(Cursor::new(decoded_png))
+            .read_info()
+            .unwrap();
+        assert_eq!(reader.info().width, 800);
+        assert_eq!(reader.info().height, 3000);
     }
 }
 

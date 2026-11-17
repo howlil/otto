@@ -1,4 +1,5 @@
 pub mod capture;
+mod capture_scroll;
 pub mod media;
 mod media_artwork;
 pub mod observers;
