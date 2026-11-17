@@ -1723,26 +1723,28 @@ mod tests {
 
     #[cfg(windows)]
     #[tokio::test]
-    async fn agy_text_only_headless_input_blocks_capture_before_first_chat() {
+    async fn opencode_text_only_chat_blocks_capture_before_first_chat() {
         let runtime = AgentRuntime::new();
         runtime
-            .select_provider("agy".into())
+            .select_provider("opencode".into())
             .await
-            .expect("Agy selection");
-        assert_eq!(runtime.snapshot().provider, "agy");
+            .expect("OpenCode selection");
+        assert_eq!(runtime.snapshot().provider, "opencode");
         let (request_id, reservation) = runtime.begin_capture().expect("capture starts");
         let capture = runtime
             .capture_hotkey(
                 request_id,
                 reservation,
                 || -> Result<CapturedImage, String> {
-                    panic!("The capture closure must never execute for unsupported Agy images");
+                    panic!(
+                        "The capture closure must never execute for unsupported OpenCode images"
+                    );
                 },
             )
             .await;
         assert_eq!(
             capture.unwrap_err(),
-            "Agy headless streaming accepts text only. Select Codex or Pi."
+            "OpenCode chat accepts text only. Select Codex, Pi, or Agy for screenshots."
         );
         assert!(runtime.snapshot().messages.is_empty());
     }

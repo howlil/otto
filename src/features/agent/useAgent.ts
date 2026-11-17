@@ -39,6 +39,17 @@ export function useAgent(readinessActive: boolean) {
     setDraft(value);
   }, []);
   const [provider, setProvider] = useState<AgentProvider>("codex");
+  const providerRef = useRef<AgentProvider>(provider);
+  const updateProvider = useCallback(
+    (next: AgentProvider | ((current: AgentProvider) => AgentProvider)) => {
+      setProvider((current) => {
+        const resolved = typeof next === "function" ? next(current) : next;
+        providerRef.current = resolved;
+        return resolved;
+      });
+    },
+    [],
+  );
   const [model, setModelValue] = useState<string | null>(null);
   const [thinkingEffort, setThinkingEffortValue] = useState<string | null>(null);
   const activeRun = ["starting", "streaming", "stopping"].includes(snapshot.status);
@@ -55,9 +66,13 @@ export function useAgent(readinessActive: boolean) {
   const acceptSnapshot = useCallback(
     (next: AgentSnapshot) => {
       if (!receive(next)) return;
+      const switchedProvider = next.provider !== providerRef.current;
+      providerRef.current = next.provider;
       setProvider(next.provider);
-      setModelValue((current) => next.model ?? current);
-      setThinkingEffortValue((current) => next.thinkingEffort ?? current);
+      setModelValue((current) => (switchedProvider ? next.model : (next.model ?? current)));
+      setThinkingEffortValue((current) =>
+        switchedProvider ? next.thinkingEffort : (next.thinkingEffort ?? current),
+      );
     },
     [receive],
   );
@@ -74,7 +89,7 @@ export function useAgent(readinessActive: boolean) {
     model,
     readiness,
     blocked: activeRun || submissionPending || captureBusy,
-    setProvider,
+    setProvider: updateProvider,
     setModel: setModelValue,
     setThinkingEffort: setThinkingEffortValue,
     clearError: connection.clearError,

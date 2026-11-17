@@ -56,7 +56,8 @@ function CaptureSettings({
       )}
       {!readiness.imageTransport && (
         <StatusMessage tone="info">
-          Screenshots are not supported by this provider. Choose Codex or a vision-capable Pi model.
+          Screenshots are not supported by this provider. Choose Codex, Agy, or a vision-capable Pi
+          model.
         </StatusMessage>
       )}
       {readiness.imageTransport && readiness.status === "ready" && !readiness.imageInput && (

@@ -26,7 +26,13 @@ export function useProviderReadiness(
   model: string | null,
   active: boolean,
 ) {
-  const [readiness, setReadiness] = useState<ProviderReadiness>(checking);
+  const activeProvider = useRef(provider);
+  activeProvider.current = provider;
+  const [state, setState] = useState<{ provider: AgentProvider; readiness: ProviderReadiness }>({
+    provider,
+    readiness: checking,
+  });
+  const readiness = state.provider === provider ? state.readiness : checking;
   const controller = useRef<ReadinessProbeController | null>(null);
 
   useEffect(() => {
@@ -49,7 +55,7 @@ export function useProviderReadiness(
           : Promise.resolve(unavailable),
       cancel: (requestId) =>
         nativeAvailable ? cancelAgentReadiness(requestId) : Promise.resolve(),
-      publish: setReadiness,
+      publish: (next) => setState({ provider: activeProvider.current, readiness: next }),
       checking,
       failed,
     });

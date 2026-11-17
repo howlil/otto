@@ -23,7 +23,7 @@ impl ProviderId {
                 completed_followup_without_probe: false,
             },
             Self::Agy => RuntimeCapabilities {
-                image_transport: false,
+                image_transport: true,
                 pending_model_selection: false,
                 completed_followup_without_probe: true,
             },
@@ -69,11 +69,10 @@ impl ProviderId {
 
     pub(in crate::agent) fn capture_unavailable_reason(self) -> Option<&'static str> {
         match self {
-            Self::Agy => Some("Agy headless streaming accepts text only. Select Codex or Pi."),
             Self::Opencode => {
-                Some("OpenCode chat accepts text only. Select Codex or Pi for screenshots.")
+                Some("OpenCode chat accepts text only. Select Codex, Pi, or Agy for screenshots.")
             }
-            Self::Codex | Self::Pi => None,
+            Self::Codex | Self::Pi | Self::Agy => None,
         }
     }
 
@@ -205,7 +204,7 @@ mod tests {
             assert_eq!(ProviderId::parse(id).unwrap().as_str(), id);
             assert!(ProviderId::parse(id).unwrap().validate(false).is_ok());
         }
-        assert!(ProviderId::Agy.validate(true).is_err());
+        assert!(ProviderId::Agy.validate(true).is_ok());
         assert!(ProviderId::Opencode.validate(true).is_err());
         assert!(
             !ProviderId::Opencode
@@ -225,13 +224,10 @@ mod tests {
         assert!(!codex.pending_model_selection);
         assert!(pi.image_transport);
         assert!(pi.pending_model_selection);
-        assert!(!agy.image_transport);
+        assert!(agy.image_transport);
         assert!(agy.completed_followup_without_probe);
         assert!(!pi.completed_followup_without_probe);
-        assert_eq!(
-            ProviderId::Agy.capture_unavailable_reason(),
-            Some("Agy headless streaming accepts text only. Select Codex or Pi.")
-        );
+        assert_eq!(ProviderId::Agy.capture_unavailable_reason(), None);
         assert_eq!(ProviderId::Pi.capture_unavailable_reason(), None);
     }
 

@@ -1,33 +1,29 @@
 use super::authentication_required;
 mod admission;
 
-use super::job::Job;
 use super::transport::JsonlProcess;
+use super::{BoundedLineError, read_bounded_line};
 use crate::agent::events::{AgentEvent, ProviderEvents};
 #[cfg(test)]
-use crate::agent::{CaptureSnapshot, ChatMessage, Snapshot};
-use crate::agent::{Control, ModelOption, ProviderReadiness, RunPhase, UsageSnapshot};
-use admission::safe_init;
+use crate::agent::{CaptureSnapshot, Snapshot};
+use crate::agent::{
+    CapturedImage, Control, ModelOption, ProviderReadiness, RunPhase, UsageSnapshot,
+};
+use admission::{admit_session, safe_launch_args, safe_session_update};
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
-    process::Stdio,
     sync::atomic::Ordering,
     time::Duration,
 };
 #[cfg(test)]
 use tokio::sync::watch;
-use tokio::{
-    io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt},
-    process::Command,
-    sync::mpsc,
-    time::timeout,
-};
+use tokio::{io::AsyncReadExt, sync::mpsc, time::timeout};
 
 const AGENT_NAME: &str = "otto-chat";
 const AGENT_DEFINITION: &str = "---\nname: otto-chat\ndescription: Tool-free text answers from Otto.\nmainAgent: true\nsubagent: false\ntools: []\ncommandExecutionPolicy: \"off\"\ninheritMcp: false\ninheritCustomizations: false\n---\nAnswer the user's question without executing tools or modifying any files.\n";
-const SAFE_SETTINGS: &str = r#"{"toolPermission":"strict","permissions":{"deny":["command(*)","write_file(*)","read_file(*)","read_url(*)","execute_url(*)","mcp(*)"]}}"#;
-const MODEL_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(30);
+const MAX_ACP_FRAME_BYTES: usize = 8 * 1024 * 1024;
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(20);
 const TURN_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 
 pub fn executable() -> Option<PathBuf> {
@@ -90,51 +86,40 @@ fn ensure_profile() -> Result<(), String> {
     install_safe_agent(Path::new(&home))
 }
 
-fn launch_args(model: Option<&str>, thinking_effort: Option<&str>) -> Vec<String> {
-    let mut args = vec![
-        "--input-format",
-        "stream-json",
-        "--output-format",
-        "stream-json",
-        "--disable-slash-commands",
+fn acp_launch_args() -> Vec<String> {
+    [
+        "acp",
+        "--stdio",
         "--agent",
         AGENT_NAME,
-        "--settings",
-        SAFE_SETTINGS,
+        "--include-default-customizations=false",
+        "--dangerously-skip-permissions=false",
+        "--sandbox",
     ]
     .into_iter()
     .map(str::to_owned)
-    .collect::<Vec<_>>();
-    if let Some(model) = model.filter(|value| !value.is_empty()) {
-        args.extend(["--model".into(), model.into()]);
-    }
-    if let Some(effort) = thinking_effort.filter(|value| !value.is_empty()) {
-        args.extend(["--effort".into(), effort.into()]);
-    }
-    args
+    .collect()
 }
 
-struct Rpc {
+struct AcpClient {
     process: JsonlProcess,
-    partial_frame: Vec<u8>,
+    launch_args: Vec<String>,
+    next_id: u64,
     stderr_task: tokio::task::JoinHandle<String>,
 }
 
-impl Rpc {
-    fn launch_with_options(
-        cwd: &Path,
-        model: Option<&str>,
-        thinking_effort: Option<&str>,
-    ) -> Result<Self, String> {
+impl AcpClient {
+    fn launch(cwd: &Path) -> Result<Self, String> {
         let binary = executable().ok_or("Agy CLI was not found in PATH.")?;
-        let args = launch_args(model, thinking_effort);
+        let args = acp_launch_args();
+        safe_launch_args(&args)?;
         let (process, stderr) = JsonlProcess::launch(
             "Agy",
             &binary,
-            args,
+            args.clone(),
             cwd,
             true,
-            "Cannot start isolated Agy stream-json mode.",
+            "Cannot start Agy ACP mode.",
         )?;
         let mut stderr = stderr.ok_or("Agy stderr unavailable.")?;
         let stderr_task = tokio::spawn(async move {
@@ -153,14 +138,24 @@ impl Rpc {
         });
         Ok(Self {
             process,
-            partial_frame: Vec::new(),
+            launch_args: args,
+            next_id: 0,
             stderr_task,
         })
     }
 
-    async fn read(&mut self) -> Result<Value, String> {
-        match read_frame(self.process.reader(), &mut self.partial_frame).await? {
-            Some(frame) => Ok(frame),
+    async fn read_frame(&mut self) -> Result<Value, String> {
+        let line = read_bounded_line(self.process.reader(), MAX_ACP_FRAME_BYTES)
+            .await
+            .map_err(|error| match error {
+                BoundedLineError::TooLarge => "Agy message exceeded the supported limit.",
+                BoundedLineError::InvalidUtf8 => "Agy emitted invalid text.",
+                BoundedLineError::Read => "Agy stream failed.",
+            })?;
+        match line {
+            Some(text) => {
+                serde_json::from_str(&text).map_err(|_| "Agy emitted invalid JSON-RPC.".into())
+            }
             None => {
                 let diagnostics = timeout(Duration::from_millis(250), &mut self.stderr_task)
                     .await
@@ -172,20 +167,73 @@ impl Rpc {
     }
 
     async fn read_turn(&mut self) -> Result<Value, String> {
-        timeout(TURN_IDLE_TIMEOUT, self.read())
+        timeout(TURN_IDLE_TIMEOUT, self.read_frame())
             .await
             .map_err(|_| "Agy stopped responding during the answer.".to_string())?
     }
 
-    async fn send(&mut self, prompt: &str) -> Result<(), String> {
-        let message = serde_json::to_vec(&json!({
-            "event": "user",
-            "message": { "content": prompt }
+    async fn send_request(&mut self, method: &str, params: Value) -> Result<u64, String> {
+        self.next_id += 1;
+        let id = self.next_id;
+        let payload = serde_json::to_vec(&json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": params
         }))
-        .map_err(|_| "Cannot serialize an Agy question.")?;
+        .map_err(|_| "Cannot serialize an Agy ACP request.")?;
         self.process
-            .send_line(message, "Agy input disconnected.")
+            .send_line(payload, "Agy input disconnected.")
+            .await?;
+        Ok(id)
+    }
+
+    async fn send_notification(&mut self, method: &str, params: Value) -> Result<(), String> {
+        let payload = serde_json::to_vec(&json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params
+        }))
+        .map_err(|_| "Cannot serialize an Agy ACP notification.")?;
+        self.process
+            .send_line(payload, "Agy input disconnected.")
             .await
+    }
+
+    async fn request(
+        &mut self,
+        method: &str,
+        params: Value,
+        duration: Duration,
+    ) -> Result<(Value, Option<i64>), String> {
+        let id = self.send_request(method, params).await?;
+        let mut context_window = None;
+        timeout(duration, async {
+            loop {
+                let frame = self.read_frame().await?;
+                if is_incoming_request(&frame) {
+                    return Err("Agy attempted an unsupported tool permission request.".into());
+                }
+                if frame["method"] == "session/update" {
+                    let update = &frame["params"]["update"];
+                    safe_session_update(update)?;
+                    if update["sessionUpdate"] == "usage_update"
+                        && let Some(size) = update["size"].as_i64().filter(|value| *value > 0)
+                    {
+                        context_window = Some(size);
+                    }
+                    continue;
+                }
+                if frame["id"] == id {
+                    if let Some(error) = frame.get("error") {
+                        return Err(rpc_error_message(error).into());
+                    }
+                    return Ok((frame["result"].clone(), context_window));
+                }
+            }
+        })
+        .await
+        .map_err(|_| "Agy initialization timed out.".to_string())?
     }
 
     async fn terminate(&mut self) {
@@ -193,197 +241,48 @@ impl Rpc {
     }
 }
 
-async fn read_frame<R: AsyncBufRead + Unpin>(
-    reader: &mut R,
-    frame: &mut Vec<u8>,
-) -> Result<Option<Value>, String> {
-    loop {
-        let chunk = reader.fill_buf().await.map_err(|_| "Agy stream failed.")?;
-        if chunk.is_empty() {
-            if frame.is_empty() {
-                return Ok(None);
-            }
-            break;
-        }
-        let newline = chunk.iter().position(|byte| *byte == b'\n');
-        let payload_len = newline.unwrap_or(chunk.len());
-        if frame.len().saturating_add(payload_len) > 1_000_000 {
-            return Err("Agy message exceeded the supported limit.".into());
-        }
-        frame.extend_from_slice(&chunk[..payload_len]);
-        reader.consume(payload_len + usize::from(newline.is_some()));
-        if newline.is_some() {
-            break;
-        }
-    }
-    let parsed = serde_json::from_slice(frame)
-        .map(Some)
-        .map_err(|_| "Agy emitted invalid stream-json.".into());
-    frame.clear();
-    parsed
+fn is_incoming_request(frame: &Value) -> bool {
+    frame.get("method").is_some_and(Value::is_string) && frame.get("id").is_some()
 }
 
-fn model_discovery_args() -> &'static [&'static str] {
-    &["--output-format", "json", "models"]
+fn rpc_error_message(error: &Value) -> &'static str {
+    let detail = error["message"]
+        .as_str()
+        .or_else(|| error.as_str())
+        .unwrap_or_default();
+    result_failure_message(Some(detail))
 }
 
-fn model_catalog(value: &Value) -> Vec<ModelOption> {
-    value
-        .pointer("/command/data/models")
-        .or_else(|| value.get("models"))
-        .or_else(|| value.as_array().map(|_| value))
+fn model_catalog(
+    session_result: &Value,
+    image_input: bool,
+    context_window: Option<i64>,
+) -> Vec<ModelOption> {
+    session_result
+        .pointer("/models/availableModels")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .filter_map(|model| {
-            let id = model["id"].as_str().filter(|value| !value.is_empty())?;
-            let display_name = model["label"]
+            let id = model["modelId"]
                 .as_str()
+                .or_else(|| model["id"].as_str())
+                .filter(|value| !value.is_empty())?;
+            let display_name = model["name"]
+                .as_str()
+                .or_else(|| model["label"].as_str())
                 .filter(|value| !value.is_empty())
                 .unwrap_or(id);
             Some(ModelOption {
                 id: id.to_owned(),
                 display_name: display_name.to_owned(),
-                context_window: None,
-                image_input: false,
+                context_window,
+                image_input,
                 thinking_efforts: Vec::new(),
                 default_thinking_effort: None,
             })
         })
         .collect()
-}
-
-fn available_models(value: &Value) -> bool {
-    if value
-        .get("status")
-        .and_then(Value::as_str)
-        .is_some_and(|status| status != "SUCCESS")
-    {
-        return false;
-    }
-    !model_catalog(value).is_empty()
-}
-
-fn model_discovery_failure(stdout: &[u8], stderr: &[u8]) -> ProviderReadiness {
-    let detail = format!(
-        "{} {}",
-        String::from_utf8_lossy(stdout),
-        String::from_utf8_lossy(stderr)
-    )
-    .to_ascii_lowercase();
-    if authentication_required(&detail) {
-        ProviderReadiness::new(
-            "authRequired",
-            "Agy authentication is required.",
-            "Sign in to Agy, then Retry.",
-        )
-    } else {
-        ProviderReadiness::new(
-            "unavailable",
-            "Agy model discovery failed.",
-            "Run agy --output-format json models in PowerShell, then Retry.",
-        )
-    }
-}
-
-pub async fn readiness(cwd: &PathBuf, selected_model: Option<&str>) -> ProviderReadiness {
-    let Some(binary) = executable() else {
-        return ProviderReadiness::new(
-            "missing",
-            "Agy CLI was not found.",
-            "Install Agy, then Retry.",
-        );
-    };
-    if let Err(reason) = ensure_profile() {
-        return ProviderReadiness::new("unsupported", &reason, "Review Agy setup, then Retry.");
-    }
-    let mut command = Command::new(binary);
-    command
-        .args(model_discovery_args())
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-    let models = match Job::probe(command, MODEL_DISCOVERY_TIMEOUT).await {
-        Ok(output) if output.status.success() => {
-            let parsed = serde_json::from_slice::<Value>(&output.stdout).ok();
-            if parsed
-                .as_ref()
-                .is_some_and(|value| value["status"] == "ERROR")
-            {
-                return model_discovery_failure(&output.stdout, &output.stderr);
-            }
-            if !parsed.as_ref().is_some_and(available_models) {
-                return ProviderReadiness::new(
-                    "unsupported",
-                    "Agy models could not be confirmed.",
-                    "Update Agy and choose a text model, then Retry.",
-                );
-            }
-            parsed
-                .as_ref()
-                .map(model_catalog)
-                .filter(|models| !models.is_empty())
-                .unwrap_or_default()
-        }
-        Ok(output) => {
-            return model_discovery_failure(&output.stdout, &output.stderr);
-        }
-        _ => {
-            return ProviderReadiness::new(
-                "unavailable",
-                "Agy model verification timed out or failed.",
-                "Check the Agy installation, then Retry.",
-            );
-        }
-    };
-    if let Some(model) = selected_model
-        && !models.iter().any(|candidate| candidate.id == model)
-    {
-        return ProviderReadiness::new(
-            "unsupported",
-            "Agy selected model is not available.",
-            "Choose a model from the current Agy catalog, then Retry.",
-        );
-    }
-    let Ok(mut rpc) = Rpc::launch_with_options(cwd, selected_model, None) else {
-        return ProviderReadiness::new("unavailable", "Agy cannot start.", "Update Agy and Retry.");
-    };
-    let response = timeout(Duration::from_secs(20), rpc.read()).await;
-    let verified = match response {
-        Ok(Ok(frame)) => safe_init(&frame),
-        Ok(Err(reason)) => Err(reason),
-        Err(_) => Err("Agy initialization timed out.".into()),
-    };
-    rpc.terminate().await;
-    match verified {
-        Ok(_) => {
-            let mut readiness = ProviderReadiness::new(
-                "ready",
-                "Agy CLI is initialized; model access is verified on the first answer.",
-                "",
-            );
-            readiness.tool_free_admission = true;
-            readiness.model = selected_model
-                .map(str::to_owned)
-                .or_else(|| models.first().map(|model| model.id.clone()));
-            readiness.models = models;
-            readiness
-        }
-        Err(reason) if reason.starts_with("Agy authentication expired.") => ProviderReadiness::new(
-            "authRequired",
-            "Agy needs authentication.",
-            "Sign in to Agy, then Retry.",
-        ),
-        Err(reason) if reason.starts_with("Agy disconnected.") || reason.contains("timed out") => {
-            ProviderReadiness::new("unavailable", &reason, "Check Agy and Retry.")
-        }
-        Err(reason) => ProviderReadiness::new(
-            "unsupported",
-            &reason,
-            "Use Pi, Codex, or OpenCode for chat until Agy can confirm a tool-free session; updating Agy may restore compatibility.",
-        ),
-    }
 }
 
 fn disconnect_message(error: Option<&str>) -> &'static str {
@@ -415,21 +314,141 @@ fn result_failure_message(error: Option<&str>) -> &'static str {
     }
 }
 
-fn usage_snapshot(value: &Value) -> Option<UsageSnapshot> {
-    let tokens = |name: &str| value[name].as_i64().filter(|count| *count >= 0);
+pub async fn readiness(cwd: &Path, selected_model: Option<&str>) -> ProviderReadiness {
+    if executable().is_none() {
+        return ProviderReadiness::new(
+            "missing",
+            "Agy CLI was not found.",
+            "Install Agy, then Retry.",
+        );
+    }
+    if let Err(reason) = ensure_profile() {
+        return ProviderReadiness::new("unsupported", &reason, "Review Agy setup, then Retry.");
+    }
+    let Ok(mut client) = AcpClient::launch(cwd) else {
+        return ProviderReadiness::new("unavailable", "Agy cannot start.", "Update Agy and Retry.");
+    };
+    let probe = async {
+        let (init_result, _) = client
+            .request(
+                "initialize",
+                json!({ "protocolVersion": 1, "clientCapabilities": {} }),
+                STARTUP_TIMEOUT,
+            )
+            .await?;
+        let (session_result, context_window) = client
+            .request(
+                "session/new",
+                json!({ "cwd": cwd.to_string_lossy(), "mcpServers": [] }),
+                STARTUP_TIMEOUT,
+            )
+            .await?;
+        let admitted = admit_session(&client.launch_args, &init_result, &session_result)?;
+        let models = model_catalog(&session_result, admitted.image_input, context_window);
+        if models.is_empty() {
+            return Ok::<_, String>(ProviderReadiness::new(
+                "unsupported",
+                "Agy models could not be confirmed.",
+                "Update Agy and choose a text model, then Retry.",
+            ));
+        }
+        if let Some(model) = selected_model
+            && !models.iter().any(|candidate| candidate.id == model)
+        {
+            let mut readiness = ProviderReadiness::new(
+                "unsupported",
+                "Agy selected model is not available.",
+                "Choose a model from the current Agy catalog, then Retry.",
+            );
+            readiness.models = models;
+            return Ok(readiness);
+        }
+        if let Some(model) = selected_model {
+            client
+                .request(
+                    "session/set_model",
+                    json!({ "sessionId": admitted.session_id, "modelId": model }),
+                    STARTUP_TIMEOUT,
+                )
+                .await?;
+        }
+        let default_model = session_result
+            .pointer("/models/currentModelId")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty() && models.iter().any(|m| m.id == *value))
+            .map(str::to_owned);
+        let mut readiness = ProviderReadiness::new(
+            "ready",
+            "Agy CLI is initialized; model access is verified on the first answer.",
+            "",
+        );
+        readiness.tool_free_admission = true;
+        readiness.image_input = admitted.image_input;
+        readiness.model = selected_model
+            .map(str::to_owned)
+            .or(default_model)
+            .or_else(|| models.first().map(|model| model.id.clone()));
+        readiness.models = models;
+        Ok(readiness)
+    }
+    .await;
+    client.terminate().await;
+    match probe {
+        Ok(readiness) => readiness,
+        Err(reason) if reason.starts_with("Agy authentication expired.") => ProviderReadiness::new(
+            "authRequired",
+            "Agy needs authentication.",
+            "Sign in to Agy, then Retry.",
+        ),
+        Err(reason) if reason.starts_with("Agy disconnected.") || reason.contains("timed out") => {
+            ProviderReadiness::new("unavailable", &reason, "Check Agy and Retry.")
+        }
+        Err(reason) => ProviderReadiness::new(
+            "unsupported",
+            &reason,
+            "Use Codex or Pi if Agy ACP cannot start; updating Agy may restore compatibility.",
+        ),
+    }
+}
+
+fn usage_snapshot(
+    usage: &Value,
+    context_tokens: Option<i64>,
+    model_context_window: Option<i64>,
+) -> Option<UsageSnapshot> {
+    let tokens = |name: &str| usage[name].as_i64().filter(|count| *count >= 0);
     Some(UsageSnapshot {
-        context_tokens: None,
-        session_tokens: tokens("total_tokens")?,
-        input_tokens: tokens("input_tokens")?,
-        cached_input_tokens: tokens("cache_read_tokens")?,
-        output_tokens: tokens("output_tokens")?,
-        reasoning_output_tokens: tokens("thinking_tokens"),
-        model_context_window: None,
+        context_tokens,
+        session_tokens: tokens("totalTokens")?,
+        input_tokens: tokens("inputTokens")?,
+        cached_input_tokens: tokens("cachedReadTokens").unwrap_or(0),
+        output_tokens: tokens("outputTokens")?,
+        reasoning_output_tokens: tokens("thoughtTokens"),
+        model_context_window,
     })
 }
 
-fn result_confirms_prompt(frame: &Value) -> bool {
-    frame["event"] == "result" && frame["result"]["status"] == "SUCCESS"
+async fn prompt_params(
+    session_id: &str,
+    text: &str,
+    capture: Option<&CapturedImage>,
+) -> Result<Value, String> {
+    let mut blocks = vec![json!({ "type": "text", "text": text })];
+    if let Some(image) = capture {
+        let path = image.path().to_owned();
+        let encoded = tokio::task::spawn_blocking(move || super::encode_png_capture(&path))
+            .await
+            .map_err(|_| "Image preparation was interrupted.".to_string())??;
+        blocks.push(json!({
+            "type": "image",
+            "data": encoded,
+            "mimeType": "image/png"
+        }));
+    }
+    Ok(json!({
+        "sessionId": session_id,
+        "prompt": blocks
+    }))
 }
 
 fn begin(events: &ProviderEvents, id: u64, display_text: &str) {
@@ -439,55 +458,122 @@ fn begin(events: &ProviderEvents, id: u64, display_text: &str) {
     });
 }
 
-fn observe(frame: &Value, id: u64, events: &ProviderEvents) -> bool {
+struct TurnState<'a> {
+    run_id: u64,
+    prompt_id: u64,
+    display_text: &'a str,
+    acknowledged: bool,
+    accumulated: String,
+    context_tokens: Option<i64>,
+    model_context_window: Option<i64>,
+}
+
+impl<'a> TurnState<'a> {
+    fn new(
+        run_id: u64,
+        prompt_id: u64,
+        display_text: &'a str,
+        model_context_window: Option<i64>,
+    ) -> Self {
+        Self {
+            run_id,
+            prompt_id,
+            display_text,
+            acknowledged: false,
+            accumulated: String::new(),
+            context_tokens: None,
+            model_context_window,
+        }
+    }
+
+    fn ensure_started(&mut self, events: &ProviderEvents) {
+        if !self.acknowledged {
+            self.acknowledged = true;
+            begin(events, self.run_id, self.display_text);
+        }
+    }
+}
+
+fn observe_acp(frame: &Value, turn: &mut TurnState<'_>, events: &ProviderEvents) -> bool {
     let snapshot = events.snapshot();
-    if snapshot.run_id != id || !matches!(snapshot.status, RunPhase::Starting | RunPhase::Streaming)
+    if snapshot.run_id != turn.run_id
+        || !matches!(snapshot.status, RunPhase::Starting | RunPhase::Streaming)
     {
         return false;
     }
-    if frame["event"] == "step_update" {
-        let step = &frame["step_update"];
-        if step["step_type"] == "tool" {
-            events.fail(id, "Agy attempted an unsupported tool action.");
+    if is_incoming_request(frame) {
+        events.fail(
+            turn.run_id,
+            "Agy attempted an unsupported tool permission request.",
+        );
+        return true;
+    }
+    if frame["method"] == "session/update" {
+        let update = &frame["params"]["update"];
+        if let Err(reason) = safe_session_update(update) {
+            events.fail(turn.run_id, &reason);
             return true;
         }
-        if step["step_type"] == "agent_response"
-            && let Some(delta) = step["text_delta"].as_str()
-        {
-            if snapshot.status == RunPhase::Starting {
-                events.fail(
-                    id,
-                    "Agy returned output before the request was acknowledged.",
-                );
-                return true;
+        match update["sessionUpdate"].as_str() {
+            Some("usage_update") => {
+                if let Some(used) = update["used"].as_i64().filter(|count| *count >= 0) {
+                    turn.context_tokens = Some(used);
+                }
+                if let Some(size) = update["size"].as_i64().filter(|count| *count > 0) {
+                    turn.model_context_window = Some(size);
+                }
             }
-            events.emit(AgentEvent::TextDelta {
-                run_id: id,
-                delta: delta.to_owned(),
+            Some("user_message_chunk") => {
+                turn.ensure_started(events);
+            }
+            Some("agent_message_chunk") => {
+                if update["content"]["type"] == "text"
+                    && let Some(delta) = update["content"]["text"].as_str()
+                {
+                    turn.ensure_started(events);
+                    turn.accumulated.push_str(delta);
+                    events.emit(AgentEvent::TextDelta {
+                        run_id: turn.run_id,
+                        delta: delta.to_owned(),
+                    });
+                }
+            }
+            _ => {}
+        }
+        return false;
+    }
+    if frame["id"] == turn.prompt_id {
+        if let Some(error) = frame.get("error") {
+            events.fail(turn.run_id, rpc_error_message(error));
+            return true;
+        }
+        let result = &frame["result"];
+        if result["stopReason"] == "cancelled" {
+            events.stopped(turn.run_id);
+            return true;
+        }
+        if turn.accumulated.trim().is_empty() {
+            events.fail(turn.run_id, "Agy returned an empty answer.");
+            return true;
+        }
+        turn.ensure_started(events);
+        if let Some(usage) = usage_snapshot(
+            &result["usage"],
+            turn.context_tokens,
+            turn.model_context_window,
+        ) {
+            events.emit(AgentEvent::UsageUpdated {
+                run_id: turn.run_id,
+                usage,
             });
         }
-    }
-    if frame["event"] == "result" {
-        if frame["result"]["status"] != "SUCCESS" {
-            events.fail(
-                id,
-                result_failure_message(frame["result"]["error"].as_str()),
-            );
-            return true;
-        }
-        let response = frame["result"]["response"].as_str().unwrap_or("");
-        if response.trim().is_empty() {
-            events.fail(id, "Agy returned an empty answer.");
-            return true;
-        }
-        if let Some(usage) = usage_snapshot(&frame["result"]["usage"]) {
-            events.emit(AgentEvent::UsageUpdated { run_id: id, usage });
-        }
         events.emit(AgentEvent::TextFinal {
-            run_id: id,
-            text: response.to_owned(),
+            run_id: turn.run_id,
+            text: std::mem::take(&mut turn.accumulated),
         });
-        events.emit(AgentEvent::Completed { run_id: id });
+        events.emit(AgentEvent::Completed {
+            run_id: turn.run_id,
+        });
         return true;
     }
     false
@@ -500,141 +586,164 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
         cwd,
         run_id,
         model,
-        thinking_effort,
-        capture: None,
+        capture,
         ..
     } = initial
     else {
-        events.fail(
-            events.snapshot().run_id,
-            "Agy only supports tool-free text chat.",
-        );
         return;
     };
     if let Err(reason) = ensure_profile() {
         events.fail(run_id, &reason);
         return;
     }
-    let mut rpc = match Rpc::launch_with_options(&cwd, model.as_deref(), thinking_effort.as_deref())
-    {
+    let mut client = match AcpClient::launch(&cwd) {
         Ok(value) => value,
         Err(reason) => {
             events.fail(run_id, &reason);
             return;
         }
     };
-    let init = tokio::select! {
-        init = timeout(Duration::from_secs(20), rpc.read()) => init,
+    let startup = tokio::select! {
+        result = async {
+            let (init_result, _) = client
+                .request(
+                    "initialize",
+                    json!({ "protocolVersion": 1, "clientCapabilities": {} }),
+                    STARTUP_TIMEOUT,
+                )
+                .await?;
+            let (session_result, context_window) = client
+                .request(
+                    "session/new",
+                    json!({ "cwd": cwd.to_string_lossy(), "mcpServers": [] }),
+                    STARTUP_TIMEOUT,
+                )
+                .await?;
+            let admitted = admit_session(&client.launch_args, &init_result, &session_result)?;
+            if capture.is_some() && !admitted.image_input {
+                return Err("Agy ACP runtime does not support image input.".into());
+            }
+            if let Some(model) = model.as_deref().filter(|value| !value.is_empty()) {
+                client
+                    .request(
+                        "session/set_model",
+                        json!({ "sessionId": admitted.session_id, "modelId": model }),
+                        STARTUP_TIMEOUT,
+                    )
+                    .await?;
+            }
+            Ok::<_, String>((admitted.session_id, admitted.image_input, context_window))
+        } => result,
         action = controls.recv() => {
             if matches!(action, Some(Control::Stop)) {
                 events.stopped(run_id);
             } else {
                 events.fail(run_id, "Agy startup interrupted.");
             }
-            rpc.terminate().await;
+            client.terminate().await;
             return;
         }
     };
-    let session = match init {
-        Ok(Ok(frame)) => match safe_init(&frame) {
-            Ok(session) => session,
-            Err(reason) => {
-                events.fail(run_id, &reason);
-                rpc.terminate().await;
-                return;
-            }
-        },
-        _ => {
-            events.fail(
-                run_id,
-                "Agy startup did not confirm chat-only capabilities.",
-            );
-            rpc.terminate().await;
+    let (session_id, image_supported, known_context_window) = match startup {
+        Ok(value) => value,
+        Err(reason) => {
+            events.fail(run_id, &reason);
+            client.terminate().await;
             return;
         }
     };
     events.emit(AgentEvent::SessionReady {
         run_id,
-        session_id: session,
+        session_id: session_id.clone(),
     });
-    if rpc.send(&text).await.is_err() {
-        events.fail(run_id, "Agy rejected the prompt.");
-        rpc.terminate().await;
-        return;
-    }
-    let mut active = Some(run_id);
-    let mut pending_display_text = display_text;
-    let mut acknowledged = false;
+    let prompt = match prompt_params(&session_id, &text, capture.as_ref()).await {
+        Ok(params) => params,
+        Err(reason) => {
+            events.fail(run_id, &reason);
+            client.terminate().await;
+            return;
+        }
+    };
+    let prompt_id = match client.send_request("session/prompt", prompt).await {
+        Ok(id) => id,
+        Err(reason) => {
+            events.fail(run_id, &reason);
+            client.terminate().await;
+            return;
+        }
+    };
+    let mut active_display = display_text;
+    let mut active_turn = Some(TurnState::new(
+        run_id,
+        prompt_id,
+        &active_display,
+        known_context_window,
+    ));
     loop {
         tokio::select! {
             action = controls.recv() => match action {
-                Some(Control::Stop) if active.is_some() => {
-                    if let Some(id) = active {
-                        events.stopped(id);
+                Some(Control::Stop) if active_turn.is_some() => {
+                    if let Some(turn) = active_turn.take() {
+                        let _ = client
+                            .send_notification("session/cancel", json!({ "sessionId": session_id }))
+                            .await;
+                        events.stopped(turn.run_id);
                     }
-                    rpc.terminate().await;
+                    client.terminate().await;
                     break;
                 }
                 Some(Control::Close { claimed, finished }) => {
                     if finished.is_closed() || claimed.swap(true, Ordering::SeqCst) { continue; }
-                    rpc.terminate().await;
+                    client.terminate().await;
                     let _ = finished.send(());
                     break;
                 }
-                Some(Control::Ask {text, display_text, cwd, run_id, capture: None, ..}) if active.is_none() => {
+                Some(Control::Ask { text, display_text, cwd, run_id, capture, .. }) if active_turn.is_none() => {
                     if cwd.as_path() != Path::new(&events.snapshot().cwd) {
                         events.fail(run_id, "Agy context changed. Start a new session.");
                         continue;
                     }
-                    if rpc.send(&text).await.is_err() {
-                        events.fail(run_id, "Agy follow-up could not start.");
-                        rpc.terminate().await;
-                        break;
-                    }
-                    active = Some(run_id);
-                    pending_display_text = display_text;
-                    acknowledged = false;
-                }
-                None => { rpc.terminate().await; break; }
-                _ => {}
-            },
-            frame = rpc.read_turn() => match frame {
-                Ok(value) => {
-                    let Some(id) = active else { continue; };
-                    if value["event"] == "step_update"
-                        && value["step_update"]["step_type"] == "user_input"
-                    {
-                        if !acknowledged {
-                            acknowledged = true;
-                            begin(&events, id, &pending_display_text);
-                        }
+                    if capture.is_some() && !image_supported {
+                        events.fail(run_id, "Agy ACP runtime does not support image input.");
                         continue;
                     }
-                    if result_confirms_prompt(&value) && !acknowledged {
-                        acknowledged = true;
-                        begin(&events, id, &pending_display_text);
-                    }
-                    if value["event"] == "step_update"
-                        && value["step_update"]["step_type"] == "agent_response"
-                        && !acknowledged
-                    {
-                        events.fail(id, "Agy output arrived before request acceptance.");
-                        rpc.terminate().await;
-                        break;
-                    }
-                    if observe(&value, id, &events) {
-                        if events.snapshot().status == RunPhase::Failed {
-                            rpc.terminate().await;
+                    let next_prompt = match prompt_params(&session_id, &text, capture.as_ref()).await {
+                        Ok(params) => params,
+                        Err(reason) => {
+                            events.fail(run_id, &reason);
+                            continue;
+                        }
+                    };
+                    let next_id = match client.send_request("session/prompt", next_prompt).await {
+                        Ok(id) => id,
+                        Err(_) => {
+                            events.fail(run_id, "Agy follow-up could not start.");
+                            client.terminate().await;
                             break;
                         }
-                        active = None;
+                    };
+                    active_display = display_text;
+                    active_turn = Some(TurnState::new(run_id, next_id, &active_display, known_context_window));
+                }
+                None => { client.terminate().await; break; }
+                _ => {}
+            },
+            frame = client.read_turn() => match frame {
+                Ok(value) => {
+                    let Some(turn) = active_turn.as_mut() else { continue; };
+                    if observe_acp(&value, turn, &events) {
+                        if events.snapshot().status == RunPhase::Failed {
+                            client.terminate().await;
+                            break;
+                        }
+                        active_turn = None;
                     }
                 }
                 Err(reason) => {
-                    if let Some(id) = active {
-                        events.fail(id, &reason);
+                    if let Some(turn) = active_turn.take() {
+                        events.fail(turn.run_id, &reason);
                     }
-                    rpc.terminate().await;
+                    client.terminate().await;
                     break;
                 }
             }
@@ -656,107 +765,33 @@ mod tests {
     #[ignore = "requires installed Agy; reports capability names only"]
     async fn installed_agy_admission_matches_the_real_cli() {
         ensure_profile().unwrap();
-        let mut rpc = Rpc::launch_with_options(&std::env::temp_dir(), None, None).unwrap();
-        let frame = timeout(Duration::from_secs(20), rpc.read())
-            .await
-            .unwrap()
-            .unwrap();
-        rpc.terminate().await;
-        println!(
-            "Agy advertised tools: {}; permission: {}",
-            frame["init"]["tools"]
-                .as_array()
-                .map(Vec::len)
-                .unwrap_or_default(),
-            frame["init"]["permission_mode"]
-        );
-        if frame["init"]["tools"]
-            .as_array()
-            .is_some_and(|tools| !tools.is_empty())
-        {
-            assert!(safe_init(&frame).is_err());
-        } else {
-            assert!(safe_init(&frame).is_ok());
-        }
-    }
-    use tokio::io::{AsyncWriteExt, BufReader};
-
-    #[tokio::test]
-    async fn ndjson_stream_preserves_sequential_frames_and_eof() {
-        let input =
-            b"{\"event\":\"init\"}\n{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\"}}\r\n";
-        let mut reader = BufReader::with_capacity(7, &input[..]);
-        let mut pending = Vec::new();
-        assert_eq!(
-            read_frame(&mut reader, &mut pending)
-                .await
-                .unwrap()
-                .unwrap()["event"],
-            "init"
-        );
-        assert_eq!(
-            read_frame(&mut reader, &mut pending)
-                .await
-                .unwrap()
-                .unwrap()["event"],
-            "result"
-        );
-        assert!(
-            read_frame(&mut reader, &mut pending)
-                .await
-                .unwrap()
-                .is_none()
-        );
-    }
-
-    #[tokio::test]
-    async fn ndjson_stream_rejects_oversized_frame_before_allocating_it() {
-        let oversized = vec![b'a'; 1_000_001];
-        let mut reader = BufReader::with_capacity(32, &oversized[..]);
-        let mut pending = Vec::new();
-        assert_eq!(
-            read_frame(&mut reader, &mut pending).await.unwrap_err(),
-            "Agy message exceeded the supported limit."
-        );
-    }
-
-    #[tokio::test]
-    async fn ndjson_stream_rejects_malformed_frame() {
-        let input = b"{not-json}\n";
-        let mut reader = BufReader::with_capacity(4, &input[..]);
-        let mut pending = Vec::new();
-        assert_eq!(
-            read_frame(&mut reader, &mut pending).await.unwrap_err(),
-            "Agy emitted invalid stream-json."
-        );
-    }
-
-    #[tokio::test]
-    async fn ndjson_read_cancellation_retains_partial_frame() {
-        let (mut output, input) = tokio::io::duplex(64);
-        let mut reader = BufReader::with_capacity(4, input);
-        let mut pending = Vec::new();
-        let payload = br#"{"event":"init"}"#;
-        output.write_all(&payload[..9]).await.unwrap();
-        assert!(
-            timeout(
-                Duration::from_millis(30),
-                read_frame(&mut reader, &mut pending)
+        let mut client = AcpClient::launch(&std::env::temp_dir()).unwrap();
+        let (init_result, _) = client
+            .request(
+                "initialize",
+                json!({ "protocolVersion": 1, "clientCapabilities": {} }),
+                STARTUP_TIMEOUT,
             )
             .await
-            .is_err()
+            .unwrap();
+        let (session_result, context_window) = client
+            .request(
+                "session/new",
+                json!({ "cwd": std::env::temp_dir().to_string_lossy(), "mcpServers": [] }),
+                STARTUP_TIMEOUT,
+            )
+            .await
+            .unwrap();
+        let admitted = admit_session(&client.launch_args, &init_result, &session_result).unwrap();
+        client.terminate().await;
+        let models = model_catalog(&session_result, admitted.image_input, context_window);
+        println!(
+            "Agy ACP session: {}; image: {}; models: {}",
+            admitted.session_id,
+            admitted.image_input,
+            models.len()
         );
-        assert!(!pending.is_empty());
-        output.write_all(&payload[9..]).await.unwrap();
-        output.write_all(b"\n").await.unwrap();
-        assert_eq!(
-            read_frame(&mut reader, &mut pending)
-                .await
-                .unwrap()
-                .unwrap()["event"],
-            "init"
-        );
-        assert!(pending.is_empty());
+        assert!(!models.is_empty());
     }
 
     #[test]
@@ -780,189 +815,74 @@ mod tests {
     }
 
     #[test]
-    fn tool_permissions_are_checked_before_any_prompt() {
-        let safe = json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":[],"permission_mode":"strict"}});
-        assert_eq!(safe_init(&safe).unwrap(), "conversation-1");
-        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":["run_command"],"permission_mode":"strict"}})).is_err());
-        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"otto-chat","tools":["send_message"],"permission_mode":"request-review"}})).is_err());
-        assert!(safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{"agent":"default","tools":[],"permission_mode":"strict"}})).is_err());
-        assert!(
-            safe_init(&json!({"event":"init","conversation_id":"conversation-1","init":{}}))
-                .is_err()
+    fn acp_launch_args_isolate_agent_profile() {
+        let args = acp_launch_args();
+        assert_eq!(
+            args,
+            vec![
+                "acp",
+                "--stdio",
+                "--agent",
+                AGENT_NAME,
+                "--include-default-customizations=false",
+                "--dangerously-skip-permissions=false",
+                "--sandbox",
+            ]
         );
+        assert!(safe_launch_args(&args).is_ok());
     }
 
     #[test]
-    fn stream_launch_disables_cli_slash_command_expansion() {
-        let args = launch_args(None, None);
-        assert!(args.iter().any(|arg| arg == "--disable-slash-commands"));
-        assert!(
-            args.windows(2)
-                .any(|args| args == ["--input-format", "stream-json"])
-        );
-        assert!(
-            args.windows(2)
-                .any(|args| args == ["--output-format", "stream-json"])
-        );
-        assert!(
-            args.windows(2)
-                .any(|args| args == ["--settings", SAFE_SETTINGS])
-        );
-    }
-
-    #[test]
-    fn stream_launch_forwards_selected_model_and_effort() {
-        let args = launch_args(Some("gemini-4-argon-medium"), Some("high"));
-        assert!(
-            args.windows(2)
-                .any(|args| args == ["--model", "gemini-4-argon-medium"])
-        );
-        assert!(args.windows(2).any(|args| args == ["--effort", "high"]));
-    }
-
-    #[test]
-    fn stream_disconnect_classifies_errors_without_exposing_stderr() {
-        assert_eq!(
-            disconnect_message(Some("authentication required for private-account")),
-            "Agy authentication expired. Sign in to Agy, then Retry."
-        );
-        assert_eq!(
-            disconnect_message(Some("rate limit exceeded for private-account")),
-            "Agy rate limit or quota reached. Retry later."
-        );
-        assert_eq!(
-            disconnect_message(Some("private-account panic and secret details")),
-            "Agy disconnected. Check the CLI installation, then Retry."
-        );
-        assert_eq!(
-            disconnect_message(None),
-            "Agy disconnected. Check the CLI installation, then Retry."
-        );
-    }
-
-    #[test]
-    fn model_catalog_must_be_nonempty() {
-        assert!(available_models(&json!([{"id":"gemini"}])));
-        assert!(available_models(&json!({"models":[{"id":"gemini"}]})));
-        assert!(available_models(&json!({
-            "conversation_id": "",
-            "status": "SUCCESS",
-            "command": {
-                "name": "models",
-                "data": {
-                    "models": [
-                        {"id": "gemini-4-argon-medium", "label": "Gemini 4 Argon (Medium)"},
-                        {"id": "claude-opus-5-5-high", "label": "Claude Opus 5.5 (High)"}
+    fn acp_model_catalog_maps_models_and_image_capability() {
+        let models = model_catalog(
+            &json!({
+                "models": {
+                    "currentModelId": "gemini-4-argon-medium",
+                    "availableModels": [
+                        { "modelId": "gemini-4-argon-medium", "name": "Gemini 4 Argon (Medium)" },
+                        { "modelId": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)" },
+                        { "modelId": "" }
                     ]
                 }
-            }
-        })));
-        assert!(!available_models(&json!({"models":[]})));
-        assert!(!available_models(
-            &json!({"status":"ERROR","command":{"data":{"models":[{"id":"gemini"}]}}})
-        ));
-        assert!(!available_models(&json!({"message":"auth required"})));
-    }
-
-    #[test]
-    fn model_catalog_maps_provider_models_to_runtime_options() {
-        let models = model_catalog(&json!({
-            "command": {
-                "data": {
-                    "models": [
-                        {"id": "gemini-4-argon-medium", "label": "Gemini 4 Argon (Medium)"},
-                        {"id": "claude-opus-5-5-high", "label": "Claude Opus 5.5 (High)"},
-                        {"id": ""}
-                    ]
-                }
-            }
-        }));
+            }),
+            true,
+            Some(1_048_576),
+        );
         assert_eq!(models.len(), 2);
         assert_eq!(models[0].id, "gemini-4-argon-medium");
         assert_eq!(models[0].display_name, "Gemini 4 Argon (Medium)");
-        assert!(!models[0].image_input);
-        assert!(models[0].thinking_efforts.is_empty());
+        assert!(models[0].image_input);
+        assert_eq!(models[0].context_window, Some(1_048_576));
+    }
+
+    #[tokio::test]
+    async fn acp_prompt_params_encode_png_capture_as_image_block() {
+        let path =
+            std::env::temp_dir().join(format!("otto-agy-capture-{}.png", std::process::id()));
+        let mut encoder = png::Encoder::new(std::fs::File::create(&path).unwrap(), 1, 1);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+        writer.write_image_data(&[255, 0, 0, 255]).unwrap();
+        drop(writer);
+
+        let capture = CapturedImage::new(path.clone());
+        let params = prompt_params("session-1", "Describe this", Some(&capture))
+            .await
+            .unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(params["sessionId"], "session-1");
+        assert_eq!(params["prompt"][0]["type"], "text");
+        assert_eq!(params["prompt"][0]["text"], "Describe this");
+        assert_eq!(params["prompt"][1]["type"], "image");
+        assert_eq!(params["prompt"][1]["mimeType"], "image/png");
+        assert!(!params["prompt"][1]["data"].as_str().unwrap().is_empty());
     }
 
     #[test]
-    fn model_discovery_uses_supported_global_flag_order() {
-        assert_eq!(
-            model_discovery_args(),
-            &["--output-format", "json", "models"]
-        );
-    }
-
-    #[test]
-    fn model_discovery_does_not_misclassify_cli_errors_as_sign_in() {
-        assert_eq!(
-            model_discovery_failure(b"", b"error: unexpected argument --output-format").status,
-            "unavailable"
-        );
-        assert_eq!(
-            model_discovery_failure(b"", b"please sign in to continue").status,
-            "authRequired"
-        );
-        assert_eq!(
-            model_discovery_failure(b"login required", b"").status,
-            "authRequired"
-        );
-    }
-
-    #[test]
-    fn agy_reports_cumulative_tokens_without_inventing_context_window() {
-        let usage = usage_snapshot(&json!({
-            "input_tokens": 10418,
-            "output_tokens": 589,
-            "thinking_tokens": 551,
-            "cache_read_tokens": 8113,
-            "total_tokens": 11007
-        }))
-        .unwrap();
-        assert_eq!(usage.session_tokens, 11007);
-        assert_eq!(usage.input_tokens, 10418);
-        assert_eq!(usage.output_tokens, 589);
-        assert_eq!(usage.cached_input_tokens, 8113);
-        assert_eq!(usage.reasoning_output_tokens, Some(551));
-        assert_eq!(usage.context_tokens, None);
-        assert_eq!(usage.model_context_window, None);
-        assert!(usage_snapshot(&json!({"input_tokens": 1})).is_none());
-        assert!(
-            usage_snapshot(&json!({
-                "input_tokens": 1,
-                "output_tokens": -1,
-                "cache_read_tokens": 0,
-                "total_tokens": 1
-            }))
-            .is_none()
-        );
-    }
-
-    #[test]
-    fn agy_stream_errors_are_actionable_without_exposing_provider_details() {
-        assert_eq!(
-            result_failure_message(Some("authentication required for user@example.com")),
-            "Agy authentication expired. Sign in to Agy, then Retry."
-        );
-        assert_eq!(
-            result_failure_message(Some("rate limit exceeded")),
-            "Agy rate limit or quota reached. Retry later."
-        );
-        assert_eq!(
-            result_failure_message(Some("internal provider error: private context")),
-            "Agy could not finish this request."
-        );
-    }
-
-    #[test]
-    fn failed_result_before_user_input_does_not_acknowledge_prompt() {
-        assert!(!result_confirms_prompt(
-            &json!({"event":"result","result":{"status":"ERROR","response":""}})
-        ));
-        assert!(result_confirms_prompt(
-            &json!({"event":"result","result":{"status":"SUCCESS","response":"done"}})
-        ));
+    fn acp_observer_streams_text_tracks_usage_and_rejects_tools() {
         let (tx, _) = watch::channel(Snapshot {
-            run_id: 9,
+            run_id: 8,
             seq: 0,
             status: "starting".into(),
             provider: "agy".into(),
@@ -976,20 +896,80 @@ mod tests {
             capture: CaptureSnapshot::default(),
             error: None,
         });
-        let tx_events = ProviderEvents::new(tx.clone());
-        assert!(observe(
-            &json!({"event":"result","result":{"status":"ERROR","response":""}}),
-            9,
-            &tx_events
-        ));
-        assert_eq!(tx.borrow().status, "failed");
-        assert!(tx.borrow().messages.is_empty());
-    }
+        let events = ProviderEvents::new(tx.clone());
+        let mut turn = TurnState::new(8, 3, "Hello", Some(1_048_576));
 
-    #[test]
-    fn result_does_not_accept_failure_or_empty_response() {
-        let (tx, _) = watch::channel(Snapshot {
-            run_id: 7,
+        assert!(!observe_acp(
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "session/update",
+                "params": {
+                    "update": {
+                        "sessionUpdate": "usage_update",
+                        "used": 6767,
+                        "size": 1_048_576
+                    }
+                }
+            }),
+            &mut turn,
+            &events
+        ));
+        assert!(!observe_acp(
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "session/update",
+                "params": {
+                    "update": {
+                        "sessionUpdate": "user_message_chunk",
+                        "content": { "type": "text", "text": "Hello" }
+                    }
+                }
+            }),
+            &mut turn,
+            &events
+        ));
+        assert!(!observe_acp(
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "session/update",
+                "params": {
+                    "update": {
+                        "sessionUpdate": "agent_message_chunk",
+                        "content": { "type": "text", "text": "Red" }
+                    }
+                }
+            }),
+            &mut turn,
+            &events
+        ));
+        assert!(observe_acp(
+            &json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "result": {
+                    "stopReason": "end_turn",
+                    "usage": {
+                        "inputTokens": 6762,
+                        "outputTokens": 5,
+                        "cachedReadTokens": 100,
+                        "thoughtTokens": 2,
+                        "totalTokens": 6767
+                    }
+                }
+            }),
+            &mut turn,
+            &events
+        ));
+        let snap = tx.borrow();
+        assert_eq!(snap.status, "completed");
+        assert_eq!(snap.messages.last().unwrap().text, "Red");
+        let usage = snap.usage.as_ref().unwrap();
+        assert_eq!(usage.session_tokens, 6767);
+        assert_eq!(usage.context_tokens, Some(6767));
+        assert_eq!(usage.model_context_window, Some(1_048_576));
+
+        let (tool_tx, _) = watch::channel(Snapshot {
+            run_id: 9,
             seq: 0,
             status: "streaming".into(),
             provider: "agy".into(),
@@ -999,24 +979,25 @@ mod tests {
             model: None,
             thinking_effort: None,
             usage: None,
-            messages: vec![ChatMessage {
-                id: "7:assistant".into(),
-                role: "assistant".into(),
-                text: String::new(),
-            }],
+            messages: vec![],
             capture: CaptureSnapshot::default(),
             error: None,
         });
-        let tx_events = ProviderEvents::new(tx.clone());
-        assert!(observe(
-            &json!({"event":"result","result":{"status":"SUCCESS","response":""}}),
-            7,
-            &tx_events
+        let tool_events = ProviderEvents::new(tool_tx.clone());
+        let mut tool_turn = TurnState::new(9, 4, "Run", None);
+        assert!(observe_acp(
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "session/update",
+                "params": { "update": { "sessionUpdate": "tool_call", "title": "run_command" } }
+            }),
+            &mut tool_turn,
+            &tool_events
         ));
-        assert_eq!(tx.borrow().status, "failed");
+        assert_eq!(tool_tx.borrow().status, "failed");
 
-        let (done, _) = watch::channel(Snapshot {
-            run_id: 8,
+        let (perm_tx, _) = watch::channel(Snapshot {
+            run_id: 10,
             seq: 0,
             status: "streaming".into(),
             provider: "agy".into(),
@@ -1026,33 +1007,50 @@ mod tests {
             model: None,
             thinking_effort: None,
             usage: None,
-            messages: vec![ChatMessage {
-                id: "8:assistant".into(),
-                role: "assistant".into(),
-                text: String::new(),
-            }],
+            messages: vec![],
             capture: CaptureSnapshot::default(),
             error: None,
         });
-        let done_events = ProviderEvents::new(done.clone());
-        assert!(observe(
-            &json!({"event":"result","result":{"status":"SUCCESS","response":"answer","usage":{"input_tokens":30,"output_tokens":10,"thinking_tokens":3,"cache_read_tokens":20,"total_tokens":40}}}),
-            8,
-            &done_events
+        let perm_events = ProviderEvents::new(perm_tx.clone());
+        let mut perm_turn = TurnState::new(10, 5, "Perm", None);
+        assert!(observe_acp(
+            &json!({
+                "jsonrpc": "2.0",
+                "id": 99,
+                "method": "session/request_permission",
+                "params": {}
+            }),
+            &mut perm_turn,
+            &perm_events
         ));
-        assert_eq!(done.borrow().status, "completed");
-        assert_eq!(done.borrow().messages[0].text, "answer");
-        assert_eq!(
-            done.borrow()
-                .usage
-                .as_ref()
-                .map(|usage| usage.session_tokens),
-            Some(40)
-        );
-        assert!(!observe(
-            &json!({"event":"result","result":{"status":"SUCCESS","response":"late"}}),
-            7,
-            &done_events
+        assert_eq!(perm_tx.borrow().status, "failed");
+
+        let (mode_tx, _) = watch::channel(Snapshot {
+            run_id: 11,
+            seq: 0,
+            status: "streaming".into(),
+            provider: "agy".into(),
+            cwd: String::new(),
+            conversation_id: String::new(),
+            thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
+            messages: vec![],
+            capture: CaptureSnapshot::default(),
+            error: None,
+        });
+        let mode_events = ProviderEvents::new(mode_tx.clone());
+        let mut mode_turn = TurnState::new(11, 6, "Mode", None);
+        assert!(observe_acp(
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "session/update",
+                "params": { "update": { "sessionUpdate": "current_mode_update", "currentModeId": "auto" } }
+            }),
+            &mut mode_turn,
+            &mode_events
         ));
+        assert_eq!(mode_tx.borrow().status, "failed");
     }
 }
