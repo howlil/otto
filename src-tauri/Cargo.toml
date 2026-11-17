@@ -1,6 +1,6 @@
 [package]
 name = "otto"
-version = "0.1.0"
+version = "0.1.1"
 description = "Otto desktop companion"
 edition = "2024"
 build = "build.rs"

@@ -222,7 +222,7 @@ pub async fn readiness(cwd: &Path, requested_model: Option<&str>) -> ProviderRea
         });
         rpc.request(
             "initialize",
-            json!({ "clientInfo": { "name": "otto", "title": "Otto", "version": "0.1.0" } }),
+            json!({ "clientInfo": { "name": "otto", "title": "Otto", "version": "0.1.1" } }),
         )
         .await?;
         rpc.send(json!({ "method": "initialized", "params": {} }))
@@ -632,7 +632,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, updates: ProviderEvents,
         result = async {
             rpc.request(
                 "initialize",
-                json!({ "clientInfo": { "name": "otto", "title": "Otto", "version": "0.1.0" } }),
+                json!({ "clientInfo": { "name": "otto", "title": "Otto", "version": "0.1.1" } }),
             ).await?;
             rpc.send(json!({ "method": "initialized", "params": {} })).await?;
             let (thread_response, _) = rpc.request(
