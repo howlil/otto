@@ -1,11 +1,11 @@
 {
-  "version": "0.3.0",
-  "notes": "Otto 0.3.0",
-  "pub_date": "2026-11-10T21:16:34.7370718Z",
+  "version": "0.3.1",
+  "notes": "Otto 0.3.1",
+  "pub_date": "2026-11-17T14:54:57.6273045Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeW91d1JMVTJGSU4yZ3NuUzRyaG9xTlNVUSsyYUVLNGdqemRkdmVXVFRzdnJIQWhtOEtPSCt4OStYa040MkloWEJ2Y09mZlVnTkpadzVnY1ZJMmJNSGdralVoRjVsNUFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MzQ1Mzk0CWZpbGU6T3R0b18wLjMuMF94NjQtc2V0dXAuZXhlCXZlcnNpb246MC4zLjAKUnhOUXl3TFJmc05YaStoMzJuZXI1ZVprUlQ1UzZ3cjZhVU40V1grV29XVG5ENUEzZXVTTFhocmZRdTJ4TzFoUWEyQTFBRXh3UWdyV1QyS0w5eUcxRGc9PQo=",
-      "url": "https://github.com/howlil/otto/releases/download/v0.3.0/Otto_0.3.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeW91d1JMVTJGSUJ5ZjZMQVBFRnZUUER6QUE3aHE2NGx2Wi9tMFVxVDFyWUhsVVhubzFLTkhFcDFqNkY0UWt5VzEvYWhBcHU0bmxFa0hVV1lQZ3VuaUR2SzFLNTVwcVFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0OTI3Mjk3CWZpbGU6T3R0b18wLjMuMV94NjQtc2V0dXAuZXhlCXZlcnNpb246MC4zLjEKRXYzZ1FYWGZRSkV6cTBDTTA4QkxFYW13NXFKRU9LSzV5cXFQZFJuQ3lnbmtGZG5EQzNZcjNKSE81RXJQQUZsRlAzODVrWVFDaWZXem9JbngxRS9QRHc9PQo=",
+      "url": "https://github.com/howlil/otto/releases/download/v0.3.1/Otto_0.3.1_x64-setup.exe"
     }
   }
 }
