@@ -4,6 +4,12 @@ name: Otto Release
   push:
     branches:
       - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Optional explicit release version, for example 0.3.1
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -29,6 +35,8 @@ jobs:
           workspaces: src-tauri -> target
       - name: Plan immutable release version
         id: version
+        env:
+          OTTO_RELEASE_VERSION: ${{ inputs.version }}
         run: bun scripts/release-version.mjs plan
       - name: Install frontend dependencies
         if: steps.version.outputs.publish == 'true'

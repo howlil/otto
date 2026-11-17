@@ -81,7 +81,19 @@ function plan() {
   const base = latest && compareVersions(latest.version, baseline) >= 0 ? latest.version : baseline;
   const range = latest ? latest.tag + '..HEAD' : 'HEAD';
   const messages = git('log', '--format=%B%x00', range).split('\0').map((value) => value.trim()).filter(Boolean);
-  const version = nextVersion(base, releaseLevel(messages));
+  const requested = process.env.OTTO_RELEASE_VERSION?.trim();
+  let version = nextVersion(base, releaseLevel(messages));
+  if (requested) {
+    const requestedTag = requested.startsWith('v') ? requested : `v${requested}`;
+    const requestedParts = parseTag(requestedTag);
+    if (!requestedParts || (latest && compareVersions(requestedParts, latest.version) <= 0)) {
+      throw new Error('Requested release version must be a new valid version above the latest tag');
+    }
+    if (git('tag', '--list', requestedTag)) {
+      throw new Error(`Requested release tag already exists: ${requestedTag}`);
+    }
+    version = requestedParts.join('.');
+  }
   const output = 'publish=' + (version ? 'true' : 'false') + '\n'
     + 'version=' + (version || '') + '\n'
     + 'previous_tag=' + (latest?.tag || '') + '\n';
