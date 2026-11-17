@@ -9,7 +9,7 @@ use crate::agent::{CaptureSnapshot, Snapshot};
 use crate::agent::{
     CapturedImage, Control, ModelOption, ProviderReadiness, RunPhase, UsageSnapshot,
 };
-use admission::{safe_initialize, safe_session};
+use admission::{admit_session, safe_launch_args, safe_session_update};
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -93,6 +93,8 @@ fn acp_launch_args() -> Vec<String> {
         "--agent",
         AGENT_NAME,
         "--include-default-customizations=false",
+        "--dangerously-skip-permissions=false",
+        "--sandbox",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -101,6 +103,7 @@ fn acp_launch_args() -> Vec<String> {
 
 struct AcpClient {
     process: JsonlProcess,
+    launch_args: Vec<String>,
     next_id: u64,
     stderr_task: tokio::task::JoinHandle<String>,
 }
@@ -109,10 +112,11 @@ impl AcpClient {
     fn launch(cwd: &Path) -> Result<Self, String> {
         let binary = executable().ok_or("Agy CLI was not found in PATH.")?;
         let args = acp_launch_args();
+        safe_launch_args(&args)?;
         let (process, stderr) = JsonlProcess::launch(
             "Agy",
             &binary,
-            args,
+            args.clone(),
             cwd,
             true,
             "Cannot start Agy ACP mode.",
@@ -134,6 +138,7 @@ impl AcpClient {
         });
         Ok(Self {
             process,
+            launch_args: args,
             next_id: 0,
             stderr_task,
         })
@@ -211,12 +216,7 @@ impl AcpClient {
                 }
                 if frame["method"] == "session/update" {
                     let update = &frame["params"]["update"];
-                    if matches!(
-                        update["sessionUpdate"].as_str(),
-                        Some("tool_call" | "tool_call_update")
-                    ) {
-                        return Err("Agy attempted an unsupported tool action.".into());
-                    }
+                    safe_session_update(update)?;
                     if update["sessionUpdate"] == "usage_update"
                         && let Some(size) = update["size"].as_i64().filter(|value| *value > 0)
                     {
@@ -336,7 +336,6 @@ pub async fn readiness(cwd: &Path, selected_model: Option<&str>) -> ProviderRead
                 STARTUP_TIMEOUT,
             )
             .await?;
-        let image_supported = safe_initialize(&init_result)?;
         let (session_result, context_window) = client
             .request(
                 "session/new",
@@ -344,8 +343,8 @@ pub async fn readiness(cwd: &Path, selected_model: Option<&str>) -> ProviderRead
                 STARTUP_TIMEOUT,
             )
             .await?;
-        let session_id = safe_session(&session_result)?;
-        let models = model_catalog(&session_result, image_supported, context_window);
+        let admitted = admit_session(&client.launch_args, &init_result, &session_result)?;
+        let models = model_catalog(&session_result, admitted.image_input, context_window);
         if models.is_empty() {
             return Ok::<_, String>(ProviderReadiness::new(
                 "unsupported",
@@ -368,7 +367,7 @@ pub async fn readiness(cwd: &Path, selected_model: Option<&str>) -> ProviderRead
             client
                 .request(
                     "session/set_model",
-                    json!({ "sessionId": session_id, "modelId": model }),
+                    json!({ "sessionId": admitted.session_id, "modelId": model }),
                     STARTUP_TIMEOUT,
                 )
                 .await?;
@@ -384,7 +383,7 @@ pub async fn readiness(cwd: &Path, selected_model: Option<&str>) -> ProviderRead
             "",
         );
         readiness.tool_free_admission = true;
-        readiness.image_input = image_supported;
+        readiness.image_input = admitted.image_input;
         readiness.model = selected_model
             .map(str::to_owned)
             .or(default_model)
@@ -511,6 +510,10 @@ fn observe_acp(frame: &Value, turn: &mut TurnState<'_>, events: &ProviderEvents)
     }
     if frame["method"] == "session/update" {
         let update = &frame["params"]["update"];
+        if let Err(reason) = safe_session_update(update) {
+            events.fail(turn.run_id, &reason);
+            return true;
+        }
         match update["sessionUpdate"].as_str() {
             Some("usage_update") => {
                 if let Some(used) = update["used"].as_i64().filter(|count| *count >= 0) {
@@ -534,10 +537,6 @@ fn observe_acp(frame: &Value, turn: &mut TurnState<'_>, events: &ProviderEvents)
                         delta: delta.to_owned(),
                     });
                 }
-            }
-            Some("tool_call" | "tool_call_update") => {
-                events.fail(turn.run_id, "Agy attempted an unsupported tool action.");
-                return true;
             }
             _ => {}
         }
@@ -613,10 +612,6 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     STARTUP_TIMEOUT,
                 )
                 .await?;
-            let image_supported = safe_initialize(&init_result)?;
-            if capture.is_some() && !image_supported {
-                return Err("Agy ACP runtime does not support image input.".into());
-            }
             let (session_result, context_window) = client
                 .request(
                     "session/new",
@@ -624,17 +619,20 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     STARTUP_TIMEOUT,
                 )
                 .await?;
-            let session_id = safe_session(&session_result)?;
+            let admitted = admit_session(&client.launch_args, &init_result, &session_result)?;
+            if capture.is_some() && !admitted.image_input {
+                return Err("Agy ACP runtime does not support image input.".into());
+            }
             if let Some(model) = model.as_deref().filter(|value| !value.is_empty()) {
                 client
                     .request(
                         "session/set_model",
-                        json!({ "sessionId": session_id, "modelId": model }),
+                        json!({ "sessionId": admitted.session_id, "modelId": model }),
                         STARTUP_TIMEOUT,
                     )
                     .await?;
             }
-            Ok::<_, String>((session_id, image_supported, context_window))
+            Ok::<_, String>((admitted.session_id, admitted.image_input, context_window))
         } => result,
         action = controls.recv() => {
             if matches!(action, Some(Control::Stop)) {
@@ -776,7 +774,6 @@ mod tests {
             )
             .await
             .unwrap();
-        let image_supported = safe_initialize(&init_result).unwrap();
         let (session_result, context_window) = client
             .request(
                 "session/new",
@@ -785,11 +782,13 @@ mod tests {
             )
             .await
             .unwrap();
-        let session_id = safe_session(&session_result).unwrap();
+        let admitted = admit_session(&client.launch_args, &init_result, &session_result).unwrap();
         client.terminate().await;
-        let models = model_catalog(&session_result, image_supported, context_window);
+        let models = model_catalog(&session_result, admitted.image_input, context_window);
         println!(
-            "Agy ACP session: {session_id}; image: {image_supported}; models: {}",
+            "Agy ACP session: {}; image: {}; models: {}",
+            admitted.session_id,
+            admitted.image_input,
             models.len()
         );
         assert!(!models.is_empty());
@@ -826,8 +825,11 @@ mod tests {
                 "--agent",
                 AGENT_NAME,
                 "--include-default-customizations=false",
+                "--dangerously-skip-permissions=false",
+                "--sandbox",
             ]
         );
+        assert!(safe_launch_args(&args).is_ok());
     }
 
     #[test]
@@ -1022,5 +1024,33 @@ mod tests {
             &perm_events
         ));
         assert_eq!(perm_tx.borrow().status, "failed");
+
+        let (mode_tx, _) = watch::channel(Snapshot {
+            run_id: 11,
+            seq: 0,
+            status: "streaming".into(),
+            provider: "agy".into(),
+            cwd: String::new(),
+            conversation_id: String::new(),
+            thread_id: None,
+            model: None,
+            thinking_effort: None,
+            usage: None,
+            messages: vec![],
+            capture: CaptureSnapshot::default(),
+            error: None,
+        });
+        let mode_events = ProviderEvents::new(mode_tx.clone());
+        let mut mode_turn = TurnState::new(11, 6, "Mode", None);
+        assert!(observe_acp(
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "session/update",
+                "params": { "update": { "sessionUpdate": "current_mode_update", "currentModeId": "auto" } }
+            }),
+            &mut mode_turn,
+            &mode_events
+        ));
+        assert_eq!(mode_tx.borrow().status, "failed");
     }
 }
