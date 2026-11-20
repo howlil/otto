@@ -1,50 +1,212 @@
-# Otto
+<div align="center">
+  <img src="src-tauri/icons/icon.png" alt="Otto" width="76" />
+  <h1>Otto</h1>
+  <p>
+    <strong>A quiet Windows desktop notch — Personal AI Assistant &amp; Learning Mentor powered 100% by your local AI CLI engines.</strong>
+  </p>
+  <p>
+    <a href="https://github.com/howlil/otto/releases/latest">
+      <img src="https://img.shields.io/github/v/release/howlil/otto?style=flat-square&label=release&color=111111" alt="Latest Release" />
+    </a>
+    <a href="https://github.com/howlil/otto/actions/workflows/otto-verify-once.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/howlil/otto/otto-verify-once.yml?style=flat-square&label=CI" alt="Otto CI" />
+    </a>
+    <a href="https://github.com/howlil/otto/actions/workflows/release.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/howlil/otto/release.yml?style=flat-square&label=Release" alt="Otto Release" />
+    </a>
+    <img src="https://img.shields.io/badge/platform-Windows%2011-0078D4?style=flat-square" alt="Platform Windows 11" />
+    <img src="https://img.shields.io/badge/stack-Tauri%202%20%C2%B7%20Rust%20%C2%B7%20React%2019-24292F?style=flat-square" alt="Tauri 2 Rust React 19" />
+  </p>
+  <p>
+    <a href="https://github.com/howlil/otto/releases/latest"><strong>Download Installer (v1.0.0)</strong></a>
+    &nbsp;·&nbsp;
+    <a href="#quick-start">Quick Start</a>
+    &nbsp;·&nbsp;
+    <a href="#supported-cli-engines-19">19 AI CLIs</a>
+    &nbsp;·&nbsp;
+    <a href="#learning-modes--slash-commands">Learning Modes</a>
+    &nbsp;·&nbsp;
+    <a href="CHANGELOG.md">Changelog</a>
+  </p>
+</div>
 
-Windows desktop notch and AI CLI companion, built with **Tauri 2 + Rust + React + Vite + Tailwind CSS**.
+---
 
-## Development
-Install Bun, Rust stable (Windows MSVC toolchain), Windows C++ Build Tools, and WebView2 on Windows 11.
+## Why Otto?
 
+Otto sits quietly at the top edge of your Windows desktop — ready when you study, read, solve hard problems, or write, and invisible the moment you return to work.
+
+- **Zero extra API keys or subscriptions** — reuses the AI CLI tools already installed and authenticated on your PC (`codex`, `claude`, `opencode`, `pi`, and 15 ACP CLIs).
+- **Never breaks your flow** — hover previews without stealing keyboard focus; click or press `Ctrl+Alt+O` to pin; collapse mid-stream while answers continue in the background. Supports **Floating**, **Top-Attached** (with curved shoulders), and docked **Otto OS Compact Circle** modes with live state-change motion cues.
+- **Designed for deep learning & problem solving** — six curated Learning Modes (including `/solve` for math, logic, and competitive programming), staged Smart Capture 2.0, and universal caret **Insert** straight back into your active app.
+- **Privacy & explicit consent first** — screen capture runs only on explicit user trigger, Hide-from-Screen-Capture defaults **ON**, no secrets or screenshots are ever written to history, and CLI host permission prompts are **never auto-approved**.
+
+---
+
+## Quick Start
+
+### 1. Install Otto on Windows 11
+Download the latest Windows installer (`Otto_1.0.0_x64-setup.exe`) from [**GitHub Releases**](https://github.com/howlil/otto/releases/latest).
+
+- Installs quietly in **current-user scope** (no admin prompt required).
+- Includes automatic **minisign-verified** in-app updates (checked on launch and every 6 hours via Settings → General).
+- *Note:* The installer is not yet Authenticode-signed for Windows SmartScreen; click **More info → Run anyway** on first install if prompted, or verify against `SHA256SUMS.txt` on the release page.
+
+### 2. Have at least one local AI CLI signed in
+Install and sign in to any supported engine (for example `codex login`, `claude auth login`, `opencode auth login`, `pi`, or any ACP CLI below). Installed CLIs are auto-detected from `PATH` — and if you install a new CLI while Otto is open, click **Refresh PATH** in **Settings → Assistant** without restarting.
+
+### 3. Open and ask
+Hover the top notch to preview, click it, or press `Ctrl+Alt+O` from anywhere.
+
+---
+
+## Key Capabilities
+
+### Learning Modes & Slash Commands
+
+Switch modes from the composer pill or type a `/slash` command inline (e.g. `/solve Find the minimum number of operations...`):
+
+| Mode | Slash Trigger | Aliases | Best For |
+| --- | --- | --- | --- |
+| **Direct** | `/direct` | `/fast`, `/answer` | Clear, concise answers without filler |
+| **Solve** | `/solve` | `/math`, `/logic`, `/cp`, `/algo`, `/verify` | Complex math, logic, science, multiple-choice & optimal competitive programming with verification |
+| **Mentor** | `/mentor` | `/coach`, `/guide`, `/socratic` | Step-by-step explanations and guided Socratic questions |
+| **Simple** | `/simple` | `/eli5`, `/easy`, `/explain` | Plain-language breakdowns and everyday analogies |
+| **Write & Translate** | `/write` | `/translate`, `/rewrite`, `/polish` | Drafting, rewriting, tone polishing & translation |
+| **Practice** | `/practice` | `/quiz`, `/drill`, `/test` | Short recall drills and comprehension checks |
+
+Configure a static **Profile & Learning Style** (preferred answer language, depth/level, and brief instructions) in **Settings → Assistant** so every engine adapts to how you learn.
+
+### Smart Capture 2.0 & Universal Insert
+
+- **Staged-first composer attachments** — captured regions, windows, full screens, selected text, and pasted/dropped images (`Ctrl+V`) appear as removable chips with one-click contextual Quick Actions (`Explain`, `Solve`, `Break down`, `Translate`, `Summarize`, `Quiz me`, `Rewrite`). Enable **Instant auto-send** in **Settings → Capture** if you prefer one-keystroke submission.
+- **Native Region Snip + Live Scroll Stitching** — draw a hollow, capture-excluded region anywhere on screen, or scroll the wheel while dragging to stitch long pages seamlessly.
+- **Clipboard-free Selected Text Capture** — reads highlighted text via Windows UI Automation without touching your clipboard.
+- **Universal Caret Insert** — click **Insert** on any completed answer to type clean Markdown-stripped text directly at the last focused external caret (never overwrites your clipboard).
+
+### Conversation Power & Rich Answers
+
+- **Rich Markdown, Math & Code** — renders GFM tables, task lists, KaTeX math (`$...$` / `$$...$$`), and syntax-highlighted code blocks with per-block **Copy code** (strictly sanitized — raw HTML/script is never executed and remote images are never fetched).
+- **Full Turn Controls** — **Retry / Regenerate**, inline **Edit prompt & re-run**, single-slot **Queue follow-up** while streaming (auto-restores to draft if stopped or failed), and **Stop** that preserves already-streamed partial text marked `Stopped`.
+- **Learning Loop** — one-click follow-up chips (**Simpler**, **Give an example**, **Quiz me**, **Go deeper**) beneath the latest completed answer, plus collapsible **Thinking** and non-technical activity trails.
+- **Local Searchable History** — stores up to **200 conversations** and **100 messages per conversation** locally with full-text search, rename, delete, cross-engine continuation, and **Export Markdown** to clipboard.
+- **Header Quick Switcher** — click the header Engine/Model label anytime to switch Engine, Model, Thinking effort, or inspect live 5-hour and weekly provider usage limits without leaving chat.
+
+### Safety & Graceful Host Permissions
+
+Otto has **no file-edit executor, no shell executor, and no coding workspace picker**. Each CLI keeps its own native authentication, configuration, and tool policies without Otto injecting override flags.
+
+When an engine (Codex or any ACP CLI) asks for a host permission decision mid-turn, Otto pauses cleanly and renders an inline choice card (**Decline & continue** / **Allow once**) correlated strictly by `request_id`:
+- **Zero auto-approval** — every `Allow once` requires an explicit click.
+- **Fail-safe default** — 120-second timeout, `Stop`, window close, or disconnect always replies **Decline / Cancel**.
+
+---
+
+## Supported CLI Engines (19)
+
+Otto ships 19 statically compiled adapters — zero runtime plugin loaders and zero hidden `npx`/`uvx` downloads.
+
+### Dedicated Protocol Adapters
+| Engine | Command | Highlights |
+| --- | --- | --- |
+| **Codex** | `codex` | Persistent `app-server` multi-turn threads, image input, reasoning effort, live 5h/weekly usage limits, inline host permissions |
+| **Claude Code** | `claude` | Native catalog & effort discovery, `--resume` multi-turn sessions, `--input-format stream-json` multimodal image input, live rate limits |
+| **OpenCode** | `opencode` | `models --verbose` context/variant/vision probing, `--session` multi-turn reuse, `-f` image attachments |
+| **Pi** | `pi` | Persistent JSONL RPC session, nested model catalogs, thinking levels, Base64 PNG image prompts, session usage stats |
+
+### Universal ACP Adapters (15 CLIs)
+All ACP engines share Otto's persistent `stdio` ACP runtime with model/thinking configuration, image support where advertised by the runtime, live activity trails, and inline host permission cards:
+
+| Engine | Command | Engine | Command | Engine | Command |
+| --- | --- | --- | --- | --- | --- |
+| **Agy (Antigravity)** | `agy` | **Goose** | `goose` | **Cline** | `cline` |
+| **Gemini CLI** | `gemini` | **Mistral Vibe** | `vibe-acp` | **Augment Code** | `auggie` |
+| **GitHub Copilot** | `copilot` | **Amp** | `amp-acp` | **Factory Droid** | `droid` |
+| **Qwen Code** | `qwen` | **Kilo Code** | `kilo` | **Grok Build** | `grok` |
+| **Cursor Agent** | `agent` | **Junie** | `junie` | **Devin** | `devin` |
+
+---
+
+## Default Keyboard Shortcuts
+
+All global shortcuts can be customized immediately in **Settings → Behavior** and **Settings → Capture**.
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Alt+O` | Expand / collapse Otto from anywhere |
+| `Ctrl+Shift+O` | Visual Capture (Region Snip, Window, Scrolling Window, or Full Screen) |
+| `Ctrl+Shift+T` | Selected Text Capture (via Windows UI Automation) |
+| `Ctrl+V` | Stage an image from clipboard directly into the composer |
+| `Enter` / `Shift+Enter` | Send prompt (or queue follow-up while streaming) / insert newline |
+| `Esc` | Close active popover, cancel snip/edit, or collapse Otto to Compact |
+
+---
+
+## Architecture
+
+Otto is a Windows-first **Tauri 2 modular monolith** with strict unidirectional boundaries enforced automatically by `bun run check`:
+
+```text
+K1  React 19 + TypeScript 6 + Tailwind CSS 4    (src/app, src/features/{agent,shell}, src/shared/ui)
+      │  typed IPC & Channel projections
+      ▼
+K2  Tauri Host & IPC Adapters                   (src-tauri/src/ipc, src-tauri/src/shell)
+      │  validated commands & snapshot fan-out
+      ▼
+K3  Agent Core & Local History                  (src-tauri/src/agent/{runtime,conversation,events,permission})
+      ├─────────────────────────────────────────┐
+      ▼                                         ▼
+K4  19 Compiled CLI Adapters                    K5  Native Platform Effects
+    (codex · claude · opencode · pi · acp)          (Win32 capture/snip/hotkeys/regions/Job Objects · macOS display)
+```
+
+Durable product, architecture, and UI contracts live in [`.agents/product.md`](.agents/product.md), [`.agents/engineering.md`](.agents/engineering.md), and [`.agents/DESIGN.md`](.agents/DESIGN.md).
+
+---
+
+## Development & Verification
+
+### Prerequisites
+- Windows 11 with **WebView2 Runtime** and **Visual Studio C++ Build Tools (MSVC)**
+- **Bun** (`bun.lock`) and **Rust stable** (`src-tauri/Cargo.lock`)
+
+### Run Locally
 ```powershell
 bun install
 bun run tauri dev
 ```
 
-Frontend-only: `bun run dev`. After installing dependencies: `bun run check` (Biome), `bun run build` (TypeScript/Vite), then `cd src-tauri; cargo fmt --all -- --check; cargo clippy --all-targets -- -D warnings; cargo check` on Windows MSVC.
+### Verification Commands
+```powershell
+# Dynamic affected checks & tests (default during iteration)
+bun run test:affected:plan
+bun run test:affected --with-checks
 
-Keep the committed `bun.lock` and `src-tauri/Cargo.lock` in sync with real dependency resolution. CI and release builds use `bun install --frozen-lockfile` and Cargo `--locked`. During local development, run `bun run test:affected` (or `bun run test:affected:plan` to inspect the plan, with optional `--staged`, `--base <ref>`, `--with-checks`, or explicit paths) to execute only tests affected by your changes. Full suites remain available via `bun run test:frontend:critical` and `cargo test --locked --manifest-path src-tauri/Cargo.toml`. A successful build or unit suite does not establish native acceptance.
+# Frontend lint, design/boundary ratchets, TypeScript & Vite bundle
+bun run check
+bun run build
 
-## Current implementation
-Otto is a Windows-first **Personal AI Assistant & Learning Mentor** desktop notch built with Tauri 2, Rust, React 19, Vite 8, TypeScript 6, and Tailwind CSS 4. Hover previews the composer without taking focus; click or keyboard activation pins it for interaction. In Otto OS coexistence mode, Otto docks cleanly as a compact circle with state-change motion cues.
+# Full critical frontend + release contract + Codex fixture suite
+bun run test:frontend:critical
 
-Otto supports 19 locally installed AI CLI engines (Codex, Pi, OpenCode, Claude Code, and 15 ACP CLIs) with live Windows `Refresh PATH` discovery, six curated Learning Modes (`Direct`, `Solve`, `Mentor`, `Simple`, `Write & Translate`, `Practice`), static Profile & Learning Style preferences, staged-first Smart Capture 2.0 (Region Snip with live scroll stitching, window/scrolling/full-screen/selected-text capture, `Ctrl+V`/drop image staging, dual independent hotkeys), 100-message local conversation history with full-text search and Markdown export, Retry/Edit/single-slot follow-up queuing, universal external-caret Insert, and inline host permission choices (`Decline & continue` / `Allow once`, never auto-approved). Otto owns no edit/shell executor and preserves each CLI's native authentication, tools, and permissions.
+# Rust formatting, locked check/tests, and strict Clippy
+cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
+cargo check --manifest-path src-tauri/Cargo.toml --locked
+cargo test --manifest-path src-tauri/Cargo.toml --locked
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+```
 
-UI design baseline (Agent and settings): `.agents/DESIGN.md` together with the current React/Tauri implementation and tokens in `src/style.css`. Do not create standalone HTML design prototypes.
-
-Project contracts: `.agents/product.md`, `.agents/engineering.md`, `.agents/DESIGN.md`, and `CHANGELOG.md`.
-
-## CI and native E2E
-
-[Otto CI](https://github.com/howlil/otto/actions/workflows/otto-verify-once.yml) runs on pull-request events and by manual dispatch. A change-detection job (`scripts/test-affected.mjs`) dynamically traces changed files to run only affected Ubuntu frontend checks/tests, filtered Windows Rust tests/lints, and per-suite Windows native E2E journeys (`shell`, `transitions`, `p8`). Unrelated jobs and native E2E suites are skipped; manual `suite=full` and `release.yml` run the full suite as the safety net. PR updates cancel superseded runs; there is no duplicate branch-push verification trigger.
-
-The native gate runs only after affected frontend and Rust gates succeed, builds debug Otto.exe, installs WebDriver only when `transitions` or `p8` is affected, and runs only the selected native suite(s) without AI authentication or paid model calls. The separate [release workflow](https://github.com/howlil/otto/actions/workflows/release.yml) runs full verification, native P8 E2E, signs updater artifacts, and publishes stable SemVer releases from `master` with curated `CHANGELOG.md` notes.
-
-CI evidence must match the exact delivered SHA; an older green run does not validate newer commits or dirty changes. Existing P8 fixture proof does not establish signed-in provider behavior, native capture targeting, process-tree cleanup or restart acceptance.
-
-## Native E2E — P8 background continuity
-
-A dependency-free WebDriver harness exercises **Otto.exe → Tauri IPC → Rust Codex adapter → subprocess fixture**, including streaming, collapsing and reopening the Agent composer, and completion in the background. No AI login or network model call is used.
-
-**GitHub Actions supports unattended fixture acceptance.** Pull-request updates trigger verification automatically; to explicitly request desktop verification, open **Otto CI**, choose **Run workflow**, select the branch and `suite=full`. Frontend checks run on Ubuntu, while separate Windows jobs run Rustfmt/tests/Clippy and the native journeys described above. No local Windows setup, AI credentials, release packaging or hosted model calls are required for that CI run.
-
-For optional local debugging on Windows 11, install Node.js 22+, `tauri-driver` (`cargo install tauri-driver --version 2.0.6 --locked`), and `msedgedriver.exe` matching the Edge WebView2 runtime. Put both drivers on PATH. Use an isolated Windows test account and close any existing Otto instance before the run.
+### Native Windows E2E Acceptance
+A dependency-free WebDriver harness exercises real **`Otto.exe` → Tauri IPC → Rust Codex adapter → deterministic subprocess fixture** (no AI login or paid model calls required) to prove streaming continuity across collapse/reopen, non-focus-stealing background completion, and history restoration:
 
 ```powershell
+# Requires Node.js 22+, tauri-driver 2.0.6, and matching msedgedriver.exe on PATH
+# Close any running Otto instance before starting
 bun install --frozen-lockfile
 bun run tauri build --debug --no-bundle
 bun run test:e2e:native
 ```
 
-`OTTO_E2E_APP` may point to an alternative compiled Otto executable; `OTTO_E2E_PORT` defaults to 4540. The fixture injects `codex.cmd` only into the spawned test driver PATH; it does not modify CLI authentication or production settings. Run `bun run test:frontend:critical` for the fast fixture protocol contract (no Windows desktop needed).
-
-Local native evidence must identify the tested executable/source state; PR integration requires passing checks on the exact delivered SHA. Keep the desktop idle during mouse/focus acceptance; unexpected input invalidates the probe. Do not treat a passing fixture unit test as desktop E2E proof.
+### CI & Release Pipeline
+- [**Otto CI**](.github/workflows/otto-verify-once.yml) runs on pull requests and manual dispatch using `scripts/test-affected.mjs` to execute only affected Ubuntu frontend checks, filtered Windows Rust suites, and affected native Windows E2E journeys (`shell`, `transitions`, `p8`), with `suite=full` as the full safety net.
+- [**Otto Release**](.github/workflows/release.yml) runs on `master` merges with frozen lockfiles, full frontend/Rust gates, native P8 E2E acceptance, NSIS bundling, minisign signing, SHA-256 checksums, curated [`CHANGELOG.md`](CHANGELOG.md) notes, immutable SemVer GitHub Releases, and signed `updates/latest.json` publication.
