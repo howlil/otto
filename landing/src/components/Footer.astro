@@ -1,5 +1,5 @@
 ---
-import { changelogUrl, releaseUrl, repoUrl } from "@/data/otto";
+import { changelogUrl, releasesUrl, repoUrl } from "@/data/otto";
 ---
 
 <footer class="border-t border-otto-line">
@@ -9,7 +9,7 @@ import { changelogUrl, releaseUrl, repoUrl } from "@/data/otto";
       <span>Otto 1.0.0 · Windows 11</span>
     </div>
     <nav aria-label="Footer" class="flex flex-wrap gap-6">
-      <a href={releaseUrl} class="transition hover:text-otto-text">Releases</a>
+      <a href={releasesUrl} class="transition hover:text-otto-text">Releases</a>
       <a href={changelogUrl} class="transition hover:text-otto-text">Changelog</a>
       <a href={repoUrl} class="transition hover:text-otto-text">GitHub</a>
     </nav>

@@ -1,4 +1,5 @@
 export const releaseUrl = "https://github.com/howlil/otto/releases/latest";
+export const releasesUrl = "https://github.com/howlil/otto/releases";
 export const repoUrl = "https://github.com/howlil/otto";
 export const changelogUrl = "https://github.com/howlil/otto/blob/master/CHANGELOG.md";
 
