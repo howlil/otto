@@ -1,6 +1,7 @@
+use crate::agent::activity::{describe_thinking, describe_tool};
 use crate::agent::providers::authentication_required;
 use crate::agent::{
-    RunPhase,
+    ActivityDetails, ActivityKind, RunPhase,
     events::{AgentEvent, ProviderEvents},
 };
 use serde_json::Value;
@@ -9,6 +10,8 @@ use serde_json::Value;
 pub(super) struct TurnObserver {
     failure: Option<&'static str>,
     final_answer: bool,
+    thinking: Option<String>,
+    thinking_count: u32,
 }
 
 fn failure_message(detail: &str) -> &'static str {
@@ -51,6 +54,59 @@ impl TurnObserver {
                         run_id: id,
                         delta: delta.into(),
                     });
+                }
+            }
+            Some("message_update")
+                if frame["assistantMessageEvent"]["type"] == "thinking_start" =>
+            {
+                self.thinking_count = self.thinking_count.saturating_add(1);
+                let activity = format!("thinking:{}", self.thinking_count);
+                events.activity_started(
+                    id,
+                    &activity,
+                    ActivityKind::Thinking,
+                    ActivityDetails::default(),
+                );
+                self.thinking = Some(activity);
+            }
+            Some("message_update")
+                if frame["assistantMessageEvent"]["type"] == "thinking_delta" =>
+            {
+                if let Some(delta) = frame["assistantMessageEvent"]["delta"].as_str() {
+                    let activity = self.thinking.clone().unwrap_or_else(|| {
+                        self.thinking_count = self.thinking_count.saturating_add(1);
+                        let created = format!("thinking:{}", self.thinking_count);
+                        events.activity_started(
+                            id,
+                            &created,
+                            ActivityKind::Thinking,
+                            ActivityDetails::default(),
+                        );
+                        self.thinking = Some(created.clone());
+                        created
+                    });
+                    events.activity_detail_delta(id, &activity, delta);
+                }
+            }
+            Some("message_update") if frame["assistantMessageEvent"]["type"] == "thinking_end" => {
+                if let Some(activity) = self.thinking.take() {
+                    if let Some(content) = frame["assistantMessageEvent"]["content"].as_str() {
+                        events.activity_updated(id, &activity, describe_thinking(content));
+                    }
+                    events.activity_finished(id, &activity);
+                }
+            }
+            Some("tool_execution_start") => {
+                if let (Some(call), Some(name)) =
+                    (frame["toolCallId"].as_str(), frame["toolName"].as_str())
+                {
+                    let details = describe_tool(name, None, frame.get("args"), &[]);
+                    events.activity_started(id, call, ActivityKind::from_tool(name), details);
+                }
+            }
+            Some("tool_execution_end") => {
+                if let Some(call) = frame["toolCallId"].as_str() {
+                    events.activity_finished(id, call);
                 }
             }
             Some("message_end") if frame["message"]["role"] == "assistant" => {
@@ -187,5 +243,42 @@ mod tests {
         assert!(updates.borrow().messages.last().unwrap().text.is_empty());
         observer.observe(&json!({"type":"agent_settled","aborted":false}), 7, &events);
         assert_eq!(updates.borrow().status, RunPhase::Failed);
+    }
+
+    #[test]
+    fn thinking_and_tool_frames_capture_details_and_redact_secrets() {
+        let (updates, events, mut observer) = state();
+        observer.observe(
+            &json!({"type":"message_update","assistantMessageEvent":{"type":"thinking_start"}}),
+            7,
+            &events,
+        );
+        observer.observe(
+            &json!({"type":"message_update","assistantMessageEvent":{"type":"thinking_delta","delta":"Plan next step\nRead files"}}),
+            7,
+            &events,
+        );
+        observer.observe(
+            &json!({"type":"message_update","assistantMessageEvent":{"type":"thinking_end"}}),
+            7,
+            &events,
+        );
+        observer.observe(&json!({"type":"tool_execution_start","toolCallId":"c1","toolName":"web_search","args":{"q":"otto notch","api_key":"secret-token"}}), 7, &events);
+        let running = updates.borrow().activity.clone();
+        assert_eq!(running.len(), 2);
+        assert!(running[0].done && !running[1].done);
+        assert_eq!(running[0].summary.as_deref(), Some("Plan next step"));
+        assert!(running[0].detail.as_deref().unwrap().contains("Read files"));
+        assert_eq!(running[1].kind, ActivityKind::Search);
+        assert_eq!(running[1].summary.as_deref(), Some("otto notch"));
+        let detail = running[1].detail.as_deref().unwrap();
+        assert!(detail.contains("api_key: [redacted]"));
+        assert!(!detail.contains("secret-token"));
+        observer.observe(
+            &json!({"type":"tool_execution_end","toolCallId":"c1"}),
+            7,
+            &events,
+        );
+        assert!(updates.borrow().activity[1].done);
     }
 }

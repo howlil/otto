@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 
@@ -32,7 +32,7 @@ export function releaseLevel(messages) {
       continue;
     }
     if (conventional[3] || /(^|\n)BREAKING CHANGE:/m.test(message)) {
-      highest = Math.max(highest, 2);
+      highest = Math.max(highest, 3);
     } else if (conventional[1] === 'feat') {
       highest = Math.max(highest, 2);
     } else if (['fix', 'perf', 'revert'].includes(conventional[1])) {
@@ -44,8 +44,35 @@ export function releaseLevel(messages) {
 
 export function nextVersion(base, level) {
   if (level === 0) return null;
+  if (level === 3) {
+    return base[0] >= 1
+      ? [base[0] + 1, 0, 0].join('.')
+      : [0, base[1] + 1, 0].join('.');
+  }
   if (level === 2) return [base[0], base[1] + 1, 0].join('.');
   return [base[0], base[1], base[2] + 1].join('.');
+}
+
+export function planAutomaticVersion(baseline, latestVersion, level, hasBaselineTag) {
+  if (level === 0) return null;
+  if ((!latestVersion || compareVersions(baseline, latestVersion) > 0) && !hasBaselineTag) {
+    return baseline.join('.');
+  }
+  const base = latestVersion && compareVersions(latestVersion, baseline) >= 0 ? latestVersion : baseline;
+  return nextVersion(base, level);
+}
+
+export function extractChangelogNotes(markdown, version) {
+  if (!markdown || !version) return null;
+  const escaped = version.replaceAll('.', '\\.');
+  const heading = new RegExp(`^## \\[${escaped}\\](?:\\s+-\\s+[^\\r\\n]+)?\\r?\\n`, 'm');
+  const match = heading.exec(markdown);
+  if (!match) return null;
+  const start = match.index + match[0].length;
+  const rest = markdown.slice(start);
+  const nextSection = /^(?:## \[|\[[^\]]+\]:\s+https?:)/m.exec(rest);
+  const body = (nextSection ? rest.slice(0, nextSection.index) : rest).trim();
+  return body.length > 0 ? body : null;
 }
 
 function git(...args) {
@@ -78,11 +105,12 @@ function plan() {
     })
     .sort((a, b) => compareVersions(b.version, a.version));
   const latest = candidates[0] || null;
-  const base = latest && compareVersions(latest.version, baseline) >= 0 ? latest.version : baseline;
   const range = latest ? latest.tag + '..HEAD' : 'HEAD';
   const messages = git('log', '--format=%B%x00', range).split('\0').map((value) => value.trim()).filter(Boolean);
   const requested = process.env.OTTO_RELEASE_VERSION?.trim();
-  let version = nextVersion(base, releaseLevel(messages));
+  const baselineTag = `v${baseline.join('.')}`;
+  const hasBaselineTag = Boolean(git('tag', '--list', baselineTag));
+  let version = planAutomaticVersion(baseline, latest?.version ?? null, releaseLevel(messages), hasBaselineTag);
   if (requested) {
     const requestedTag = requested.startsWith('v') ? requested : `v${requested}`;
     const requestedParts = parseTag(requestedTag);
@@ -110,9 +138,17 @@ function stamp(version) {
   writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
 }
 
+function notes(version, root = '.') {
+  const file = join(root, 'CHANGELOG.md');
+  if (!existsSync(file)) return;
+  const extracted = extractChangelogNotes(readFileSync(file, 'utf8'), version);
+  if (extracted) process.stdout.write(`${extracted}\n`);
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const command = process.argv[2];
   if (command === 'plan') plan();
   else if (command === 'stamp') stamp(process.argv[3]);
-  else throw new Error('Expected plan or stamp');
+  else if (command === 'notes') notes(process.argv[3]);
+  else throw new Error('Expected plan, stamp, or notes');
 }

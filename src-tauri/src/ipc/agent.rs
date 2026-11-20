@@ -1,5 +1,81 @@
-use crate::agent::{AcceptedRun, AgentRuntime, Snapshot};
-use tauri::{Manager, State, ipc::Channel};
+use crate::agent::{
+    AcceptedRun, AgentRuntime, AssistantProfile, ProviderDescriptor, Snapshot, TurnOptions,
+};
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU64, Ordering},
+};
+use tauri::{State, ipc::Channel};
+use tokio::sync::{oneshot, watch};
+
+pub(crate) fn start_recovery_observer(runtime: &AgentRuntime) {
+    if let Some(observer) = runtime.recovery_observer() {
+        tauri::async_runtime::spawn(observer);
+    }
+}
+
+#[derive(Default)]
+pub struct AgentSubscriptions {
+    next_id: AtomicU64,
+    active: Mutex<Option<(u64, oneshot::Sender<()>)>>,
+}
+
+impl AgentSubscriptions {
+    fn subscribe(&self, mut updates: watch::Receiver<Snapshot>, channel: Channel<Snapshot>) -> u64 {
+        let subscription_id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
+        let (cancel_tx, mut cancel_rx) = oneshot::channel();
+        let previous = self
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .replace((subscription_id, cancel_tx));
+        if let Some((_, previous)) = previous {
+            let _ = previous.send(());
+        }
+        tauri::async_runtime::spawn(async move {
+            if channel.send(updates.borrow_and_update().clone()).is_err() {
+                return;
+            }
+            let mut cadence = tokio::time::interval(std::time::Duration::from_millis(50));
+            cadence.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                tokio::select! {
+                    _ = &mut cancel_rx => break,
+                    changed = updates.changed() => {
+                        if changed.is_err() {
+                            break;
+                        }
+                        cadence.tick().await;
+                        if channel.send(updates.borrow_and_update().clone()).is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        subscription_id
+    }
+
+    fn unsubscribe(&self, subscription_id: u64) {
+        let cancel = {
+            let mut active = self
+                .active
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if active
+                .as_ref()
+                .is_some_and(|(active_id, _)| *active_id == subscription_id)
+            {
+                active.take().map(|(_, cancel)| cancel)
+            } else {
+                None
+            }
+        };
+        if let Some(cancel) = cancel {
+            let _ = cancel.send(());
+        }
+    }
+}
 
 #[tauri::command]
 pub fn agent_snapshot(runtime: State<'_, AgentRuntime>) -> Snapshot {
@@ -8,8 +84,16 @@ pub fn agent_snapshot(runtime: State<'_, AgentRuntime>) -> Snapshot {
 #[tauri::command]
 pub fn agent_history_list(
     runtime: State<'_, AgentRuntime>,
-) -> Result<Vec<crate::agent::history::ConversationSummary>, String> {
-    runtime.history_list()
+    query: Option<String>,
+) -> Result<Vec<crate::agent::ConversationSummary>, String> {
+    runtime.history_list(query.as_deref())
+}
+#[tauri::command]
+pub fn agent_history_export_markdown(
+    runtime: State<'_, AgentRuntime>,
+    conversation_id: String,
+) -> Result<String, String> {
+    runtime.history_export_markdown(&conversation_id)
 }
 #[tauri::command]
 pub async fn agent_history_open(
@@ -38,15 +122,15 @@ pub async fn agent_history_delete_all(runtime: State<'_, AgentRuntime>) -> Resul
     runtime.history_delete_all().await
 }
 #[tauri::command]
-pub fn agent_codex_installed(runtime: State<'_, AgentRuntime>) -> bool {
-    runtime.provider_installed("codex")
+pub fn agent_provider_catalog(runtime: State<'_, AgentRuntime>) -> Vec<ProviderDescriptor> {
+    runtime.provider_catalog()
 }
+
 #[tauri::command]
-pub async fn agent_codex_readiness(
-    runtime: State<'_, AgentRuntime>,
-) -> Result<crate::agent::ProviderReadiness, String> {
-    Ok(runtime.provider_readiness("codex", None).await)
+pub fn agent_refresh_provider_catalog(runtime: State<'_, AgentRuntime>) -> Vec<ProviderDescriptor> {
+    runtime.refresh_provider_catalog()
 }
+
 #[tauri::command]
 pub async fn agent_provider_readiness(
     runtime: State<'_, AgentRuntime>,
@@ -82,12 +166,16 @@ pub async fn agent_select_provider(
 }
 
 #[tauri::command]
-pub fn agent_subscribe(runtime: State<'_, AgentRuntime>, on_event: Channel<Snapshot>) -> u64 {
-    runtime.subscribe(on_event)
+pub fn agent_subscribe(
+    runtime: State<'_, AgentRuntime>,
+    subscriptions: State<'_, AgentSubscriptions>,
+    on_event: Channel<Snapshot>,
+) -> u64 {
+    subscriptions.subscribe(runtime.subscribe_updates(), on_event)
 }
 #[tauri::command]
-pub fn agent_unsubscribe(runtime: State<'_, AgentRuntime>, subscription_id: u64) {
-    runtime.unsubscribe(subscription_id);
+pub fn agent_unsubscribe(subscriptions: State<'_, AgentSubscriptions>, subscription_id: u64) {
+    subscriptions.unsubscribe(subscription_id);
 }
 #[tauri::command]
 pub async fn agent_ask(
@@ -96,8 +184,21 @@ pub async fn agent_ask(
     provider: String,
     model: Option<String>,
     thinking_effort: Option<String>,
+    mode: Option<String>,
+    profile: Option<AssistantProfile>,
 ) -> Result<AcceptedRun, String> {
-    runtime.ask(text, provider, model, thinking_effort).await
+    runtime
+        .ask_with_guidance(text, provider, model, thinking_effort, mode, profile)
+        .await
+}
+
+#[tauri::command]
+pub fn agent_set_guidance(
+    runtime: State<'_, AgentRuntime>,
+    mode: Option<String>,
+    profile: Option<AssistantProfile>,
+) -> Result<(), String> {
+    runtime.set_guidance(mode, profile)
 }
 
 #[tauri::command]
@@ -111,66 +212,52 @@ pub async fn agent_new_chat(runtime: State<'_, AgentRuntime>) -> Result<(), Stri
 }
 
 #[tauri::command]
-pub fn agent_configure_capture_shortcut(
-    app: tauri::AppHandle,
-    shortcut: String,
-) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        app.state::<crate::windows::capture::CaptureHotkeys>()
-            .configure(&shortcut)?;
-        app.state::<AgentRuntime>().clear_capture_error();
-        Ok(())
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = (app, shortcut);
-        Err("Screen capture shortcuts require Windows.".into())
-    }
-}
-
-#[tauri::command]
-pub fn agent_configure_capture_source(app: tauri::AppHandle, source: String) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        app.state::<crate::windows::capture::CaptureHotkeys>()
-            .configure_source(&source)?;
-        app.state::<AgentRuntime>().clear_capture_error();
-        Ok(())
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = (app, source);
-        Err("Screen capture requires Windows.".into())
-    }
-}
-
-#[tauri::command]
-pub async fn agent_capture_now(app: tauri::AppHandle) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        tauri::async_runtime::spawn_blocking(move || {
-            app.state::<crate::windows::capture::CaptureHotkeys>()
-                .trigger()
-        })
+pub async fn agent_retry_last(
+    runtime: State<'_, AgentRuntime>,
+    provider: String,
+    model: Option<String>,
+    thinking_effort: Option<String>,
+    mode: Option<String>,
+    profile: Option<AssistantProfile>,
+) -> Result<AcceptedRun, String> {
+    runtime
+        .retry_last_turn(provider, model, thinking_effort, mode, profile)
         .await
-        .map_err(|_| "Capture request could not be dispatched.".to_string())?
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = app;
-        Err("Screen capture requires Windows.".into())
-    }
 }
 
 #[tauri::command]
-pub fn agent_capture_target_title() -> Result<String, String> {
-    #[cfg(windows)]
-    {
-        crate::windows::capture::capture_target_title()
-    }
-    #[cfg(not(windows))]
-    {
-        Err("Window target lookup requires Windows.".into())
-    }
+pub async fn agent_edit_and_rerun(
+    runtime: State<'_, AgentRuntime>,
+    message_id: String,
+    text: String,
+    options: TurnOptions,
+) -> Result<AcceptedRun, String> {
+    runtime.edit_and_rerun(message_id, text, options).await
+}
+
+#[tauri::command]
+pub fn agent_queue_followup(
+    runtime: State<'_, AgentRuntime>,
+    text: String,
+    provider: String,
+    model: Option<String>,
+    thinking_effort: Option<String>,
+    mode: Option<String>,
+    profile: Option<AssistantProfile>,
+) -> Result<String, String> {
+    runtime.queue_followup(text, provider, model, thinking_effort, mode, profile)
+}
+
+#[tauri::command]
+pub fn agent_clear_queued_followup(runtime: State<'_, AgentRuntime>) -> Option<String> {
+    runtime.clear_queued_followup()
+}
+
+#[tauri::command]
+pub async fn agent_respond_permission(
+    runtime: State<'_, AgentRuntime>,
+    request_id: String,
+    allow: bool,
+) -> Result<(), String> {
+    runtime.respond_permission(request_id, allow).await
 }

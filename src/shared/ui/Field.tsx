@@ -103,11 +103,3 @@ export function ChoiceGroup<T extends string>({
     </ActiveIndicatorGroup>
   );
 }
-
-export function SegmentedControl<T extends string>(props: ChoiceGroupProps<T>) {
-  return <ChoiceGroup {...props} presentation="chip" />;
-}
-
-export function RadioGroup<T extends string>(props: ChoiceGroupProps<T>) {
-  return <ChoiceGroup {...props} presentation="row" />;
-}

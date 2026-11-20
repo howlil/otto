@@ -34,16 +34,13 @@ function onFrame(frame) {
     }] } });
   }
   if (method === 'thread/start') {
-    if (params.sandbox !== 'read-only' || params.approvalPolicy !== 'never') {
-      return send({ id, error: { code: -32001, message: 'Chat requests must be read-only' } });
-    }
     return send({ id, result: {
-      thread: { id: thread }, sandbox: { type: 'readOnly' }, approvalPolicy: 'never',
+      thread: { id: thread },
     } });
   }
   if (method === 'turn/start') {
-    if (params.threadId !== thread || params.sandboxPolicy?.type !== 'readOnly') {
-      return send({ id, error: { code: -32002, message: 'Invalid turn policy' } });
+    if (params.threadId !== thread) {
+      return send({ id, error: { code: -32002, message: 'Invalid thread' } });
     }
     const turnId = `otto-e2e-turn-${++turnNumber}`;
     send({ id, result: { turn: { id: turnId } } });

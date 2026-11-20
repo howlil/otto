@@ -7,7 +7,7 @@ pub async fn shell_shortcut(
     {
         use tauri::Manager;
         tauri::async_runtime::spawn_blocking(move || {
-            let service = app.state::<crate::windows::shell_shortcut::ShellShortcut>();
+            let service = app.state::<crate::platform::windows::shell_shortcut::ShellShortcut>();
             if let Some(value) = shortcut {
                 service.configure(value)?;
             }

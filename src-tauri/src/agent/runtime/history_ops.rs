@@ -1,12 +1,26 @@
-use super::run::close_owned_transport;
+use super::session::close_owned_transport;
 use super::session::ensure_session_can_reset;
+use crate::agent::conversation as history;
 use crate::agent::error::AgentError;
 use crate::agent::*;
 use std::time::Duration;
 
 impl AgentRuntime {
-    pub fn history_list(&self) -> Result<Vec<history::ConversationSummary>, String> {
-        self.conversation.history.list().map_err(String::from)
+    pub fn history_list(
+        &self,
+        query: Option<&str>,
+    ) -> Result<Vec<history::ConversationSummary>, String> {
+        self.conversation
+            .history
+            .list_filtered(query)
+            .map_err(String::from)
+    }
+
+    pub fn history_export_markdown(&self, id: &str) -> Result<String, String> {
+        self.conversation
+            .history
+            .export_markdown(id)
+            .map_err(String::from)
     }
 
     pub async fn history_open(&self, id: &str) -> Result<Snapshot, String> {
@@ -44,12 +58,16 @@ impl AgentRuntime {
         *self.selected_runtime.lock().unwrap() = pending;
         *active_id = record.id.clone();
         mutate(&self.updates, |state| {
+            let switched_provider = state.provider != record.provider;
             state.conversation_id = record.id.clone();
             state.provider = record.provider;
             state.model = record.model.clone();
             state.thinking_effort = record.thinking_effort.clone();
             state.thread_id = None;
             state.usage = None;
+            if switched_provider {
+                state.rate_limits.clear();
+            }
             state.messages = record.messages.clone();
             state.status = if record.interrupted {
                 RunPhase::Failed
@@ -60,6 +78,8 @@ impl AgentRuntime {
                 "This saved conversation was interrupted. Send a new message to continue.".into()
             });
             state.capture = CaptureSnapshot::default();
+            state.queued_followup = None;
+            state.pending_permission = None;
         });
         drop(active_id);
         let opened = self.snapshot();

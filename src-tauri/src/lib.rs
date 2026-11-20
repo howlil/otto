@@ -1,23 +1,13 @@
 mod agent;
-mod focus;
 mod ipc;
-mod lyrics;
-#[cfg(target_os = "macos")]
-mod macos_display;
-mod media;
-mod notch;
-mod notch_sizing;
-mod os_events;
-#[cfg(windows)]
-mod windows;
+mod platform;
+mod shell;
 
 use tauri::Manager;
-#[cfg(windows)]
-use tauri::window::Color;
 
 pub fn run() {
     #[cfg(windows)]
-    let _instance_guard = match windows::single_instance::acquire() {
+    let _instance_guard = match platform::windows::single_instance::acquire() {
         Ok(Some(guard)) => guard,
         Ok(None) => return,
         Err(error) => {
@@ -28,21 +18,21 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(ipc::notch::NotchHostState::default())
-        .manage(lyrics::LyricsRuntime::new())
+        .manage(ipc::agent::AgentSubscriptions::default())
         .invoke_handler(tauri::generate_handler![
+            ipc::app::app_quit,
             ipc::shell_shortcut::shell_shortcut,
             ipc::overlay::overlay_protection_status,
             ipc::overlay::overlay_set_capture_protection,
-            ipc::taskbar::taskbar_auto_hide_state,
-            ipc::taskbar::taskbar_set_otto_mode,
             ipc::agent::agent_snapshot,
             ipc::agent::agent_history_list,
+            ipc::agent::agent_history_export_markdown,
             ipc::agent::agent_history_open,
             ipc::agent::agent_history_rename,
             ipc::agent::agent_history_delete,
             ipc::agent::agent_history_delete_all,
-            ipc::agent::agent_codex_installed,
-            ipc::agent::agent_codex_readiness,
+            ipc::agent::agent_provider_catalog,
+            ipc::agent::agent_refresh_provider_catalog,
             ipc::agent::agent_provider_readiness,
             ipc::agent::agent_cancel_provider_readiness,
             ipc::agent::agent_select_provider,
@@ -50,37 +40,32 @@ pub fn run() {
             ipc::agent::agent_subscribe,
             ipc::agent::agent_unsubscribe,
             ipc::agent::agent_ask,
+            ipc::agent::agent_retry_last,
+            ipc::agent::agent_edit_and_rerun,
+            ipc::agent::agent_queue_followup,
+            ipc::agent::agent_clear_queued_followup,
+            ipc::agent::agent_respond_permission,
+            ipc::agent::agent_set_guidance,
             ipc::agent::agent_stop,
             ipc::agent::agent_new_chat,
-            ipc::agent::agent_configure_capture_shortcut,
-            ipc::agent::agent_configure_capture_source,
-            ipc::agent::agent_capture_target_title,
-            ipc::agent::agent_capture_now,
+            ipc::agent_capture::agent_configure_capture_shortcut,
+            ipc::agent_capture::agent_configure_text_capture_shortcut,
+            ipc::agent_capture::agent_configure_capture_source,
+            ipc::agent_capture::agent_configure_capture_auto_send,
+            ipc::agent_capture::agent_stage_image,
+            ipc::agent_capture::agent_clear_staged_capture,
+            ipc::agent_capture::agent_capture_target_title,
+            ipc::agent_capture::agent_capture_now,
+            ipc::agent_capture::agent_insert_text,
             ipc::notch::notch_configure_host,
             ipc::notch::notch_set_region,
-            ipc::media::media_snapshot,
-            ipc::media::media_set_online_lyrics,
-            ipc::media::media_lyrics,
-            ipc::media::media_subscribe,
-            ipc::media::media_unsubscribe,
-            ipc::media::media_refresh,
-            ipc::media::media_control,
-            ipc::focus::focus_timer_snapshot,
-            ipc::focus::focus_timer_subscribe,
-            ipc::focus::focus_timer_unsubscribe,
-            ipc::focus::focus_timer_start,
-            ipc::focus::focus_timer_pause,
-            ipc::focus::focus_timer_reset,
-            ipc::focus::focus_timer_configure,
-            ipc::focus::focus_timer_select_phase,
-            ipc::focus::focus_timer_start_next,
-            ipc::os_events::os_events_subscribe,
-            ipc::os_events::os_events_unsubscribe,
-            ipc::os_events::os_events_set_enabled,
+            ipc::otto_os::otto_os_active,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
-            app.manage(macos_display::DisplayWatch::start(app.handle().clone())?);
+            app.manage(platform::macos::display::DisplayWatch::start(
+                app.handle().clone(),
+            )?);
             #[cfg(windows)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -91,38 +76,40 @@ pub fn run() {
                 ),
                 Err(_) => agent::AgentRuntime::new(),
             };
-            agent.start_recovery_observer();
+            ipc::agent::start_recovery_observer(&agent);
             app.manage(agent);
-            let media = std::sync::Arc::new(media::MediaRuntime::new());
-            app.manage(media.clone());
-            #[cfg(windows)]
-            app.manage(windows::media::MediaController::start(media));
-            #[cfg(not(windows))]
-            let _ = media;
-            let focus_timer = std::sync::Arc::new(focus::FocusTimerRuntime::new());
-            focus_timer.start_worker();
-            app.manage(focus_timer);
-            let os_events = std::sync::Arc::new(os_events::OsEventRuntime::new());
-            app.manage(os_events.clone());
-            #[cfg(windows)]
-            app.manage(windows::observers::start_all(os_events));
-            #[cfg(not(windows))]
-            let _ = os_events;
-            #[cfg(windows)]
-            app.manage(windows::capture::start_hotkey(app.handle().clone()));
             #[cfg(windows)]
             {
-                app.manage(windows::shell_shortcut::start(app.handle().clone())?);
-                app.manage(windows::taskbar::TaskbarState::default());
+                let handle = app.handle().clone();
+                let hwnd = app
+                    .get_webview_window("main")
+                    .and_then(|window| window.hwnd().ok())
+                    .map(|hwnd| hwnd.0 as isize);
+                let follower = handle.clone();
+                app.manage(platform::windows::otto_os::start(
+                    handle,
+                    hwnd,
+                    move |presence| {
+                        if let Some(hwnd) = hwnd {
+                            ipc::notch_follow::follow(&follower, hwnd, presence);
+                        }
+                    },
+                ));
+            }
+            #[cfg(windows)]
+            app.manage(platform::windows::capture::start_hotkey(
+                app.handle().clone(),
+            ));
+            #[cfg(windows)]
+            {
+                app.manage(platform::windows::shell_shortcut::start(
+                    app.handle().clone(),
+                )?);
             }
             if let Some(window) = app.get_webview_window("main") {
                 #[cfg(windows)]
-                if let Err(error) = window.set_background_color(Some(Color(0, 0, 0, 0))) {
-                    eprintln!("Otto transparent background unavailable: {error}");
-                }
-                #[cfg(windows)]
                 {
-                    if let Err(error) = windows::overlay::configure(&window) {
+                    if let Err(error) = platform::windows::overlay::configure(&window) {
                         eprintln!("Otto capture protection unavailable: {error}");
                     }
                 }
@@ -132,15 +119,9 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("failed to start Otto")
         .run(|_app, _event| {
-            #[cfg(windows)]
-            if matches!(_event, tauri::RunEvent::Exit)
-                && let Some(taskbar) = _app.try_state::<windows::taskbar::TaskbarState>()
-            {
-                let _ = taskbar.restore();
-            }
             #[cfg(target_os = "macos")]
             if matches!(_event, tauri::RunEvent::Exit) {
-                _app.unmanage::<macos_display::DisplayWatch>();
+                _app.unmanage::<platform::macos::display::DisplayWatch>();
             }
         });
 }

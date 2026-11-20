@@ -3,8 +3,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
-import { runPreflight } from "./preflight.mjs";
-import { createVisualRecorder } from "./visual-capture.mjs";
+import { runPreflight } from "./preflight";
+import { createVisualRecorder } from "./visual-capture";
 
 if (process.platform !== "win32") throw new Error("Native transition E2E requires Windows");
 
@@ -114,11 +114,12 @@ async function moveNativePointer(point) {
 }
 
 async function hoverPreview() {
-  const point = await execute(`const rect = document.querySelector('button[aria-expanded="false"]').getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };`);
+  const point = await execute(`const button = Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Open Agent")); const rect = button.getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };`);
   await moveNativePointer(point);
-  await until("hover preview", () => execute('return document.querySelector("button[aria-expanded]")?.getAttribute("aria-expanded") === "true";'));
+  await until("hover preview", () => execute('return document.querySelector("[data-expanded=true]") !== null;'));
+  await until("hover opens Agent composer", () => execute(`return Boolean(document.querySelector('[data-surface="agent"]') && document.querySelector("#otto-prompt"));`));
   await moveNativePointer({ x: 0, y: 0 });
-  await until("hover collapse", () => execute('return document.querySelector("button[aria-expanded]")?.getAttribute("aria-expanded") === "false";'));
+  await until("hover collapse", () => execute('return document.querySelector("[data-expanded=false]") !== null;'));
 }
 
 function assertGeometry(label, frames) {
@@ -180,7 +181,7 @@ async function transition(label, selector, expected) {
         expected: Boolean(${expected}),
         state: {
           body: document.body.innerText.slice(0, 400),
-          expanded: document.querySelector("button[aria-expanded]")?.getAttribute("aria-expanded") ?? null,
+          expanded: document.querySelector("[data-expanded]")?.getAttribute("data-expanded") ?? null,
           surface: document.querySelector("[data-surface]")?.getAttribute("data-surface") ?? null,
         },
       });
@@ -246,14 +247,14 @@ async function start() {
   );
   session = created.sessionId;
   assert.ok(session, "Missing WebDriver session");
-  await until("Otto document ready before preferences", () => execute('return Boolean(document.querySelector("button[aria-expanded=\\"false\\"]"));'));
+  await until("Otto document ready before preferences", () => execute('return Array.from(document.querySelectorAll("button")).some(button => button.textContent?.includes("Open Agent"));'));
   await execute(`
     const key = 'otto.preferences.v1';
     const preferences = JSON.parse(localStorage.getItem(key) || '{}');
     localStorage.setItem(key, JSON.stringify({ ...preferences, clickOutside: false, hoverExpand: true, motion: "fluid" }));
   `);
   await call("POST", endpoint("/refresh"), {});
-  await until("compact Home", () => execute('return Boolean(document.querySelector("button[aria-expanded=\\"false\\"]"));'));
+  await until("compact Agent", () => execute('return Boolean(document.querySelector("[data-expanded=false]"));'));
 }
 
 async function nativeInteractionAudit() {
@@ -263,8 +264,8 @@ async function nativeInteractionAudit() {
   assert.match(processId, /^\d+$/, "native probe requires exactly one Otto process");
   const keepToggle = 'Array.from(document.querySelectorAll("label")).find(label => label.textContent.includes("Keep expanded"))';
   for (const [placement, keepExpanded] of [["floating", true], ["attached", true], ["attached", false], ["floating", false]]) {
-    if (await execute('return Boolean(document.querySelector(\'button[aria-expanded="false"]\'));')) {
-      await clickTarget('document.querySelector(\'button[aria-expanded="false"]\')');
+    if (await execute('return Boolean(document.querySelector(\'[data-expanded="false"]\'));')) {
+      await clickTarget('Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Open Agent"))');
     }
     await clickTarget('Array.from(document.querySelectorAll("button")).find(button => button.textContent.includes("Open Otto settings"))');
     await clickTarget('document.querySelector(\'button[data-active-key="interaction"]\')');
@@ -280,9 +281,9 @@ async function nativeInteractionAudit() {
     await until("placement control", () => execute(`return Boolean(document.querySelector('button[data-active-key="${placement}"]:not([disabled])'));`));
     await clickTarget(`document.querySelector('button[data-active-key="${placement}"]')`);
     await until("native placement reflected", () => execute(`return document.querySelector('[data-placement="${placement}"]') && document.querySelector('button[data-active-key="${placement}"][aria-pressed="true"]');`));
-    await clickTarget('Array.from(document.querySelectorAll("button")).find(button => button.textContent.includes("Back to Home"))');
-    await clickTarget('document.querySelector(\'button[aria-expanded="true"]\')');
-    await until("Compact before native handoff", () => execute('return Boolean(document.querySelector(\'button[aria-expanded="false"]\'));'));
+    await clickTarget('Array.from(document.querySelectorAll("button")).find(button => button.textContent.includes("Back to Agent"))');
+    await execute('document.querySelector("main")?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));');
+    await until("Compact before native handoff", () => execute('return Boolean(document.querySelector(\'[data-expanded="false"]\'));'));
     const probe = spawnSync("powershell.exe", [
       "-NoProfile", "-Sta", "-ExecutionPolicy", "Bypass", "-File", join(root, "tests/e2e/shell-native.ps1"),
       "-App", app, "-TargetProcessId", processId, "-SkipCapture", "-ExpectPlacement", placement,
@@ -299,51 +300,14 @@ async function nativeInteractionAudit() {
 async function audit() {
   await hoverPreview();
   await transition(
-    "compact to Home",
-    'document.querySelector("button[aria-expanded=\\"false\\"]")',
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
-  );
-  await transition(
-    "Home to Global Settings",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Back to Home"))',
-  );
-  for (const tab of ["interaction", "system", "appearance", "placement"]) {
-    await transition(
-      `Global Settings ${tab} tab`,
-      `document.querySelector('button[data-active-key="${tab}"]')`,
-      `document.querySelector('button[data-active-key="${tab}"][aria-current="page"]')`,
-    );
-  }
-  const attached = await execute(
-    'return Boolean(document.querySelector(\'button[data-active-key="attached"]:not([disabled])\'));',
-  );
-  if (attached) {
-    await transition(
-      "Global Settings floating to attached",
-      'document.querySelector(\'button[data-active-key="attached"]\')',
-      'document.querySelector(\'button[data-active-key="attached"][aria-pressed="true"]\')',
-    );
-    await transition(
-      "Global Settings attached to floating",
-      'document.querySelector(\'button[data-active-key="floating"]\')',
-      'document.querySelector(\'button[data-active-key="floating"][aria-pressed="true"]\')',
-    );
-  }
-  await transition(
-    "Global Settings to Home",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Back to Home"))',
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
-  );
-  await transition(
-    "Home to Agent",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.querySelector("strong")?.textContent?.trim() === "Agent")',
-    'document.querySelector("[data-surface=\\"agent\\"]")',
+    "compact to Agent composer",
+    `Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Open Agent"))`,
+    `Boolean(document.querySelector('[data-surface="agent"]') && document.querySelector("#otto-prompt"))`,
   );
   await transition(
     "Agent to Agent Settings",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Agent settings"))',
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Back to Agent"))',
+    `Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Agent settings"))`,
+    `Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Back to Agent"))`,
   );
   for (const tab of ["capture", "assistant"]) {
     await transition(
@@ -354,80 +318,42 @@ async function audit() {
   }
   await transition(
     "Agent Settings to Agent",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Back to Agent"))',
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Agent settings"))',
+    `Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Back to Agent"))`,
+    `Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Agent settings"))`,
   );
   await transition(
-    "Agent to Home",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Return to Home"))',
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
+    "Agent to Global Settings",
+    `Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Open Otto settings"))`,
+    `Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Back to Agent"))`,
   );
+  for (const tab of ["interaction", "system", "placement"]) {
+    await transition(
+      `Global Settings ${tab} tab`,
+      `document.querySelector('button[data-active-key="${tab}"]')`,
+      `document.querySelector('button[data-active-key="${tab}"][aria-current="page"]')`,
+    );
+  }
+  const attached = await execute(
+    "return Boolean(document.querySelector('button[data-active-key=\"attached\"]:not([disabled])'));",
+  );
+  if (attached) {
+    await transition(
+      "Global Settings floating to attached",
+      "document.querySelector('button[data-active-key=\"attached\"]')",
+      "document.querySelector('button[data-active-key=\"attached\"][aria-pressed=\"true\"]')",
+    );
+    await transition(
+      "Global Settings attached to floating",
+      "document.querySelector('button[data-active-key=\"floating\"]')",
+      "document.querySelector('button[data-active-key=\"floating\"][aria-pressed=\"true\"]')",
+    );
+  }
   await transition(
-    "Home to Focus",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.querySelector("strong")?.textContent?.trim() === "Focus")',
-    '(() => { const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect(); return Boolean(document.querySelector("[data-surface=\\"focus\\"]")) && Math.round(stage?.width ?? 0) === 408 && Math.round(stage?.height ?? 0) === 174; })()',
-  );
-  const focusAppearance = await execute(`
-    const focus = document.querySelector('[data-surface="focus"]');
-    const countdown = focus.querySelector('p.tabular-nums');
-    const phase = focus.querySelector('button[aria-pressed="true"]');
-    return {
-      homeEyes: Boolean(focus.querySelector('button [data-otto-logo] [data-expression]')),
-      headerHeight: focus.querySelector('header').getBoundingClientRect().height,
-      countdownSize: getComputedStyle(countdown).fontSize,
-      phaseSize: getComputedStyle(phase).fontSize,
-    };
-  `);
-  assert.equal(focusAppearance.homeEyes, true, "Focus Home must render Otto eyes");
-  assert.equal(focusAppearance.headerHeight, 42, "Focus header must match the canonical height");
-  assert.equal(focusAppearance.countdownSize, "39px", "Focus countdown must retain its display scale");
-  assert.equal(focusAppearance.phaseSize, "11px", "Global button inheritance must not override Focus typography");
-  await clickTarget(
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Start timer"))',
-  );
-  await until("Focus running", () =>
-    execute('return Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Pause timer"));'),
-  );
-  await clickTarget(
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Pause timer"))',
-  );
-  await until("Focus paused", () =>
-    execute('return Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Resume timer"));'),
-  );
-  await clickTarget(
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Short")',
-  );
-  await until("Focus phase confirmation", () =>
-    execute('return document.querySelector("[role=dialog]")?.textContent?.includes("Switch to Short break?") ?? false;'),
-  );
-  await clickTarget(
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Switch phase")',
-  );
-  await until("Short break ready", () =>
-    execute('return Array.from(document.querySelectorAll("button[aria-pressed=\\"true\\"]")).some((button) => button.textContent?.trim() === "Short");'),
-  );
-  await transition(
-    "Focus to Focus Settings",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Edit durations"))',
-    '(() => { const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect(); return document.body.innerText.includes("Focus presets") && Math.round(stage?.width ?? 0) === 408 && Math.round(stage?.height ?? 0) === 328; })()',
-  );
-  const presetSize = await execute(`
-    const preset = Array.from(document.querySelectorAll('button')).find(button => button.textContent?.trim() === '15m');
-    return getComputedStyle(preset).fontSize;
-  `);
-  assert.equal(presetSize, "11px", "Focus presets must retain canonical typography in WebView2");
-  await transition(
-    "Focus Settings to Focus",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Done")',
-    'Boolean(document.querySelector("[data-surface=\\"focus\\"]")) && Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Edit durations"))',
-  );
-  await transition(
-    "Focus to Home",
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Back to Home"))',
-    'Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Open Otto settings"))',
+    "Global Settings to Agent",
+    `Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Back to Agent"))`,
+    `Boolean(document.querySelector('[data-surface="agent"]') && document.querySelector("#otto-prompt"))`,
   );
 }
-
 async function captureSizing(label, width, height = null) {
   await until(`${label} settled`, () => execute(`
     const stage = document.querySelector("[data-surface-stage]")?.getBoundingClientRect();
@@ -450,39 +376,24 @@ async function captureSizing(label, width, height = null) {
 }
 
 async function sizingComparison() {
-    for (const placement of ["floating", "attached"]) {
-      await execute(`
-        const key = "otto.preferences.v1";
-        const prefs = JSON.parse(localStorage.getItem(key) || "{}");
-        delete prefs.sizingPreset;
-        localStorage.setItem(key, JSON.stringify({ ...prefs, placement: ${JSON.stringify(placement)}, hoverExpand: false, clickOutside: false }));
-        location.reload();
-      `);
-      await until("native sizing ready", () => execute(`return document.querySelector('[data-sizing="mac-native"][data-placement="${placement}"]') && document.querySelector('button[aria-expanded="false"]');`));
-      await captureSizing(`mac-native-${placement}-idle`, 185, 32);
-      await clickTarget('document.querySelector("button[aria-expanded]")');
-      await until("expanded Home", () => execute('return document.querySelector("[data-expanded=true]") && document.body.innerText.includes("Pomodoro");'));
-      await captureSizing(`mac-native-${placement}-home`, 452, 148);
-      await clickTarget('Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Pomodoro"))');
-      await until("expanded Focus", () => execute('return Boolean(document.querySelector("[data-surface=focus]"));'));
-      await captureSizing(`mac-native-${placement}-focus-expanded`, 408, 174);
-      await execute(`document.querySelector("main").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));`);
-      await until("compact Focus", () => execute('return Boolean(document.querySelector("[data-expanded=false]"));'));
-      await captureSizing(`mac-native-${placement}-focus-compact`, 224, 44);
-      for (const module of [{ name: "Agent", compactWidth: 228, compactHeight: 40, width: 526, height: null },
-        { name: "Music", compactWidth: 264, compactHeight: 44, width: 444, height: 178 }]) {
-        await execute(`document.querySelector("main").dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true }));`);
-        await captureSizing(`mac-native-${placement}-${module.name}-compact`, module.compactWidth, module.compactHeight);
-        await clickTarget(`Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Open ${module.name}"))`);
-        await until(`${module.name} expanded`, () => execute('return Boolean(document.querySelector("[data-expanded=true]"));'));
-        await captureSizing(`mac-native-${placement}-${module.name}-expanded`, module.width, module.height);
-        await execute(`document.querySelector("main").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));`);
-        await until(`${module.name} compact`, () => execute('return Boolean(document.querySelector("[data-expanded=false]"));'));
-      }
-    }
+  for (const placement of ["floating", "attached"]) {
+    await execute(`
+      const key = "otto.preferences.v1";
+      const prefs = JSON.parse(localStorage.getItem(key) || "{}");
+      delete prefs.sizingPreset;
+      localStorage.setItem(key, JSON.stringify({ ...prefs, placement: ${JSON.stringify(placement)}, hoverExpand: false, clickOutside: false }));
+      location.reload();
+    `);
+    await until("Agent compact sizing ready", () => execute(`return Boolean(document.querySelector('[data-sizing="mac-native"][data-placement="${placement}"]') && document.querySelector('[data-expanded="false"]'));`));
+    await captureSizing(`mac-native-${placement}-agent-compact`, 228, 40);
+    await clickTarget(`Array.from(document.querySelectorAll("button")).find(button => button.textContent?.includes("Open Agent"))`);
+    await until("expanded Agent composer", () => execute(`return Boolean(document.querySelector('[data-expanded="true"]') && document.querySelector('[data-surface="agent"]') && document.querySelector("#otto-prompt"));`));
+    await captureSizing(`mac-native-${placement}-agent-expanded`, 526);
+    await execute('document.querySelector("main").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));');
+    await until("Agent compact after sizing", () => execute('return Boolean(document.querySelector("[data-expanded=false]"));'));
+  }
   console.log("PASS: native sizing and notch-corner comparison (Windows approximate geometry, not a physical Mac)");
 }
-
 try {
   await start();
   if (process.env.OTTO_SIZING_COMPARISON === "1") await sizingComparison();

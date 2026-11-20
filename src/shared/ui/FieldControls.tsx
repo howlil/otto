@@ -1,4 +1,5 @@
-import type { ComponentPropsWithRef } from "react";
+import { useId, type ComponentPropsWithRef } from "react";
+import { SettingRow } from "./SettingRow";
 import { Text } from "./Text";
 
 export function TextArea(props: ComponentPropsWithRef<"textarea">) {
@@ -23,12 +24,8 @@ export function Range({
   disabled?: boolean;
 }) {
   return (
-    <label className="my-[13px] block">
-      <Text
-        as="span"
-        variant="meta"
-        className="flex justify-between gap-2 text-otto-settings-label"
-      >
+    <label className="block py-1.5">
+      <Text as="span" variant="label" className="flex justify-between gap-2">
         {label}
         <Text as="output" variant="meta" className="text-otto-label-muted">
           {value}
@@ -61,19 +58,11 @@ export function Toggle({
   onChange: (checked: boolean) => void;
   disabled?: boolean;
 }) {
+  const id = useId();
   return (
-    <label className="flex min-h-[51px] cursor-pointer items-center justify-between gap-[10px] border-b border-otto-control-deep py-[9px]">
-      <span>
-        <Text as="strong" variant="label" className="block">
-          {title}
-        </Text>
-        {help && (
-          <Text as="small" variant="meta" className="mt-1 block text-otto-label-muted">
-            {help}
-          </Text>
-        )}
-      </span>
+    <SettingRow title={title} help={help} htmlFor={id}>
       <input
+        id={id}
         type="checkbox"
         checked={checked}
         disabled={disabled}
@@ -84,6 +73,6 @@ export function Toggle({
         className="relative h-[18px] w-[30px] flex-none rounded-full border border-otto-switch-border bg-otto-switch-track transition-colors duration-200 after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-otto-icon-muted after:transition-transform after:duration-200 after:content-[''] peer-checked:bg-otto-switch-enabled peer-checked:after:translate-x-3 peer-checked:after:bg-otto-knob"
         aria-hidden="true"
       />
-    </label>
+    </SettingRow>
   );
 }

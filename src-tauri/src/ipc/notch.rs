@@ -1,5 +1,6 @@
-use crate::notch::{RectPx, RegionOrder, RegionPx, host_bounds};
-use crate::notch_sizing::{DisplayGeometry, content_top, drawable_monitor, resolve_layouts};
+use crate::shell::notch::{PositionPx, RectPx, RegionOrder, RegionPx, host_bounds};
+use crate::shell::otto_os::circle_slot;
+use crate::shell::sizing::{DisplayGeometry, content_top, drawable_monitor, resolve_layouts};
 use std::sync::Mutex;
 use tauri::{Manager, State, WebviewWindow};
 #[cfg(not(windows))]
@@ -12,30 +13,48 @@ pub struct NotchHost {
     placement: String,
     width: f64,
     height: f64,
-    scale: f64,
+    pub(super) scale: f64,
     layouts: std::collections::BTreeMap<&'static str, (u32, u32)>,
     display: DisplayGeometry,
     content_top: u32,
+    pub(super) otto_os: bool,
+}
+
+const OTTO_OS_CIRCLE_PX: u32 = 40;
+
+#[derive(Clone, Copy, PartialEq)]
+pub(super) struct Track {
+    pub(super) host_width: u32,
+    pub(super) monitor: RectPx,
+    pub(super) scale: f64,
+    pub(super) diameter: u32,
 }
 
 #[derive(Clone)]
-struct ConfiguredHost {
-    view: NotchHost,
-    bounds: RectPx,
+pub(super) struct ConfiguredHost {
+    pub(super) view: NotchHost,
+    pub(super) bounds: RectPx,
+    pub(super) track: Option<Track>,
     client_id: String,
     attempt: u32,
 }
 
 #[derive(Default)]
-struct HostState {
-    host: Option<ConfiguredHost>,
+pub(super) struct HostState {
+    pub(super) host: Option<ConfiguredHost>,
     order: RegionOrder,
     region: Option<RegionPx>,
-    revealed: bool,
+    pub(super) revealed: bool,
+    #[cfg(windows)]
+    pub(super) last_signal: Option<std::time::Instant>,
+    #[cfg(windows)]
+    pub(super) follow_spring: crate::shell::otto_os::SpringFollow,
+    #[cfg(windows)]
+    pub(super) last_follow: Option<std::time::Instant>,
 }
 
 #[derive(Default)]
-pub struct NotchHostState(Mutex<HostState>);
+pub struct NotchHostState(pub(super) Mutex<HostState>);
 
 fn observed_bounds(window: &WebviewWindow) -> Result<RectPx, String> {
     let size = window.outer_size().map_err(|error| error.to_string())?;
@@ -90,6 +109,7 @@ fn position_host(window: &WebviewWindow, bounds: RectPx) -> Result<(), String> {
 pub struct HostRequest {
     placement: String,
     top_offset: u32,
+    position: Option<PositionPx>,
     width: u32,
     height: u32,
     client_id: String,
@@ -117,6 +137,7 @@ fn configure_host(
     let HostRequest {
         placement,
         top_offset,
+        position,
         width,
         height,
         client_id,
@@ -137,28 +158,56 @@ fn configure_host(
     let origin = monitor.position();
     let work = monitor.work_area();
     #[cfg(target_os = "macos")]
-    let display = crate::macos_display::measure(window).unwrap_or_else(|_| {
-        crate::notch_sizing::approximate_geometry(f64::from(work.position.y - origin.y) / scale)
+    let display = crate::platform::macos::display::measure(window).unwrap_or_else(|_| {
+        crate::shell::sizing::approximate_geometry(f64::from(work.position.y - origin.y) / scale)
     });
     #[cfg(not(target_os = "macos"))]
     let display = DisplayGeometry::default();
+    let otto_os = placement == "floating" && crate::ipc::otto_os::active();
+    let mut drawable = drawable_monitor(
+        &display,
+        placement == "attached",
+        RectPx {
+            x: origin.x,
+            y: origin.y,
+            width: size.width,
+            height: size.height,
+        },
+        scale,
+    );
+    let host_width = ((f64::from(width) * scale).round() as u32)
+        .min(size.width)
+        .max(1);
+    let monitor_px = drawable;
+    let slot = otto_os
+        .then(crate::ipc::otto_os::notch)
+        .flatten()
+        .and_then(|notch| circle_slot(notch, host_width, monitor_px, scale));
+    let track = slot.filter(|_| position.is_none()).map(|slot| Track {
+        host_width,
+        monitor: monitor_px,
+        scale,
+        diameter: slot.diameter,
+    });
+    if otto_os && slot.is_none() {
+        let reserved = (work.position.y - drawable.y).max(0);
+        drawable.y += reserved;
+        drawable.height = drawable.height.saturating_sub(reserved as u32);
+    }
+    let position = position.or(slot.map(|slot| slot.position));
+    let mut layouts = resolve_layouts(&display, placement == "attached");
+    if otto_os {
+        let circle = slot.map_or(OTTO_OS_CIRCLE_PX, |slot| slot.diameter);
+        layouts.insert("agentCompact", (circle, circle));
+    }
     let bounds = host_bounds(
-        drawable_monitor(
-            &display,
-            placement == "attached",
-            RectPx {
-                x: origin.x,
-                y: origin.y,
-                width: size.width,
-                height: size.height,
-            },
-            scale,
-        ),
+        drawable,
         i64::from(work.position.y) + i64::from(work.size.height),
         scale,
         (width, height),
         placement == "attached",
         top_offset,
+        position,
     )?;
     let mut state = state
         .0
@@ -173,10 +222,17 @@ fn configure_host(
         && host.view.scale == scale
         && host.view.placement == placement
         && host.view.display == display
+        && host.view.otto_os == otto_os
+        && host.view.layouts == layouts
     {
         return Ok(host.view.clone());
     }
+    let glides = track.is_some()
+        && state.revealed
+        && previous.width == bounds.width
+        && previous.height == bounds.height;
     if previous != bounds
+        && !glides
         && let Err(error) = position_host(window, bounds)
     {
         let _ = position_host(window, previous);
@@ -191,16 +247,23 @@ fn configure_host(
     let host = NotchHost {
         revision: state.order.revision,
         content_top: content_top(&display, placement == "attached"),
-        layouts: resolve_layouts(&display, placement == "attached"),
+        layouts,
+        otto_os,
         display,
         placement,
         width: f64::from(bounds.width) / scale,
         height: f64::from(bounds.height) / scale,
         scale,
     };
+    #[cfg(windows)]
+    if !glides {
+        state.follow_spring.reset();
+        state.last_follow = None;
+    }
     state.host = Some(ConfiguredHost {
         view: host.clone(),
         bounds,
+        track,
         client_id,
         attempt,
     });
@@ -211,11 +274,14 @@ fn reveal(window: &WebviewWindow) -> Result<(), String> {
     #[cfg(windows)]
     {
         use windows_sys::Win32::UI::WindowsAndMessaging::{SW_SHOWNOACTIVATE, ShowWindow};
+        crate::platform::windows::overlay::ensure_tool_style(window)
+            .map_err(|error| error.to_string())?;
         let hwnd = window.hwnd().map_err(|error| error.to_string())?;
         unsafe {
             ShowWindow(hwnd.0 as _, SW_SHOWNOACTIVATE);
         }
-        crate::windows::overlay::ensure_tool_style(window).map_err(|error| error.to_string())?;
+        crate::platform::windows::overlay::ensure_tool_style(window)
+            .map_err(|error| error.to_string())?;
     }
     #[cfg(not(windows))]
     window.show().map_err(|error| error.to_string())?;
@@ -255,20 +321,27 @@ fn update_region(
     if (host.view.placement == "attached") != (region.shoulder > 0) {
         return Err("Notch region does not match the confirmed placement.".into());
     }
+    let morph = region.morph
+        && state
+            .region
+            .as_ref()
+            .is_some_and(|last| last.host_revision == region.host_revision);
+    let region = RegionPx { morph, ..region };
     let unchanged = state
         .region
         .as_ref()
         .is_some_and(|last| last.host_revision == region.host_revision && region.same_shape(last));
     #[cfg(windows)]
     if !unchanged {
-        crate::windows::placement::apply_reported_region(
+        crate::platform::windows::region::apply_reported_region(
             window,
             &region,
             state.region.as_ref(),
-            state
-                .region
-                .as_ref()
-                .is_none_or(|last| last.host_revision != region.host_revision),
+            !morph
+                && state
+                    .region
+                    .as_ref()
+                    .is_none_or(|last| last.host_revision != region.host_revision),
         )
         .map_err(|error| error.to_string())?;
     }
@@ -277,8 +350,13 @@ fn update_region(
     if !state.revealed {
         reveal(window)?;
         #[cfg(windows)]
-        crate::windows::placement::apply_reported_region(window, &region, Some(&region), true)
-            .map_err(|error| error.to_string())?;
+        crate::platform::windows::region::apply_reported_region(
+            window,
+            &region,
+            Some(&region),
+            true,
+        )
+        .map_err(|error| error.to_string())?;
         state.revealed = true;
     }
     state.region = Some(region);

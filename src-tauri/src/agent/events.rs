@@ -1,4 +1,7 @@
-use super::{CaptureSnapshot, RunPhase, Snapshot, UsageSnapshot, conversation};
+use super::{
+    ActivityDetails, ActivityKind, CaptureSnapshot, PendingPermissionSnapshot, ProviderRateLimit,
+    RunPhase, Snapshot, UsageSnapshot, activity, conversation,
+};
 use tokio::sync::watch;
 
 pub enum AgentEvent {
@@ -15,6 +18,30 @@ pub enum AgentEvent {
         run_id: u64,
         usage: UsageSnapshot,
     },
+    RateLimitsUpdated {
+        run_id: u64,
+        rate_limits: Vec<ProviderRateLimit>,
+    },
+    ActivityStarted {
+        run_id: u64,
+        id: String,
+        kind: ActivityKind,
+        details: ActivityDetails,
+    },
+    ActivityUpdated {
+        run_id: u64,
+        id: String,
+        details: ActivityDetails,
+    },
+    ActivityDetailDelta {
+        run_id: u64,
+        id: String,
+        delta: String,
+    },
+    ActivityFinished {
+        run_id: u64,
+        id: String,
+    },
     TurnStarted {
         run_id: u64,
         text: String,
@@ -26,6 +53,14 @@ pub enum AgentEvent {
     TextFinal {
         run_id: u64,
         text: String,
+    },
+    PermissionRequested {
+        run_id: u64,
+        request: PendingPermissionSnapshot,
+    },
+    PermissionCleared {
+        run_id: u64,
+        request_id: Option<String>,
     },
     Completed {
         run_id: u64,
@@ -41,11 +76,22 @@ pub enum AgentEvent {
 
 pub struct ProviderEvents {
     updates: watch::Sender<Snapshot>,
+    retain_session: bool,
 }
 
 impl ProviderEvents {
     pub fn new(updates: watch::Sender<Snapshot>) -> Self {
-        Self { updates }
+        Self {
+            updates,
+            retain_session: true,
+        }
+    }
+
+    pub fn new_ephemeral(updates: watch::Sender<Snapshot>) -> Self {
+        Self {
+            updates,
+            retain_session: false,
+        }
     }
 
     pub fn snapshot(&self) -> Snapshot {
@@ -59,11 +105,60 @@ impl ProviderEvents {
         });
     }
 
+    pub fn activity_started(
+        &self,
+        run_id: u64,
+        id: &str,
+        kind: ActivityKind,
+        details: ActivityDetails,
+    ) {
+        self.emit(AgentEvent::ActivityStarted {
+            run_id,
+            id: id.to_owned(),
+            kind,
+            details,
+        });
+    }
+
+    pub fn activity_updated(&self, run_id: u64, id: &str, details: ActivityDetails) {
+        self.emit(AgentEvent::ActivityUpdated {
+            run_id,
+            id: id.to_owned(),
+            details,
+        });
+    }
+
+    pub fn activity_detail_delta(&self, run_id: u64, id: &str, delta: &str) {
+        self.emit(AgentEvent::ActivityDetailDelta {
+            run_id,
+            id: id.to_owned(),
+            delta: delta.to_owned(),
+        });
+    }
+
+    pub fn activity_finished(&self, run_id: u64, id: &str) {
+        self.emit(AgentEvent::ActivityFinished {
+            run_id,
+            id: id.to_owned(),
+        });
+    }
+
     pub fn stopped(&self, run_id: u64) {
         self.emit(AgentEvent::Stopped { run_id });
     }
 
+    pub fn permission_requested(&self, run_id: u64, request: PendingPermissionSnapshot) {
+        self.emit(AgentEvent::PermissionRequested { run_id, request });
+    }
+
+    pub fn permission_cleared(&self, run_id: u64, request_id: Option<String>) {
+        self.emit(AgentEvent::PermissionCleared { run_id, request_id });
+    }
+
     pub fn emit(&self, event: AgentEvent) {
+        if !self.retain_session && matches!(event, AgentEvent::SessionReady { .. }) {
+            return;
+        }
         self.updates.send_if_modified(|state| {
             let changed = reduce(state, event);
             if changed {
@@ -77,7 +172,8 @@ impl ProviderEvents {
 fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
     match event {
         AgentEvent::SessionReady { run_id, session_id }
-            if state.run_id == run_id && state.status == RunPhase::Starting =>
+            if state.run_id == run_id
+                && matches!(state.status, RunPhase::Starting | RunPhase::Streaming) =>
         {
             state.thread_id = Some(session_id);
         }
@@ -103,6 +199,48 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
         {
             state.usage = Some(usage);
         }
+        AgentEvent::RateLimitsUpdated {
+            run_id,
+            rate_limits,
+        } if state.run_id == run_id
+            && !matches!(
+                state.status,
+                RunPhase::Completed | RunPhase::Stopped | RunPhase::Failed
+            ) =>
+        {
+            return merge_rate_limits(&mut state.rate_limits, rate_limits);
+        }
+        AgentEvent::ActivityStarted {
+            run_id,
+            id,
+            kind,
+            details,
+        } if state.run_id == run_id
+            && matches!(state.status, RunPhase::Starting | RunPhase::Streaming) =>
+        {
+            return activity::start(&mut state.activity, &id, kind, &details);
+        }
+        AgentEvent::ActivityUpdated {
+            run_id,
+            id,
+            details,
+        } if state.run_id == run_id
+            && matches!(state.status, RunPhase::Starting | RunPhase::Streaming) =>
+        {
+            return activity::update(&mut state.activity, &id, &details);
+        }
+        AgentEvent::ActivityDetailDelta { run_id, id, delta }
+            if state.run_id == run_id
+                && matches!(state.status, RunPhase::Starting | RunPhase::Streaming) =>
+        {
+            return activity::append_detail(&mut state.activity, &id, &delta);
+        }
+        AgentEvent::ActivityFinished { run_id, id }
+            if state.run_id == run_id
+                && matches!(state.status, RunPhase::Starting | RunPhase::Streaming) =>
+        {
+            return activity::finish(&mut state.activity, &id);
+        }
         AgentEvent::TurnStarted { run_id, text }
             if state.run_id == run_id && state.status == RunPhase::Starting =>
         {
@@ -120,19 +258,43 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
         {
             return conversation::set_final(&mut state.messages, run_id, &text);
         }
+        AgentEvent::PermissionRequested { run_id, request }
+            if state.run_id == run_id
+                && matches!(state.status, RunPhase::Starting | RunPhase::Streaming) =>
+        {
+            if state.pending_permission.as_ref() == Some(&request) {
+                return false;
+            }
+            state.pending_permission = Some(request);
+        }
+        AgentEvent::PermissionCleared { run_id, request_id } if state.run_id == run_id => {
+            let should_clear = match (&state.pending_permission, &request_id) {
+                (None, _) => false,
+                (Some(_), None) => true,
+                (Some(current), Some(target)) => &current.request_id == target,
+            };
+            if !should_clear {
+                return false;
+            }
+            state.pending_permission = None;
+        }
         AgentEvent::Completed { run_id }
             if state.run_id == run_id
                 && matches!(state.status, RunPhase::Streaming | RunPhase::Stopping) =>
         {
+            state.pending_permission = None;
             if state.status == RunPhase::Stopping {
                 state.status = RunPhase::Stopped;
                 state.capture = CaptureSnapshot::default();
+                state.queued_followup = None;
                 return true;
             }
             if conversation::has_answer(&state.messages, run_id) {
                 state.status = RunPhase::Completed;
+                activity::finish_all(&mut state.activity);
             } else {
                 state.status = RunPhase::Failed;
+                state.queued_followup = None;
                 state.error = Some("Provider finished without an answer.".into());
             }
             state.capture = CaptureSnapshot::default();
@@ -150,6 +312,8 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
                 state.status = RunPhase::Failed;
                 state.error = Some(message);
             }
+            state.pending_permission = None;
+            state.queued_followup = None;
             state.capture = CaptureSnapshot::default();
         }
         AgentEvent::Stopped { run_id }
@@ -160,11 +324,35 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
                 ) =>
         {
             state.status = RunPhase::Stopped;
+            state.pending_permission = None;
+            state.queued_followup = None;
             state.capture = CaptureSnapshot::default();
         }
         _ => return false,
     }
     true
+}
+
+fn merge_rate_limits(
+    existing: &mut Vec<ProviderRateLimit>,
+    incoming: Vec<ProviderRateLimit>,
+) -> bool {
+    if incoming.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    for limit in incoming {
+        if let Some(slot) = existing.iter_mut().find(|item| item.id == limit.id) {
+            if *slot != limit {
+                *slot = limit;
+                changed = true;
+            }
+        } else if existing.len() < 32 {
+            existing.push(limit);
+            changed = true;
+        }
+    }
+    changed
 }
 
 #[cfg(test)]
@@ -183,8 +371,12 @@ mod tests {
             model: None,
             thinking_effort: None,
             usage: None,
+            rate_limits: Vec::new(),
             messages: Vec::new(),
+            activity: Vec::new(),
             capture: CaptureSnapshot::default(),
+            queued_followup: None,
+            pending_permission: None,
             error: None,
         });
         (updates.clone(), ProviderEvents::new(updates))
@@ -338,16 +530,131 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_provider_events_are_not_representable_as_ui_state() {
+    fn provider_failures_are_representable_as_ui_state() {
         let (updates, events) = state(11);
         events.emit(AgentEvent::Failed {
             run_id: 11,
-            message: "Provider attempted an unsupported tool action.".into(),
+            message: "Provider failed.".into(),
         });
         assert_eq!(updates.borrow().status, RunPhase::Failed);
-        assert_eq!(
-            updates.borrow().error.as_deref(),
-            Some("Provider attempted an unsupported tool action.")
+        assert_eq!(updates.borrow().error.as_deref(), Some("Provider failed."));
+    }
+
+    #[test]
+    fn activity_is_run_scoped_deduplicated_and_ignored_after_a_terminal_state() {
+        let (updates, events) = state(5);
+        events.activity_started(
+            5,
+            "a",
+            ActivityKind::Search,
+            ActivityDetails {
+                summary: Some("query".into()),
+                detail: None,
+            },
         );
+        events.activity_started(
+            5,
+            "a",
+            ActivityKind::Search,
+            ActivityDetails {
+                summary: Some("query".into()),
+                detail: None,
+            },
+        );
+        events.activity_started(4, "stale", ActivityKind::Read, ActivityDetails::default());
+        events.activity_detail_delta(5, "a", "full detail");
+        events.activity_finished(5, "a");
+        let sequence = updates.borrow().seq;
+        events.activity_finished(5, "a");
+        assert_eq!(updates.borrow().seq, sequence);
+        assert_eq!(updates.borrow().activity.len(), 1);
+        assert!(updates.borrow().activity[0].done);
+        assert_eq!(
+            updates.borrow().activity[0].summary.as_deref(),
+            Some("query")
+        );
+        assert_eq!(
+            updates.borrow().activity[0].detail.as_deref(),
+            Some("full detail")
+        );
+        events.emit(AgentEvent::Failed {
+            run_id: 5,
+            message: "x".into(),
+        });
+        events.activity_started(5, "late", ActivityKind::Read, ActivityDetails::default());
+        assert_eq!(updates.borrow().activity.len(), 1);
+    }
+
+    #[test]
+    fn completion_marks_open_activities_done() {
+        let (updates, events) = state(6);
+        events.emit(AgentEvent::TurnStarted {
+            run_id: 6,
+            text: "hi".into(),
+        });
+        events.activity_started(6, "t1", ActivityKind::Thinking, ActivityDetails::default());
+        events.emit(AgentEvent::TextFinal {
+            run_id: 6,
+            text: "done".into(),
+        });
+        events.emit(AgentEvent::Completed { run_id: 6 });
+        assert_eq!(updates.borrow().status, RunPhase::Completed);
+        assert!(updates.borrow().activity[0].done);
+    }
+
+    #[test]
+    fn rate_limits_updated_merges_by_id_and_ignores_stale_or_terminal_runs() {
+        let (updates, events) = state(8);
+        events.emit(AgentEvent::RateLimitsUpdated {
+            run_id: 8,
+            rate_limits: vec![ProviderRateLimit {
+                id: "codex:codex:primary".into(),
+                label: "5h limit".into(),
+                window: "5h".into(),
+                used_percent: 20,
+                remaining_percent: 80,
+                resets_at: None,
+                group: None,
+            }],
+        });
+        events.emit(AgentEvent::RateLimitsUpdated {
+            run_id: 8,
+            rate_limits: vec![
+                ProviderRateLimit {
+                    id: "codex:codex:primary".into(),
+                    label: "5h limit".into(),
+                    window: "5h".into(),
+                    used_percent: 35,
+                    remaining_percent: 65,
+                    resets_at: None,
+                    group: None,
+                },
+                ProviderRateLimit {
+                    id: "codex:codex:secondary".into(),
+                    label: "Weekly limit".into(),
+                    window: "weekly".into(),
+                    used_percent: 12,
+                    remaining_percent: 88,
+                    resets_at: None,
+                    group: None,
+                },
+            ],
+        });
+        assert_eq!(updates.borrow().rate_limits.len(), 2);
+        assert_eq!(updates.borrow().rate_limits[0].used_percent, 35);
+        assert_eq!(updates.borrow().rate_limits[1].window, "weekly");
+        events.emit(AgentEvent::RateLimitsUpdated {
+            run_id: 7,
+            rate_limits: vec![ProviderRateLimit {
+                id: "stale".into(),
+                label: "Stale".into(),
+                window: "5h".into(),
+                used_percent: 99,
+                remaining_percent: 1,
+                resets_at: None,
+                group: None,
+            }],
+        });
+        assert_eq!(updates.borrow().rate_limits.len(), 2);
     }
 }

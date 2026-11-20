@@ -1,6 +1,6 @@
 [package]
 name = "otto"
-version = "0.1.0"
+version = "1.0.0"
 description = "Otto desktop companion"
 edition = "2024"
 build = "build.rs"
@@ -19,7 +19,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.23"
 png = "0.18"
-reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "json", "query"] }
 
 [profile.release]
 codegen-units = 1
@@ -35,6 +34,5 @@ objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std
 
 [target.'cfg(windows)'.dependencies]
 tauri-plugin-updater = "2"
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Diagnostics_ToolHelp", "Win32_System_LibraryLoader", "Win32_UI_Accessibility", "Win32_Security", "Win32_Storage_FileSystem", "Win32_Storage_Xps", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
-windows-core = "0.62"
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Devices_Display", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_NetworkManagement_WiFi", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Ole", "Win32_System_Rpc", "Win32_System_Wmi", "Win32_Security", "Win32_System_LibraryLoader", "Win32_System_Power", "Win32_System_Variant", "Win32_UI_WindowsAndMessaging", "Foundation", "Storage", "Storage_Streams", "Graphics_Imaging", "Media_Control", "Devices_Bluetooth", "Devices_Enumeration", "Win32_System_WinRT"] }
+windows = { version = "0.62", features = ["Win32_System_Com", "Win32_UI_Accessibility"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Diagnostics_ToolHelp", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_UI_Accessibility", "Win32_UI_Controls", "Win32_UI_Shell", "Win32_Security", "Win32_Storage_FileSystem", "Win32_Storage_Xps", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }

@@ -1,15 +1,42 @@
-use super::SessionReuse;
+use super::prompt::{
+    AssistantGuidance, compose_guidance_prompt, contextual_prompt, selected_text_prompt,
+    validate_prompt,
+};
+use super::selection::SessionReuse;
 use super::selection::validate_runtime_options;
+use super::session::close_owned_transport;
 use crate::agent::error::AgentError;
 use crate::agent::*;
-use std::sync::atomic::Ordering;
-use std::time::Duration;
-use tokio::sync::mpsc;
-use tokio::time::timeout;
+use std::{sync::atomic::Ordering, time::Duration};
+
+pub(super) struct TurnRequest {
+    pub text: String,
+    pub cwd: String,
+    pub provider: String,
+    pub selection: ModelSelection,
+    pub capture: Option<CapturedImage>,
+    pub selected_text: Option<String>,
+    pub guidance: AssistantGuidance,
+    pub truncate_messages_to: Option<usize>,
+    pub consume_staged: bool,
+}
 
 impl AgentRuntime {
+    #[cfg(test)]
     pub(crate) fn persist_prompt(&self, run_id: u64, text: &str) -> Result<(), AgentError> {
+        self.persist_prompt_at(run_id, text, None)
+    }
+
+    pub(crate) fn persist_prompt_at(
+        &self,
+        run_id: u64,
+        text: &str,
+        truncate_to: Option<usize>,
+    ) -> Result<(), AgentError> {
         let mut snapshot = self.snapshot();
+        if let Some(index) = truncate_to {
+            snapshot.messages.truncate(index);
+        }
         let pending = ChatMessage {
             id: format!("{run_id}:user"),
             role: "user".into(),
@@ -24,13 +51,17 @@ impl AgentRuntime {
         }
         self.conversation.persist_snapshot(&snapshot, true)?;
         mutate(&self.updates, |state| {
-            if state.run_id == run_id
-                && !state
+            if state.run_id == run_id {
+                if let Some(index) = truncate_to {
+                    state.messages.truncate(index);
+                }
+                if !state
                     .messages
                     .iter()
                     .any(|message| message.id == pending.id)
-            {
-                state.messages.push(pending);
+                {
+                    state.messages.push(pending);
+                }
             }
         });
         Ok(())
@@ -55,48 +86,47 @@ impl AgentRuntime {
             if state.run_id == run_id && state.status == RunPhase::Starting {
                 state.status = RunPhase::Failed;
                 state.error = Some(message.clone());
-                state.capture = CaptureSnapshot::default();
+                let staged = state.capture.staged.take();
+                state.capture = CaptureSnapshot {
+                    staged,
+                    ..CaptureSnapshot::default()
+                };
             }
         });
         Err(message)
     }
 
-    pub async fn ask(
+    pub(super) async fn ask_with_context(
         &self,
-        text: String,
-        provider: String,
-        model: Option<String>,
-        thinking_effort: Option<String>,
+        request: TurnRequest,
     ) -> Result<AcceptedRun, String> {
-        self.ask_with_capture(
+        let TurnRequest {
             text,
-            default_workspace_path().to_string_lossy().into_owned(),
+            cwd,
             provider,
-            ModelSelection {
-                model,
-                thinking_effort,
-            },
-            None,
-        )
-        .await
-    }
-
-    pub(crate) async fn ask_with_capture(
-        &self,
-        text: String,
-        cwd: String,
-        provider: String,
-        selection: ModelSelection,
-        capture: Option<CapturedImage>,
-    ) -> Result<AcceptedRun, String> {
+            selection,
+            capture,
+            selected_text,
+            guidance,
+            truncate_messages_to,
+            consume_staged,
+        } = request;
         let ModelSelection {
             model,
             thinking_effort,
         } = selection;
         let text = validate_prompt(&text)?;
         let selected = ProviderId::parse(&provider).ok_or("Selected provider is unavailable.")?;
-        selected.validate(capture.is_some())?;
-        let capture_origin = capture.is_some();
+        let staged_meta = (consume_staged && capture.is_none() && selected_text.is_none())
+            .then(|| self.peek_staged_capture_meta())
+            .flatten();
+        let has_image = capture.is_some() || staged_meta.is_some_and(|(_, is_image)| is_image);
+        let staged_selected_text = staged_meta
+            .filter(|(_, is_image)| !*is_image)
+            .and_then(|(id, _)| self.peek_staged_selected_text(id));
+        let effective_selected_text = selected_text.or(staged_selected_text);
+        selected.validate(has_image)?;
+        let capture_origin = has_image || effective_selected_text.is_some();
         let cwd = std::fs::canonicalize(resolve_workspace_path(&cwd))
             .map_err(|_| "Working folder does not exist.".to_string())?;
         if !cwd.is_dir() {
@@ -123,25 +153,55 @@ impl AgentRuntime {
                 "Select the provider in Agent Settings before requesting an answer.".into(),
             );
         }
+        if guard.as_ref().is_some_and(|tx| !tx.is_closed())
+            && std::path::Path::new(&current.cwd) != cwd.as_path()
+        {
+            return Err(
+                "Working context is fixed for this conversation. Restart Otto to change it.".into(),
+            );
+        }
         if current.status == RunPhase::Completed {
             self.persist_current_snapshot(false).map_err(String::from)?;
         }
 
-        let provider_has_context =
-            guard.as_ref().is_some_and(|sender| !sender.is_closed()) && current.thread_id.is_some();
-        let reusable_followup = guard.as_ref().is_some_and(|sender| !sender.is_closed())
+        if truncate_messages_to.is_some_and(|index| index > current.messages.len()) {
+            return Err("Selected prompt is no longer in this conversation.".into());
+        }
+        let ephemeral = effective_selected_text.is_some();
+        let force_reset = ephemeral || truncate_messages_to.is_some();
+        if force_reset && let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
+            close_owned_transport(sender, Duration::from_secs(5)).await?;
+            *guard = None;
+        }
+        if truncate_messages_to.is_some() {
+            self.clear_session_guidance();
+        }
+        let provider_has_context = !force_reset
+            && guard.as_ref().is_some_and(|sender| !sender.is_closed())
+            && current.thread_id.is_some();
+        let reusable_followup = !force_reset
+            && guard.as_ref().is_some_and(|sender| !sender.is_closed())
             && selected.can_reuse_without_probe(&SessionReuse::for_turn(
                 &current,
                 &cwd,
                 model.as_deref(),
                 thinking_effort.as_deref(),
-                capture.is_some(),
+                has_image,
             ));
-        let provider_text = if provider_has_context {
+        let include_guidance = self.should_include_guidance(&guidance, provider_has_context);
+        let prior_messages = truncate_messages_to
+            .map(|index| &current.messages[..index])
+            .unwrap_or(&current.messages);
+        let provider_text = if provider_has_context || effective_selected_text.is_some() {
             text.clone()
         } else {
-            contextual_prompt(&current.messages, &text)
+            contextual_prompt(prior_messages, &text)
         };
+        let provider_text = effective_selected_text
+            .as_deref()
+            .map(|selected| selected_text_prompt(&provider_text, selected))
+            .unwrap_or(provider_text);
+        let provider_text = compose_guidance_prompt(&provider_text, &guidance, include_guidance);
         let reserved_run_id = if reusable_followup {
             None
         } else {
@@ -153,6 +213,7 @@ impl AgentRuntime {
             mutate(&self.updates, |s| {
                 s.run_id = run_id;
                 s.status = RunPhase::Starting;
+                s.activity.clear();
                 s.provider = selected;
                 s.capture.phase = if capture_origin { "analyzing" } else { "idle" }.into();
                 s.capture.error = None;
@@ -196,15 +257,7 @@ impl AgentRuntime {
                     )),
                 );
             }
-            if !readiness.tool_free_admission {
-                return self.fail_starting_run(
-                    run_id,
-                    &AgentError::readiness_failed(
-                        "The selected provider cannot confirm a tool-free chat session.",
-                    ),
-                );
-            }
-            if capture.is_some() && !readiness.image_input {
+            if has_image && !readiness.image_input {
                 return self.fail_starting_run(
                     run_id,
                     &AgentError::invalid_request(
@@ -223,25 +276,40 @@ impl AgentRuntime {
                     thinking_effort: thinking_effort.clone(),
                 };
             }
+            if !readiness.rate_limits.is_empty() {
+                let rate_limits = readiness.rate_limits;
+                mutate(&self.updates, |state| {
+                    if state.run_id == run_id {
+                        state.rate_limits = rate_limits;
+                    }
+                });
+            }
             Some(run_id)
         };
         if let Some(sender) = guard.as_ref().filter(|tx| !tx.is_closed()) {
+            let run_id = reserved_run_id
+                .unwrap_or_else(|| self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1);
+            let fail = |reason: &str| {
+                if reserved_run_id.is_some() {
+                    self.fail_starting_run(run_id, &AgentError::invalid_request(reason))
+                } else {
+                    Err(reason.to_owned())
+                }
+            };
             if std::path::Path::new(&current.cwd) != cwd.as_path() {
-                return Err(
-                    "Working context is fixed for this conversation. Restart Otto to change it."
-                        .into(),
+                return fail(
+                    "Working context is fixed for this conversation. Restart Otto to change it.",
                 );
             }
-
             if current.provider != selected {
-                return Err("Provider is fixed for the conversation. Start a new session.".into());
+                return fail("Provider is fixed for the conversation. Start a new session.");
             }
-            let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
-            let permit = sender
-                .try_reserve()
-                .map_err(|_| "Agent provider is busy. Try again.".to_string())?;
-
-            if let Some(marker) = &self.recovery {
+            let Ok(permit) = sender.try_reserve() else {
+                return fail("Agent provider is busy. Try again.");
+            };
+            if reserved_run_id.is_none()
+                && let Some(marker) = &self.recovery
+            {
                 marker.mark(run_id)?;
             }
             if selected.capabilities().pending_model_selection {
@@ -253,6 +321,7 @@ impl AgentRuntime {
             mutate(&self.updates, |s| {
                 s.run_id = run_id;
                 s.status = RunPhase::Starting;
+                s.activity.clear();
                 s.capture.phase = if capture_origin { "analyzing" } else { "idle" }.into();
                 s.capture.error = None;
                 s.error = None;
@@ -260,9 +329,10 @@ impl AgentRuntime {
                 s.thinking_effort = thinking_effort.clone();
                 s.usage = None;
             });
-            if let Err(error) = self.persist_prompt(run_id, &text) {
+            if let Err(error) = self.persist_prompt_at(run_id, &text, truncate_messages_to) {
                 return self.fail_starting_run(run_id, &error);
             }
+            let capture = self.consume_turn_capture(capture, staged_meta);
             permit.send(Control::Ask {
                 text: provider_text,
                 display_text: text,
@@ -272,27 +342,27 @@ impl AgentRuntime {
                 thinking_effort,
                 capture,
             });
+            self.record_session_guidance(&guidance, ephemeral);
             return Ok(AcceptedRun { run_id });
         }
         let run_id = reserved_run_id.ok_or("Agent run reservation is missing.")?;
-        if let Err(error) = self.persist_prompt(run_id, &text) {
+        if let Err(error) = self.persist_prompt_at(run_id, &text, truncate_messages_to) {
             return self.fail_starting_run(run_id, &error);
         }
-        let (tx, rx) = mpsc::channel(4);
-        let events = events::ProviderEvents::new(self.updates.clone());
-        tauri::async_runtime::spawn(async move {
-            let initial = Control::Ask {
-                text: provider_text,
-                display_text: text,
-                cwd,
-                run_id,
-                model,
-                thinking_effort,
-                capture,
-            };
-            selected.run(rx, events, initial).await;
-        });
+        let capture = self.consume_turn_capture(capture, staged_meta);
+        let initial = Control::Ask {
+            text: provider_text,
+            display_text: text,
+            cwd,
+            run_id,
+            model,
+            thinking_effort,
+            capture,
+        };
+        let tx =
+            super::session::spawn_provider_run(selected, self.updates.clone(), initial, ephemeral);
         *guard = Some(tx);
+        self.record_session_guidance(&guidance, ephemeral);
         Ok(AcceptedRun { run_id })
     }
 
@@ -305,7 +375,8 @@ impl AgentRuntime {
         if !matches!(status, RunPhase::Starting | RunPhase::Streaming) {
             return Err("No active agent turn.".into());
         }
-        if status == RunPhase::Starting && guard.is_none() && self.cancel_run_readiness() {
+        self.drop_queued_followup();
+        if status == RunPhase::Starting && self.cancel_run_readiness() {
             let run_id = self.snapshot().run_id;
             let clear_failed = self
                 .recovery
@@ -330,14 +401,13 @@ impl AgentRuntime {
         mutate(&self.updates, |s| {
             if matches!(s.status, RunPhase::Starting | RunPhase::Streaming) {
                 s.status = RunPhase::Stopping;
+                s.pending_permission = None;
             }
         });
         permit.send(Control::Stop);
         Ok(())
     }
 }
-
-pub(crate) const MAX_PROMPT_BYTES: usize = 12_000;
 
 fn append_notice(message: &str, marker_failed: bool) -> String {
     if marker_failed {
@@ -347,119 +417,5 @@ fn append_notice(message: &str, marker_failed: bool) -> String {
     }
 }
 
-pub(super) async fn close_owned_transport(
-    sender: &mpsc::Sender<Control>,
-    close_timeout: Duration,
-) -> Result<(), String> {
-    let (finished, mut closed) = oneshot::channel();
-    let claimed = Arc::new(AtomicBool::new(false));
-    sender
-        .try_send(Control::Close {
-            claimed: Arc::clone(&claimed),
-            finished,
-        })
-        .map_err(|_| "Agent provider is busy. Try again.".to_string())?;
-    match timeout(close_timeout, &mut closed).await {
-        Ok(Ok(())) => Ok(()),
-        Ok(Err(_)) => Err("Agent closed unexpectedly; session was not reset.".into()),
-        Err(_) if !claimed.swap(true, Ordering::SeqCst) => {
-            Err("Agent did not accept session close; session was not reset.".into())
-        }
-        Err(_) => Err("Agent is still closing; session was not reset.".into()),
-    }
-}
-
-pub(crate) fn persist_terminal_outcome(
-    conversation: &conversation::ConversationOwner,
-    marker: &recovery::RecoveryMarker,
-    updates: &watch::Sender<Snapshot>,
-    snapshot: &Snapshot,
-) {
-    if !matches!(
-        snapshot.status,
-        RunPhase::Completed | RunPhase::Failed | RunPhase::Stopped
-    ) || updates.borrow().run_id != snapshot.run_id
-    {
-        return;
-    }
-    let interrupted = snapshot.status != RunPhase::Completed;
-    let stored = match conversation.id.lock() {
-        Ok(id)
-            if updates.borrow().run_id == snapshot.run_id
-                && updates.borrow().conversation_id == *id
-                && snapshot.conversation_id == *id =>
-        {
-            let record = history::record_from_snapshot(&id, snapshot, interrupted);
-            match record {
-                Some(record) => conversation.history.upsert(record),
-                None => Ok(()),
-            }
-        }
-        Ok(_) => return,
-        Err(_) => Err(AgentError::internal("Conversation history is unavailable.")),
-    };
-    let mut notices: Vec<String> = Vec::new();
-    if stored.is_err() {
-        notices.push(
-            "Conversation history could not be saved; a restart may not restore this conversation."
-                .into(),
-        );
-    }
-    if stored.is_ok() && marker.clear_if(snapshot.run_id).is_err() {
-        notices.push(MARKER_CLEAR_NOTICE.into());
-    }
-    if !notices.is_empty() {
-        let notice = notices.join(" ");
-        mutate(updates, |state| {
-            if state.run_id == snapshot.run_id {
-                state.error = Some(match state.error.take() {
-                    Some(existing) => format!("{existing} {notice}"),
-                    None => notice,
-                });
-            }
-        });
-    }
-}
-
-pub(crate) fn validate_prompt(text: &str) -> Result<String, String> {
-    let trimmed = text.trim();
-    if trimmed.is_empty() || trimmed.len() > MAX_PROMPT_BYTES {
-        return Err("Enter a question (up to 12,000 bytes).".into());
-    }
-    Ok(trimmed.to_owned())
-}
-
-pub(crate) fn contextual_prompt(messages: &[ChatMessage], text: &str) -> String {
-    if messages.is_empty() {
-        return text.to_owned();
-    }
-    let header = "Previous Otto conversation:\n";
-    let question_header = "\nNew user question:\n";
-    let mut remaining = 48_000usize.saturating_sub(
-        header
-            .len()
-            .saturating_add(question_header.len())
-            .saturating_add(text.len()),
-    );
-    let mut selected = Vec::new();
-    for message in messages.iter().rev().take(12) {
-        let role = if message.role == "user" {
-            "User"
-        } else {
-            "Otto"
-        };
-        let entry = format!("{role}: {}\n", message.text);
-        if entry.len() > remaining {
-            break;
-        }
-        remaining -= entry.len();
-        selected.push(entry);
-    }
-    let mut context = String::from(header);
-    for entry in selected.into_iter().rev() {
-        context.push_str(&entry);
-    }
-    context.push_str(question_header);
-    context.push_str(text);
-    context
-}
+#[cfg(test)]
+pub(crate) use super::recovery::persist_terminal_outcome;

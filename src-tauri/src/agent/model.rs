@@ -1,17 +1,125 @@
-use super::runtime::ProviderId;
+use super::activity::ActivitySnapshot;
+use super::capture_types::CapturedImage;
+use super::permission::{PendingPermissionSnapshot, PermissionDecision};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 #[cfg(windows)]
 use std::sync::Arc;
 #[cfg(windows)]
 use std::sync::atomic::AtomicBool;
-#[cfg(windows)]
-use std::sync::atomic::Ordering;
-#[cfg(windows)]
-use std::time::Duration;
 use tokio::sync::{oneshot, watch};
-#[cfg(windows)]
-use tokio::time::timeout;
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProviderId {
+    #[default]
+    Codex,
+    Pi,
+    Agy,
+    Opencode,
+    Claude,
+    Gemini,
+    Copilot,
+    Qwen,
+    Cursor,
+    Goose,
+    Vibe,
+    Amp,
+    Kilo,
+    Junie,
+    Cline,
+    Augment,
+    Droid,
+    Grok,
+    Devin,
+}
+
+impl ProviderId {
+    pub const ALL: [Self; 19] = [
+        Self::Codex,
+        Self::Pi,
+        Self::Agy,
+        Self::Opencode,
+        Self::Claude,
+        Self::Gemini,
+        Self::Copilot,
+        Self::Qwen,
+        Self::Cursor,
+        Self::Goose,
+        Self::Vibe,
+        Self::Amp,
+        Self::Kilo,
+        Self::Junie,
+        Self::Cline,
+        Self::Augment,
+        Self::Droid,
+        Self::Grok,
+        Self::Devin,
+    ];
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "codex" => Some(Self::Codex),
+            "pi" => Some(Self::Pi),
+            "agy" => Some(Self::Agy),
+            "opencode" => Some(Self::Opencode),
+            "claude" => Some(Self::Claude),
+            "gemini" => Some(Self::Gemini),
+            "copilot" => Some(Self::Copilot),
+            "qwen" => Some(Self::Qwen),
+            "cursor" => Some(Self::Cursor),
+            "goose" => Some(Self::Goose),
+            "vibe" => Some(Self::Vibe),
+            "amp" => Some(Self::Amp),
+            "kilo" => Some(Self::Kilo),
+            "junie" => Some(Self::Junie),
+            "cline" => Some(Self::Cline),
+            "augment" => Some(Self::Augment),
+            "droid" => Some(Self::Droid),
+            "grok" => Some(Self::Grok),
+            "devin" => Some(Self::Devin),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Codex => "codex",
+            Self::Pi => "pi",
+            Self::Agy => "agy",
+            Self::Opencode => "opencode",
+            Self::Claude => "claude",
+            Self::Gemini => "gemini",
+            Self::Copilot => "copilot",
+            Self::Qwen => "qwen",
+            Self::Cursor => "cursor",
+            Self::Goose => "goose",
+            Self::Vibe => "vibe",
+            Self::Amp => "amp",
+            Self::Kilo => "kilo",
+            Self::Junie => "junie",
+            Self::Cline => "cline",
+            Self::Augment => "augment",
+            Self::Droid => "droid",
+            Self::Grok => "grok",
+            Self::Devin => "devin",
+        }
+    }
+}
+
+#[cfg(test)]
+impl From<&str> for ProviderId {
+    fn from(value: &str) -> Self {
+        Self::parse(value).unwrap()
+    }
+}
+
+#[cfg(test)]
+impl PartialEq<&str> for ProviderId {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +152,8 @@ pub struct UsageSnapshot {
     pub model_context_window: Option<i64>,
 }
 
+pub(crate) const MAX_ASSISTANT_TEXT: usize = 128_000;
+
 pub(crate) fn default_workspace_path() -> PathBuf {
     std::env::var_os("USERPROFILE")
         .or_else(|| std::env::var_os("HOME"))
@@ -66,6 +176,18 @@ pub(crate) fn resolve_workspace_path(value: &str) -> PathBuf {
     PathBuf::from(value)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderRateLimit {
+    pub id: String,
+    pub label: String,
+    pub window: String,
+    pub used_percent: u8,
+    pub remaining_percent: u8,
+    pub resets_at: Option<String>,
+    pub group: Option<String>,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderReadiness {
@@ -75,11 +197,11 @@ pub struct ProviderReadiness {
 
     pub image_input: bool,
     pub image_transport: bool,
-    pub tool_free_admission: bool,
     pub model: Option<String>,
     pub models: Vec<ModelOption>,
     pub thinking_effort: Option<String>,
     pub thinking_efforts: Vec<String>,
+    pub rate_limits: Vec<ProviderRateLimit>,
 }
 
 #[derive(Clone, Default)]
@@ -96,11 +218,11 @@ impl ProviderReadiness {
             recovery: recovery.into(),
             image_input: false,
             image_transport: false,
-            tool_free_admission: false,
             model: None,
             models: Vec::new(),
             thinking_effort: None,
             thinking_efforts: Vec::new(),
+            rate_limits: Vec::new(),
         }
     }
 }
@@ -119,8 +241,14 @@ pub struct Snapshot {
     pub model: Option<String>,
     pub thinking_effort: Option<String>,
     pub usage: Option<UsageSnapshot>,
+    pub rate_limits: Vec<ProviderRateLimit>,
     pub messages: Vec<ChatMessage>,
+    pub activity: Vec<ActivitySnapshot>,
     pub capture: CaptureSnapshot,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queued_followup: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending_permission: Option<PendingPermissionSnapshot>,
     pub error: Option<String>,
 }
 
@@ -180,12 +308,24 @@ pub struct AcceptedRun {
     pub run_id: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StagedCaptureSnapshot {
+    pub id: u64,
+    pub kind: String,
+    pub source: String,
+    pub label: String,
+    pub preview: String,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureSnapshot {
     pub request_id: u64,
     pub phase: String,
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub staged: Option<StagedCaptureSnapshot>,
 }
 
 impl Default for CaptureSnapshot {
@@ -194,69 +334,8 @@ impl Default for CaptureSnapshot {
             request_id: 0,
             phase: "idle".into(),
             error: None,
+            staged: None,
         }
-    }
-}
-
-#[cfg(windows)]
-pub(crate) struct CaptureReservation(Arc<AtomicBool>);
-
-#[cfg(windows)]
-impl CaptureReservation {
-    pub(crate) fn acquire(in_flight: Arc<AtomicBool>) -> Result<Self, String> {
-        in_flight
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .map_err(|_| "Screen capture is already in progress.".to_string())?;
-        Ok(Self(in_flight))
-    }
-}
-
-#[cfg(windows)]
-impl Drop for CaptureReservation {
-    fn drop(&mut self) {
-        self.0.store(false, Ordering::Release);
-    }
-}
-
-#[cfg(windows)]
-pub(crate) async fn capture_with_deadline<F>(
-    reservation: &Arc<CaptureReservation>,
-    deadline: Duration,
-    capture: F,
-) -> Result<CapturedImage, String>
-where
-    F: FnOnce() -> Result<CapturedImage, String> + Send + 'static,
-{
-    let worker_reservation = Arc::clone(reservation);
-    let worker = tauri::async_runtime::spawn_blocking(move || {
-        let result = capture();
-        drop(worker_reservation);
-        result
-    });
-    match timeout(deadline, worker).await {
-        Ok(Ok(result)) => result,
-        Ok(Err(_)) => Err("Windows capture failed.".into()),
-        Err(_) => Err(
-            "Window capture timed out. Focus a responsive window and retry. If capture stays busy, restart Otto."
-                .into(),
-        ),
-    }
-}
-
-pub struct CapturedImage(PathBuf);
-
-impl CapturedImage {
-    pub fn new(path: PathBuf) -> Self {
-        Self(path)
-    }
-    pub fn path(&self) -> &std::path::Path {
-        &self.0
-    }
-}
-
-impl Drop for CapturedImage {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.0);
     }
 }
 
@@ -269,6 +348,10 @@ pub enum Control {
         model: Option<String>,
         thinking_effort: Option<String>,
         capture: Option<CapturedImage>,
+    },
+    PermissionDecision {
+        request_id: String,
+        decision: PermissionDecision,
     },
     Stop,
     Close {

@@ -1,19 +1,56 @@
-use super::Rpc;
+use super::rpc::Rpc;
 use crate::agent::{Control, events::ProviderEvents};
-use std::future::Future;
-use tokio::sync::mpsc;
+use std::{future::Future, sync::atomic::Ordering};
+use tokio::sync::{mpsc, oneshot};
+
+pub(super) enum Controlled<T> {
+    Done(T),
+    Cancelled(Option<oneshot::Sender<()>>),
+}
+
+pub(super) async fn recv_non_permission(controls: &mut mpsc::Receiver<Control>) -> Option<Control> {
+    loop {
+        match controls.recv().await {
+            Some(Control::PermissionDecision { .. }) => continue,
+            other => return other,
+        }
+    }
+}
 
 pub(super) async fn await_controlled<T, F>(
     controls: &mut mpsc::Receiver<Control>,
     operation: F,
-) -> Result<Option<T>, String>
+) -> Result<Controlled<T>, String>
 where
     F: Future<Output = Result<T, String>>,
 {
     tokio::select! {
         biased;
-        _ = controls.recv() => Ok(None),
-        result = operation => result.map(Some),
+        control = recv_non_permission(controls) => {
+            let close_ack = match control {
+                Some(Control::Close { claimed, finished })
+                    if !finished.is_closed() && !claimed.swap(true, Ordering::SeqCst) =>
+                {
+                    Some(finished)
+                }
+                _ => None,
+            };
+            Ok(Controlled::Cancelled(close_ack))
+        }
+        result = operation => result.map(Controlled::Done),
+    }
+}
+
+pub(super) async fn finish_cancelled(
+    rpc: &mut Rpc,
+    controls: &mut mpsc::Receiver<Control>,
+    events: &ProviderEvents,
+    run_id: u64,
+    close_ack: Option<oneshot::Sender<()>>,
+) {
+    stop_process(rpc, controls, events, run_id).await;
+    if let Some(finished) = close_ack {
+        let _ = finished.send(());
     }
 }
 

@@ -1,10 +1,10 @@
 {
   "tsxHex": 0,
   "cssHexOutsideTheme": 0,
-  "maxTsxLines": 195,
+  "maxTsxLines": 190,
+  "maxTsLines": 199,
   "featuresWithoutEntry": 0,
   "ariaLabelCount": 0,
   "inlineSvgCount": 0,
-  "biomeWarnings": 7,
-  "maxTsLines": 599
+  "biomeWarnings": 5
 }

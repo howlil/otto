@@ -3,7 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
-import { runPreflight } from './preflight.mjs';
+import { runPreflight } from './preflight';
 
 if (process.platform !== 'win32') throw new Error('P8 native E2E requires Windows');
 const root = resolve(import.meta.dirname, '../..');
@@ -197,6 +197,12 @@ async function ui() {
     args: [],
   });
 }
+async function escape() {
+  return call('POST', endpoint('/execute/sync'), {
+    script: "document.querySelector('main')?.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); return true;",
+    args: [],
+  });
+}
 async function snapshot() {
   const result = await call('POST', endpoint('/execute/async'), {
     script: "const done=arguments[arguments.length-1];const api=window.__TAURI_INTERNALS__;if(!api?.invoke)return done({error:'IPC missing'});api.invoke('agent_snapshot').then(done,e=>done({error:String(e)}));",
@@ -252,9 +258,7 @@ async function start() {
   }
 }
 async function p8() {
-  const home = '//button[contains(., "Return to Home")]';
-  const agent = '//button[.//strong[normalize-space()="Agent"]]';
-  await click('//button[contains(., "Open Otto")]');
+  const agent = '//button[contains(., "Open Agent")]';
   await click(agent);
   await type('//*[@id="otto-prompt"]', 'Deterministic streaming test');
   await until('provider ready', async () => {
@@ -271,8 +275,8 @@ async function p8() {
   assert.equal(first.status, 'streaming');
   assert.equal(first.provider, 'codex');
   await until('fixture holds completion', () => existsSync(gate + '.ready'));
-  await click(home);
-  await until('Home navigation', async () => (await ui()).status === null);
+  await escape();
+  await until('Agent collapsed while streaming', async () => (await ui()).status === null);
   await click(agent);
   const reopened = await until('streaming restored', async () => {
     const x = await ui();
@@ -282,7 +286,8 @@ async function p8() {
   const resumed = await snapshot();
   assert.equal(resumed.runId, first.runId);
   assert.equal(resumed.threadId, first.threadId);
-  await click(home);
+  await escape();
+  await until('Agent collapsed before background completion', async () => (await ui()).status === null);
   const heldForeground = await takeForeground();
   writeFileSync(gate + '.release', 'release');
   await until('background completion without navigation', async () => {
@@ -295,7 +300,6 @@ async function p8() {
     heldForeground,
     'a background completion must not take keyboard focus',
   );
-  await click('//button[contains(., "Open Otto")]');
   await click(agent);
   await until('completed answer visible', async () => {
     const x = await ui();

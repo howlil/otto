@@ -7,10 +7,10 @@ Windows-first Tauri 2, Rust edition 2024, React 19, Vite 8, TypeScript 6, Tailwi
 Install: `bun install`; dev frontend: `bun run dev`; desktop: `bun run tauri dev`.
 Frontend: `bun run check` (Biome), `bun run format` (fix), `bun run build` (TS/Vite).
 Rust: `cd src-tauri && cargo fmt --all -- --check`; `cargo clippy --all-targets -- -D warnings`; `cargo check` on Windows MSVC.
-Tests: `cargo test --manifest-path src-tauri/Cargo.toml` (Rust core) and `bun run test:frontend:critical` (Agent draft behavior); CI selects the affected gate, while `suite=full` runs both. Committed Bun and Cargo lockfiles are required for frozen CI and release builds.
+Tests: default to dynamic affected testing via `bun run test:affected` (or `bun run test:affected:plan` to preview; supports `--staged`, `--base <ref>`, `--scope frontend|rust`, `--with-checks`, and explicit file paths); reserve full suites (`bun run test:frontend:critical` and `cargo test --manifest-path src-tauri/Cargo.toml`) for `suite=full`, `release.yml`, or global config/shared-boundary changes. Committed Bun and Cargo lockfiles are required for frozen CI and release builds.
 
 ## Verification gate
-Use the affected behavior/invariant and the cheapest faithful proof defined in `.agents/engineering.md` `## Verification`. Run only the stage-appropriate checks from `Commands`, and report native or runtime evidence gaps explicitly.
+Use the affected behavior/invariant and the cheapest faithful proof defined in `.agents/engineering.md` `## Verification`. During development (`iter`/`pr`), run only tests and checks affected by the changed files via `bun run test:affected` (never default to running the entire repository test suite for localized edits), and report native or runtime evidence gaps explicitly.
 
 ## Conventions / boundaries
 TypeScript/React: `PascalCase` components/types, `useX` Hooks, `camelCase` functions, kebab-case feature directories. Rust: snake_case modules/functions, PascalCase types, Rustfmt/Clippy. Prefer explicit errors and single state owners; SOLID describes responsibilities, not mandatory classes/interfaces. Add patterns only for a proven need; keep changes scoped.

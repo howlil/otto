@@ -66,15 +66,6 @@ impl AgentRuntime {
         }
     }
 
-    pub async fn provider_readiness(
-        &self,
-        provider: &str,
-        requested_cwd: Option<&str>,
-    ) -> ProviderReadiness {
-        self.provider_readiness_for(provider, requested_cwd, None)
-            .await
-    }
-
     pub async fn provider_readiness_for(
         &self,
         provider: &str,
@@ -120,10 +111,12 @@ impl AgentRuntime {
         let reservation = CaptureReservation::acquire(Arc::clone(&self.capture_in_flight))?;
         let request_id = self.next_capture_id.fetch_add(1, Ordering::Relaxed) + 1;
         mutate(&self.updates, |state| {
+            let staged = state.capture.staged.take();
             state.capture = CaptureSnapshot {
                 request_id,
                 phase: "preparing".into(),
                 error: None,
+                staged,
             };
         });
         Ok((request_id, reservation))
@@ -134,10 +127,12 @@ impl AgentRuntime {
         &self,
         request_id: u64,
         _reservation: CaptureReservation,
+        deadline: Duration,
+        prompt: &'static str,
         capture: F,
     ) -> Result<(), String>
     where
-        F: FnOnce() -> Result<CapturedImage, String> + Send + 'static,
+        F: FnOnce() -> Result<CapturedImageOutcome, String> + Send + 'static,
     {
         let state = self.snapshot();
         if state.capture.request_id != request_id || state.capture.phase != "preparing" {
@@ -152,19 +147,22 @@ impl AgentRuntime {
         if let Some(reason) = state.provider.capture_unavailable_reason() {
             return Err(reason.into());
         }
+        let auto_send = self.capture_auto_send();
         let selected = self.capture_runtime_options(&state);
-        let ready = self
-            .provider_readiness_for(
-                state.provider.as_str(),
-                Some(&state.cwd),
-                selected.model.as_deref(),
-            )
-            .await;
-        if ready.status != "ready" || !ready.image_input {
-            return Err(
-                "Selected provider or model cannot accept screenshots. Open Agent settings and Retry."
-                    .into(),
-            );
+        if auto_send {
+            let ready = self
+                .provider_readiness_for(
+                    state.provider.as_str(),
+                    Some(&state.cwd),
+                    selected.model.as_deref(),
+                )
+                .await;
+            if ready.status != "ready" || !ready.image_input {
+                return Err(
+                    "Selected provider or model cannot accept screenshots. Open Agent settings and Retry."
+                        .into(),
+                );
+            }
         }
         mutate(&self.updates, |state| {
             if state.capture.request_id == request_id {
@@ -172,18 +170,101 @@ impl AgentRuntime {
             }
         });
         let reservation = Arc::new(_reservation);
-        let image = capture_with_deadline(&reservation, Duration::from_secs(8), capture).await?;
+        let image = match capture_with_deadline(&reservation, deadline, capture).await? {
+            CapturedImageOutcome::Captured(image) => image,
+            CapturedImageOutcome::Cancelled => {
+                self.clear_cancelled_capture(request_id);
+                return Ok(());
+            }
+        };
+        if !auto_send {
+            let source = if prompt.contains("screen area") {
+                "region"
+            } else if prompt.contains("scrolling") {
+                "scrollingWindow"
+            } else if prompt.contains("full screen") {
+                "fullScreen"
+            } else {
+                "window"
+            };
+            self.stage_captured_image(Some(request_id), source, image);
+            return Ok(());
+        }
         mutate(&self.updates, |state| {
             if state.capture.request_id == request_id {
                 state.capture.phase = "submitting".into();
             }
         });
         self.ask_with_capture(
-            "Analyze the captured application window. Describe what is visible and answer any apparent question without modifying files.".into(),
+            prompt.into(),
             state.cwd,
             state.provider.as_str().into(),
             selected,
             Some(image),
-        ).await.map(|_| ())
+        )
+        .await
+        .map(|_| ())
+    }
+
+    #[cfg(windows)]
+    pub(crate) async fn selected_text_hotkey<F>(
+        &self,
+        request_id: u64,
+        _reservation: CaptureReservation,
+        capture: F,
+    ) -> Result<(), String>
+    where
+        F: FnOnce() -> Result<String, String> + Send + 'static,
+    {
+        let state = self.snapshot();
+        if state.capture.request_id != request_id || state.capture.phase != "preparing" {
+            return Err("Capture request is no longer current.".into());
+        }
+        if matches!(
+            state.status,
+            RunPhase::Starting | RunPhase::Streaming | RunPhase::Stopping
+        ) {
+            return Err("Finish or Stop the current answer before capturing.".into());
+        }
+        let auto_send = self.capture_auto_send();
+        let selected = self.capture_runtime_options(&state);
+        if auto_send {
+            let ready = self
+                .provider_readiness_for(
+                    state.provider.as_str(),
+                    Some(&state.cwd),
+                    selected.model.as_deref(),
+                )
+                .await;
+            if ready.status != "ready" {
+                return Err(format!("{} {}", ready.message, ready.recovery));
+            }
+        }
+        mutate(&self.updates, |state| {
+            if state.capture.request_id == request_id {
+                state.capture.phase = "capturing".into();
+            }
+        });
+        let reservation = Arc::new(_reservation);
+        let selected_text =
+            capture_text_with_deadline(&reservation, Duration::from_secs(8), capture).await?;
+        if !auto_send {
+            self.stage_selected_text(Some(request_id), selected_text);
+            return Ok(());
+        }
+        mutate(&self.updates, |state| {
+            if state.capture.request_id == request_id {
+                state.capture.phase = "submitting".into();
+            }
+        });
+        self.ask_with_selected_text(
+            "Answer the clearest question or task in the selected text.".into(),
+            state.cwd,
+            state.provider.as_str().into(),
+            selected,
+            selected_text,
+        )
+        .await
+        .map(|_| ())
     }
 }

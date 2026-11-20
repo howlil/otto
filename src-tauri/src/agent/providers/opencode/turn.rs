@@ -1,103 +1,123 @@
-use super::{AGENT, MAX_OUTPUT, Profile, probe};
-use crate::agent::providers::{
-    authentication_required, read_bounded_line, transport::JsonlProcess,
+use super::{
+    readiness::{MAX_OUTPUT, executable, model_id, valid_variant},
+    stream::Turn,
 };
+use crate::agent::providers::{read_bounded_line, transport::JsonlProcess};
 use crate::agent::{
-    Control,
+    CapturedImage, Control,
     events::{AgentEvent, ProviderEvents},
 };
 use serde_json::Value;
-use std::{collections::HashSet, sync::atomic::Ordering, time::Duration};
+use std::{ffi::OsString, path::Path, sync::atomic::Ordering, time::Duration};
 use tokio::{sync::mpsc, time::timeout};
 
-#[derive(Default)]
-struct Turn {
-    session: Option<String>,
-    parts: HashSet<String>,
-    bytes: usize,
-    finished: bool,
+fn valid_session_id(value: &str) -> bool {
+    !value.is_empty()
+        && !value.starts_with('-')
+        && value.len() <= 256
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_".contains(&byte))
 }
 
-impl Turn {
-    fn observe(
-        &mut self,
-        frame: &Value,
-        run_id: u64,
-        events: &ProviderEvents,
-    ) -> Result<(), String> {
-        let session = frame["sessionID"]
-            .as_str()
-            .filter(|id| !id.is_empty() && id.len() <= 256)
-            .ok_or("OpenCode omitted its session identity.")?;
-        if self
-            .session
-            .as_deref()
-            .is_some_and(|previous| previous != session)
-        {
-            return Err("OpenCode returned a different session.".into());
-        }
-        self.session = Some(session.into());
-        match frame["type"].as_str() {
-            Some("step_start") => { self.finished = false; Ok(()) },
-            Some("reasoning") => Ok(()),
-            Some("text") => self.text(&frame["part"], run_id, events),
-            Some("step_finish") if frame["part"]["reason"] == "stop" => { self.finished = true; Ok(()) },
-            Some("error") => {
-                let detail = frame["error"]["data"]["message"].as_str().unwrap_or_default();
-                if authentication_required(detail) || detail.to_ascii_lowercase().contains("api key") {
-                    Err("OpenCode needs authentication. Run opencode auth login, then Retry.".into())
-                } else if ["429", "usage limit", "rate limit", "quota", "insufficient credit"].iter().any(|signal| detail.to_ascii_lowercase().contains(signal)) {
-                    Err("OpenCode reached the provider's usage limit. Check quota or choose another model, then Retry.".into())
-                } else { Err("OpenCode could not finish the answer. Check the selected model and retry.".into()) }
-            }
-            _ => Err("OpenCode requested a tool or returned an unsupported chat event. The request was stopped.".into()),
-        }
+fn build_launch_args(
+    session: Option<&str>,
+    model: Option<&str>,
+    variant: Option<&str>,
+    image: Option<&Path>,
+) -> Vec<OsString> {
+    let mut args: Vec<OsString> = vec!["run".into(), "--format".into(), "json".into()];
+    if let Some(id) = session.filter(|value| valid_session_id(value)) {
+        args.push("--session".into());
+        args.push(id.into());
     }
+    if let Some(model) = model {
+        args.push("--model".into());
+        args.push(model.into());
+    }
+    if let Some(effort) = variant {
+        args.push("--variant".into());
+        args.push(effort.into());
+    }
+    if let Some(path) = image {
+        args.push("-f".into());
+        args.push(path.as_os_str().to_os_string());
+    }
+    args
+}
 
-    fn text(&mut self, part: &Value, run_id: u64, events: &ProviderEvents) -> Result<(), String> {
-        let id = part["id"]
-            .as_str()
-            .filter(|id| !id.is_empty() && id.len() <= 256)
-            .ok_or("OpenCode omitted its answer identity.")?;
-        if self.parts.contains(id) {
-            return Ok(());
+async fn recv_cancel(controls: &mut mpsc::Receiver<Control>) -> Option<Control> {
+    loop {
+        match controls.recv().await {
+            Some(Control::PermissionDecision { .. }) => continue,
+            other => return other,
         }
-        let text = part["text"]
-            .as_str()
-            .ok_or("OpenCode returned invalid answer text.")?;
-        self.bytes = self.bytes.saturating_add(text.len());
-        if self.bytes > MAX_OUTPUT || self.parts.len() >= 4096 {
-            return Err("OpenCode answer exceeded its limit.".into());
-        }
-        self.parts.insert(id.into());
-        events.emit(AgentEvent::TextDelta {
-            run_id,
-            delta: text.into(),
-        });
-        Ok(())
     }
+}
+
+struct ExecuteRequest<'a> {
+    run_id: u64,
+    text: &'a str,
+    display_text: &'a str,
+    cwd: &'a Path,
+    session: Option<&'a str>,
+    model: Option<&'a str>,
+    thinking_effort: Option<&'a str>,
+    image: Option<&'a Path>,
 }
 
 async fn execute(
     events: &ProviderEvents,
-    run_id: u64,
-    text: &str,
-    display_text: &str,
-    model: Option<&str>,
+    request: ExecuteRequest<'_>,
     active: &mut Option<JsonlProcess>,
-    profile: &mut Option<Profile>,
-) -> Result<(), String> {
-    let (verified, _, selected) = probe(model).await?;
-    let process = verified.launch(&[
-        "run", "--format", "json", "--agent", AGENT, "--model", &selected,
-    ])?;
-    *profile = Some(verified);
+) -> Result<Option<String>, String> {
+    let ExecuteRequest {
+        run_id,
+        text,
+        display_text,
+        cwd,
+        session,
+        model,
+        thinking_effort,
+        image,
+    } = request;
+    let selected = match model {
+        Some(id) => {
+            if !model_id(id) {
+                return Err(
+                    "The selected OpenCode model is unavailable. Choose an available model.".into(),
+                );
+            }
+            Some(id.to_owned())
+        }
+        None => None,
+    };
+    let variant = match thinking_effort.filter(|value| !value.is_empty()) {
+        Some(effort) => {
+            if !valid_variant(effort) {
+                return Err("Selected thinking effort is not supported by OpenCode.".into());
+            }
+            Some(effort.to_owned())
+        }
+        None => None,
+    };
+    let binary =
+        executable().ok_or("OpenCode is not installed. Install opencode-ai, then Retry.")?;
+    let args = build_launch_args(session, selected.as_deref(), variant.as_deref(), image);
+    let (process, _) = JsonlProcess::launch(
+        "OpenCode",
+        &binary,
+        args,
+        cwd,
+        false,
+        "OpenCode could not start.",
+    )?;
     *active = Some(process);
     let process = active.as_mut().ok_or("OpenCode process is unavailable.")?;
     events.emit(AgentEvent::RuntimeChanged {
         run_id,
-        model: Some(selected),
-        thinking_effort: None,
+        model: selected,
+        thinking_effort: variant,
     });
     events.emit(AgentEvent::TurnStarted {
         run_id,
@@ -123,66 +143,145 @@ async fn execute(
     if !turn.finished {
         return Err("OpenCode disconnected before finishing the answer.".into());
     }
-    Ok(())
+    Ok(turn.session)
 }
 
 pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, initial: Control) {
-    let Control::Ask {
+    let mut next = Some(initial);
+    let mut session: Option<String> = None;
+    while let Some(Control::Ask {
         text,
         display_text,
+        cwd,
         run_id,
         model,
         thinking_effort,
         capture,
-        ..
-    } = initial
-    else {
-        events.fail(events.snapshot().run_id, "OpenCode requires a question.");
-        return;
-    };
-    if capture.is_some() || thinking_effort.is_some() {
-        events.fail(
-            run_id,
-            "OpenCode supports text chat without thinking-effort overrides.",
-        );
-        return;
-    }
-    let mut active = None;
-    let mut profile = None;
-    let mut close = None;
-    let outcome = tokio::select! {
-        biased;
-        control = controls.recv() => {
-            if let Some(Control::Close { claimed, finished }) = control
-                && !claimed.swap(true, Ordering::SeqCst) { close = Some(finished); }
-            None
-        },
-        result = timeout(Duration::from_secs(120), execute(&events, run_id, &text, &display_text, model.as_deref(), &mut active, &mut profile)) => {
-            Some(result.unwrap_or_else(|_| Err("OpenCode answer timed out. Check connectivity or provider usage limits, then Retry.".into())))
+    }) = next.take()
+    {
+        let mut active = None;
+        let mut close = None;
+        let mut channel_closed = false;
+        let outcome = tokio::select! {
+            biased;
+            control = recv_cancel(&mut controls) => {
+                match control {
+                    Some(Control::Close { claimed, finished })
+                        if !finished.is_closed() && !claimed.swap(true, Ordering::SeqCst) =>
+                    {
+                        close = Some(finished);
+                    }
+                    None => channel_closed = true,
+                    _ => {}
+                }
+                None
+            }
+            result = timeout(Duration::from_secs(120), execute(&events, ExecuteRequest {
+                run_id,
+                text: &text,
+                display_text: &display_text,
+                cwd: &cwd,
+                session: session.as_deref(),
+                model: model.as_deref(),
+                thinking_effort: thinking_effort.as_deref(),
+                image: capture.as_ref().map(CapturedImage::path),
+            }, &mut active)) => {
+                Some(result.unwrap_or_else(|_| Err("OpenCode answer timed out. Check connectivity or provider usage limits, then Retry.".into())))
+            }
+        };
+        if let Some(process) = active.as_mut() {
+            process.kill_now().await;
         }
-    };
-    if let Some(process) = active.as_mut() {
-        process.kill_now().await;
-    }
-    drop(active);
-    drop(profile);
-    drop(controls);
-    match outcome {
-        Some(Ok(())) => events.emit(AgentEvent::Completed { run_id }),
-        Some(Err(reason)) => events.fail(run_id, &reason),
-        None => events.stopped(run_id),
-    }
-    if let Some(finished) = close {
-        let _ = finished.send(());
+        drop(active);
+        drop(capture);
+        match outcome {
+            Some(Ok(next_session)) => {
+                if next_session.is_some() {
+                    session = next_session;
+                }
+                events.emit(AgentEvent::Completed { run_id });
+            }
+            Some(Err(reason)) => events.fail(run_id, &reason),
+            None => events.stopped(run_id),
+        }
+        if let Some(finished) = close {
+            let _ = finished.send(());
+            return;
+        }
+        if channel_closed {
+            return;
+        }
+        loop {
+            match controls.recv().await {
+                Some(next_control @ Control::Ask { .. }) => {
+                    next = Some(next_control);
+                    break;
+                }
+                Some(Control::Close { claimed, finished }) => {
+                    if finished.is_closed() || claimed.swap(true, Ordering::SeqCst) {
+                        continue;
+                    }
+                    let _ = finished.send(());
+                    return;
+                }
+                Some(Control::Stop) => events.stopped(events.snapshot().run_id),
+                Some(Control::PermissionDecision { .. }) => {}
+                None => return,
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::{AgentRuntime, RunPhase};
+    use crate::agent::{ActivityKind, AgentRuntime, RunPhase};
     use serde_json::json;
     use tokio::sync::watch;
+
+    #[test]
+    fn opencode_launch_args_forward_session_model_variant_and_image_without_permission_overrides() {
+        let image = Path::new("C:/temp/capture.png");
+        let args = build_launch_args(
+            Some("sess-42"),
+            Some("openai/gpt-5.6"),
+            Some("high"),
+            Some(image),
+        );
+        let text: Vec<String> = args
+            .iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            text,
+            vec![
+                "run",
+                "--format",
+                "json",
+                "--session",
+                "sess-42",
+                "--model",
+                "openai/gpt-5.6",
+                "--variant",
+                "high",
+                "-f",
+                "C:/temp/capture.png",
+            ]
+        );
+        for forbidden in [
+            "--permission-mode",
+            "--dangerously-skip-permissions",
+            "--allow-all",
+            "--yolo",
+        ] {
+            assert!(!text.iter().any(|arg| arg == forbidden));
+        }
+        let invalid_session = build_launch_args(Some("--bad-flag"), None, None, None);
+        assert_eq!(
+            invalid_session,
+            vec![OsString::from("run"), "--format".into(), "json".into()]
+        );
+    }
 
     #[test]
     fn protocol_deduplicates_parts_and_does_not_complete_at_step_finish() {
@@ -202,6 +301,13 @@ mod tests {
         turn.observe(&text, 7, &events).unwrap();
         assert_eq!(updates.borrow().messages.last().unwrap().text, "answer");
         turn.observe(
+            &json!({"type":"step_finish","sessionID":"session-1","part":{"reason":"tool-calls"}}),
+            7,
+            &events,
+        )
+        .unwrap();
+        assert!(!turn.finished);
+        turn.observe(
             &json!({"type":"step_finish","sessionID":"session-1","part":{"reason":"stop"}}),
             7,
             &events,
@@ -209,15 +315,129 @@ mod tests {
         .unwrap();
         assert!(turn.finished);
         assert_eq!(updates.borrow().status, RunPhase::Streaming);
+        turn.observe(
+            &json!({"type":"tool_use","sessionID":"session-1"}),
+            7,
+            &events,
+        )
+        .unwrap();
         for frame in [
-            json!({"type":"tool_use","sessionID":"session-1"}),
             json!({"type":"text","sessionID":"session-1","part":{"id":"x".repeat(257),"text":"answer"}}),
             json!({"type":"text","sessionID":"x".repeat(257)}),
             json!({"type":"text","sessionID":"other"}),
-            json!({"type":"step_finish","sessionID":"session-1","part":{"reason":"tool-calls"}}),
             json!({"type":"error","sessionID":"session-1","error":{"data":{"message":"Unauthorized"}}}),
         ] {
             assert!(turn.observe(&frame, 7, &events).is_err());
         }
+    }
+
+    #[test]
+    fn opencode_text_accumulator_clamps_to_max_assistant_text() {
+        let mut snapshot = AgentRuntime::new().snapshot();
+        snapshot.run_id = 7;
+        snapshot.status = RunPhase::Starting;
+        let (updates, _) = watch::channel(snapshot);
+        let events = ProviderEvents::new(updates.clone());
+        events.emit(AgentEvent::TurnStarted {
+            run_id: 7,
+            text: "question".into(),
+        });
+        let mut turn = Turn::default();
+        let big = "a".repeat(140_000);
+        let frame =
+            json!({"type":"text","sessionID":"session-1","part":{"id":"part-big","text":big}});
+        turn.observe(&frame, 7, &events).unwrap();
+        let snapshot = updates.borrow();
+        let text = &snapshot.messages.last().unwrap().text;
+        assert!(!text.is_empty());
+        assert!(text.len() <= 128_000);
+    }
+
+    #[test]
+    fn opencode_step_finish_emits_cumulative_usage_and_context_tokens() {
+        let mut snapshot = AgentRuntime::new().snapshot();
+        snapshot.run_id = 11;
+        snapshot.status = RunPhase::Starting;
+        let (updates, _) = watch::channel(snapshot);
+        let events = ProviderEvents::new(updates.clone());
+        events.emit(AgentEvent::TurnStarted {
+            run_id: 11,
+            text: "question".into(),
+        });
+        let mut turn = Turn::default();
+        turn.observe(
+            &json!({
+                "type": "step_finish",
+                "sessionID": "session-1",
+                "part": {
+                    "reason": "tool-calls",
+                    "tokens": {
+                        "input": 1000,
+                        "output": 100,
+                        "reasoning": 50,
+                        "cache": { "read": 500, "write": 200 }
+                    }
+                }
+            }),
+            11,
+            &events,
+        )
+        .unwrap();
+        turn.observe(
+            &json!({
+                "type": "step_finish",
+                "sessionID": "session-1",
+                "part": {
+                    "reason": "stop",
+                    "tokens": {
+                        "input": 1200,
+                        "output": 250,
+                        "reasoning": 80,
+                        "cache": { "read": 1500, "write": 0 }
+                    }
+                }
+            }),
+            11,
+            &events,
+        )
+        .unwrap();
+        let usage = updates.borrow().usage.clone().expect("usage emitted");
+        assert_eq!(usage.context_tokens, Some(2700));
+        assert_eq!(usage.input_tokens, 2200);
+        assert_eq!(usage.cached_input_tokens, 2200);
+        assert_eq!(usage.output_tokens, 350);
+        assert_eq!(usage.reasoning_output_tokens, Some(130));
+        assert_eq!(usage.session_tokens, 4750);
+    }
+
+    #[test]
+    fn opencode_reasoning_and_tool_frames_capture_details() {
+        let mut snapshot = crate::agent::AgentRuntime::new().snapshot();
+        snapshot.run_id = 2;
+        snapshot.status = RunPhase::Starting;
+        let (updates, _) = tokio::sync::watch::channel(snapshot);
+        let events = ProviderEvents::new(updates.clone());
+        let mut turn = Turn::default();
+        turn.observe(
+            &serde_json::json!({"sessionID":"s","type":"reasoning","part":{"id":"r1","text":"Inspect build\nCheck tests"}}),
+            2,
+            &events,
+        )
+        .unwrap();
+        turn.observe(&serde_json::json!({"sessionID":"s","type":"tool_use","part":{"id":"p1","tool":"bash","state":{"title":"Run tests","status":"completed","input":{"command":"bun test"}}}}), 2, &events).unwrap();
+        let list = updates.borrow().activity.clone();
+        assert_eq!(list.len(), 2);
+        assert!(list.iter().all(|item| item.done));
+        assert_eq!(list[0].summary.as_deref(), Some("Inspect build"));
+        assert!(list[0].detail.as_deref().unwrap().contains("Check tests"));
+        assert_eq!(list[1].kind, ActivityKind::Command);
+        assert_eq!(list[1].summary.as_deref(), Some("Run tests"));
+        assert!(
+            list[1]
+                .detail
+                .as_deref()
+                .unwrap()
+                .contains("command: bun test")
+        );
     }
 }

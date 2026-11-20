@@ -15,20 +15,18 @@ export function useTransitionActive(): boolean {
   return useContext(TransitionActivity);
 }
 
-type TransitionKind = "page" | "tab" | "compact" | "module";
+type TransitionKind = "page" | "tab" | "compact";
 type Direction = "forward" | "back" | "center";
 type FrameSize = { width: number; height: number } | null | undefined;
 type Frame = { key: string; node: ReactNode; size: FrameSize };
 
 function frameStyle(size: FrameSize): CSSProperties | undefined {
-  return size ? { width: size.width, height: size.height } : undefined;
+  return size
+    ? { width: size.width, height: size.height, left: "50%", marginLeft: -size.width / 2 }
+    : undefined;
 }
 
 function transitionClasses(kind: TransitionKind, direction: Direction): [string, string] {
-  if (kind === "module") {
-    const side = direction === "back" ? "back" : "forward";
-    return [`otto-module-${side}-enter`, `otto-module-${side}-exit`];
-  }
   if (kind === "tab") return ["otto-tab-enter", "otto-tab-exit"];
   if (kind === "compact") return ["otto-compact-enter", "otto-compact-exit"];
   return [`otto-page-${direction}-enter`, `otto-page-${direction}-exit`];
@@ -70,7 +68,7 @@ export function TransitionContent({
     if (!retained) return;
     const timer = window.setTimeout(
       () => setRetained((current) => (current === retained ? null : current)),
-      kind === "compact" ? 160 : kind === "tab" ? 140 : 160,
+      kind === "compact" ? 130 : kind === "tab" ? 130 : 170,
     );
     return () => window.clearTimeout(timer);
   }, [retained, kind]);
@@ -87,7 +85,7 @@ export function TransitionContent({
           key={outgoing.key}
           aria-hidden="true"
           inert
-          className={`pointer-events-none absolute left-0 top-0 z-10 ${layout} ${exit}`}
+          className={`pointer-events-none absolute top-0 z-10 ${outgoing.size ? "" : "left-0"} ${layout} ${exit}`}
           style={frameStyle(outgoing.size)}
           onAnimationEnd={(event) => {
             if (event.target !== event.currentTarget) return;
@@ -97,7 +95,11 @@ export function TransitionContent({
           <TransitionActivity.Provider value={false}>{outgoing.node}</TransitionActivity.Provider>
         </div>
       )}
-      <div key={transitionKey} className={`${layout} ${enter}`} style={frameStyle(frameSize)}>
+      <div
+        key={transitionKey}
+        className={`${frameSize ? "relative" : ""} ${layout} ${enter}`}
+        style={frameStyle(frameSize)}
+      >
         <TransitionActivity.Provider value={active}>{children}</TransitionActivity.Provider>
       </div>
     </div>

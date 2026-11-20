@@ -1,11 +1,54 @@
-use super::run::close_owned_transport;
+use super::session::close_owned_transport;
+use crate::agent::conversation as history;
 use crate::agent::*;
+use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+pub(crate) struct SessionReuse<'a> {
+    pub provider: ProviderId,
+    pub status: RunPhase,
+    pub thread_id: Option<&'a str>,
+    pub current_cwd: &'a Path,
+    pub requested_cwd: &'a Path,
+    pub current_model: Option<&'a str>,
+    pub current_thinking_effort: Option<&'a str>,
+    pub model: Option<&'a str>,
+    pub thinking_effort: Option<&'a str>,
+    pub has_capture: bool,
+}
+
+impl<'a> SessionReuse<'a> {
+    pub fn for_turn(
+        snapshot: &'a Snapshot,
+        requested_cwd: &'a Path,
+        model: Option<&'a str>,
+        thinking_effort: Option<&'a str>,
+        has_capture: bool,
+    ) -> Self {
+        Self {
+            provider: snapshot.provider,
+            status: snapshot.status,
+            thread_id: snapshot.thread_id.as_deref(),
+            current_cwd: Path::new(&snapshot.cwd),
+            requested_cwd,
+            current_model: snapshot.model.as_deref(),
+            current_thinking_effort: snapshot.thinking_effort.as_deref(),
+            model,
+            thinking_effort,
+            has_capture,
+        }
+    }
+}
+
 impl AgentRuntime {
-    pub fn provider_installed(&self, provider: &str) -> bool {
-        ProviderId::parse(provider).is_some_and(ProviderId::is_installed)
+    pub fn provider_catalog(&self) -> Vec<ProviderDescriptor> {
+        ProviderId::catalog()
+    }
+
+    pub fn refresh_provider_catalog(&self) -> Vec<ProviderDescriptor> {
+        crate::agent::providers::refresh_live_path();
+        ProviderId::catalog()
     }
 
     pub async fn select_provider(&self, provider: String) -> Result<(), String> {
@@ -59,6 +102,7 @@ impl AgentRuntime {
         switched.model = None;
         switched.thinking_effort = None;
         switched.usage = None;
+        switched.rate_limits.clear();
         switched.error = None;
         if let Some(record) =
             history::record_from_snapshot(&id, &switched, current.status != RunPhase::Completed)
@@ -77,6 +121,8 @@ impl AgentRuntime {
 
         *guard = None;
         *self.selected_runtime.lock().unwrap() = ModelSelection::default();
+        self.clear_session_guidance();
+        self.clear_staged_image_if_unsupported(provider);
         self.next_run_id
             .fetch_max(current.run_id, Ordering::Relaxed);
         let next_run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
@@ -93,6 +139,7 @@ impl AgentRuntime {
                 state.model = None;
                 state.thinking_effort = None;
                 state.usage = None;
+                state.rate_limits.clear();
                 state.error = marker_failed.then(|| MARKER_CLEAR_NOTICE.into());
             }
         });

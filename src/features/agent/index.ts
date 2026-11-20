@@ -1,5 +1,8 @@
-export { AgentPanel } from "./AgentPanel";
-export { AgentCapsule } from "./AgentCapsule";
-export { useAgent } from "./useAgent";
-export { agentStatusLabel, capturePhaseLabel } from "./status";
-export { resolveAgentSurface } from "./surface";
+export { AgentPanel } from "./conversation/AgentPanel";
+export { AgentCapsule } from "./capsule/AgentCapsule";
+export { AssistantSettings } from "./settings/AssistantSettings";
+export { CaptureSettings } from "./capture/CaptureSettings";
+export { useAgent } from "./hooks/useAgent";
+export { agentStatusLabel, capturePhaseLabel } from "./model/status";
+export { resolveAgentSurface } from "./model/surface";
+export type { AgentViewModel } from "./model/view-model";

@@ -4,8 +4,7 @@ import { join, relative, resolve, sep } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const sourceRoot = join(root, "src-tauri", "src");
 const coreRoot = join(sourceRoot, "agent");
-const osEventsRoot = join(sourceRoot, "os_events");
-const windowsRoot = join(sourceRoot, "windows");
+const windowsRoot = join(sourceRoot, "platform", "windows");
 const ipcRoot = join(sourceRoot, "ipc");
 const budgetPath = join(root, ".agents", "rust-budget.json");
 
@@ -18,6 +17,7 @@ function rustFiles(folder) {
 }
 
 function prodLines(path) {
+  if (path.split(sep).includes("tests") || path.endsWith(`${sep}tests.rs`)) return 0;
   const lines = readFileSync(path, "utf8").split("\n");
   const tests = lines.findIndex(
     (line, index) =>
@@ -32,35 +32,11 @@ for (const path of rustFiles(coreRoot)) {
   if (path.includes(`${sep}providers${sep}`)) continue;
   const source = readFileSync(path, "utf8");
   const forbidden = [
-    /\b(?:crate|super)::windows::\b/,
-    /\b(?:crate::agent::|super::)?providers::(?:codex|pi|agy|opencode)::/,
+    /\b(?:crate|super)::(?:platform::)?windows::\b/,
+    /\b(?:crate::agent::|super::)?providers::(?:codex|pi|agy|opencode|claude)::/,
   ];
   if (forbidden.some((pattern) => pattern.test(source))) {
     failures.push(`F6: ${relative(root, path)} imports a concrete native adapter`);
-  }
-}
-
-for (const path of rustFiles(osEventsRoot)) {
-  const source = readFileSync(path, "utf8");
-  const forbidden = [
-    /\b(?:crate|super)::windows::\b/,
-    /\b(?:crate::agent::|super::)?providers::(?:codex|pi|agy|opencode)::/,
-    /\bWebviewWindow\b/,
-  ];
-  if (forbidden.some((pattern) => pattern.test(source))) {
-    failures.push(`F8: ${relative(root, path)} imports a native adapter or window type`);
-  }
-}
-
-for (const path of rustFiles(join(windowsRoot, "observers"))) {
-  const source = readFileSync(path, "utf8");
-  const forbidden = [
-    /crate::os_events::Hub\b/,
-    /crate::os_events::policy\b/,
-    /\bobserve_now\s*\(/,
-  ];
-  if (forbidden.some((pattern) => pattern.test(source))) {
-    failures.push(`F8: ${relative(root, path)} owns hub policy instead of reporting observations`);
   }
 }
 
@@ -106,4 +82,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(failure);
   process.exit(1);
 }
-console.log("Rust boundaries F6/F7/F8/F11/F12 pass.");
+console.log("Rust boundaries F6/F7/F11/F12 pass.");

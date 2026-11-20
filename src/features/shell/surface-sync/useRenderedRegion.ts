@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { NotchHost, NotchRegionPx, NotchPlacement } from "../../../platform/tauri";
-import { SHOULDER_PX, type NotchShape } from "../placement";
+import { SHOULDER_PX, type NotchShape } from "../model/placement";
 import type { createGeometryQueue } from "./geometry-queue";
 import type { SurfaceSize } from "./layout";
 
@@ -42,6 +42,30 @@ export function renderedRegion(
   };
 }
 
+export function targetRegion(
+  host: NotchHost,
+  size: SurfaceSize,
+  shape: NotchShape,
+  sequence: number,
+): NotchRegionPx | null {
+  const scale = host.scale;
+  const shoulder = shape === "attached" ? Math.round(SHOULDER_PX * scale) : 0;
+  const hostWidth = Math.round(host.width * scale);
+  const left = ((host.width - size.width) / 2) * scale;
+  const x = Math.max(shoulder, Math.floor(left) - 1);
+  const right = Math.min(hostWidth - shoulder, Math.ceil(left + size.width * scale) + 1);
+  const bottom = Math.min(Math.round(host.height * scale), Math.ceil(size.height * scale) + 1);
+  if (right <= x || bottom <= 0) return null;
+  return {
+    hostRevision: host.revision,
+    sequence,
+    body: { x, y: 0, width: right - x, height: bottom },
+    radius: { top: 0, bottom: 0 },
+    shoulder,
+    morph: true,
+  };
+}
+
 export function useRenderedRegion({
   stageRef,
   host,
@@ -63,6 +87,7 @@ export function useRenderedRegion({
   onError: (message: string) => void;
   onObserved: (placement: NotchPlacement) => void;
 }) {
+  const { width: sizeWidth, height: sizeHeight } = size;
   const sequence = useRef(0);
   const confirmed = useRef<NotchRegionPx | null>(null);
   const observedRevision = useRef(0);
@@ -80,10 +105,7 @@ export function useRenderedRegion({
     let failed = false;
     let active = true;
     const deadline = performance.now() + durationMs + (durationMs > 0 ? 80 : 0);
-    const send = () => {
-      if (failed) return;
-      const region = renderedRegion(stage, host, ++sequence.current);
-      if (!region) return;
+    const push = (region: NotchRegionPx) => {
       queue.enqueue(
         region,
         () => {
@@ -94,7 +116,7 @@ export function useRenderedRegion({
           report.current("Windows could not update Otto's shape. Retry to restore it.");
         },
         () => {
-          confirmed.current = region;
+          if (!region.morph) confirmed.current = region;
           if (observedRevision.current !== host.revision) {
             observedRevision.current = host.revision;
             observed.current(host.placement);
@@ -102,27 +124,47 @@ export function useRenderedRegion({
         },
       );
     };
-    const tick = (now: number) => {
+    const send = () => {
+      if (failed) return;
+      const region = renderedRegion(stage, host, ++sequence.current);
+      if (region) push(region);
+    };
+    const morphing = durationMs > 0 && confirmed.current !== null;
+    const lead = morphing
+      ? targetRegion(host, { width: sizeWidth, height: sizeHeight }, shape, sequence.current + 1)
+      : null;
+    if (lead) {
+      sequence.current += 1;
+      push(lead);
+    } else {
       send();
+    }
+    let last = performance.now();
+    let worst = 0;
+    const tick = (now: number) => {
+      worst = Math.max(worst, now - last);
+      last = now;
       const rect = stage.getBoundingClientRect();
       const reached =
-        Math.abs(rect.width - size.width) < 0.5 && Math.abs(rect.height - size.height) < 0.5;
+        Math.abs(rect.width - sizeWidth) < 0.5 && Math.abs(rect.height - sizeHeight) < 0.5;
       const attached =
         stage.closest("[data-placement]")?.getAttribute("data-placement") === "attached";
       const settled = reached && attached === (shape === "attached");
       const keepSampling = now < deadline || (!settled && now < deadline + 80);
-      if (!failed && keepSampling) frame = requestAnimationFrame(tick);
+      if (!failed && keepSampling) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      send();
+      if (lead && import.meta.env.DEV) {
+        console.debug("otto morph", { durationMs, worstFrameMs: Math.round(worst) });
+      }
     };
-    send();
     frame = requestAnimationFrame(tick);
-    stage.addEventListener("transitionend", send);
-    stage.addEventListener("transitioncancel", send);
     return () => {
       active = false;
       cancelAnimationFrame(frame);
-      stage.removeEventListener("transitionend", send);
-      stage.removeEventListener("transitioncancel", send);
     };
-  }, [stageRef, host, size.width, size.height, shape, durationMs, retry, queue]);
+  }, [stageRef, host, sizeWidth, sizeHeight, shape, durationMs, retry, queue]);
   return failure?.retry === retry ? { region: failure.region, scale: host?.scale ?? 1 } : null;
 }
