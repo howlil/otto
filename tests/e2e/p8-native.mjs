@@ -3,7 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
-import { runPreflight } from './preflight';
+import { runPreflight } from './preflight.mjs';
 
 if (process.platform !== 'win32') throw new Error('P8 native E2E requires Windows');
 const root = resolve(import.meta.dirname, '../..');

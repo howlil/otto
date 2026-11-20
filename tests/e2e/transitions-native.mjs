@@ -3,8 +3,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
-import { runPreflight } from "./preflight";
-import { createVisualRecorder } from "./visual-capture";
+import { runPreflight } from "./preflight.mjs";
+import { createVisualRecorder } from "./visual-capture.mjs";
 
 if (process.platform !== "win32") throw new Error("Native transition E2E requires Windows");
 

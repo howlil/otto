@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { existsSync, readFileSync, rmSync } from "node:fs";
-import { createVisualRecorder } from "./visual-capture";
+import { createVisualRecorder } from "./visual-capture.mjs";
 
 const directories = [];
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==";
