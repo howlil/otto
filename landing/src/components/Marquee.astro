@@ -1,0 +1,22 @@
+---
+import { engines } from "@/data/otto";
+---
+
+<section aria-label="Supported AI CLI engines" class="border-y border-otto-line py-7">
+  <p class="text-center text-sm text-otto-muted">Works with the AI command-line tools already on your PC</p>
+  <div class="mt-5 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]">
+    <div class="marquee flex w-max">
+      {
+        [0, 1].map((copy) => (
+          <ul class="flex shrink-0 gap-3 pr-3" aria-hidden={copy === 1 ? "true" : undefined}>
+            {engines.map((name) => (
+              <li class="whitespace-nowrap rounded-full border border-otto-line bg-otto-surface px-4 py-2 font-mono text-[13px] text-otto-body">
+                {name}
+              </li>
+            ))}
+          </ul>
+        ))
+      }
+    </div>
+  </div>
+</section>

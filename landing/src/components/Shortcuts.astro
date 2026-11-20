@@ -1,0 +1,28 @@
+---
+import { shortcuts } from "@/data/otto";
+---
+
+<section id="shortcuts" class="mx-auto max-w-6xl px-4 py-28">
+  <h2 class="reveal max-w-2xl font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+    Keyboard first, mouse optional.
+  </h2>
+  <p class="reveal mt-5 max-w-2xl text-lg leading-relaxed text-otto-muted">
+    Every global shortcut can be changed in Settings. Try the first one now: Ctrl+Alt+O toggles the demo at the top of this page.
+  </p>
+  <ul class="reveal mt-12 grid gap-3 md:grid-cols-2">
+    {
+      shortcuts.map((item) => (
+        <li class="flex items-center justify-between gap-4 rounded-2xl border border-otto-line bg-otto-surface px-5 py-4 transition hover:border-white/20">
+          <span class="text-otto-body">{item.action}</span>
+          <span class="flex shrink-0 gap-1.5">
+            {item.keys.map((key) => (
+              <kbd class="rounded-md border border-white/15 bg-otto-bg px-2 py-1 font-mono text-[12px] text-otto-text shadow-[inset_0_-2px_0_rgb(255_255_255_/_0.08)]">
+                {key}
+              </kbd>
+            ))}
+          </span>
+        </li>
+      ))
+    }
+  </ul>
+</section>

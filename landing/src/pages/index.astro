@@ -1,0 +1,56 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import Nav from "@/components/Nav.astro";
+import Hero from "@/components/Hero.astro";
+import Marquee from "@/components/Marquee.astro";
+import Why from "@/components/Why.astro";
+import Features from "@/components/Features.astro";
+import Shortcuts from "@/components/Shortcuts.astro";
+import HowItWorks from "@/components/HowItWorks.astro";
+import Cta from "@/components/Cta.astro";
+import Footer from "@/components/Footer.astro";
+import Stats from "@/islands/Stats";
+import Modes from "@/islands/Modes";
+import Control from "@/islands/Control";
+import Faq from "@/islands/Faq";
+---
+
+<Layout
+  title="Otto: the AI mentor at the top of your screen"
+  description="Otto is a quiet Windows notch for studying, reading, and solving hard problems, powered by the AI command-line tools already on your PC."
+>
+  <Nav />
+  <main>
+    <Hero />
+    <Marquee />
+    <section class="mx-auto max-w-6xl px-4 py-16 sm:py-20">
+      <Stats client:visible />
+    </section>
+    <Why />
+    <Features />
+    <section id="modes" class="mx-auto max-w-6xl px-4 py-28">
+      <h2 class="reveal max-w-2xl font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">Six modes for the way you learn.</h2>
+      <p class="reveal mt-5 max-w-2xl text-lg leading-relaxed text-otto-muted">Switch with the composer pill, or type a slash command inline, like /solve or /mentor.</p>
+      <div class="reveal mt-12">
+        <Modes client:visible />
+      </div>
+    </section>
+    <section id="control" class="mx-auto max-w-6xl px-4 py-28">
+      <h2 class="reveal max-w-2xl font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">You stay in control.</h2>
+      <p class="reveal mt-5 max-w-2xl text-lg leading-relaxed text-otto-muted">Otto never approves a permission request for you, and capture never runs on its own. Try both controls below.</p>
+      <div class="reveal mt-12">
+        <Control client:visible />
+      </div>
+    </section>
+    <Shortcuts />
+    <HowItWorks />
+    <section id="faq" class="mx-auto max-w-3xl px-4 py-28">
+      <h2 class="reveal font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">Questions people ask first.</h2>
+      <div class="reveal mt-12">
+        <Faq client:visible />
+      </div>
+    </section>
+    <Cta />
+  </main>
+  <Footer />
+</Layout>

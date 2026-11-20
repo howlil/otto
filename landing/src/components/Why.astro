@@ -1,0 +1,23 @@
+---
+import WhyScroll from "@/islands/WhyScroll";
+import { principles } from "@/data/otto";
+---
+
+<section id="why" class="mx-auto max-w-6xl px-4 py-28">
+  <h2 class="reveal max-w-3xl font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+    The real cost of asking for help is focus.
+  </h2>
+  <div class="mt-12 max-w-4xl">
+    <WhyScroll client:visible />
+  </div>
+  <div class="mt-20 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    {
+      principles.map((item) => (
+        <article class="spotlight reveal rounded-3xl border border-otto-line bg-otto-surface p-6">
+          <h3 class="font-display text-lg font-semibold">{item.title}</h3>
+          <p class="mt-3 text-sm leading-relaxed text-otto-muted">{item.body}</p>
+        </article>
+      ))
+    }
+  </div>
+</section>
