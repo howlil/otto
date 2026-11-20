@@ -429,7 +429,9 @@ mod tests {
             let bytes =
                 std::slice::from_raw_parts(bits as *const u8, (width * height * 4) as usize);
             let pixels = bytes
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|bgra| (bgra[2], bgra[1], bgra[0]))
                 .collect();
             SelectObject(dc, old);
@@ -510,7 +512,9 @@ mod tests {
             }
             Some(
                 bytes
-                    .chunks_exact(4)
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
                     .map(|bgra| (bgra[2], bgra[1], bgra[0]))
                     .collect(),
             )
