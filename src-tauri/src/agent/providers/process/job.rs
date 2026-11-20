@@ -249,24 +249,29 @@ mod tests {
     async fn terminating_job_reaps_descendant_processes() {
         use tokio::io::AsyncBufReadExt;
 
-        let mut command = Command::new("powershell.exe");
+        let mut command = Command::new("cmd.exe");
         command.args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "$psi = [Diagnostics.ProcessStartInfo]::new('powershell.exe'); $psi.Arguments = '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 20'; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true; $child = [Diagnostics.Process]::Start($psi); Write-Output $child.Id; Start-Sleep -Seconds 20",
+            "/d",
+            "/c",
+            "start /b ping.exe -n 30 127.0.0.1 >nul && echo OTTO_DESCENDANT_READY && ping.exe -n 30 127.0.0.1 >nul",
         ]);
         command.stdout(Stdio::piped());
         let (mut child, job) = Job::spawn(command).expect("owned parent process must start");
         let stdout = child.stdout.take().expect("parent stdout pipe");
         let mut reader = tokio::io::BufReader::new(stdout);
-        let mut descendant = String::new();
-        timeout(Duration::from_secs(10), reader.read_line(&mut descendant))
+        let mut ready = String::new();
+        timeout(Duration::from_secs(15), reader.read_line(&mut ready))
             .await
             .expect("descendant startup must finish")
-            .expect("parent should report child PID");
-        assert!(descendant.trim().parse::<u32>().is_ok());
-        assert!(job.active_processes().expect("job accounting") >= 2);
+            .expect("parent should report readiness");
+        assert!(ready.contains("OTTO_DESCENDANT_READY"));
+        timeout(Duration::from_secs(5), async {
+            while job.active_processes().expect("job accounting") < 2 {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("descendant process must be active in job");
         job.terminate();
         timeout(Duration::from_secs(5), async {
             while job.active_processes().expect("job accounting") != 0 {
