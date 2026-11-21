@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-21
+
+### Added
+- Persistent RAM + disk Stale-While-Revalidate (SWR) readiness and model catalog cache (`readiness-cache.json`) with binary fingerprint invalidation and zero-subprocess model switching within cached engines.
+- Persistent runtime preferences (`agent-prefs.json`) remembering active engine, per-engine model, per-model thinking effort, and pinned favorite models across switches and restarts.
+- Warm standby CLI lifecycle (`1` idle process for the active ready engine after expand, auto-closed after 5 minutes idle, `0` CLI processes at Compact boot) across Codex, Claude Code, Agy/ACP, and Pi.
+- Searchable and pinnable model picker in both the header quick switcher and Settings, `Ctrl+M` keyboard shortcut to toggle the quick switcher, and subtle response-latency/TTFT indicator on the latest completed answer.
+
+### Changed
+- Decoupled provider rate-limit probes into non-blocking background refreshes with a separate 5-minute cache.
+- Upgraded Claude Code to persistent multi-turn `--input-format stream-json` / `--output-format stream-json` stdio and skipped redundant `rpc.configure` roundtrips in Pi when model and thinking effort are unchanged.
+- Optimized turn hot path: skipped redundant pre-turn readiness probes when cached ready, staged user messages immediately with async history persistence, and switched IPC snapshot delivery to leading-edge immediate emit with 32ms streaming coalescing.
+
 ## [1.0.0] - 2026-11-21
 
 ### Breaking Changes
@@ -31,7 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Security
 - Enforced zero auto-approval (`G8`) for all incoming CLI host permission requests and deterministic drop-based cleanup for ephemeral staged capture files without logging secrets or images.
 
-[Unreleased]: https://github.com/howlil/otto/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/howlil/otto/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/howlil/otto/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/howlil/otto/compare/v0.3.1...v1.0.0
 [0.3.1]: https://github.com/howlil/otto/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/howlil/otto/compare/v0.2.0...v0.3.0
