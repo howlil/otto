@@ -1,9 +1,13 @@
 use crate::agent::{
-    AcceptedRun, AgentRuntime, AssistantProfile, ProviderDescriptor, Snapshot, TurnOptions,
+    AcceptedRun, AgentRuntime, AssistantProfile, ProviderDescriptor, RunPhase, RuntimePrefs,
+    Snapshot, TurnOptions,
 };
-use std::sync::{
-    Mutex,
-    atomic::{AtomicU64, Ordering},
+use std::{
+    sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
 };
 use tauri::{State, ipc::Channel};
 use tokio::sync::{oneshot, watch};
@@ -36,8 +40,8 @@ impl AgentSubscriptions {
             if channel.send(updates.borrow_and_update().clone()).is_err() {
                 return;
             }
-            let mut cadence = tokio::time::interval(std::time::Duration::from_millis(50));
-            cadence.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let min_interval = Duration::from_millis(32);
+            let mut last_sent: Option<Instant> = None;
             loop {
                 tokio::select! {
                     _ = &mut cancel_rx => break,
@@ -45,8 +49,24 @@ impl AgentSubscriptions {
                         if changed.is_err() {
                             break;
                         }
-                        cadence.tick().await;
-                        if channel.send(updates.borrow_and_update().clone()).is_err() {
+                        let immediate = {
+                            let state = updates.borrow();
+                            !matches!(state.status, RunPhase::Streaming)
+                                || state.pending_permission.is_some()
+                                || last_sent.is_none_or(|ts| ts.elapsed() >= min_interval)
+                        };
+                        if !immediate
+                            && let Some(ts) = last_sent
+                            && let Some(wait) = min_interval.checked_sub(ts.elapsed())
+                        {
+                            tokio::select! {
+                                _ = &mut cancel_rx => break,
+                                _ = tokio::time::sleep(wait) => {}
+                            }
+                        }
+                        let snapshot = updates.borrow_and_update().clone();
+                        last_sent = Some(Instant::now());
+                        if channel.send(snapshot).is_err() {
                             break;
                         }
                     }
@@ -137,10 +157,31 @@ pub async fn agent_provider_readiness(
     provider: String,
     model: Option<String>,
     request_id: u64,
+    force: Option<bool>,
 ) -> Result<crate::agent::ProviderReadiness, String> {
     runtime
-        .probe_provider_readiness(request_id, &provider, None, model.as_deref())
+        .probe_provider_readiness(
+            request_id,
+            &provider,
+            None,
+            model.as_deref(),
+            force.unwrap_or(false),
+        )
         .await
+}
+
+#[tauri::command]
+pub fn agent_runtime_prefs(runtime: State<'_, AgentRuntime>) -> RuntimePrefs {
+    runtime.runtime_prefs()
+}
+
+#[tauri::command]
+pub fn agent_toggle_pinned_model(
+    runtime: State<'_, AgentRuntime>,
+    provider: String,
+    model_id: String,
+) -> Result<Vec<String>, String> {
+    runtime.toggle_pinned_model(provider, model_id)
 }
 
 #[tauri::command]
@@ -163,6 +204,12 @@ pub async fn agent_select_provider(
     provider: String,
 ) -> Result<(), String> {
     runtime.select_provider(provider).await
+}
+
+#[tauri::command]
+pub async fn agent_warm_provider(runtime: State<'_, AgentRuntime>) -> Result<(), String> {
+    runtime.warm_active_provider().await;
+    Ok(())
 }
 
 #[tauri::command]

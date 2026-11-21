@@ -180,6 +180,7 @@ pub(super) fn failure_message(detail: &str) -> &'static str {
 #[derive(Default)]
 pub(super) struct TurnStream {
     pub(super) session_id: Option<String>,
+    pub(super) result_seen: bool,
     model: Option<String>,
     context_tokens: Option<i64>,
     text: String,
@@ -246,6 +247,7 @@ impl TurnStream {
                 }
             }
             Some("result") => {
+                self.result_seen = true;
                 let result = frame["result"].as_str();
                 if result.is_some_and(|text| text.len() > MAX_ANSWER_BYTES) {
                     return Err("Claude Code answer exceeded its supported size.".into());
@@ -535,6 +537,7 @@ mod tests {
             )
             .unwrap();
         let usage = updates.borrow().usage.clone().expect("usage emitted");
+        assert!(stream.result_seen);
         assert_eq!(usage.context_tokens, Some(9700));
         assert_eq!(usage.model_context_window, Some(1_000_000));
         assert_eq!(usage.session_tokens, 9740);

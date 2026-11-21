@@ -8,6 +8,7 @@ import { useAgentGuidance } from "./useAgentGuidance";
 import { useAgentRequestActions, useAgentSubmission, useNewAgentChat } from "./useAgentRequests";
 import { useProviderReadiness } from "./useAgentReadiness";
 import { useAgentRuntimeActions } from "./useAgentRuntimeActions";
+import { useAgentRuntimePrefs } from "./useAgentRuntimePrefs";
 import { useAgentTurnControls } from "./useAgentTurnControls";
 import type { AgentProvider, AgentSnapshot } from "../../../platform/tauri/agent";
 import type { AgentViewModel } from "../model/view-model";
@@ -57,10 +58,16 @@ export function useAgent(readinessActive: boolean): AgentViewModel {
   const [thinkingEffort, setThinkingEffortValue] = useState<string | null>(null);
   const activeRun = ["starting", "streaming", "stopping"].includes(snapshot.status);
   const captureBusy = captureIsWorking(snapshot.capture.phase);
-  const { readiness, providers, refreshProvider, refreshPath } = useProviderReadiness(
+  const { readiness, refreshing, providers, refreshProvider, refreshPath } = useProviderReadiness(
     provider,
     model,
     readinessActive,
+  );
+  const runtimePrefs = useAgentRuntimePrefs();
+  const pinnedModels = runtimePrefs.prefs.pinnedModels[provider] ?? [];
+  const togglePinnedModel = useCallback(
+    (modelId: string) => runtimePrefs.togglePinnedModel(provider, modelId),
+    [provider, runtimePrefs.togglePinnedModel],
   );
   const installed = readiness.status === "checking" ? null : readiness.status === "ready";
   const sequence = useRef(-1);
@@ -92,10 +99,12 @@ export function useAgent(readinessActive: boolean): AgentViewModel {
     provider,
     model,
     readiness,
+    prefs: runtimePrefs.prefs,
     blocked: activeRun || submissionPending || captureBusy,
     setProvider: updateProvider,
     setModel: setModelValue,
     setThinkingEffort: setThinkingEffortValue,
+    recordSelection: runtimePrefs.recordSelection,
     clearError: connection.clearError,
     setRequestError: connection.setRequestError,
   });
@@ -150,6 +159,9 @@ export function useAgent(readinessActive: boolean): AgentViewModel {
     snapshot,
     installed,
     readiness,
+    refreshing,
+    pinnedModels,
+    togglePinnedModel,
     providers,
     capture,
     captureNow,

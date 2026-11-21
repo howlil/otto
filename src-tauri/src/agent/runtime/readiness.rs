@@ -1,4 +1,6 @@
+use super::cache::CacheHit;
 use crate::agent::*;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -11,6 +13,7 @@ impl AgentRuntime {
         provider: &str,
         requested_cwd: Option<&str>,
         model: Option<&str>,
+        force: bool,
     ) -> Result<ProviderReadiness, String> {
         let mut cancelled = self
             .readiness_probes
@@ -19,7 +22,7 @@ impl AgentRuntime {
             .begin(request_id)?;
         let result = tokio::select! {
             _ = &mut cancelled => Err("Readiness probe cancelled.".to_string()),
-            readiness = self.provider_readiness_for(provider, requested_cwd, model) => Ok(readiness),
+            readiness = self.provider_readiness_resolved(provider, requested_cwd, model, force) => Ok(readiness),
         };
         if let Ok(mut probes) = self.readiness_probes.lock() {
             probes.finish(request_id);
@@ -72,6 +75,61 @@ impl AgentRuntime {
         requested_cwd: Option<&str>,
         model: Option<&str>,
     ) -> ProviderReadiness {
+        self.provider_readiness_resolved(provider, requested_cwd, model, false)
+            .await
+    }
+
+    pub(crate) fn cached_readiness_for(
+        &self,
+        provider: ProviderId,
+        model: Option<&str>,
+    ) -> CacheHit {
+        let fingerprint = provider.binary_fingerprint();
+        self.readiness_cache
+            .lookup(provider, fingerprint.as_deref(), model)
+    }
+
+    pub(crate) fn schedule_rate_limits_refresh(&self, provider: ProviderId, cwd: PathBuf) {
+        if !provider.capabilities().async_rate_limits
+            || !self.readiness_cache.rate_limits_need_refresh(provider)
+        {
+            return;
+        }
+        {
+            let Ok(mut inflight) = self.rate_limit_probes.lock() else {
+                return;
+            };
+            if !inflight.insert(provider) {
+                return;
+            }
+        }
+        let runtime = self.clone();
+        tokio::spawn(async move {
+            let limits = provider.probe_rate_limits(&cwd).await;
+            if let Ok(mut inflight) = runtime.rate_limit_probes.lock() {
+                inflight.remove(&provider);
+            }
+            if limits.is_empty() {
+                return;
+            }
+            runtime
+                .readiness_cache
+                .store_rate_limits(provider, limits.clone());
+            mutate(&runtime.updates, |state| {
+                if state.provider == provider {
+                    state.rate_limits = limits;
+                }
+            });
+        });
+    }
+
+    async fn provider_readiness_resolved(
+        &self,
+        provider: &str,
+        requested_cwd: Option<&str>,
+        model: Option<&str>,
+        force: bool,
+    ) -> ProviderReadiness {
         let Some(provider_id) = ProviderId::parse(provider) else {
             return ProviderReadiness::new(
                 "unsupported",
@@ -97,7 +155,34 @@ impl AgentRuntime {
                 "Select a valid folder, then Retry.",
             );
         }
-        provider_id.readiness(&cwd, model).await
+        let fingerprint = provider_id.binary_fingerprint();
+        if !force {
+            match self
+                .readiness_cache
+                .lookup(provider_id, fingerprint.as_deref(), model)
+            {
+                CacheHit::Fresh(ready) | CacheHit::Stale(ready) => {
+                    self.schedule_rate_limits_refresh(provider_id, cwd);
+                    return ready;
+                }
+                CacheHit::Miss => {}
+            }
+        }
+        let mut live = provider_id.readiness(&cwd, model).await;
+        if live.status == "ready" {
+            self.readiness_cache
+                .store(provider_id, fingerprint, &live, model);
+            if live.rate_limits.is_empty() {
+                live.rate_limits = self.readiness_cache.rate_limits_cached(provider_id);
+            }
+            self.schedule_rate_limits_refresh(provider_id, cwd);
+        } else if matches!(
+            live.status.as_str(),
+            "missing" | "authRequired" | "unsupported"
+        ) {
+            self.readiness_cache.invalidate(provider_id);
+        }
+        live
     }
 
     #[cfg(windows)]

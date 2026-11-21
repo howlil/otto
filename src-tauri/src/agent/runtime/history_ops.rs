@@ -3,9 +3,97 @@ use super::session::ensure_session_can_reset;
 use crate::agent::conversation as history;
 use crate::agent::error::AgentError;
 use crate::agent::*;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 impl AgentRuntime {
+    #[cfg(test)]
+    pub(crate) fn persist_prompt(&self, run_id: u64, text: &str) -> Result<(), AgentError> {
+        self.persist_prompt_at(run_id, text, None)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn persist_prompt_at(
+        &self,
+        run_id: u64,
+        text: &str,
+        truncate_to: Option<usize>,
+    ) -> Result<(), AgentError> {
+        let mut snapshot = self.snapshot();
+        if let Some(index) = truncate_to {
+            snapshot.messages.truncate(index);
+        }
+        let pending = ChatMessage {
+            id: format!("{run_id}:user"),
+            role: "user".into(),
+            text: text.to_owned(),
+        };
+        if !snapshot
+            .messages
+            .iter()
+            .any(|message| message.id == pending.id)
+        {
+            snapshot.messages.push(pending.clone());
+        }
+        self.conversation.persist_snapshot(&snapshot, true)?;
+        mutate(&self.updates, |state| {
+            if state.run_id == run_id {
+                if let Some(index) = truncate_to {
+                    state.messages.truncate(index);
+                }
+                if !state
+                    .messages
+                    .iter()
+                    .any(|message| message.id == pending.id)
+                {
+                    state.messages.push(pending);
+                }
+            }
+        });
+        Ok(())
+    }
+
+    pub(crate) fn stage_prompt_and_persist_async(
+        &self,
+        run_id: u64,
+        text: &str,
+        truncate_to: Option<usize>,
+    ) {
+        let pending = ChatMessage {
+            id: format!("{run_id}:user"),
+            role: "user".into(),
+            text: text.to_owned(),
+        };
+        mutate(&self.updates, |state| {
+            if state.run_id == run_id {
+                if let Some(index) = truncate_to {
+                    state.messages.truncate(index);
+                }
+                if !state
+                    .messages
+                    .iter()
+                    .any(|message| message.id == pending.id)
+                {
+                    state.messages.push(pending);
+                }
+            }
+        });
+        let conversation = Arc::clone(&self.conversation);
+        let updates = self.updates.clone();
+        tokio::task::spawn_blocking(move || {
+            let current = updates.borrow().clone();
+            if current.run_id == run_id
+                && matches!(current.status, RunPhase::Starting | RunPhase::Streaming)
+            {
+                let _ = conversation.persist_snapshot(&current, true);
+            }
+        });
+    }
+
+    pub(crate) fn persist_current_snapshot(&self, interrupted: bool) -> Result<(), AgentError> {
+        self.conversation
+            .persist_snapshot(&self.snapshot(), interrupted)
+    }
+
     pub fn history_list(
         &self,
         query: Option<&str>,

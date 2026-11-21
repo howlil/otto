@@ -400,7 +400,31 @@ describe("Agent runtime selection reaches the next run", () => {
       await hook.result.current.retryConnection();
     });
     expect(hook.result.current.provider).toBe("codex");
-    expect(hook.result.current.model).toBeNull();
+    expect(hook.result.current.model).toBe("model-a");
+    expect(readinessCalls).toEqual([{ provider: "agy", model: null }]);
+  });
+
+  test("switching back to a prior provider restores its remembered model and thinking effort without re-probing", async () => {
+    const hook = await mount();
+    await act(async () => {
+      await hook.result.current.setModel("model-b");
+    });
+    expect(hook.result.current.model).toBe("model-b");
+    expect(hook.result.current.thinkingEffort).toBe("low");
+    readinessCalls = [];
+    await act(async () => {
+      await hook.result.current.setProvider("agy");
+    });
+    await awaitReady(hook);
+    expect(readinessCalls).toEqual([{ provider: "agy", model: null }]);
+    readinessCalls = [];
+    await act(async () => {
+      await hook.result.current.setProvider("codex");
+    });
+    await awaitReady(hook);
+    expect(hook.result.current.model).toBe("model-b");
+    expect(hook.result.current.thinkingEffort).toBe("low");
+    expect(readinessCalls).toEqual([]);
   });
 
   test("same-provider reconnect preserves an unavailable explicit model", async () => {

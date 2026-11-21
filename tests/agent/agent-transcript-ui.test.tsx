@@ -586,6 +586,31 @@ describe("Slice 3 conversation controls and output ergonomics", () => {
     expect(screen.queryByRole("button", { name: "Insert" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Simpler" })).toBeNull();
   });
+
+  test("latest completed answer renders subtle muted response latency with TTFT tooltip", () => {
+    render(
+      <TranscriptMessages
+        snapshot={snapshot({
+          runId: 5,
+          status: "completed",
+          messages: [
+            { id: "4:assistant", role: "assistant", text: "Earlier answer" },
+            { id: "5:assistant", role: "assistant", text: "Fast answer" },
+          ],
+          turnTiming: {
+            runId: 5,
+            startedAtMs: 1000,
+            firstTokenMs: 320,
+            totalMs: 1450,
+          },
+        })}
+        busy={false}
+      />,
+    );
+    const badge = screen.getByText("1.5s");
+    expect(badge.getAttribute("title")).toBe("First token 320ms · Total 1.5s");
+    expect(screen.getAllByText("1.5s")).toHaveLength(1);
+  });
 });
 
 describe("Slice 4 inline host permission choice card", () => {

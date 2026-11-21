@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::sync::{oneshot, watch};
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ProviderId {
     #[default]
@@ -129,7 +129,7 @@ pub struct ChatMessage {
     pub text: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelOption {
     pub id: String,
@@ -188,7 +188,7 @@ pub struct ProviderRateLimit {
     pub group: Option<String>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderReadiness {
     pub status: String,
@@ -201,7 +201,10 @@ pub struct ProviderReadiness {
     pub models: Vec<ModelOption>,
     pub thinking_effort: Option<String>,
     pub thinking_efforts: Vec<String>,
+    #[serde(default)]
     pub rate_limits: Vec<ProviderRateLimit>,
+    #[serde(default)]
+    pub stale: bool,
 }
 
 #[derive(Clone, Default)]
@@ -223,8 +226,27 @@ impl ProviderReadiness {
             thinking_effort: None,
             thinking_efforts: Vec::new(),
             rate_limits: Vec::new(),
+            stale: false,
         }
     }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnTiming {
+    pub run_id: u64,
+    pub started_at_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_token_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_ms: Option<u64>,
+}
+
+pub(crate) fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or_default()
 }
 
 #[derive(Clone, Serialize)]
@@ -249,6 +271,8 @@ pub struct Snapshot {
     pub queued_followup: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pending_permission: Option<PendingPermissionSnapshot>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_timing: Option<TurnTiming>,
     pub error: Option<String>,
 }
 
@@ -340,6 +364,11 @@ impl Default for CaptureSnapshot {
 }
 
 pub enum Control {
+    Warm {
+        cwd: PathBuf,
+        model: Option<String>,
+        thinking_effort: Option<String>,
+    },
     Ask {
         text: String,
         display_text: String,

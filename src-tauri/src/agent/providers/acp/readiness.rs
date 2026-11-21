@@ -176,7 +176,7 @@ pub(in crate::agent::providers) async fn readiness(
     selected_model: Option<&str>,
 ) -> ProviderReadiness {
     let name = spec.name;
-    let Some(binary) = executable(spec) else {
+    let Some(_binary) = executable(spec) else {
         return ProviderReadiness::new(
             "missing",
             &format!("{name} CLI was not found."),
@@ -286,13 +286,7 @@ pub(in crate::agent::providers) async fn readiness(
     .await;
     client.terminate().await;
     match probe {
-        Ok(mut readiness) => {
-            if name == "Agy" && readiness.status == "ready" {
-                readiness.rate_limits =
-                    super::agy_limits::probe_agy_rate_limits(cwd, &binary).await;
-            }
-            readiness
-        }
+        Ok(readiness) => readiness,
         Err(reason) if reason.starts_with(&format!("{name} authentication expired.")) => {
             ProviderReadiness::new(
                 "authRequired",

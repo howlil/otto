@@ -1,5 +1,7 @@
 use super::{
+    cache::ReadinessCacheStore,
     capture::{DEFAULT_IMAGE_CAPTURE_PROMPT, DEFAULT_TEXT_CAPTURE_PROMPT, StagedCaptureArtifact},
+    prefs::RuntimePrefsStore,
     prompt::{AssistantGuidance, AssistantProfile, LearningMode},
     readiness_probe::ReadinessProbeState,
     recovery::RecoveryMarker,
@@ -13,6 +15,7 @@ use crate::agent::{
     model::default_workspace_path,
 };
 use std::{
+    collections::HashSet,
     path::PathBuf,
     sync::{
         Arc, Mutex as StdMutex,
@@ -26,6 +29,9 @@ pub struct AgentRuntime {
     pub(in crate::agent) updates: watch::Sender<Snapshot>,
     pub(in crate::agent) control: Arc<Mutex<Option<mpsc::Sender<Control>>>>,
     pub(in crate::agent) conversation: Arc<ConversationOwner>,
+    pub(in crate::agent) prefs: Arc<RuntimePrefsStore>,
+    pub(in crate::agent) readiness_cache: Arc<ReadinessCacheStore>,
+    pub(in crate::agent) rate_limit_probes: Arc<StdMutex<HashSet<ProviderId>>>,
     pub(in crate::agent) selected_runtime: Arc<StdMutex<ModelSelection>>,
     pub(in crate::agent) guidance: Arc<StdMutex<AssistantGuidance>>,
     pub(in crate::agent) last_session_guidance: Arc<StdMutex<Option<AssistantGuidance>>>,
@@ -44,30 +50,59 @@ pub struct AgentRuntime {
 
 impl AgentRuntime {
     pub fn new() -> Self {
-        Self::with_recovery(None, Arc::new(HistoryStore::memory()))
+        Self::with_stores(
+            None,
+            Arc::new(HistoryStore::memory()),
+            Arc::new(RuntimePrefsStore::memory()),
+            Arc::new(ReadinessCacheStore::memory()),
+        )
     }
 
     #[cfg(test)]
     pub fn persistent(path: PathBuf) -> Self {
-        Self::with_recovery(
+        Self::with_stores(
             Some(RecoveryMarker::new(path)),
             Arc::new(HistoryStore::memory()),
+            Arc::new(RuntimePrefsStore::memory()),
+            Arc::new(ReadinessCacheStore::memory()),
         )
     }
 
     pub fn persistent_with_history(marker: PathBuf, history_path: PathBuf) -> Self {
-        Self::with_recovery(
+        let data_dir = history_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(PathBuf::from);
+        let prefs = match &data_dir {
+            Some(dir) => Arc::new(RuntimePrefsStore::file(dir.join("agent-prefs.json"))),
+            None => Arc::new(RuntimePrefsStore::memory()),
+        };
+        let readiness_cache = match &data_dir {
+            Some(dir) => Arc::new(ReadinessCacheStore::file(dir.join("readiness-cache.json"))),
+            None => Arc::new(ReadinessCacheStore::memory()),
+        };
+        Self::with_stores(
             Some(RecoveryMarker::new(marker)),
             Arc::new(HistoryStore::file(history_path)),
+            prefs,
+            readiness_cache,
         )
     }
 
-    fn with_recovery(recovery: Option<RecoveryMarker>, history: Arc<HistoryStore>) -> Self {
+    fn with_stores(
+        recovery: Option<RecoveryMarker>,
+        history: Arc<HistoryStore>,
+        prefs: Arc<RuntimePrefsStore>,
+        readiness_cache: Arc<ReadinessCacheStore>,
+    ) -> Self {
         let interrupted = recovery
             .as_ref()
             .is_some_and(RecoveryMarker::take_interrupted);
         let cwd = default_workspace_path().to_string_lossy().into_owned();
         let conversation_id = crate::agent::conversation::new_id();
+        let initial_provider = prefs.active_provider();
+        let (initial_model, initial_effort) = prefs.preferred_selection(initial_provider);
+        let initial_rate_limits = readiness_cache.rate_limits_cached(initial_provider);
         let (updates, _) = watch::channel(Snapshot {
             run_id: 0,
             seq: u64::from(interrupted),
@@ -76,19 +111,20 @@ impl AgentRuntime {
             } else {
                 RunPhase::Idle
             },
-            provider: ProviderId::default(),
+            provider: initial_provider,
             cwd,
             conversation_id: conversation_id.clone(),
             thread_id: None,
-            model: None,
-            thinking_effort: None,
+            model: initial_model.clone(),
+            thinking_effort: initial_effort.clone(),
             usage: None,
-            rate_limits: Vec::new(),
+            rate_limits: initial_rate_limits,
             messages: Vec::new(),
             activity: Vec::new(),
             capture: CaptureSnapshot::default(),
             queued_followup: None,
             pending_permission: None,
+            turn_timing: None,
             error: interrupted.then(|| {
                 "Previous agent request may have been interrupted. No answer was restored. Ask again to start a new session.".into()
             }),
@@ -98,7 +134,13 @@ impl AgentRuntime {
             updates,
             control: Arc::new(Mutex::new(None)),
             conversation,
-            selected_runtime: Arc::new(StdMutex::new(ModelSelection::default())),
+            prefs,
+            readiness_cache,
+            rate_limit_probes: Arc::new(StdMutex::new(HashSet::new())),
+            selected_runtime: Arc::new(StdMutex::new(ModelSelection {
+                model: initial_model,
+                thinking_effort: initial_effort,
+            })),
             guidance: Arc::new(StdMutex::new(AssistantGuidance::default())),
             last_session_guidance: Arc::new(StdMutex::new(None)),
             staged_capture: Arc::new(StdMutex::new(None)),

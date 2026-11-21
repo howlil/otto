@@ -45,6 +45,9 @@ export function AssistantSettings({ agent }: { agent: AgentPanelModel }) {
       <ModelUsageSettings
         provider={agent.provider}
         readiness={readiness}
+        refreshing={agent.refreshing}
+        pinnedModels={agent.pinnedModels}
+        onTogglePinModel={agent.togglePinnedModel}
         snapshot={snapshot}
         model={agent.model}
         setModel={agent.setModel}

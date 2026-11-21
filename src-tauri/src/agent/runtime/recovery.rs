@@ -77,15 +77,46 @@ impl AgentRuntime {
     pub(crate) fn recovery_observer(&self) -> Option<impl Future<Output = ()> + Send + 'static> {
         let marker = self.recovery.clone()?;
         let conversation = Arc::clone(&self.conversation);
+        let readiness_cache = Arc::clone(&self.readiness_cache);
         let mut receiver = self.subscribe_updates();
         let updates = self.updates.clone();
         Some(async move {
             while receiver.changed().await.is_ok() {
                 let snapshot = receiver.borrow_and_update().clone();
-                persist_terminal_outcome(&conversation, &marker, &updates, &snapshot);
+                if snapshot.status == RunPhase::Failed
+                    && should_invalidate_cache_for_error(snapshot.error.as_deref())
+                {
+                    readiness_cache.invalidate(snapshot.provider);
+                }
+                let conversation = Arc::clone(&conversation);
+                let marker = marker.clone();
+                let updates = updates.clone();
+                let _ = tokio::task::spawn_blocking(move || {
+                    persist_terminal_outcome(&conversation, &marker, &updates, &snapshot);
+                })
+                .await;
             }
         })
     }
+}
+
+pub(crate) fn should_invalidate_cache_for_error(error: Option<&str>) -> bool {
+    let Some(detail) = error else {
+        return false;
+    };
+    let lower = detail.to_ascii_lowercase();
+    [
+        "sign in",
+        "login",
+        "authentication",
+        "not found",
+        "not installed",
+        "unavailable",
+        "unsupported",
+        "model",
+    ]
+    .iter()
+    .any(|signal| lower.contains(signal))
 }
 
 pub(crate) fn persist_terminal_outcome(
@@ -211,5 +242,19 @@ mod tests {
 
         assert!(marker.mark(7).is_err());
         fs::remove_file(parent).unwrap();
+    }
+
+    #[test]
+    fn cache_invalidation_heuristic_catches_auth_and_model_failures_only() {
+        assert!(should_invalidate_cache_for_error(Some(
+            "Codex authentication expired. Sign in to Codex."
+        )));
+        assert!(should_invalidate_cache_for_error(Some(
+            "Selected model is unavailable."
+        )));
+        assert!(!should_invalidate_cache_for_error(Some(
+            "Codex turn did not complete."
+        )));
+        assert!(!should_invalidate_cache_for_error(None));
     }
 }

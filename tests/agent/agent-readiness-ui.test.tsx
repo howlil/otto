@@ -5,6 +5,7 @@ import { AgentTranscript } from "../../src/features/agent/transcript/AgentTransc
 import { ProviderSettings } from "../../src/features/agent/settings/ProviderSettings";
 import { ModelUsageSettings } from "../../src/features/agent/settings/ModelUsageSettings";
 import { EngineQuickPopover } from "../../src/features/agent/conversation/EngineQuickPopover";
+import { EngineQuickSwitcher } from "../../src/features/agent/conversation/EngineQuickSwitcher";
 import { formatResetTime, resolveRateLimits } from "../../src/features/agent/model/rate-limits";
 
 const snapshot = (overrides = {}) => ({
@@ -757,5 +758,52 @@ describe("Agent compact capsule state", () => {
     expect(formatResetTime("2026-10-15T12:30:00Z", now)).toBe("Resets in 2h 30m");
     expect(formatResetTime("2026-10-18T14:00:00Z", now)).toBe("Resets in 3d 4h");
     expect(formatResetTime("2026-10-15T09:00:00Z", now)).toBe("Resets soon");
+  });
+
+  test("EngineQuickSwitcher opens on Ctrl+M, filters large catalogs, pins favorites, and closes on Escape", () => {
+    const picked: Array<string | null> = [];
+    const toggledPins: string[] = [];
+    const largeCatalog = [
+      { id: "m-1", displayName: "Alpha 1", contextWindow: null, imageInput: true, thinkingEfforts: [], defaultThinkingEffort: null },
+      { id: "m-2", displayName: "Beta 2", contextWindow: null, imageInput: true, thinkingEfforts: [], defaultThinkingEffort: null },
+      { id: "m-3", displayName: "Gamma Flash", contextWindow: null, imageInput: true, thinkingEfforts: [], defaultThinkingEffort: null },
+      { id: "m-4", displayName: "Delta Pro", contextWindow: null, imageInput: true, thinkingEfforts: [], defaultThinkingEffort: null },
+      { id: "m-5", displayName: "Epsilon Mini", contextWindow: null, imageInput: true, thinkingEfforts: [], defaultThinkingEffort: null },
+    ];
+    render(
+      <EngineQuickSwitcher
+        provider="codex"
+        model="m-1"
+        thinkingEffort={null}
+        switcher={{
+          providers: [{ id: "codex", displayName: "Codex", command: "codex", installed: true }],
+          readiness: readiness({ model: "m-1", models: largeCatalog, thinkingEfforts: [] }),
+          pinnedModels: ["m-4"],
+          locked: false,
+          onSelectProvider: () => {},
+          onSelectModel: (value) => picked.push(value),
+          onTogglePinModel: (id) => toggledPins.push(id),
+          onSelectThinkingEffort: () => {},
+          onOpenSettings: () => {},
+        }}
+      />,
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.keyDown(document, { key: "m", ctrlKey: true });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delta Pro" }));
+    expect(picked).toEqual(["m-4"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pin Alpha 1" }));
+    expect(toggledPins).toEqual(["m-1"]);
+
+    const filter = screen.getByLabelText("Filter models") as HTMLInputElement;
+    fireEvent.change(filter, { target: { value: "gamma" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gamma Flash" }));
+    expect(picked).toEqual(["m-4", "m-3"]);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

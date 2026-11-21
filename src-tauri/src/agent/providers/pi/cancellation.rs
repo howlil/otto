@@ -11,7 +11,7 @@ pub(super) enum Controlled<T> {
 pub(super) async fn recv_non_permission(controls: &mut mpsc::Receiver<Control>) -> Option<Control> {
     loop {
         match controls.recv().await {
-            Some(Control::PermissionDecision { .. }) => continue,
+            Some(Control::PermissionDecision { .. } | Control::Warm { .. }) => continue,
             other => return other,
         }
     }

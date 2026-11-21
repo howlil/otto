@@ -1,11 +1,12 @@
 mod events;
+mod permission;
 mod rate_limits;
 mod readiness;
 mod requests;
 mod rpc;
 mod turn;
 
-pub(super) use readiness::{executable, readiness};
+pub(super) use readiness::{executable, probe_rate_limits, readiness};
 pub(super) use turn::run;
 
 #[cfg(test)]
@@ -200,6 +201,7 @@ mod tests {
             capture: CaptureSnapshot::default(),
             queued_followup: None,
             pending_permission: None,
+            turn_timing: None,
             error: None,
         });
         tx

@@ -88,6 +88,15 @@ export type ProviderReadiness = {
   thinkingEffort: string | null;
   thinkingEfforts: string[];
   rateLimits?: AgentRateLimit[];
+  stale?: boolean;
+};
+
+export type AgentRuntimePrefs = {
+  version: number;
+  provider: AgentProvider;
+  models: Record<string, string>;
+  thinkingEfforts: Record<string, string>;
+  pinnedModels: Record<string, string[]>;
 };
 
 export type AgentActivityKind = "thinking" | "search" | "read" | "edit" | "command" | "other";
@@ -108,6 +117,13 @@ export type AgentPendingPermission = {
   summary: string;
 };
 
+export type AgentTurnTiming = {
+  runId: number;
+  startedAtMs: number;
+  firstTokenMs?: number | null;
+  totalMs?: number | null;
+};
+
 export type AgentSnapshot = {
   runId: number;
   seq: number;
@@ -124,6 +140,7 @@ export type AgentSnapshot = {
   capture: AgentCapture;
   queuedFollowup?: string | null;
   pendingPermission?: AgentPendingPermission | null;
+  turnTiming?: AgentTurnTiming | null;
   error: string | null;
 };
 

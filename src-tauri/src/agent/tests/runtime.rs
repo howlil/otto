@@ -740,6 +740,7 @@ fn terminal_snapshot(status: RunPhase) -> Snapshot {
         capture: CaptureSnapshot::default(),
         queued_followup: None,
         pending_permission: None,
+        turn_timing: None,
         error: None,
     }
 }
@@ -1701,8 +1702,8 @@ async fn selected_text_turn_does_not_retain_native_thread_for_followup() {
             Control::Stop => {
                 panic!("unexpected Stop on idle transport");
             }
-            Control::PermissionDecision { .. } => {
-                panic!("unexpected PermissionDecision on idle transport");
+            Control::PermissionDecision { .. } | Control::Warm { .. } => {
+                panic!("unexpected PermissionDecision or Warm on idle transport");
             }
         }
     });
@@ -1829,6 +1830,7 @@ fn old_run_cannot_replace_new_terminal_state() {
         capture: CaptureSnapshot::default(),
         queued_followup: None,
         pending_permission: None,
+        turn_timing: None,
         error: None,
     });
     events::ProviderEvents::new(tx.clone()).fail(1, "late failure");

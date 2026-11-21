@@ -1,3 +1,4 @@
+use super::cache::CacheHit;
 use super::session::close_owned_transport;
 use crate::agent::conversation as history;
 use crate::agent::*;
@@ -48,7 +49,21 @@ impl AgentRuntime {
 
     pub fn refresh_provider_catalog(&self) -> Vec<ProviderDescriptor> {
         crate::agent::providers::refresh_live_path();
+        self.readiness_cache.invalidate_all();
         ProviderId::catalog()
+    }
+
+    pub fn runtime_prefs(&self) -> RuntimePrefs {
+        self.prefs.snapshot()
+    }
+
+    pub fn toggle_pinned_model(
+        &self,
+        provider: String,
+        model_id: String,
+    ) -> Result<Vec<String>, String> {
+        let provider = ProviderId::parse(&provider).ok_or("Unknown provider.")?;
+        Ok(self.prefs.toggle_pinned_model(provider, &model_id))
     }
 
     pub async fn select_provider(&self, provider: String) -> Result<(), String> {
@@ -120,7 +135,12 @@ impl AgentRuntime {
         }
 
         *guard = None;
-        *self.selected_runtime.lock().unwrap() = ModelSelection::default();
+        let (saved_model, saved_effort) = self.prefs.set_provider(provider);
+        let cached_limits = self.readiness_cache.rate_limits_cached(provider);
+        *self.selected_runtime.lock().unwrap() = ModelSelection {
+            model: saved_model.clone(),
+            thinking_effort: saved_effort.clone(),
+        };
         self.clear_session_guidance();
         self.clear_staged_image_if_unsupported(provider);
         self.next_run_id
@@ -136,10 +156,11 @@ impl AgentRuntime {
                 state.conversation_id = id;
                 state.provider = provider;
                 state.thread_id = None;
-                state.model = None;
-                state.thinking_effort = None;
+                state.model = saved_model;
+                state.thinking_effort = saved_effort;
                 state.usage = None;
-                state.rate_limits.clear();
+                state.rate_limits = cached_limits;
+                state.turn_timing = None;
                 state.error = marker_failed.then(|| MARKER_CLEAR_NOTICE.into());
             }
         });
@@ -154,30 +175,39 @@ impl AgentRuntime {
     ) -> Result<(), String> {
         let guard = self.control.lock().await;
         let current = self.snapshot();
-        if !current.provider.capabilities().pending_model_selection {
-            return Err("Pi runtime selection requires the Pi provider.".into());
-        }
         if matches!(
             current.status,
             RunPhase::Starting | RunPhase::Streaming | RunPhase::Stopping
         ) || current.capture.phase != "idle"
         {
-            return Err(
-                "Finish the current request or capture before changing the Pi model.".into(),
-            );
+            return Err("Finish the current request or capture before changing the model.".into());
         }
         let selection_id = self
             .next_runtime_selection_id
             .fetch_add(1, Ordering::Relaxed)
             + 1;
+        let cached = self.cached_readiness_for(current.provider, model.as_deref());
+        let needs_live_probe = matches!(cached, CacheHit::Miss)
+            && current.provider.capabilities().pending_model_selection;
+        let cached_readiness = match cached {
+            CacheHit::Fresh(ready) | CacheHit::Stale(ready) => Some(ready),
+            CacheHit::Miss => None,
+        };
         drop(guard);
-        let readiness = self
-            .provider_readiness_for(
-                current.provider.as_str(),
-                Some(&current.cwd),
-                model.as_deref(),
+        let validated = if let Some(ready) = cached_readiness {
+            Some(ready)
+        } else if needs_live_probe {
+            Some(
+                self.provider_readiness_for(
+                    current.provider.as_str(),
+                    Some(&current.cwd),
+                    model.as_deref(),
+                )
+                .await,
             )
-            .await;
+        } else {
+            None
+        };
         let _guard = self.control.lock().await;
         let latest = self.snapshot();
         if !runtime_selection_still_current(
@@ -188,14 +218,32 @@ impl AgentRuntime {
         ) {
             return Err("Runtime selection changed while readiness was checked. Retry.".into());
         }
-        if readiness.status != "ready" {
-            return Err(format!("{} {}", readiness.message, readiness.recovery));
+        if let Some(readiness) = validated {
+            if readiness.status != "ready" {
+                return Err(format!("{} {}", readiness.message, readiness.recovery));
+            }
+            validate_runtime_options(&readiness, model.as_deref(), thinking_effort.as_deref())?;
         }
-        validate_runtime_options(&readiness, model.as_deref(), thinking_effort.as_deref())?;
+        self.prefs.set_selection(
+            current.provider,
+            model.as_deref(),
+            thinking_effort.as_deref(),
+        );
         *self.selected_runtime.lock().unwrap() = ModelSelection {
-            model,
-            thinking_effort,
+            model: model.clone(),
+            thinking_effort: thinking_effort.clone(),
         };
+        if latest.status == RunPhase::Idle && latest.messages.is_empty() {
+            mutate(&self.updates, |state| {
+                if state.run_id == latest.run_id
+                    && state.status == RunPhase::Idle
+                    && state.messages.is_empty()
+                {
+                    state.model = model;
+                    state.thinking_effort = thinking_effort;
+                }
+            });
+        }
         Ok(())
     }
 

@@ -10,51 +10,58 @@ import {
   selectAgentProvider,
   selectAgentRuntimeOptions,
   type AgentProvider,
+  type AgentRuntimePrefs,
   type ProviderReadiness,
 } from "../../../platform/tauri/agent";
 import { nativeAvailable } from "../../../platform/tauri/runtime";
+import { preferredEffortFor, preferredSelectionFor } from "./useAgentRuntimePrefs";
+
+function pickEffort(efforts: string[], candidates: Array<string | null>): string | null {
+  for (const candidate of candidates) {
+    if (candidate && efforts.includes(candidate)) return candidate;
+  }
+  return null;
+}
 
 function resolveReadyThinkingEffort(
   readiness: ProviderReadiness,
   resolvedModel: string | null,
   current: string | null,
+  saved: string | null,
 ): string | null {
   const selected = readiness.models.find((option) => option.id === resolvedModel);
   if (!selected) {
-    return current && readiness.thinkingEfforts.includes(current)
-      ? current
-      : readiness.thinkingEffort;
+    return pickEffort(readiness.thinkingEfforts, [current, saved]) ?? readiness.thinkingEffort;
   }
-  const efforts =
-    selected.thinkingEfforts.length === 1 && selected.thinkingEfforts[0] === "off"
-      ? []
-      : selected.thinkingEfforts;
+  const singleOff = selected.thinkingEfforts.length === 1 && selected.thinkingEfforts[0] === "off";
+  const efforts = singleOff ? [] : selected.thinkingEfforts;
   if (efforts.length === 0) return null;
-  if (current && efforts.includes(current)) return current;
   const nativeEffort = selected.id === readiness.model ? readiness.thinkingEffort : null;
-  return nativeEffort && efforts.includes(nativeEffort)
-    ? nativeEffort
-    : selected.defaultThinkingEffort;
+  return pickEffort(efforts, [current, saved, nativeEffort]) ?? selected.defaultThinkingEffort;
 }
 
 export function useAgentRuntimeActions({
   provider,
   model,
   readiness,
+  prefs,
   blocked,
   setProvider,
   setModel,
   setThinkingEffort,
+  recordSelection,
   clearError,
   setRequestError,
 }: {
   provider: AgentProvider;
   model: string | null;
   readiness: ProviderReadiness;
+  prefs: AgentRuntimePrefs;
   blocked: boolean;
   setProvider: Dispatch<SetStateAction<AgentProvider>>;
   setModel: Dispatch<SetStateAction<string | null>>;
   setThinkingEffort: Dispatch<SetStateAction<string | null>>;
+  recordSelection: (provider: AgentProvider, model: string | null, effort: string | null) => void;
   clearError: () => void;
   setRequestError: (reason: unknown) => void;
 }) {
@@ -79,11 +86,14 @@ export function useAgentRuntimeActions({
       readiness.model;
     const resolvedModel =
       model && readiness.models.some((option) => option.id === model) ? model : fallbackModel;
+    const savedEffort = preferredEffortFor(prefs, provider, resolvedModel);
     setModel((current) =>
       current && readiness.models.some((option) => option.id === current) ? current : fallbackModel,
     );
-    setThinkingEffort((current) => resolveReadyThinkingEffort(readiness, resolvedModel, current));
-  }, [model, readiness, setModel, setThinkingEffort]);
+    setThinkingEffort((current) =>
+      resolveReadyThinkingEffort(readiness, resolvedModel, current, savedEffort),
+    );
+  }, [model, prefs, provider, readiness, setModel, setThinkingEffort]);
 
   const confirm = useCallback(
     async (nextModel: string | null, nextEffort: string | null) => {
@@ -91,9 +101,10 @@ export function useAgentRuntimeActions({
       changing.current = true;
       setPending(true);
       try {
-        if (provider === "pi" && nativeAvailable) {
+        if (nativeAvailable && typeof selectAgentRuntimeOptions === "function") {
           await selectAgentRuntimeOptions(nextModel, nextEffort);
         }
+        recordSelection(provider, nextModel, nextEffort);
         setModel(nextModel);
         setThinkingEffort(nextEffort);
         clearError();
@@ -104,15 +115,20 @@ export function useAgentRuntimeActions({
         setPending(false);
       }
     },
-    [clearError, locked, provider, setModel, setRequestError, setThinkingEffort],
+    [clearError, locked, provider, recordSelection, setModel, setRequestError, setThinkingEffort],
   );
   const selectModelValue = useCallback(
     async (next: string | null) => {
       const selected = readiness.models.find((option) => option.id === next);
-      const effort = selected?.defaultThinkingEffort ?? null;
+      const savedEffort = preferredEffortFor(prefs, provider, next);
+      const efforts = selected?.thinkingEfforts ?? [];
+      const effort =
+        savedEffort && efforts.includes(savedEffort)
+          ? savedEffort
+          : (selected?.defaultThinkingEffort ?? null);
       await confirm(next, effort);
     },
-    [confirm, readiness.models],
+    [confirm, prefs, provider, readiness.models],
   );
   const selectThinkingEffortValue = useCallback(
     async (next: string | null) => {
@@ -127,9 +143,10 @@ export function useAgentRuntimeActions({
       setPending(true);
       try {
         if (nativeAvailable) await selectAgentProvider(next);
+        const restored = preferredSelectionFor(prefs, next);
         setProvider(next);
-        setModel(null);
-        setThinkingEffort(null);
+        setModel(restored.model);
+        setThinkingEffort(restored.effort);
         clearError();
       } catch (error) {
         setRequestError(error);
@@ -138,7 +155,16 @@ export function useAgentRuntimeActions({
         setPending(false);
       }
     },
-    [clearError, locked, provider, setModel, setProvider, setRequestError, setThinkingEffort],
+    [
+      clearError,
+      locked,
+      prefs,
+      provider,
+      setModel,
+      setProvider,
+      setRequestError,
+      setThinkingEffort,
+    ],
   );
 
   return {

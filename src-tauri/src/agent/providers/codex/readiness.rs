@@ -294,6 +294,7 @@ pub(in crate::agent::providers) async fn readiness(
             capture: CaptureSnapshot::default(),
             queued_followup: None,
             pending_permission: None,
+            turn_timing: None,
             error: None,
         });
         rpc.request(
@@ -343,7 +344,11 @@ pub(in crate::agent::providers) async fn readiness(
             runtime.context_window,
         );
         if ready.status == "ready"
-            && let Ok((limits, _)) = rpc.request("account/rateLimits/read", Value::Null).await
+            && let Ok(Ok((limits, _))) = timeout(
+                Duration::from_millis(1_500),
+                rpc.request("account/rateLimits/read", Value::Null),
+            )
+            .await
         {
             ready.rate_limits = super::rate_limits::parse_rate_limits(&limits);
         }
@@ -364,4 +369,31 @@ pub(in crate::agent::providers) async fn readiness(
             "Retry after checking your Codex connection.",
         ),
     }
+}
+
+pub(in crate::agent::providers) async fn probe_rate_limits(
+    cwd: &Path,
+) -> Vec<crate::agent::ProviderRateLimit> {
+    if executable().is_none() {
+        return Vec::new();
+    }
+    let Ok(mut rpc) = Rpc::launch(cwd) else {
+        return Vec::new();
+    };
+    let result = timeout(Duration::from_secs(6), async {
+        rpc.request(
+            "initialize",
+            json!({ "clientInfo": { "name": "otto", "title": "Otto", "version": env!("CARGO_PKG_VERSION") } }),
+        )
+        .await?;
+        rpc.send(json!({ "method": "initialized", "params": {} }))
+            .await?;
+        let (limits, _) = rpc.request("account/rateLimits/read", Value::Null).await?;
+        Ok::<Vec<crate::agent::ProviderRateLimit>, String>(super::rate_limits::parse_rate_limits(
+            &limits,
+        ))
+    })
+    .await;
+    rpc.terminate().await;
+    result.ok().and_then(Result::ok).unwrap_or_default()
 }

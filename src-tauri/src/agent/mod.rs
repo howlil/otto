@@ -24,13 +24,14 @@ pub(crate) use conversation::ConversationSummary;
 pub(crate) use model::default_workspace_path;
 pub use model::{
     AcceptedRun, CaptureSnapshot, ChatMessage, Control, ModelOption, ProviderId, ProviderRateLimit,
-    ProviderReadiness, RunPhase, Snapshot, StagedCaptureSnapshot, UsageSnapshot,
+    ProviderReadiness, RunPhase, Snapshot, StagedCaptureSnapshot, TurnTiming, UsageSnapshot,
 };
 pub(crate) use model::{
-    MARKER_CLEAR_NOTICE, MAX_ASSISTANT_TEXT, ModelSelection, mutate, resolve_workspace_path,
+    MARKER_CLEAR_NOTICE, MAX_ASSISTANT_TEXT, ModelSelection, mutate, now_millis,
+    resolve_workspace_path,
 };
 pub use permission::{PendingPermissionSnapshot, PermissionDecision};
 pub use providers::catalog::ProviderDescriptor;
 #[cfg(test)]
 pub use runtime::LearningMode;
-pub use runtime::{AgentRuntime, AssistantProfile, TurnOptions};
+pub use runtime::{AgentRuntime, AssistantProfile, RuntimePrefs, TurnOptions};

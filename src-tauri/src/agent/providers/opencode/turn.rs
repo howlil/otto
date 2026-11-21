@@ -49,7 +49,7 @@ fn build_launch_args(
 async fn recv_cancel(controls: &mut mpsc::Receiver<Control>) -> Option<Control> {
     loop {
         match controls.recv().await {
-            Some(Control::PermissionDecision { .. }) => continue,
+            Some(Control::PermissionDecision { .. } | Control::Warm { .. }) => continue,
             other => return other,
         }
     }
@@ -225,7 +225,7 @@ pub async fn run(mut controls: mpsc::Receiver<Control>, events: ProviderEvents, 
                     return;
                 }
                 Some(Control::Stop) => events.stopped(events.snapshot().run_id),
-                Some(Control::PermissionDecision { .. }) => {}
+                Some(Control::PermissionDecision { .. } | Control::Warm { .. }) => {}
                 None => return,
             }
         }

@@ -1,6 +1,7 @@
 mod admission;
 mod agy_limits;
 mod client;
+mod observe;
 mod permission;
 mod readiness;
 mod spec;
@@ -10,6 +11,19 @@ mod wire;
 pub(super) use client::executable;
 pub(super) use readiness::readiness;
 pub(super) use turn::run;
+
+pub(super) async fn probe_rate_limits(
+    spec: &'static spec::AcpSpec,
+    cwd: &std::path::Path,
+) -> Vec<crate::agent::ProviderRateLimit> {
+    if spec.name != "Agy" {
+        return Vec::new();
+    }
+    let Some(binary) = executable(spec) else {
+        return Vec::new();
+    };
+    agy_limits::probe_agy_rate_limits(cwd, &binary).await
+}
 
 #[cfg(test)]
 use crate::agent::ProviderId;
@@ -22,13 +36,13 @@ use admission::admit_session;
 #[cfg(test)]
 use client::{AcpClient, STARTUP_TIMEOUT};
 #[cfg(test)]
+use observe::{TurnState, observe_acp};
+#[cfg(test)]
 use readiness::{model_catalog, thinking_config};
 #[cfg(test)]
 use serde_json::json;
 #[cfg(test)]
 use tokio::sync::watch;
-#[cfg(test)]
-use turn::{TurnState, observe_acp};
 #[cfg(test)]
 use wire::prompt_params;
 
@@ -188,6 +202,7 @@ mod tests {
             capture: CaptureSnapshot::default(),
             queued_followup: None,
             pending_permission: None,
+            turn_timing: None,
             error: None,
         });
         let events = ProviderEvents::new(tx.clone());
@@ -231,6 +246,7 @@ mod tests {
             capture: CaptureSnapshot::default(),
             queued_followup: None,
             pending_permission: None,
+            turn_timing: None,
             error: None,
         });
         let events = ProviderEvents::new(tx.clone());
@@ -322,6 +338,7 @@ mod tests {
             capture: CaptureSnapshot::default(),
             queued_followup: None,
             pending_permission: None,
+            turn_timing: None,
             error: None,
         });
         let tool_events = ProviderEvents::new(tool_tx.clone());
@@ -354,6 +371,7 @@ mod tests {
             capture: CaptureSnapshot::default(),
             queued_followup: None,
             pending_permission: None,
+            turn_timing: None,
             error: None,
         });
         let perm_events = ProviderEvents::new(perm_tx.clone());
@@ -387,6 +405,7 @@ mod tests {
             capture: CaptureSnapshot::default(),
             queued_followup: None,
             pending_permission: None,
+            turn_timing: None,
             error: None,
         });
         let mode_events = ProviderEvents::new(mode_tx.clone());

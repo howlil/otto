@@ -84,6 +84,9 @@ export type AgentPanelModel = AgentTranscriptModel & {
   history: AgentHistoryModel;
   providers: AgentProviderDescriptor[];
   provider: AgentProvider;
+  refreshing?: boolean;
+  pinnedModels?: string[];
+  togglePinnedModel?: (modelId: string) => Promise<void>;
   model: string | null;
   setModel: (model: string | null) => void;
   thinkingEffort: string | null;

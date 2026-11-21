@@ -4,61 +4,37 @@ import type {
   AgentSnapshot,
   ProviderReadiness,
 } from "../../../platform/tauri";
-import { Button, SelectField, Text } from "../../../shared/ui";
+import { Button, Text } from "../../../shared/ui";
 import { resolveRateLimits } from "../model/rate-limits";
 import { ModelContextUsage } from "./ModelContextUsage";
+import { ModelPicker } from "./ModelPicker";
 import { ProviderRateLimits } from "./ProviderRateLimits";
 import { ThinkingEffortField } from "./ThinkingEffortField";
 import { modelMetadata, resolveSelectedEffort, resolveThinkingEfforts } from "./model-usage";
 
-function ModelSelect({
-  models,
-  value,
-  busy,
-  onChange,
-}: {
-  models: AgentModelOption[];
-  value: string | null;
-  busy: boolean;
-  onChange: (value: string | null) => void;
-}) {
-  const selectedModelIsAvailable = models.some((option) => option.id === value);
-  return (
-    <SelectField
-      id="otto-agent-model"
-      value={selectedModelIsAvailable ? (value ?? "") : ""}
-      disabled={busy}
-      onChange={(event) => onChange(event.target.value || null)}
-    >
-      <option value="" disabled>
-        {value && !selectedModelIsAvailable ? "Configured model unavailable" : "Choose a model"}
-      </option>
-      {models.map((option) => (
-        <option key={option.id} value={option.id}>
-          {option.displayName}
-        </option>
-      ))}
-    </SelectField>
-  );
-}
-
 function ModelSection({
   readinessStatus,
+  refreshing,
   models,
+  pinnedModels,
   value,
   observedModel,
   metadata,
   busy,
   onChange,
+  onTogglePin,
   onRetry,
 }: {
   readinessStatus: ProviderReadiness["status"];
+  refreshing?: boolean;
   models: AgentModelOption[];
+  pinnedModels?: string[];
   value: string | null;
   observedModel: string | null;
   metadata: string | null;
   busy: boolean;
   onChange: (value: string | null) => void;
+  onTogglePin?: (modelId: string) => void;
   onRetry: () => void;
 }) {
   const selectable = models.length > 0;
@@ -83,15 +59,24 @@ function ModelSection({
             variant="quiet"
             size="link"
             className="text-otto-text-tertiary"
-            disabled={readinessStatus === "checking"}
+            disabled={readinessStatus === "checking" || Boolean(refreshing)}
             onClick={onRetry}
           >
-            Refresh models
+            {refreshing ? "Refreshing…" : "Refresh models"}
           </Button>
         </span>
       </div>
       {selectable ? (
-        <ModelSelect models={models} value={value} busy={busy} onChange={onChange} />
+        <ModelPicker
+          id="otto-agent-model"
+          models={models}
+          value={value}
+          pinnedModels={pinnedModels}
+          onTogglePin={onTogglePin}
+          busy={busy}
+          allowPlaceholder
+          onChange={onChange}
+        />
       ) : readinessStatus === "checking" ? (
         <Text
           as="p"
@@ -117,6 +102,9 @@ function ModelSection({
 export function ModelUsageSettings({
   provider,
   readiness,
+  refreshing,
+  pinnedModels,
+  onTogglePinModel,
   snapshot,
   model,
   setModel,
@@ -127,6 +115,9 @@ export function ModelUsageSettings({
 }: {
   provider?: AgentProvider;
   readiness: ProviderReadiness;
+  refreshing?: boolean;
+  pinnedModels?: string[];
+  onTogglePinModel?: (modelId: string) => void;
   snapshot: AgentSnapshot;
   model: string | null;
   setModel: (model: string | null) => void;
@@ -150,12 +141,15 @@ export function ModelUsageSettings({
       <div className="space-y-4">
         <ModelSection
           readinessStatus={readiness.status}
+          refreshing={refreshing}
           models={readiness.models}
+          pinnedModels={pinnedModels}
           value={selectedModel}
           observedModel={snapshot.model}
           metadata={metadata}
           busy={busy}
           onChange={setModel}
+          onTogglePin={onTogglePinModel}
           onRetry={onRetry}
         />
         <ThinkingEffortField

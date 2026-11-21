@@ -4,8 +4,9 @@ import type {
   AgentRateLimit,
   ProviderReadiness,
 } from "../../../platform/tauri";
-import { Button, ChoiceGroup, SelectField, Text } from "../../../shared/ui";
+import { Button, ChoiceGroup, Text } from "../../../shared/ui";
 import { providerLabel } from "../history/history-model";
+import { ModelPicker } from "../settings/ModelPicker";
 import { ProviderRateLimits } from "../settings/ProviderRateLimits";
 import {
   formatEffortLabel,
@@ -16,10 +17,12 @@ import {
 export type HeaderRuntimeSwitcher = {
   providers: AgentProviderDescriptor[];
   readiness: ProviderReadiness;
+  pinnedModels?: string[];
   rateLimits?: AgentRateLimit[];
   locked: boolean;
   onSelectProvider: (provider: AgentProvider) => void;
   onSelectModel: (model: string | null) => void;
+  onTogglePinModel?: (modelId: string) => void;
   onSelectThinkingEffort: (effort: string | null) => void;
   onOpenSettings: () => void;
 };
@@ -72,12 +75,14 @@ export function EngineQuickPopover({
   model,
   thinkingEffort,
   switcher,
+  autoFocusSearch = false,
   onOpenSettings,
 }: {
   provider: AgentProvider;
   model: string | null;
   thinkingEffort: string | null;
   switcher: HeaderRuntimeSwitcher;
+  autoFocusSearch?: boolean;
   onOpenSettings: () => void;
 }) {
   const installed = Array.isArray(switcher.providers)
@@ -130,18 +135,17 @@ export function EngineQuickPopover({
             >
               Model
             </Text>
-            <SelectField
+            <ModelPicker
               id="otto-quick-model"
-              value={selectedModel ?? ""}
-              disabled={switcher.locked}
-              onChange={(event) => switcher.onSelectModel(event.target.value || null)}
-            >
-              {models.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.displayName}
-                </option>
-              ))}
-            </SelectField>
+              models={models}
+              value={selectedModel}
+              pinnedModels={switcher.pinnedModels}
+              onTogglePin={switcher.onTogglePinModel}
+              busy={switcher.locked}
+              compact
+              autoFocusSearch={autoFocusSearch}
+              onChange={switcher.onSelectModel}
+            />
           </div>
         )}
         {efforts.length > 0 && (

@@ -1,6 +1,8 @@
+pub(crate) mod cache;
 pub(crate) mod capture;
 mod history_ops;
 mod owner;
+pub(crate) mod prefs;
 pub(crate) mod prompt;
 mod readiness;
 pub(in crate::agent) mod readiness_probe;
@@ -11,6 +13,7 @@ mod session;
 pub(crate) mod turn_controls;
 
 pub use owner::AgentRuntime;
+pub use prefs::RuntimePrefs;
 pub use prompt::AssistantProfile;
 #[cfg(test)]
 pub use prompt::LearningMode;

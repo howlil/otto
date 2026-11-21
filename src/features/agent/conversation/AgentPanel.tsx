@@ -103,10 +103,12 @@ export function AgentPanel({
         runtimeSwitcher={{
           providers: agent.providers,
           readiness: agent.readiness,
+          pinnedModels: agent.pinnedModels,
           rateLimits: resolveRateLimits(provider, agent.readiness, snapshot),
           locked: agent.locked,
           onSelectProvider: agent.setProvider,
           onSelectModel: agent.setModel,
+          onTogglePinModel: agent.togglePinnedModel,
           onSelectThinkingEffort: agent.setThinkingEffort,
           onOpenSettings: onSettings,
         }}

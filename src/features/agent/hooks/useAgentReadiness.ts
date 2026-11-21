@@ -7,7 +7,7 @@ import {
   type AgentProviderDescriptor,
   type ProviderReadiness,
 } from "../../../platform/tauri/agent";
-import { refreshAgentProviders } from "../../../platform/tauri/agent-controls";
+import { refreshAgentProviders, warmAgentProvider } from "../../../platform/tauri/agent-controls";
 import { nativeAvailable } from "../../../platform/tauri/runtime";
 import { ReadinessProbeController } from "../model/readiness-probe";
 
@@ -23,6 +23,54 @@ const checking: ProviderReadiness = {
   thinkingEfforts: [],
   rateLimits: [],
 };
+
+function useWarmReadyProvider(active: boolean, provider: AgentProvider, ready: boolean) {
+  useEffect(() => {
+    if (!active || !nativeAvailable || !ready || !provider) return;
+    void Promise.resolve()
+      .then(() => warmAgentProvider())
+      .catch(() => {});
+  }, [active, provider, ready]);
+}
+
+function createReadinessController(
+  activeTarget: { current: { provider: AgentProvider; model: string | null } },
+  publish: (next: {
+    provider: AgentProvider;
+    model: string | null;
+    readiness: ProviderReadiness;
+  }) => void,
+  onRefreshing: (refreshing: boolean) => void,
+) {
+  const unavailable: ProviderReadiness = {
+    ...checking,
+    status: "unavailable",
+    message: "Provider readiness requires the Otto desktop app.",
+    recovery: "Open Otto on Windows.",
+  };
+  const failed: ProviderReadiness = {
+    ...checking,
+    status: "unavailable",
+    message: "Could not check provider readiness.",
+    recovery: "Retry the connection.",
+  };
+  return new ReadinessProbeController({
+    read: ({ provider, model }, requestId, force) =>
+      nativeAvailable
+        ? getAgentReadiness(provider, requestId, model, Boolean(force))
+        : Promise.resolve(unavailable),
+    cancel: (requestId) => (nativeAvailable ? cancelAgentReadiness(requestId) : Promise.resolve()),
+    publish: (next) =>
+      publish({
+        provider: activeTarget.current.provider,
+        model: activeTarget.current.model,
+        readiness: next,
+      }),
+    onRefreshing,
+    checking,
+    failed,
+  });
+}
 
 export function useProviderReadiness(
   provider: AgentProvider,
@@ -40,12 +88,13 @@ export function useProviderReadiness(
     model,
     readiness: checking,
   });
+  const [refreshing, setRefreshing] = useState(false);
   const readinessMatches =
     state.provider === provider &&
     (state.model === model ||
-      (state.model === null &&
-        state.readiness.status === "ready" &&
-        model === state.readiness.model));
+      (state.readiness.status === "ready" &&
+        (model === state.readiness.model ||
+          (model !== null && state.readiness.models.some((option) => option.id === model)))));
   const readiness = readinessMatches ? state.readiness : checking;
   const controller = useRef<ReadinessProbeController | null>(null);
   const [providers, setProviders] = useState<AgentProviderDescriptor[]>([]);
@@ -63,34 +112,7 @@ export function useProviderReadiness(
   }, []);
 
   useEffect(() => {
-    const unavailable: ProviderReadiness = {
-      ...checking,
-      status: "unavailable",
-      message: "Provider readiness requires the Otto desktop app.",
-      recovery: "Open Otto on Windows.",
-    };
-    const failed: ProviderReadiness = {
-      ...checking,
-      status: "unavailable",
-      message: "Could not check provider readiness.",
-      recovery: "Retry the connection.",
-    };
-    const probe = new ReadinessProbeController({
-      read: ({ provider, model }, requestId) =>
-        nativeAvailable
-          ? getAgentReadiness(provider, requestId, model)
-          : Promise.resolve(unavailable),
-      cancel: (requestId) =>
-        nativeAvailable ? cancelAgentReadiness(requestId) : Promise.resolve(),
-      publish: (next) =>
-        setState({
-          provider: activeTarget.current.provider,
-          model: activeTarget.current.model,
-          readiness: next,
-        }),
-      checking,
-      failed,
-    });
+    const probe = createReadinessController(activeTarget, setState, setRefreshing);
     controller.current = probe;
     return () => {
       probe.dispose();
@@ -106,6 +128,8 @@ export function useProviderReadiness(
     if (active) void refreshCatalog();
   }, [active, refreshCatalog]);
 
+  useWarmReadyProvider(active, provider, readiness.status === "ready");
+
   const refreshProvider = useCallback(async () => {
     await Promise.all([refreshCatalog(), controller.current?.refresh()]);
   }, [refreshCatalog]);
@@ -115,6 +139,7 @@ export function useProviderReadiness(
       setProviders([]);
       return;
     }
+    controller.current?.clearCache();
     try {
       setProviders(await refreshAgentProviders());
     } catch {
@@ -123,5 +148,5 @@ export function useProviderReadiness(
     await controller.current?.refresh();
   }, []);
 
-  return { readiness, providers, refreshProvider, refreshPath };
+  return { readiness, refreshing, providers, refreshProvider, refreshPath };
 }

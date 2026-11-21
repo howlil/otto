@@ -9,6 +9,55 @@ use tokio::sync::{MutexGuard, mpsc, oneshot, watch};
 use tokio::time::timeout;
 
 impl AgentRuntime {
+    pub async fn warm_active_provider(&self) {
+        let mut guard = self.control.lock().await;
+        if guard.as_ref().is_some_and(|sender| !sender.is_closed()) {
+            return;
+        }
+        let current = self.snapshot();
+        if !matches!(current.status, RunPhase::Idle | RunPhase::Completed)
+            || current.thread_id.is_some()
+            || current.capture.phase != "idle"
+            || !current.provider.capabilities().warm_standby
+        {
+            return;
+        }
+        let selected = self.selected_runtime.lock().unwrap().clone();
+        let target_model = selected.model.or(current.model.clone());
+        let target_effort = selected.thinking_effort.or(current.thinking_effort.clone());
+        if !matches!(
+            self.cached_readiness_for(current.provider, target_model.as_deref()),
+            super::cache::CacheHit::Fresh(_) | super::cache::CacheHit::Stale(_)
+        ) {
+            return;
+        }
+        let Ok(cwd) = std::fs::canonicalize(resolve_workspace_path(&current.cwd)) else {
+            return;
+        };
+        if !cwd.is_dir() {
+            return;
+        }
+        let canonical_cwd = cwd.to_string_lossy().into_owned();
+        if current.cwd != canonical_cwd
+            && current.status == RunPhase::Idle
+            && current.messages.is_empty()
+        {
+            mutate(&self.updates, |s| {
+                if s.run_id == current.run_id && s.status == RunPhase::Idle && s.messages.is_empty()
+                {
+                    s.cwd = canonical_cwd;
+                }
+            });
+        }
+        let initial = Control::Warm {
+            cwd,
+            model: target_model,
+            thinking_effort: target_effort,
+        };
+        let tx = spawn_provider_run(current.provider, self.updates.clone(), initial, false);
+        *guard = Some(tx);
+    }
+
     pub async fn new_session(&self) -> Result<(), String> {
         self.new_session_with_timeout(Duration::from_secs(5)).await
     }
@@ -90,6 +139,7 @@ impl AgentRuntime {
             s.capture = CaptureSnapshot::default();
             s.queued_followup = None;
             s.pending_permission = None;
+            s.turn_timing = None;
             s.error = clear_failed.then(|| MARKER_CLEAR_NOTICE.into());
         });
     }
@@ -190,4 +240,55 @@ pub(crate) fn ensure_session_can_reset(current: &Snapshot) -> Result<(), String>
         return Err("Finish screen capture before starting a new session.".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn warm_active_provider_skips_without_cached_readiness_or_with_existing_thread() {
+        let runtime = AgentRuntime::new();
+        runtime.warm_active_provider().await;
+        assert!(runtime.control.lock().await.is_none());
+
+        let ready = ProviderReadiness {
+            status: "ready".into(),
+            message: "Ready".into(),
+            recovery: String::new(),
+            image_input: true,
+            image_transport: true,
+            model: Some("m1".into()),
+            models: vec![ModelOption {
+                id: "m1".into(),
+                display_name: "M1".into(),
+                image_input: true,
+                context_window: None,
+                thinking_efforts: vec![],
+                default_thinking_effort: None,
+            }],
+            thinking_effort: None,
+            thinking_efforts: vec![],
+            rate_limits: vec![],
+            stale: false,
+        };
+        runtime
+            .readiness_cache
+            .store(ProviderId::Opencode, None, &ready, None);
+        mutate(&runtime.updates, |s| {
+            s.provider = ProviderId::Opencode;
+        });
+        runtime.warm_active_provider().await;
+        assert!(runtime.control.lock().await.is_none());
+
+        runtime
+            .readiness_cache
+            .store(ProviderId::Codex, None, &ready, None);
+        mutate(&runtime.updates, |s| {
+            s.provider = ProviderId::Codex;
+            s.thread_id = Some("existing-thread".into());
+        });
+        runtime.warm_active_provider().await;
+        assert!(runtime.control.lock().await.is_none());
+    }
 }

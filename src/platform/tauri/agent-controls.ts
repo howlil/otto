@@ -5,6 +5,7 @@ import type {
   AgentConversationSummary,
   AgentProvider,
   AgentProviderDescriptor,
+  AgentRuntimePrefs,
   AskAgentOptions,
 } from "./agent-types";
 
@@ -80,4 +81,19 @@ export async function respondAgentPermission(requestId: string, allow: boolean):
 
 export async function refreshAgentProviders(): Promise<AgentProviderDescriptor[]> {
   return invoke<AgentProviderDescriptor[]>("agent_refresh_provider_catalog");
+}
+
+export async function getAgentRuntimePrefs(): Promise<AgentRuntimePrefs> {
+  return invoke<AgentRuntimePrefs>("agent_runtime_prefs");
+}
+
+export async function togglePinnedAgentModel(
+  provider: AgentProvider,
+  modelId: string,
+): Promise<string[]> {
+  return invoke<string[]>("agent_toggle_pinned_model", { provider, modelId });
+}
+
+export async function warmAgentProvider(): Promise<void> {
+  return invoke("agent_warm_provider");
 }

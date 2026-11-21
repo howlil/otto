@@ -1,3 +1,4 @@
+use super::cache::CacheHit;
 use super::prompt::{
     AssistantGuidance, compose_guidance_prompt, contextual_prompt, selected_text_prompt,
     validate_prompt,
@@ -21,55 +22,49 @@ pub(super) struct TurnRequest {
     pub consume_staged: bool,
 }
 
+struct StartingTurn<'a> {
+    run_id: u64,
+    provider: ProviderId,
+    cwd: &'a std::path::Path,
+    capture_origin: bool,
+    provider_has_context: bool,
+    model: Option<String>,
+    thinking_effort: Option<String>,
+    rate_limits: Vec<ProviderRateLimit>,
+}
+
 impl AgentRuntime {
-    #[cfg(test)]
-    pub(crate) fn persist_prompt(&self, run_id: u64, text: &str) -> Result<(), AgentError> {
-        self.persist_prompt_at(run_id, text, None)
-    }
-
-    pub(crate) fn persist_prompt_at(
-        &self,
-        run_id: u64,
-        text: &str,
-        truncate_to: Option<usize>,
-    ) -> Result<(), AgentError> {
-        let mut snapshot = self.snapshot();
-        if let Some(index) = truncate_to {
-            snapshot.messages.truncate(index);
-        }
-        let pending = ChatMessage {
-            id: format!("{run_id}:user"),
-            role: "user".into(),
-            text: text.to_owned(),
-        };
-        if !snapshot
-            .messages
-            .iter()
-            .any(|message| message.id == pending.id)
-        {
-            snapshot.messages.push(pending.clone());
-        }
-        self.conversation.persist_snapshot(&snapshot, true)?;
-        mutate(&self.updates, |state| {
-            if state.run_id == run_id {
-                if let Some(index) = truncate_to {
-                    state.messages.truncate(index);
-                }
-                if !state
-                    .messages
-                    .iter()
-                    .any(|message| message.id == pending.id)
-                {
-                    state.messages.push(pending);
-                }
+    fn begin_starting_state(&self, start: StartingTurn<'_>) {
+        mutate(&self.updates, |s| {
+            s.run_id = start.run_id;
+            s.status = RunPhase::Starting;
+            s.activity.clear();
+            s.provider = start.provider;
+            s.capture.phase = if start.capture_origin {
+                "analyzing"
+            } else {
+                "idle"
             }
+            .into();
+            s.capture.error = None;
+            s.error = None;
+            s.cwd = start.cwd.to_string_lossy().into_owned();
+            if !start.provider_has_context {
+                s.thread_id = None;
+            }
+            s.model = start.model;
+            s.thinking_effort = start.thinking_effort;
+            s.usage = None;
+            if !start.rate_limits.is_empty() {
+                s.rate_limits = start.rate_limits;
+            }
+            s.turn_timing = Some(TurnTiming {
+                run_id: start.run_id,
+                started_at_ms: now_millis(),
+                first_token_ms: None,
+                total_ms: None,
+            });
         });
-        Ok(())
-    }
-
-    pub(crate) fn persist_current_snapshot(&self, interrupted: bool) -> Result<(), AgentError> {
-        self.conversation
-            .persist_snapshot(&self.snapshot(), interrupted)
     }
 
     pub(crate) fn fail_starting_run<T>(
@@ -156,9 +151,16 @@ impl AgentRuntime {
         if guard.as_ref().is_some_and(|tx| !tx.is_closed())
             && std::path::Path::new(&current.cwd) != cwd.as_path()
         {
-            return Err(
-                "Working context is fixed for this conversation. Restart Otto to change it.".into(),
-            );
+            if current.thread_id.is_none() && current.messages.is_empty() {
+                if let Some(sender) = guard.take() {
+                    let _ = close_owned_transport(&sender, Duration::from_secs(2)).await;
+                }
+            } else {
+                return Err(
+                    "Working context is fixed for this conversation. Restart Otto to change it."
+                        .into(),
+                );
+            }
         }
         if current.status == RunPhase::Completed {
             self.persist_current_snapshot(false).map_err(String::from)?;
@@ -202,29 +204,58 @@ impl AgentRuntime {
             .map(|selected| selected_text_prompt(&provider_text, selected))
             .unwrap_or(provider_text);
         let provider_text = compose_guidance_prompt(&provider_text, &guidance, include_guidance);
+        let cached_fast_readiness = if reusable_followup {
+            None
+        } else {
+            match self.cached_readiness_for(selected, model.as_deref()) {
+                CacheHit::Fresh(ready) | CacheHit::Stale(ready) => Some(ready),
+                CacheHit::Miss => None,
+            }
+        };
         let reserved_run_id = if reusable_followup {
             None
+        } else if let Some(readiness) = cached_fast_readiness {
+            if has_image && !readiness.image_input {
+                return Err("The selected provider model cannot accept an image.".into());
+            }
+            validate_runtime_options(&readiness, model.as_deref(), thinking_effort.as_deref())?;
+            let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
+            if let Some(marker) = &self.recovery {
+                marker.mark(run_id)?;
+            }
+            if selected.capabilities().pending_model_selection {
+                *self.selected_runtime.lock().unwrap() = ModelSelection {
+                    model: model.clone(),
+                    thinking_effort: thinking_effort.clone(),
+                };
+            }
+            self.begin_starting_state(StartingTurn {
+                run_id,
+                provider: selected,
+                cwd: &cwd,
+                capture_origin,
+                provider_has_context,
+                model: model.clone(),
+                thinking_effort: thinking_effort.clone(),
+                rate_limits: readiness.rate_limits,
+            });
+            self.schedule_rate_limits_refresh(selected, cwd.clone());
+            Some(run_id)
         } else {
             let run_id = self.next_run_id.fetch_add(1, Ordering::Relaxed) + 1;
             if let Some(marker) = &self.recovery {
                 marker.mark(run_id)?;
             }
             let cancelled = self.begin_run_readiness()?;
-            mutate(&self.updates, |s| {
-                s.run_id = run_id;
-                s.status = RunPhase::Starting;
-                s.activity.clear();
-                s.provider = selected;
-                s.capture.phase = if capture_origin { "analyzing" } else { "idle" }.into();
-                s.capture.error = None;
-                s.error = None;
-                s.cwd = cwd.to_string_lossy().into_owned();
-                if !provider_has_context {
-                    s.thread_id = None;
-                }
-                s.model = model.clone();
-                s.thinking_effort = thinking_effort.clone();
-                s.usage = None;
+            self.begin_starting_state(StartingTurn {
+                run_id,
+                provider: selected,
+                cwd: &cwd,
+                capture_origin,
+                provider_has_context,
+                model: model.clone(),
+                thinking_effort: thinking_effort.clone(),
+                rate_limits: Vec::new(),
             });
             drop(guard);
             let requested_cwd = cwd.to_string_lossy().into_owned();
@@ -328,10 +359,16 @@ impl AgentRuntime {
                 s.model = model.clone();
                 s.thinking_effort = thinking_effort.clone();
                 s.usage = None;
+                if reserved_run_id.is_none() {
+                    s.turn_timing = Some(TurnTiming {
+                        run_id,
+                        started_at_ms: now_millis(),
+                        first_token_ms: None,
+                        total_ms: None,
+                    });
+                }
             });
-            if let Err(error) = self.persist_prompt_at(run_id, &text, truncate_messages_to) {
-                return self.fail_starting_run(run_id, &error);
-            }
+            self.stage_prompt_and_persist_async(run_id, &text, truncate_messages_to);
             let capture = self.consume_turn_capture(capture, staged_meta);
             permit.send(Control::Ask {
                 text: provider_text,
@@ -346,9 +383,7 @@ impl AgentRuntime {
             return Ok(AcceptedRun { run_id });
         }
         let run_id = reserved_run_id.ok_or("Agent run reservation is missing.")?;
-        if let Err(error) = self.persist_prompt_at(run_id, &text, truncate_messages_to) {
-            return self.fail_starting_run(run_id, &error);
-        }
+        self.stage_prompt_and_persist_async(run_id, &text, truncate_messages_to);
         let capture = self.consume_turn_capture(capture, staged_meta);
         let initial = Control::Ask {
             text: provider_text,

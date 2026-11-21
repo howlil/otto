@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import type { AgentSnapshot, LearningMode } from "../../../platform/tauri";
 import { captureIsWorking } from "../model/status";
+import { formatLatencyMeta } from "../settings/model-picker";
 import { ActivityTrail } from "./ActivityTrail";
 import { DeferredMessageContent } from "./content/DeferredMessageContent";
 import { AssistantTurnActions, UserMessageBubble } from "./TurnActions";
@@ -38,6 +39,8 @@ export function TranscriptMessages({
   const attachAbove =
     targetAssistantId !== null &&
     snapshot.messages.some((message) => message.id === targetAssistantId);
+  const latestLatency =
+    snapshot.status === "completed" ? formatLatencyMeta(snapshot.turnTiming, snapshot.runId) : null;
 
   return (
     <>
@@ -81,6 +84,7 @@ export function TranscriptMessages({
                       stoppedPartial={stoppedPartial}
                       canAct={canAct}
                       showFollowupChips={showFollowupChips}
+                      latency={isLast ? latestLatency : null}
                       onInsert={onInsert}
                       onRetry={onRetry}
                       onFollowupChip={onFollowupChip}

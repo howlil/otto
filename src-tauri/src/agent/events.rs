@@ -1,6 +1,6 @@
 use super::{
     ActivityDetails, ActivityKind, CaptureSnapshot, PendingPermissionSnapshot, ProviderRateLimit,
-    RunPhase, Snapshot, UsageSnapshot, activity, conversation,
+    RunPhase, Snapshot, UsageSnapshot, activity, conversation, now_millis,
 };
 use tokio::sync::watch;
 
@@ -251,12 +251,20 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
         AgentEvent::TextDelta { run_id, delta }
             if state.run_id == run_id && state.status == RunPhase::Streaming =>
         {
-            return conversation::append_delta(&mut state.messages, run_id, &delta);
+            let changed = conversation::append_delta(&mut state.messages, run_id, &delta);
+            if changed && !delta.is_empty() {
+                mark_first_token(state, run_id);
+            }
+            return changed;
         }
         AgentEvent::TextFinal { run_id, text }
             if state.run_id == run_id && state.status == RunPhase::Streaming =>
         {
-            return conversation::set_final(&mut state.messages, run_id, &text);
+            let changed = conversation::set_final(&mut state.messages, run_id, &text);
+            if changed && !text.trim().is_empty() {
+                mark_first_token(state, run_id);
+            }
+            return changed;
         }
         AgentEvent::PermissionRequested { run_id, request }
             if state.run_id == run_id
@@ -287,11 +295,13 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
                 state.status = RunPhase::Stopped;
                 state.capture = CaptureSnapshot::default();
                 state.queued_followup = None;
+                mark_turn_finished(state, run_id);
                 return true;
             }
             if conversation::has_answer(&state.messages, run_id) {
                 state.status = RunPhase::Completed;
                 activity::finish_all(&mut state.activity);
+                mark_turn_finished(state, run_id);
             } else {
                 state.status = RunPhase::Failed;
                 state.queued_followup = None;
@@ -327,10 +337,33 @@ fn reduce(state: &mut Snapshot, event: AgentEvent) -> bool {
             state.pending_permission = None;
             state.queued_followup = None;
             state.capture = CaptureSnapshot::default();
+            mark_turn_finished(state, run_id);
         }
         _ => return false,
     }
     true
+}
+
+fn mark_first_token(state: &mut Snapshot, run_id: u64) {
+    if let Some(timing) = state.turn_timing.as_mut()
+        && timing.run_id == run_id
+        && timing.first_token_ms.is_none()
+    {
+        timing.first_token_ms = Some(now_millis().saturating_sub(timing.started_at_ms));
+    }
+}
+
+fn mark_turn_finished(state: &mut Snapshot, run_id: u64) {
+    if let Some(timing) = state.turn_timing.as_mut()
+        && timing.run_id == run_id
+        && timing.total_ms.is_none()
+    {
+        let elapsed = now_millis().saturating_sub(timing.started_at_ms);
+        if timing.first_token_ms.is_none() {
+            timing.first_token_ms = Some(elapsed);
+        }
+        timing.total_ms = Some(elapsed);
+    }
 }
 
 fn merge_rate_limits(
@@ -377,6 +410,7 @@ mod tests {
             capture: CaptureSnapshot::default(),
             queued_followup: None,
             pending_permission: None,
+            turn_timing: None,
             error: None,
         });
         (updates.clone(), ProviderEvents::new(updates))
@@ -656,5 +690,36 @@ mod tests {
             }],
         });
         assert_eq!(updates.borrow().rate_limits.len(), 2);
+    }
+
+    #[test]
+    fn turn_timing_records_first_token_and_completion_elapsed_ms() {
+        let (updates, events) = state(15);
+        updates.send_modify(|s| {
+            s.turn_timing = Some(super::super::TurnTiming {
+                run_id: 15,
+                started_at_ms: now_millis().saturating_sub(25),
+                first_token_ms: None,
+                total_ms: None,
+            });
+        });
+        events.emit(AgentEvent::TurnStarted {
+            run_id: 15,
+            text: "hy".into(),
+        });
+        events.emit(AgentEvent::TextDelta {
+            run_id: 15,
+            delta: "Hi!".into(),
+        });
+        let first = updates
+            .borrow()
+            .turn_timing
+            .as_ref()
+            .and_then(|t| t.first_token_ms);
+        assert!(first.is_some());
+        events.emit(AgentEvent::Completed { run_id: 15 });
+        let timing = updates.borrow().turn_timing.clone().expect("timing kept");
+        assert_eq!(timing.first_token_ms, first);
+        assert!(timing.total_ms.is_some_and(|total| total >= first.unwrap()));
     }
 }

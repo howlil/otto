@@ -71,21 +71,40 @@ impl ProviderId {
         }
     }
 
-    pub(in crate::agent) fn is_installed(self) -> bool {
+    pub(in crate::agent) fn executable_path(self) -> Option<std::path::PathBuf> {
         match self {
-            Self::Codex => super::codex::executable().is_some(),
+            Self::Codex => super::codex::executable(),
             #[cfg(windows)]
-            Self::Pi => super::pi::executable().is_some(),
+            Self::Pi => super::pi::executable(),
             #[cfg(windows)]
-            Self::Opencode => super::opencode::executable().is_some(),
+            Self::Opencode => super::opencode::executable(),
             #[cfg(windows)]
-            Self::Claude => super::claude::executable().is_some(),
+            Self::Claude => super::claude::executable(),
             #[cfg(windows)]
-            acp => acp
-                .acp_spec()
-                .is_some_and(|spec| super::acp::executable(spec).is_some()),
+            acp => acp.acp_spec().and_then(super::acp::executable),
             #[cfg(not(windows))]
-            _ => false,
+            _ => None,
         }
+    }
+
+    pub(in crate::agent) fn binary_fingerprint(self) -> Option<String> {
+        let path = self.executable_path()?;
+        let metadata = std::fs::metadata(&path).ok()?;
+        let modified = metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default();
+        Some(format!(
+            "{}|{}|{}",
+            path.to_string_lossy(),
+            metadata.len(),
+            modified
+        ))
+    }
+
+    pub(in crate::agent) fn is_installed(self) -> bool {
+        self.executable_path().is_some()
     }
 }

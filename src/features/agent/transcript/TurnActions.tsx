@@ -1,5 +1,6 @@
 import type { LearningMode } from "../../../platform/tauri";
 import { Icon, Text } from "../../../shared/ui";
+import type { LatencyDisplay } from "../settings/model-picker";
 import { CopyAnswerButton } from "./content/CopyAnswerButton";
 import { InsertAnswerButton } from "./content/InsertAnswerButton";
 
@@ -45,6 +46,7 @@ export function AssistantTurnActions({
   stoppedPartial,
   canAct,
   showFollowupChips,
+  latency,
   onInsert,
   onRetry,
   onFollowupChip,
@@ -54,6 +56,7 @@ export function AssistantTurnActions({
   stoppedPartial: boolean;
   canAct: boolean;
   showFollowupChips: boolean;
+  latency?: LatencyDisplay | null;
   onInsert?: (value: string) => Promise<void>;
   onRetry?: () => Promise<void>;
   onFollowupChip?: (mode: LearningMode, prompt: string) => Promise<void>;
@@ -82,6 +85,16 @@ export function AssistantTurnActions({
             <Icon name="refresh" size={13} />
             Retry
           </button>
+        )}
+        {isLatest && !stoppedPartial && latency && (
+          <Text
+            as="span"
+            variant="meta"
+            title={latency.detail}
+            className="ml-auto tabular-nums text-otto-text-tertiary"
+          >
+            {latency.label}
+          </Text>
         )}
       </div>
       {showFollowupChips && onFollowupChip && (

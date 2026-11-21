@@ -126,7 +126,7 @@ impl Rpc {
                         Some(Control::Ask { .. }) => {
                             return Err("Cannot queue another turn during startup.".into());
                         }
-                        Some(Control::PermissionDecision { .. }) => continue,
+                        Some(Control::PermissionDecision { .. } | Control::Warm { .. }) => continue,
                         None => {
                             return Err("Codex control channel closed during startup.".into());
                         }

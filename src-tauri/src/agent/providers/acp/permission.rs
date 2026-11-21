@@ -47,7 +47,7 @@ pub(super) async fn handle_incoming_request(
                     request_id,
                     decision,
                 }) if request_id == expected_id => return Ok(decision),
-                Some(Control::PermissionDecision { .. }) => continue,
+                Some(Control::PermissionDecision { .. } | Control::Warm { .. }) => continue,
                 Some(Control::Stop) => return Err(None),
                 Some(Control::Close { claimed, finished }) => {
                     if finished.is_closed() || claimed.swap(true, Ordering::SeqCst) {

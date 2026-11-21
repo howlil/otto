@@ -1,7 +1,9 @@
 use crate::agent::events::ProviderEvents;
 use crate::agent::runtime::selection::SessionReuse;
-use crate::agent::{Control, ModelSelection, ProviderId, ProviderReadiness, RunPhase};
-use std::path::PathBuf;
+use crate::agent::{
+    Control, ModelSelection, ProviderId, ProviderRateLimit, ProviderReadiness, RunPhase,
+};
+use std::path::{Path, PathBuf};
 use tokio::sync::mpsc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -9,6 +11,9 @@ pub(in crate::agent) struct RuntimeCapabilities {
     pub image_transport: bool,
     pub pending_model_selection: bool,
     pub completed_followup_without_probe: bool,
+    pub per_model_metadata_probe: bool,
+    pub async_rate_limits: bool,
+    pub warm_standby: bool,
 }
 
 impl ProviderId {
@@ -18,27 +23,62 @@ impl ProviderId {
                 image_transport: true,
                 pending_model_selection: false,
                 completed_followup_without_probe: true,
+                per_model_metadata_probe: false,
+                async_rate_limits: true,
+                warm_standby: true,
             },
             Self::Pi => RuntimeCapabilities {
                 image_transport: true,
                 pending_model_selection: true,
                 completed_followup_without_probe: false,
+                per_model_metadata_probe: true,
+                async_rate_limits: false,
+                warm_standby: true,
             },
             Self::Opencode => RuntimeCapabilities {
                 image_transport: true,
                 pending_model_selection: false,
                 completed_followup_without_probe: true,
+                per_model_metadata_probe: false,
+                async_rate_limits: false,
+                warm_standby: false,
             },
             Self::Claude => RuntimeCapabilities {
                 image_transport: true,
                 pending_model_selection: false,
                 completed_followup_without_probe: true,
+                per_model_metadata_probe: false,
+                async_rate_limits: false,
+                warm_standby: true,
+            },
+            Self::Agy => RuntimeCapabilities {
+                image_transport: true,
+                pending_model_selection: false,
+                completed_followup_without_probe: true,
+                per_model_metadata_probe: true,
+                async_rate_limits: true,
+                warm_standby: true,
             },
             _ => RuntimeCapabilities {
                 image_transport: true,
                 pending_model_selection: false,
                 completed_followup_without_probe: true,
+                per_model_metadata_probe: true,
+                async_rate_limits: false,
+                warm_standby: true,
             },
+        }
+    }
+
+    pub(in crate::agent) async fn probe_rate_limits(self, cwd: &Path) -> Vec<ProviderRateLimit> {
+        match self {
+            Self::Codex => super::codex::probe_rate_limits(cwd).await,
+            #[cfg(windows)]
+            Self::Agy => match self.acp_spec() {
+                Some(spec) => super::acp::probe_rate_limits(spec, cwd).await,
+                None => Vec::new(),
+            },
+            _ => Vec::new(),
         }
     }
 

@@ -49,8 +49,14 @@ export async function getAgentReadiness(
   provider: AgentProvider,
   requestId: number,
   model: string | null = null,
+  force = false,
 ): Promise<ProviderReadiness> {
-  return invoke<ProviderReadiness>("agent_provider_readiness", { provider, model, requestId });
+  return invoke<ProviderReadiness>("agent_provider_readiness", {
+    provider,
+    model,
+    requestId,
+    ...(force ? { force: true } : {}),
+  });
 }
 
 export async function cancelAgentReadiness(requestId: number): Promise<void> {

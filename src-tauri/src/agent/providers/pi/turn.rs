@@ -13,6 +13,8 @@ use serde_json::{Value, json};
 use std::{path::Path, sync::atomic::Ordering, time::Duration};
 use tokio::{sync::mpsc, time::timeout};
 
+const IDLE_STANDBY_TIMEOUT: Duration = Duration::from_secs(300);
+
 pub(super) async fn prompt_command(
     run_id: u64,
     text: &str,
@@ -49,101 +51,267 @@ fn begin(display_text: &str, run_id: u64, events: &ProviderEvents) {
     });
 }
 
-pub(in crate::agent::providers) async fn run(
-    mut controls: mpsc::Receiver<Control>,
-    events: ProviderEvents,
-    initial: Control,
-) {
-    let Control::Ask {
-        text,
-        display_text,
-        cwd,
-        run_id,
-        model,
-        thinking_effort,
-        capture,
-    } = initial
-    else {
-        events.fail(events.snapshot().run_id, "Pi only supports text chat.");
-        return;
-    };
-    let mut rpc = match Rpc::launch(&cwd) {
-        Ok(rpc) => rpc,
-        Err(reason) => {
-            events.fail(run_id, &reason);
-            return;
-        }
-    };
+struct PiSession {
+    model: String,
+    thinking: Option<String>,
+    image_input: bool,
+    session_id: String,
+    session_announced: bool,
+}
 
-    let configured = await_controlled(
-        &mut controls,
-        rpc.configure(model.as_deref(), thinking_effort.as_deref()),
-    )
-    .await;
-    let (active_model, active_thinking, image_input, session) = match configured {
-        Ok(Controlled::Done(configured)) => configured,
-        Ok(Controlled::Cancelled(ack)) => {
-            finish_cancelled(&mut rpc, &mut controls, &events, run_id, ack).await;
-            return;
+struct PiAsk {
+    text: String,
+    display_text: String,
+    cwd: std::path::PathBuf,
+    run_id: u64,
+    model: Option<String>,
+    thinking_effort: Option<String>,
+    capture: Option<CapturedImage>,
+}
+
+impl PiAsk {
+    fn from_control(control: Control) -> Option<Self> {
+        match control {
+            Control::Ask {
+                text,
+                display_text,
+                cwd,
+                run_id,
+                model,
+                thinking_effort,
+                capture,
+            } => Some(Self {
+                text,
+                display_text,
+                cwd,
+                run_id,
+                model,
+                thinking_effort,
+                capture,
+            }),
+            _ => None,
         }
-        Err(reason) => {
-            events.fail(run_id, &reason);
-            rpc.terminate().await;
-            return;
-        }
-    };
-    events.emit(AgentEvent::RuntimeChanged {
-        run_id,
-        model: Some(active_model),
-        thinking_effort: active_thinking,
-    });
-    if capture.is_some() && !image_input {
-        events.fail(run_id, "The selected Pi model cannot accept screenshots.");
-        rpc.terminate().await;
-        return;
     }
-    events.emit(AgentEvent::SessionReady {
-        run_id,
-        session_id: session,
+}
+
+struct StartedPiTurn {
+    run_id: u64,
+    display_text: String,
+    capture: Option<CapturedImage>,
+}
+
+enum StartOutcome {
+    Started(StartedPiTurn),
+    Rejected,
+    Terminate,
+}
+
+async fn start_pi_turn(
+    rpc: &mut Rpc,
+    controls: &mut mpsc::Receiver<Control>,
+    events: &ProviderEvents,
+    session: &mut PiSession,
+    session_cwd: &Path,
+    ask: PiAsk,
+) -> StartOutcome {
+    if ask.cwd.as_path() != session_cwd {
+        events.fail(ask.run_id, "Pi context changed. Start a new session.");
+        return StartOutcome::Rejected;
+    }
+    let needs_configure = ask
+        .model
+        .as_deref()
+        .is_some_and(|requested| requested != session.model)
+        || ask
+            .thinking_effort
+            .as_deref()
+            .is_some_and(|requested| session.thinking.as_deref() != Some(requested));
+    if needs_configure {
+        let configured = await_controlled(
+            controls,
+            rpc.configure(ask.model.as_deref(), ask.thinking_effort.as_deref()),
+        )
+        .await;
+        match configured {
+            Ok(Controlled::Done((active_model, active_thinking, selected_images, _))) => {
+                session.model = active_model;
+                session.thinking = active_thinking;
+                session.image_input = selected_images;
+            }
+            Ok(Controlled::Cancelled(ack)) => {
+                finish_cancelled(rpc, controls, events, ask.run_id, ack).await;
+                return StartOutcome::Terminate;
+            }
+            Err(reason) => {
+                events.fail(ask.run_id, &reason);
+                return StartOutcome::Rejected;
+            }
+        }
+    }
+    if ask.capture.is_some() && !session.image_input {
+        events.fail(
+            ask.run_id,
+            "The selected Pi model cannot accept screenshots.",
+        );
+        return StartOutcome::Rejected;
+    }
+    events.emit(AgentEvent::RuntimeChanged {
+        run_id: ask.run_id,
+        model: Some(session.model.clone()),
+        thinking_effort: session.thinking.clone(),
     });
-    let mut active_capture = capture;
+    if !session.session_announced {
+        events.emit(AgentEvent::SessionReady {
+            run_id: ask.run_id,
+            session_id: session.session_id.clone(),
+        });
+        session.session_announced = true;
+    }
     let prepared = await_controlled(
-        &mut controls,
-        prompt_command(run_id, &text, active_capture.as_ref()),
+        controls,
+        prompt_command(ask.run_id, &ask.text, ask.capture.as_ref()),
     )
     .await;
     let request = match prepared {
         Ok(Controlled::Done(request)) => request,
         Ok(Controlled::Cancelled(ack)) => {
-            finish_cancelled(&mut rpc, &mut controls, &events, run_id, ack).await;
-            return;
+            finish_cancelled(rpc, controls, events, ask.run_id, ack).await;
+            return StartOutcome::Terminate;
         }
         Err(reason) => {
-            events.fail(run_id, &reason);
+            events.fail(ask.run_id, &reason);
+            return StartOutcome::Rejected;
+        }
+    };
+    match await_controlled(controls, rpc.send(request)).await {
+        Ok(Controlled::Done(())) => StartOutcome::Started(StartedPiTurn {
+            run_id: ask.run_id,
+            display_text: ask.display_text,
+            capture: ask.capture,
+        }),
+        Ok(Controlled::Cancelled(ack)) => {
+            finish_cancelled(rpc, controls, events, ask.run_id, ack).await;
+            StartOutcome::Terminate
+        }
+        Err(reason) => {
+            events.fail(ask.run_id, &reason);
+            rpc.terminate().await;
+            StartOutcome::Terminate
+        }
+    }
+}
+
+pub(in crate::agent::providers) async fn run(
+    mut controls: mpsc::Receiver<Control>,
+    events: ProviderEvents,
+    initial: Control,
+) {
+    let (cwd, init_model, init_effort, mut pending_ask) = match initial {
+        Control::Warm {
+            cwd,
+            model,
+            thinking_effort,
+        } => (cwd, model, thinking_effort, None),
+        other => match PiAsk::from_control(other) {
+            Some(ask) => (
+                ask.cwd.clone(),
+                ask.model.clone(),
+                ask.thinking_effort.clone(),
+                Some(ask),
+            ),
+            None => return,
+        },
+    };
+    let mut rpc = match Rpc::launch(&cwd) {
+        Ok(rpc) => rpc,
+        Err(reason) => {
+            if let Some(ask) = pending_ask {
+                events.fail(ask.run_id, &reason);
+            }
+            return;
+        }
+    };
+    let configured = {
+        let configure_fut = rpc.configure(init_model.as_deref(), init_effort.as_deref());
+        tokio::pin!(configure_fut);
+        loop {
+            tokio::select! {
+                result = &mut configure_fut => break Some(result),
+                control = controls.recv() => match control {
+                    Some(Control::Close { claimed, finished })
+                        if !finished.is_closed() && !claimed.swap(true, Ordering::SeqCst) =>
+                    {
+                        if let Some(ask) = pending_ask.take() {
+                            events.stopped(ask.run_id);
+                        }
+                        let _ = finished.send(());
+                        break None;
+                    }
+                    Some(Control::Stop) => {
+                        if let Some(ask) = pending_ask.take() {
+                            events.stopped(ask.run_id);
+                        }
+                        break None;
+                    }
+                    Some(control @ Control::Ask { .. }) if pending_ask.is_none() => {
+                        pending_ask = PiAsk::from_control(control);
+                    }
+                    None => break None,
+                    _ => {}
+                }
+            }
+        }
+    };
+    let Some(configured) = configured else {
+        controls.close();
+        rpc.terminate().await;
+        return;
+    };
+    let mut session = match configured {
+        Ok((model, thinking, image_input, session_id)) => PiSession {
+            model,
+            thinking,
+            image_input,
+            session_id,
+            session_announced: false,
+        },
+        Err(reason) => {
+            if let Some(ask) = pending_ask {
+                events.fail(ask.run_id, &reason);
+            }
             rpc.terminate().await;
             return;
         }
     };
-    match await_controlled(&mut controls, rpc.send(request)).await {
-        Ok(Controlled::Done(())) => {}
-        Ok(Controlled::Cancelled(ack)) => {
-            finish_cancelled(&mut rpc, &mut controls, &events, run_id, ack).await;
-            return;
-        }
-        Err(_) => {
-            events.fail(run_id, "Cannot submit the Pi request.");
-            rpc.terminate().await;
-            return;
-        }
-    }
-    let mut pending_display_text = display_text;
-    let mut active = Some(run_id);
+
+    let mut active_capture: Option<CapturedImage> = None;
+    let mut pending_display_text = String::new();
+    let mut active: Option<u64> = None;
     let mut acknowledged = false;
     let mut settled: Option<Value> = None;
     let mut buffered: Vec<Value> = Vec::new();
     let mut observer = TurnObserver::default();
+
+    if let Some(ask) = pending_ask.take() {
+        match start_pi_turn(&mut rpc, &mut controls, &events, &mut session, &cwd, ask).await {
+            StartOutcome::Started(turn) => {
+                active = Some(turn.run_id);
+                pending_display_text = turn.display_text;
+                active_capture = turn.capture;
+            }
+            StartOutcome::Rejected => {}
+            StartOutcome::Terminate => return,
+        }
+    }
+
     loop {
+        let idle_deadline = tokio::time::sleep(IDLE_STANDBY_TIMEOUT);
+        tokio::pin!(idle_deadline);
         tokio::select! {
+            _ = &mut idle_deadline, if active.is_none() => {
+                rpc.terminate().await;
+                break;
+            }
             control = controls.recv() => match control {
                 Some(Control::Stop) if active.is_some() => {
                     let _ = timeout(Duration::from_secs(1), rpc.send(json!({"type":"abort"}))).await;
@@ -152,77 +320,31 @@ pub(in crate::agent::providers) async fn run(
                     }
                     break;
                 }
-                Some(Control::Close {claimed, finished}) => {
+                Some(Control::Close { claimed, finished }) => {
                     if finished.is_closed() || claimed.swap(true, Ordering::SeqCst) { continue; }
                     rpc.terminate().await;
                     let _ = finished.send(());
                     break;
                 }
-                Some(Control::Ask {text, display_text, cwd, run_id, model, thinking_effort, capture}) if active.is_none() => {
-                    if cwd.as_path() != Path::new(&events.snapshot().cwd) {
-                        events.fail(run_id, "Pi context changed. Start a new session.");
+                Some(control @ Control::Ask { .. }) if active.is_none() => {
+                    let Some(ask) = PiAsk::from_control(control) else {
                         continue;
-                    }
-                    let configured = await_controlled(
-                        &mut controls,
-                        rpc.configure(model.as_deref(), thinking_effort.as_deref()),
-                    )
-                    .await;
-                    let (active_model, active_thinking, selected_images, _) = match configured {
-                        Ok(Controlled::Done(configured)) => configured,
-                        Ok(Controlled::Cancelled(ack)) => {
-                            finish_cancelled(&mut rpc, &mut controls, &events, run_id, ack).await;
-                            break;
-                        }
-                        Err(reason) => {
-                            events.fail(run_id, &reason);
-                            continue;
-                        }
                     };
-                    if capture.is_some() && !selected_images {
-                        events.fail(run_id, "The selected Pi model cannot accept screenshots.");
-                        continue;
+                    match start_pi_turn(&mut rpc, &mut controls, &events, &mut session, &cwd, ask)
+                        .await
+                    {
+                        StartOutcome::Started(turn) => {
+                            active_capture = turn.capture;
+                            pending_display_text = turn.display_text;
+                            active = Some(turn.run_id);
+                            acknowledged = false;
+                            settled = None;
+                            buffered.clear();
+                            observer = TurnObserver::default();
+                        }
+                        StartOutcome::Rejected => {}
+                        StartOutcome::Terminate => break,
                     }
-                    events.emit(AgentEvent::RuntimeChanged {
-                        run_id,
-                        model: Some(active_model),
-                        thinking_effort: active_thinking,
-                    });
-                    let prepared = await_controlled(
-                        &mut controls,
-                        prompt_command(run_id, &text, capture.as_ref()),
-                    )
-                    .await;
-                    let request = match prepared {
-                        Ok(Controlled::Done(request)) => request,
-                        Ok(Controlled::Cancelled(ack)) => {
-                            finish_cancelled(&mut rpc, &mut controls, &events, run_id, ack).await;
-                            break;
-                        }
-                        Err(reason) => {
-                            events.fail(run_id, &reason);
-                            continue;
-                        }
-                    };
-                    match await_controlled(&mut controls, rpc.send(request)).await {
-                        Ok(Controlled::Done(())) => {}
-                        Ok(Controlled::Cancelled(ack)) => {
-                            finish_cancelled(&mut rpc, &mut controls, &events, run_id, ack).await;
-                            break;
-                        }
-                        Err(reason) => {
-                            events.fail(run_id, &reason);
-                            rpc.terminate().await;
-                            break;
-                        }
-                    }
-                    active_capture = capture;
-                    pending_display_text = display_text;
-                    active = Some(run_id);
-                    acknowledged = false;
-                    settled = None;
-                    buffered.clear();
-                    observer = TurnObserver::default();
                 }
                 Some(Control::Stop) => {
                     let snapshot = events.snapshot();
@@ -254,8 +376,8 @@ pub(in crate::agent::providers) async fn run(
                             for event in buffered.drain(..) {
                                 observer.observe(&event, id, &events);
                             }
-                        },
-                        Ok(false) => {},
+                        }
+                        Ok(false) => {}
                         Err(reason) => { events.fail(id, &reason); rpc.terminate().await; break; }
                     }
                     if value["type"] == "agent_settled" {
@@ -282,38 +404,37 @@ pub(in crate::agent::providers) async fn run(
                         }
                     }
                     if acknowledged && let Some(settlement) = settled.take() {
-                            if settlement["aborted"] != true {
-                                let stats = tokio::select! {
-                                    result = timeout(
-                                        Duration::from_secs(2),
-                                        rpc.request(json!({"type":"get_session_stats"}))
-                                    ) => result.ok().and_then(Result::ok),
-                                    control = recv_non_permission(&mut controls) => {
-                                        let close_ack = match control {
-                                            Some(Control::Close { claimed, finished })
-                                                if !finished.is_closed()
-                                                    && !claimed.swap(true, Ordering::SeqCst) =>
-                                            {
-                                                Some(finished)
-                                            }
-                                            _ => None,
-                                        };
-                                        stop_process(&mut rpc, &mut controls, &events, id).await;
-                                        if let Some(finished) = close_ack {
-                                            let _ = finished.send(());
+                        if settlement["aborted"] != true {
+                            let stats = tokio::select! {
+                                result = timeout(
+                                    Duration::from_secs(2),
+                                    rpc.request(json!({"type":"get_session_stats"}))
+                                ) => result.ok().and_then(Result::ok),
+                                control = recv_non_permission(&mut controls) => {
+                                    let close_ack = match control {
+                                        Some(Control::Close { claimed, finished })
+                                            if !finished.is_closed()
+                                                && !claimed.swap(true, Ordering::SeqCst) =>
+                                        {
+                                            Some(finished)
                                         }
-                                        break;
+                                        _ => None,
+                                    };
+                                    stop_process(&mut rpc, &mut controls, &events, id).await;
+                                    if let Some(finished) = close_ack {
+                                        let _ = finished.send(());
                                     }
-                                };
-                                if let Some(usage) = stats.as_ref().and_then(usage_snapshot) {
-                                    events.emit(AgentEvent::UsageUpdated { run_id: id, usage });
+                                    break;
                                 }
+                            };
+                            if let Some(usage) = stats.as_ref().and_then(usage_snapshot) {
+                                events.emit(AgentEvent::UsageUpdated { run_id: id, usage });
                             }
-                            observer.observe(&settlement, id, &events);
-                            active = None;
-                            drop(active_capture.take());
+                        }
+                        observer.observe(&settlement, id, &events);
+                        active = None;
+                        drop(active_capture.take());
                     }
-
                 }
                 Err(reason) => {
                     if let Some(id) = active { events.fail(id, &reason); }

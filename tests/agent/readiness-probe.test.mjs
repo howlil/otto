@@ -127,4 +127,123 @@ describe("Agent readiness lifecycle", () => {
     await refresh;
     expect(h.statuses.at(-1)).toBe(checking);
   });
+
+  test("switching providers retains prior provider cache and switching models within a cached provider avoids re-probing", async () => {
+    const reads = [];
+    const codexReady = {
+      status: "ready",
+      model: "gpt-5-codex",
+      imageInput: true,
+      thinkingEffort: "medium",
+      thinkingEfforts: ["low", "medium", "high"],
+      models: [
+        {
+          id: "gpt-5-codex",
+          displayName: "GPT-5 Codex",
+          contextWindow: 400_000,
+          imageInput: true,
+          thinkingEfforts: ["low", "medium", "high"],
+          defaultThinkingEffort: "medium",
+        },
+        {
+          id: "gpt-5-mini",
+          displayName: "GPT-5 Mini",
+          contextWindow: 128_000,
+          imageInput: false,
+          thinkingEfforts: ["low"],
+          defaultThinkingEffort: "low",
+        },
+      ],
+    };
+    const claudeReady = {
+      status: "ready",
+      model: "claude-sonnet-5-5",
+      imageInput: true,
+      thinkingEffort: "high",
+      thinkingEfforts: ["low", "high"],
+      models: [
+        {
+          id: "claude-sonnet-5-5",
+          displayName: "Sonnet 5.5",
+          contextWindow: 200_000,
+          imageInput: true,
+          thinkingEfforts: ["low", "high"],
+          defaultThinkingEffort: "high",
+        },
+      ],
+    };
+    const h = harness(async (selection) => {
+      reads.push(selection);
+      return selection.provider === "claude" ? claudeReady : codexReady;
+    });
+    h.controller.update({ provider: "codex", model: null });
+    h.flush();
+    await Promise.resolve();
+    expect(reads).toHaveLength(1);
+
+    h.controller.update({ provider: "codex", model: "gpt-5-mini" });
+    h.flush();
+    await Promise.resolve();
+    expect(reads).toHaveLength(1);
+    expect(h.statuses.at(-1)).toMatchObject({
+      status: "ready",
+      model: "gpt-5-mini",
+      imageInput: false,
+      thinkingEffort: "low",
+    });
+
+    h.controller.update({ provider: "claude", model: null });
+    h.flush();
+    await Promise.resolve();
+    expect(reads).toHaveLength(2);
+
+    h.controller.update({ provider: "codex", model: "gpt-5-mini" });
+    h.flush();
+    await Promise.resolve();
+    expect(reads).toHaveLength(2);
+    expect(h.statuses.at(-1).model).toBe("gpt-5-mini");
+    h.controller.dispose();
+  });
+
+  test("stale cached readiness publishes immediately and revalidates in background without flashing checking", async () => {
+    const calls = [];
+    const refreshingStates = [];
+    const statuses = [];
+    const tasks = [];
+    const staleReady = { status: "ready", model: "m1", models: [], stale: true };
+    const freshReady = { status: "ready", model: "m1", models: [], stale: false };
+    const controller = new ReadinessProbeController({
+      read: async (selection, _id, force) => {
+        calls.push({ selection, force: Boolean(force) });
+        return force ? freshReady : staleReady;
+      },
+      cancel: async () => {},
+      publish: (status) => statuses.push(status),
+      onRefreshing: (flag) => refreshingStates.push(flag),
+      checking,
+      failed,
+      schedule: (run) => {
+        const task = { run, cancelled: false };
+        tasks.push(task);
+        return () => {
+          task.cancelled = true;
+        };
+      },
+      now: () => 100,
+    });
+    controller.update(original);
+    for (const task of tasks.splice(0)) {
+      if (!task.cancelled) task.run();
+    }
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(calls).toEqual([
+      { selection: original, force: false },
+      { selection: original, force: true },
+    ]);
+    expect(statuses).toEqual([checking, staleReady, freshReady]);
+    expect(refreshingStates).toContain(true);
+    expect(refreshingStates.at(-1)).toBe(false);
+    controller.dispose();
+  });
 });
