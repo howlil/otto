@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { AssistantProfile, LearningMode } from "../../src/platform/tauri";
 import { AgentComposer } from "../../src/features/agent/conversation/AgentComposer";
 import { AgentHeader } from "../../src/features/agent/conversation/AgentHeader";
+import { AgentPanel } from "../../src/features/agent/conversation/AgentPanel";
 import { AgentTranscript } from "../../src/features/agent/transcript/AgentTranscript";
 import { ProfileSettings } from "../../src/features/agent/settings/ProfileSettings";
 import {
@@ -307,5 +308,130 @@ describe("Profile settings and empty state starters", () => {
     fireEvent.click(screen.getByRole("button", { name: /Learn step by step/ }));
     expect(mode).toBe("mentor");
     expect(draft).toContain("Guide me step by step");
+  });
+
+  test("opening header or mode popovers expands measured panel height to prevent clipping and restores on close", () => {
+    const measured: number[] = [];
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollHeight",
+    );
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get() {
+        const role = (this as HTMLElement).getAttribute?.("role");
+        if (role === "dialog") return 340;
+        if (role === "menu") return 290;
+        return 120;
+      },
+    });
+    try {
+      render(
+        <AgentPanel
+          agent={{
+            snapshot: {
+              runId: 0,
+              seq: 0,
+              status: "idle",
+              provider: "codex",
+              threadId: null,
+              model: "gpt-5",
+              thinkingEffort: "high",
+              usage: null,
+              rateLimits: [],
+              messages: [],
+              activity: [],
+              capture: { requestId: 0, phase: "idle", error: null },
+              error: null,
+            },
+            installed: true,
+            readiness: {
+              status: "ready",
+              message: "",
+              recovery: "",
+              imageInput: true,
+              imageTransport: true,
+              model: "gpt-5",
+              models: [
+                {
+                  id: "gpt-5",
+                  displayName: "GPT-5",
+                  contextWindow: 400_000,
+                  imageInput: true,
+                  thinkingEfforts: ["low", "high"],
+                  defaultThinkingEffort: "high",
+                },
+              ],
+              thinkingEffort: "high",
+              thinkingEfforts: ["low", "high"],
+            },
+            providers: [{ id: "codex", displayName: "Codex", command: "codex", installed: true }],
+            history: {
+              items: [],
+              loading: false,
+              pending: false,
+              error: null,
+              refresh: async () => {},
+              open: async () => true,
+              rename: async () => true,
+              remove: async () => true,
+              removeAll: async () => true,
+              search: async () => {},
+              exportMarkdown: async () => "",
+            },
+            draft: "",
+            setDraft: () => {},
+            provider: "codex",
+            model: "gpt-5",
+            thinkingEffort: "high",
+            setProvider: () => {},
+            setModel: () => {},
+            setThinkingEffort: () => {},
+            mode: "direct",
+            setMode: () => {},
+            locked: false,
+            error: null,
+            busy: false,
+            captureBusy: false,
+            captureNow: async () => {},
+            send: async () => {},
+            stop: async () => {},
+            newSession: async () => {},
+            refreshProvider: async () => {},
+            retryConnection: async () => {},
+            clearError: () => {},
+            errorKind: null,
+          }}
+          settingsButtonRef={{ current: null }}
+          onSettings={() => {}}
+          onConfigureCapture={() => {}}
+          onMeasured={(height) => measured.push(height)}
+          reducedMotion
+        />,
+      );
+
+      const baseHeight = measured.at(-1) ?? 0;
+      fireEvent.click(screen.getByRole("button", { name: /Codex/ }));
+      const withHeaderPopover = measured.at(-1) ?? 0;
+      expect(withHeaderPopover).toBeGreaterThanOrEqual(410);
+      expect(withHeaderPopover).toBeGreaterThan(baseHeight);
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(measured.at(-1)).toBe(baseHeight);
+
+      fireEvent.click(screen.getByRole("button", { name: /Learning mode: Direct/ }));
+      const withModeMenu = measured.at(-1) ?? 0;
+      expect(withModeMenu).toBeGreaterThanOrEqual(370);
+      expect(withModeMenu).toBeGreaterThan(baseHeight);
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(measured.at(-1)).toBe(baseHeight);
+    } finally {
+      if (originalScrollHeight) {
+        Object.defineProperty(HTMLElement.prototype, "scrollHeight", originalScrollHeight);
+      } else {
+        delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight;
+      }
+    }
   });
 });

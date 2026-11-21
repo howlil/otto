@@ -11,6 +11,7 @@ import {
   quickActionsForCapture,
   type CaptureQuickAction,
 } from "../capture/quick-actions";
+import { usePopoverFit } from "./popover-fit";
 
 export function StagedCaptureBar({
   staged,
@@ -87,6 +88,8 @@ export function ComposerCameraControl({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const maxHeight = usePopoverFit(open && Boolean(onCaptureSource), "bottom", menuRef);
   const retry = capturePhase === "failed";
   const disabled = busy || captureBusy;
 
@@ -139,8 +142,10 @@ export function ComposerCameraControl({
       )}
       {open && onCaptureSource && (
         <div
+          ref={menuRef}
           role="menu"
-          className="absolute bottom-full left-0 z-30 mb-2 w-[224px] rounded-otto-card border border-otto-line-strong bg-otto-surface p-1.5 shadow-lg"
+          style={maxHeight ? { maxHeight } : undefined}
+          className="otto-scrollbar-hidden absolute bottom-full left-0 z-30 mb-2 w-[224px] overflow-y-auto rounded-otto-card border border-otto-line-strong bg-otto-surface p-1.5 shadow-lg"
         >
           {VISUAL_CAPTURE_SOURCES.map((option) => {
             const active = captureSource === option.id;

@@ -54,7 +54,7 @@ export function SettingsSurface({
         </Text>
       </header>
       <div className="grid min-h-0 flex-1 grid-cols-[132px_minmax(0,1fr)]">
-        <div className="border-r border-otto-line-soft bg-otto-nav-bg">
+        <div className="border-r border-otto-line-soft bg-otto-nav-glass">
           <div ref={nav}>
             <SettingsNav tab={tab} onSelect={setSettingsTab} />
           </div>
@@ -84,6 +84,7 @@ export function SettingsSurface({
               {tab === "general" && (
                 <GeneralSettings
                   prefs={shell.prefs}
+                  change={shell.change}
                   update={appUpdate}
                   captureProtected={shell.captureProtected}
                   captureProtectionSupported={shell.captureProtectionSupported}

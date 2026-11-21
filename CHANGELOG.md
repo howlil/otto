@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-22
+
+### Fixed
+- Dynamically accommodate notch panel height and add internal scroll bounds for header (`EngineQuickPopover`) and composer (`LearningModePicker`, `SlashModeMenu`, visual capture source menu) popovers so menus no longer clip in compact or empty chat states, with slightly wider popover proportions for readability.
+
+### Added
+- User-configurable notch background style (`Solid` or `Transparent`) with a manual `Opacity` slider (`30%`–`95%`) in **Settings → General**, syncing opacity across the notch body, attached shoulders, Settings sidebar, and Otto OS surface.
+
 ## [1.1.0] - 2026-11-21
 
 ### Added
@@ -44,7 +52,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Security
 - Enforced zero auto-approval (`G8`) for all incoming CLI host permission requests and deterministic drop-based cleanup for ephemeral staged capture files without logging secrets or images.
 
-[Unreleased]: https://github.com/howlil/otto/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/howlil/otto/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/howlil/otto/compare/v1.3.0...v1.3.1
 [1.1.0]: https://github.com/howlil/otto/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/howlil/otto/compare/v0.3.1...v1.0.0
 [0.3.1]: https://github.com/howlil/otto/compare/v0.3.0...v0.3.1

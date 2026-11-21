@@ -5,6 +5,7 @@ import { useShellPlacement, type PlacementStatus } from "./useShellPlacement";
 import { useShellPreferences } from "./useShellPreferences";
 import { useOttoOs, useOttoOsDock } from "./useOttoOs";
 import { useShellShortcut } from "./useShellShortcut";
+import { surfaceOpacityPercent } from "../model/preferences";
 import type { ShellViewModel } from "../model/view-model";
 
 export type { PlacementStatus } from "./useShellPlacement";
@@ -25,9 +26,13 @@ export function useNotchShell() {
     [docked, preferences.prefs],
   );
   useOttoOsDock(ottoOs && !docked, preferences.resetPanelPosition);
+  const surfaceOpacity = surfaceOpacityPercent(preferences.prefs);
   useEffect(() => {
     document.documentElement.toggleAttribute("data-otto-os", ottoOs);
   }, [ottoOs]);
+  useEffect(() => {
+    document.documentElement.style.setProperty("--otto-surface-opacity", `${surfaceOpacity}%`);
+  }, [surfaceOpacity]);
   const interaction = useShellInteraction({
     prefs: interactionPrefs,
     surfaceKey: placement.placement.applied,

@@ -3,6 +3,7 @@ export type SettingsTab = "assistant" | "capture" | "behavior" | "position" | "g
 export type SettingsFocus = "capture-shortcut";
 export type Motion = "fluid" | "gentle" | "reduced";
 export type Placement = "floating" | "attached";
+export type BackgroundStyle = "solid" | "transparent";
 export type PanelPosition = { x: number; y: number };
 
 export type Preferences = {
@@ -15,6 +16,8 @@ export type Preferences = {
   motion: Motion;
   topOffset: number;
   position: PanelPosition | null;
+  backgroundStyle: BackgroundStyle;
+  backgroundOpacity: number;
 };
 
 export const defaults: Preferences = {
@@ -27,16 +30,22 @@ export const defaults: Preferences = {
   motion: "fluid",
   topOffset: 20,
   position: null,
+  backgroundStyle: "solid",
+  backgroundOpacity: 78,
 };
+
+export const BACKGROUND_OPACITY_RANGE = [30, 95] as const;
 
 const limits: Partial<Record<keyof Preferences, readonly [number, number]>> = {
   hoverDelay: [0, 400],
   leaveDelay: [0, 650],
   topOffset: [0, 64],
+  backgroundOpacity: BACKGROUND_OPACITY_RANGE,
 };
 const choices: Partial<Record<keyof Preferences, readonly string[]>> = {
   motion: ["fluid", "gentle", "reduced"],
   placement: ["floating", "attached"],
+  backgroundStyle: ["solid", "transparent"],
 };
 
 function validPreference(key: keyof Preferences, value: unknown): boolean {
@@ -56,12 +65,22 @@ function validPreference(key: keyof Preferences, value: unknown): boolean {
     const range = limits[key];
     return (
       Number.isFinite(value) &&
-      (key !== "topOffset" || Number.isInteger(value)) &&
+      ((key !== "topOffset" && key !== "backgroundOpacity") || Number.isInteger(value)) &&
       Boolean(range && value >= range[0] && value <= range[1])
     );
   }
   if (typeof value === "string") return choices[key]?.includes(value) ?? false;
   return typeof value === "boolean";
+}
+
+export function surfaceOpacityPercent(
+  prefs?: Partial<Pick<Preferences, "backgroundStyle" | "backgroundOpacity">> | null,
+): number {
+  if (prefs?.backgroundStyle !== "transparent") return 100;
+  const raw = prefs.backgroundOpacity;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return defaults.backgroundOpacity;
+  const [min, max] = BACKGROUND_OPACITY_RANGE;
+  return Math.max(min, Math.min(max, Math.round(raw)));
 }
 
 export function readPreferences(): Preferences {

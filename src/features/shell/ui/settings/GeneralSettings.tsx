@@ -1,7 +1,54 @@
 import { useState } from "react";
-import { Button, SettingRow, StatusMessage, Toggle } from "../../../../shared/ui";
+import {
+  Button,
+  ChoiceGroup,
+  Range,
+  SettingRow,
+  StatusMessage,
+  Toggle,
+} from "../../../../shared/ui";
 import type { AppUpdateState } from "../../hooks/useAppUpdate";
-import type { Preferences } from "../../model/preferences";
+import {
+  BACKGROUND_OPACITY_RANGE,
+  type BackgroundStyle,
+  type Preferences,
+} from "../../model/preferences";
+
+const backgroundChoices = [
+  { value: "solid" as const, label: "Solid" },
+  { value: "transparent" as const, label: "Transparent" },
+];
+
+function BackgroundSettings({
+  prefs,
+  change,
+}: {
+  prefs: Preferences;
+  change: (patch: Partial<Preferences>) => void;
+}) {
+  const [minOpacity, maxOpacity] = BACKGROUND_OPACITY_RANGE;
+  return (
+    <>
+      <SettingRow title="Background" help="Solid dark or see-through surface">
+        <ChoiceGroup<BackgroundStyle>
+          value={prefs.backgroundStyle}
+          choices={backgroundChoices}
+          onChange={(backgroundStyle) => change({ backgroundStyle })}
+        />
+      </SettingRow>
+      {prefs.backgroundStyle === "transparent" && (
+        <Range
+          label="Opacity"
+          value={prefs.backgroundOpacity}
+          min={minOpacity}
+          max={maxOpacity}
+          unit="%"
+          onChange={(backgroundOpacity) => change({ backgroundOpacity })}
+        />
+      )}
+    </>
+  );
+}
 
 function updateHelp(state: AppUpdateState): string {
   switch (state.status) {
@@ -33,6 +80,7 @@ function captureNotice(
 
 export function GeneralSettings({
   prefs,
+  change,
   update,
   captureProtected,
   captureProtectionSupported,
@@ -43,6 +91,7 @@ export function GeneralSettings({
   onQuit,
 }: {
   prefs: Preferences;
+  change: (patch: Partial<Preferences>) => void;
   update: {
     state: AppUpdateState;
     checkForUpdate: () => Promise<void>;
@@ -67,6 +116,7 @@ export function GeneralSettings({
   const { state } = update;
   return (
     <div>
+      <BackgroundSettings prefs={prefs} change={change} />
       <Toggle
         title="Hide from screen capture"
         help="Best effort. Some recorders may still show Otto."

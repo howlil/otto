@@ -124,10 +124,24 @@ describe("one Settings surface", () => {
     expect(screen.queryByText("Motion profile")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "General" }));
+    expect(screen.getByText("Background")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Solid" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("slider", { name: /Opacity/ })).toBeNull();
     expect(screen.getByRole("checkbox", { name: /Hide from screen capture/ })).toBeTruthy();
     expect(screen.getByText("Updates")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Quit" })).toBeTruthy();
     expect(screen.queryByText("Software update")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Transparent" }));
+    const slider = screen.getByRole("slider", { name: /Opacity/ }) as HTMLInputElement;
+    expect(slider.value).toBe("78");
+    fireEvent.change(slider, { target: { value: "64" } });
+    expect(slider.value).toBe("64");
+
+    fireEvent.click(screen.getByRole("button", { name: "Solid" }));
+    expect(screen.queryByRole("slider", { name: /Opacity/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Transparent" }));
+    expect((screen.getByRole("slider", { name: /Opacity/ }) as HTMLInputElement).value).toBe("64");
   });
 
   test("toggles apply immediately without a save button", () => {

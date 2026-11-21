@@ -1,5 +1,6 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { AgentHeader, type AgentHeaderView } from "./AgentHeader";
+import { AgentPopoverFitProvider, usePanelMeasuredHeight } from "./popover-fit";
 import { AgentTranscript } from "../transcript/AgentTranscript";
 import { History } from "../history/History";
 import { resolveRateLimits } from "../model/rate-limits";
@@ -76,72 +77,80 @@ export function AgentPanel({
   const captureHandlers = usePanelCaptureHandlers(agent);
   const [historyOpen, setHistoryOpen] = useState(false);
   const view: AgentHeaderView = historyOpen ? "history" : "chat";
+  const panelRef = useRef<HTMLElement>(null);
+  const { onContentMeasured, onOverlayHeightChange } = usePanelMeasuredHeight(
+    historyOpen,
+    onMeasured,
+  );
 
   useEffect(() => {
     if (historyOpen) void agent.history.refresh();
   }, [historyOpen, agent.history.refresh]);
 
   return (
-    <section
-      className={`flex h-full min-h-0 flex-col ${eventMotion === "otto-failed" ? "motion-safe:animate-otto-shake" : ""}`}
-      data-surface="agent"
-      data-status={snapshot.status}
-      data-capture-phase={snapshot.capture.phase}
-    >
-      <AgentHeader
-        view={view}
-        provider={snapshot.threadId ? snapshot.provider : provider}
-        model={agent.model}
-        thinkingEffort={agent.thinkingEffort}
-        hasThread={snapshot.threadId !== null || snapshot.messages.length > 0}
-        resetBusy={busy || captureBusy}
-        onBack={() => setHistoryOpen(false)}
-        onSettings={onSettings}
-        onHistory={() => setHistoryOpen(true)}
-        onNewSession={() => void newSession()}
-        gearRef={settingsButtonRef}
-        runtimeSwitcher={{
-          providers: agent.providers,
-          readiness: agent.readiness,
-          pinnedModels: agent.pinnedModels,
-          rateLimits: resolveRateLimits(provider, agent.readiness, snapshot),
-          locked: agent.locked,
-          onSelectProvider: agent.setProvider,
-          onSelectModel: agent.setModel,
-          onTogglePinModel: agent.togglePinnedModel,
-          onSelectThinkingEffort: agent.setThinkingEffort,
-          onOpenSettings: onSettings,
-        }}
-      />
-      <TransitionContent
-        transitionKey={`agent-${view}`}
-        direction={view === "chat" ? "back" : "forward"}
-        reducedMotion={reducedMotion}
-        className="min-h-0 flex-1"
+    <AgentPopoverFitProvider panelRef={panelRef} onOverlayHeightChange={onOverlayHeightChange}>
+      <section
+        ref={panelRef}
+        className={`flex h-full min-h-0 flex-col ${eventMotion === "otto-failed" ? "motion-safe:animate-otto-shake" : ""}`}
+        data-surface="agent"
+        data-status={snapshot.status}
+        data-capture-phase={snapshot.capture.phase}
       >
-        {view === "history" ? (
-          <History
-            history={agent.history}
-            activeConversationId={snapshot.messages.length > 0 ? snapshot.conversationId : null}
-            busy={busy || captureBusy}
-            onDone={() => setHistoryOpen(false)}
-            onMeasured={onMeasured}
-          />
-        ) : (
-          <AgentTranscript
-            agent={agent}
-            captureSource={agent.capture?.source ?? "window"}
-            captureShortcut={agent.capture?.shortcut}
-            onInsert={agent.insertText}
-            captureActionError={captureHandlers.captureActionError}
-            onMeasured={onMeasured}
-            onCapture={captureHandlers.onCapture}
-            onCaptureSource={captureHandlers.onCaptureSource}
-            onStageImage={captureHandlers.onStageImage}
-            onConfigureCapture={onConfigureCapture}
-          />
-        )}
-      </TransitionContent>
-    </section>
+        <AgentHeader
+          view={view}
+          provider={snapshot.threadId ? snapshot.provider : provider}
+          model={agent.model}
+          thinkingEffort={agent.thinkingEffort}
+          hasThread={snapshot.threadId !== null || snapshot.messages.length > 0}
+          resetBusy={busy || captureBusy}
+          onBack={() => setHistoryOpen(false)}
+          onSettings={onSettings}
+          onHistory={() => setHistoryOpen(true)}
+          onNewSession={() => void newSession()}
+          gearRef={settingsButtonRef}
+          runtimeSwitcher={{
+            providers: agent.providers,
+            readiness: agent.readiness,
+            pinnedModels: agent.pinnedModels,
+            rateLimits: resolveRateLimits(provider, agent.readiness, snapshot),
+            locked: agent.locked,
+            onSelectProvider: agent.setProvider,
+            onSelectModel: agent.setModel,
+            onTogglePinModel: agent.togglePinnedModel,
+            onSelectThinkingEffort: agent.setThinkingEffort,
+            onOpenSettings: onSettings,
+          }}
+        />
+        <TransitionContent
+          transitionKey={`agent-${view}`}
+          direction={view === "chat" ? "back" : "forward"}
+          reducedMotion={reducedMotion}
+          className="min-h-0 flex-1"
+        >
+          {view === "history" ? (
+            <History
+              history={agent.history}
+              activeConversationId={snapshot.messages.length > 0 ? snapshot.conversationId : null}
+              busy={busy || captureBusy}
+              onDone={() => setHistoryOpen(false)}
+              onMeasured={onMeasured}
+            />
+          ) : (
+            <AgentTranscript
+              agent={agent}
+              captureSource={agent.capture?.source ?? "window"}
+              captureShortcut={agent.capture?.shortcut}
+              onInsert={agent.insertText}
+              captureActionError={captureHandlers.captureActionError}
+              onMeasured={onContentMeasured}
+              onCapture={captureHandlers.onCapture}
+              onCaptureSource={captureHandlers.onCaptureSource}
+              onStageImage={captureHandlers.onStageImage}
+              onConfigureCapture={onConfigureCapture}
+            />
+          )}
+        </TransitionContent>
+      </section>
+    </AgentPopoverFitProvider>
   );
 }

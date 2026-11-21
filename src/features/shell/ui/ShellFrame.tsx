@@ -14,6 +14,7 @@ export function ShellFrame({
   children,
   recovery,
   expanded = false,
+  surfaceOpacity = 100,
 }: {
   expanded?: boolean;
   placement: Placement;
@@ -25,12 +26,14 @@ export function ShellFrame({
   stageRef: RefObject<HTMLDivElement | null>;
   children: ReactNode;
   recovery?: RecoveryFrame | null;
+  surfaceOpacity?: number;
 }) {
   const attached = placement === "attached" && gutter > 0;
   const center = ((nativeSize?.width ?? size?.width ?? 0) - (size?.width ?? 0)) / 2;
   const correction = (Math.round(center * scale) - center * scale) / scale;
   const style: CSSProperties = {
     ["--otto-morph-duration" as string]: `${morphMs}ms`,
+    ["--otto-surface-opacity" as string]: `${surfaceOpacity}%`,
     ...(recovery
       ? { ["--otto-shoulder" as string]: `${recovery.region.shoulder / recovery.scale}px` }
       : {}),
@@ -39,6 +42,7 @@ export function ShellFrame({
     <div
       className="relative h-full w-full"
       data-placement={attached ? "attached" : "floating"}
+      data-background={surfaceOpacity < 100 ? "transparent" : "solid"}
       data-sizing="mac-native"
       data-expanded={expanded ? "true" : "false"}
       style={style}

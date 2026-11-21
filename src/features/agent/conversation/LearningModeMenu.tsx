@@ -6,6 +6,7 @@ import {
   learningModeOption,
   type LearningModeOption,
 } from "../model/learning-mode";
+import { usePopoverFit } from "./popover-fit";
 
 export function LearningModePicker({
   mode,
@@ -21,6 +22,8 @@ export function LearningModePicker({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const maxHeight = usePopoverFit(open, "bottom", menuRef);
   const active = learningModeOption(mode);
 
   const closeAndRestore = () => {
@@ -71,8 +74,10 @@ export function LearningModePicker({
 
       {open && (
         <div
+          ref={menuRef}
           role="menu"
-          className={`absolute bottom-full z-30 mb-2 w-[236px] rounded-otto-card border border-otto-line-strong bg-otto-surface p-1.5 shadow-lg ${
+          style={maxHeight ? { maxHeight } : undefined}
+          className={`otto-scrollbar-hidden absolute bottom-full z-30 mb-2 w-[252px] overflow-y-auto rounded-otto-card border border-otto-line-strong bg-otto-surface p-1.5 shadow-lg ${
             align === "left" ? "left-0" : "right-0"
           }`}
         >
@@ -88,7 +93,7 @@ export function LearningModePicker({
                   onSelect(option.id);
                   closeAndRestore();
                 }}
-                className={`flex w-full items-start justify-between gap-2 rounded-otto-chip border-0 px-2 py-1.5 text-left transition-colors duration-150 ${
+                className={`flex w-full items-start justify-between gap-2 rounded-otto-chip border-0 px-2 py-1 text-left transition-colors duration-150 ${
                   selected
                     ? "bg-otto-selected text-otto-text-bright"
                     : "bg-transparent text-otto-text-secondary hover:bg-otto-control"
@@ -123,12 +128,16 @@ export function SlashModeMenu({
   highlightedIndex: number;
   onPick: (option: LearningModeOption) => void;
 }) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const maxHeight = usePopoverFit(options.length > 0, "bottom", menuRef);
   if (options.length === 0) return null;
   return (
     <div
+      ref={menuRef}
       role="listbox"
       aria-labelledby="otto-slash-modes-heading"
-      className="absolute inset-x-3 bottom-full z-30 mb-1.5 rounded-otto-card border border-otto-line-strong bg-otto-surface p-1.5 shadow-lg"
+      style={maxHeight ? { maxHeight } : undefined}
+      className="otto-scrollbar-hidden absolute inset-x-3 bottom-full z-30 mb-1.5 overflow-y-auto rounded-otto-card border border-otto-line-strong bg-otto-surface p-1.5 shadow-lg"
     >
       <span id="otto-slash-modes-heading" className="sr-only">
         Learning mode slash commands

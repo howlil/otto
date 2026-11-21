@@ -4,6 +4,7 @@ import {
   defaults,
   mergePreferences,
   readPreferences,
+  surfaceOpacityPercent,
 } from "../../src/features/shell/model/preferences";
 
 function readSaved(raw) {
@@ -50,5 +51,35 @@ describe("Shell preferences compatibility", () => {
     const result = readSaved(JSON.stringify({ hideFromCapture: "false", clickOutside: "false" }));
     expect(result.hideFromCapture).toBe(true);
     expect(result.clickOutside).toBe(true);
+  });
+  test("background defaults to solid and validates manual transparency bounds", () => {
+    expect(defaults.backgroundStyle).toBe("solid");
+    expect(defaults.backgroundOpacity).toBe(78);
+    expect(surfaceOpacityPercent(defaults)).toBe(100);
+
+    const transparent = readSaved(
+      JSON.stringify({ backgroundStyle: "transparent", backgroundOpacity: 62 }),
+    );
+    expect(transparent.backgroundStyle).toBe("transparent");
+    expect(transparent.backgroundOpacity).toBe(62);
+    expect(surfaceOpacityPercent(transparent)).toBe(62);
+
+    const invalid = readSaved(
+      JSON.stringify({ backgroundStyle: "glass", backgroundOpacity: 15 }),
+    );
+    expect(invalid.backgroundStyle).toBe("solid");
+    expect(invalid.backgroundOpacity).toBe(78);
+
+    const fractional = readSaved(
+      JSON.stringify({ backgroundStyle: "transparent", backgroundOpacity: 72.5 }),
+    );
+    expect(fractional.backgroundStyle).toBe("transparent");
+    expect(fractional.backgroundOpacity).toBe(78);
+    expect(surfaceOpacityPercent({ backgroundStyle: "transparent", backgroundOpacity: 12 })).toBe(
+      30,
+    );
+    expect(surfaceOpacityPercent({ backgroundStyle: "transparent", backgroundOpacity: 99 })).toBe(
+      95,
+    );
   });
 });

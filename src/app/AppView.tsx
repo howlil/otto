@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { ShellFrame, SurfaceError } from "../features/shell";
+import { ShellFrame, SurfaceError, surfaceOpacityPercent } from "../features/shell";
 import type { RefObject } from "react";
 import type {
   AppUpdateViewModel,
@@ -58,6 +58,7 @@ export function ShellView({
       stageRef={stageRef}
       recovery={recovery}
       expanded={shell.expanded}
+      surfaceOpacity={surfaceOpacityPercent(shell.prefs)}
     >
       <main
         className={`otto-shell-surface relative isolate h-full w-full cursor-grab overflow-hidden border border-otto-line bg-otto-surface-glass text-otto-text active:cursor-grabbing ${attached ? "rounded-t-none rounded-b-otto-attached border-t-transparent" : shell.expanded ? "rounded-otto-expanded" : "rounded-otto-island"} ${shell.expanded ? "" : attached ? "origin-top active:scale-[0.97]" : "origin-center active:scale-[0.97]"}`}

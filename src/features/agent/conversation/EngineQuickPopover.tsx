@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type {
   AgentProvider,
   AgentProviderDescriptor,
@@ -5,7 +6,6 @@ import type {
   ProviderReadiness,
 } from "../../../platform/tauri";
 import { Button, ChoiceGroup, Text } from "../../../shared/ui";
-import { providerLabel } from "../history/history-model";
 import { ModelPicker } from "../settings/ModelPicker";
 import { ProviderRateLimits } from "../settings/ProviderRateLimits";
 import {
@@ -13,6 +13,8 @@ import {
   resolveSelectedEffort,
   resolveThinkingEfforts,
 } from "../settings/model-usage";
+import { EngineChipList } from "./EngineChipList";
+import { usePopoverFit } from "./popover-fit";
 
 export type HeaderRuntimeSwitcher = {
   providers: AgentProviderDescriptor[];
@@ -26,49 +28,6 @@ export type HeaderRuntimeSwitcher = {
   onSelectThinkingEffort: (effort: string | null) => void;
   onOpenSettings: () => void;
 };
-
-function EngineChipList({
-  installed,
-  provider,
-  locked,
-  onSelect,
-}: {
-  installed: AgentProviderDescriptor[];
-  provider: AgentProvider;
-  locked: boolean;
-  onSelect: (provider: AgentProvider) => void;
-}) {
-  if (installed.length === 0) {
-    return (
-      <Text as="p" variant="caption" className="m-0 text-otto-text-tertiary">
-        No installed AI engines detected yet.
-      </Text>
-    );
-  }
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {installed.map((item) => {
-        const active = item.id === provider;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            aria-pressed={active}
-            disabled={locked}
-            onClick={() => onSelect(item.id)}
-            className={`rounded-otto-chip border px-2 py-1 text-otto-xs transition-colors duration-150 disabled:opacity-50 ${
-              active
-                ? "border-otto-line-focused bg-otto-selected text-otto-text-bright"
-                : "border-otto-line bg-otto-control text-otto-text-secondary hover:bg-otto-control-hover"
-            }`}
-          >
-            {providerLabel(item.id)}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 export function EngineQuickPopover({
   provider,
@@ -99,11 +58,16 @@ export function EngineQuickPopover({
     efforts,
   );
 
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const maxHeight = usePopoverFit(true, "top", popoverRef);
+
   return (
     <div
+      ref={popoverRef}
       role="dialog"
       aria-labelledby="otto-quick-engine-title"
-      className="absolute left-0 top-full z-30 mt-1.5 w-[296px] max-w-[calc(100vw-36px)] rounded-otto-card border border-otto-line-strong bg-otto-surface p-3 shadow-lg"
+      style={maxHeight ? { maxHeight } : undefined}
+      className="otto-scrollbar-hidden absolute left-0 top-full z-30 mt-1.5 w-[336px] max-w-[calc(100vw-36px)] overflow-y-auto rounded-otto-card border border-otto-line-strong bg-otto-surface p-3 shadow-lg"
     >
       <h2 id="otto-quick-engine-title" className="sr-only">
         Switch AI engine and model

@@ -5,8 +5,11 @@ export { useAppUpdate, type AppUpdateState } from "./hooks/useAppUpdate";
 export { useNotchShell, type PlacementStatus } from "./hooks/useNotchShell";
 export type { AppUpdateViewModel, ShellViewModel } from "./model/view-model";
 export {
+  BACKGROUND_OPACITY_RANGE,
   defaults,
   readPreferences,
+  surfaceOpacityPercent,
+  type BackgroundStyle,
   type Motion,
   type PanelPosition,
   type Page,

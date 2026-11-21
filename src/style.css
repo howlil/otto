@@ -21,6 +21,7 @@
   --color-otto-selected: #303034;
   --color-otto-selected-hover: #393b40;
   --color-otto-nav-bg: #181818;
+  --color-otto-nav-glass: #181818;
   --color-otto-line-soft: #2b2c2f;
   --color-otto-muted-strong: #a6a6ab;
   --color-otto-hover-text: #e9e9e9;
@@ -183,6 +184,20 @@
   font-synthesis: none;
   color-scheme: dark;
   background: transparent;
+  --otto-surface-opacity: 100%;
+}
+:root,
+[data-placement] {
+  --color-otto-surface-glass: color-mix(
+    in srgb,
+    var(--color-otto-surface) var(--otto-surface-opacity, 100%),
+    transparent
+  );
+  --color-otto-nav-glass: color-mix(
+    in srgb,
+    var(--color-otto-nav-bg) var(--otto-surface-opacity, 100%),
+    transparent
+  );
 }
 body {
   font-size: var(--text-otto-md);
@@ -754,6 +769,6 @@ h4.md-h {
 
 :root[data-otto-os] {
   --color-otto-surface: var(--color-otto-obsidian);
-  --color-otto-surface-glass: var(--color-otto-obsidian);
+  --color-otto-nav-bg: var(--color-otto-obsidian);
   --color-otto-line: rgb(255 255 255 / 14%);
 }
