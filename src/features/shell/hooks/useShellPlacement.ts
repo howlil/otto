@@ -7,6 +7,7 @@ export type PlacementStatus = {
   requested: Placement;
   supported: boolean;
   ottoOs: boolean;
+  circleMode: boolean;
   error: string | null;
   attempt: number;
   change: (placement: Placement) => void;
@@ -21,13 +22,14 @@ export function useShellPlacement(
   resetPosition: () => void,
   ottoOs: boolean,
 ) {
+  const circleMode = prefs.compactStyle === "circle";
   const [appliedPlacement, setAppliedPlacement] = useState<Placement>("floating");
   const [placementError, setPlacementError] = useState<string | null>(null);
   const [placementAttempt, setPlacementAttempt] = useState(0);
   const requestedPlacement = useRef<Placement>(prefs.placement);
   requestedPlacement.current = prefs.placement;
-  const ottoOsRef = useRef(ottoOs);
-  ottoOsRef.current = ottoOs;
+  const floatingOverrideRef = useRef(ottoOs || circleMode);
+  floatingOverrideRef.current = ottoOs || circleMode;
 
   const changePlacement = useCallback(
     (placement: Placement) => {
@@ -44,7 +46,7 @@ export function useShellPlacement(
   const syncPlacement = useCallback(
     (observed: NotchPlacement) => {
       setAppliedPlacement(observed);
-      if (ottoOsRef.current || requestedPlacement.current === observed) {
+      if (floatingOverrideRef.current || requestedPlacement.current === observed) {
         setPlacementError(null);
         return;
       }
@@ -60,6 +62,7 @@ export function useShellPlacement(
       requested: prefs.placement,
       supported,
       ottoOs,
+      circleMode,
       error: placementError,
       attempt: placementAttempt,
       change: changePlacement,

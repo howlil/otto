@@ -4,3 +4,5 @@ pub mod overlay;
 pub mod region;
 pub mod shell_shortcut;
 pub mod single_instance;
+pub mod voice_audio;
+pub mod voice_shortcut;

@@ -60,6 +60,7 @@ export function ComposerActionRow({
   expanded,
   captureControl,
   modeControl,
+  voiceControl,
   busy,
   stopping,
   canSend,
@@ -70,6 +71,7 @@ export function ComposerActionRow({
   expanded: boolean;
   captureControl: ReactNode;
   modeControl: ReactNode;
+  voiceControl?: ReactNode;
   busy: boolean;
   stopping: boolean;
   canSend: boolean;
@@ -89,14 +91,17 @@ export function ComposerActionRow({
       ) : (
         modeControl
       )}
-      <SubmitControl
-        busy={busy}
-        stopping={stopping}
-        canSend={canSend}
-        canQueue={canQueue}
-        onQueueFollowup={onQueueFollowup}
-        stop={stop}
-      />
+      <div className="flex shrink-0 items-center gap-1">
+        {voiceControl}
+        <SubmitControl
+          busy={busy}
+          stopping={stopping}
+          canSend={canSend}
+          canQueue={canQueue}
+          onQueueFollowup={onQueueFollowup}
+          stop={stop}
+        />
+      </div>
     </div>
   );
 }

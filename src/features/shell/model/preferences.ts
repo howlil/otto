@@ -1,13 +1,15 @@
 export type Page = "agent" | "settings";
-export type SettingsTab = "assistant" | "capture" | "behavior" | "position" | "general";
+export type SettingsTab = "assistant" | "capture" | "voice" | "behavior" | "position" | "general";
 export type SettingsFocus = "capture-shortcut";
 export type Motion = "fluid" | "gentle" | "reduced";
 export type Placement = "floating" | "attached";
+export type CompactStyle = "capsule" | "circle";
 export type BackgroundStyle = "solid" | "transparent";
 export type PanelPosition = { x: number; y: number };
 
 export type Preferences = {
   placement: Placement;
+  compactStyle: CompactStyle;
   hoverExpand: boolean;
   hoverDelay: number;
   leaveDelay: number;
@@ -22,6 +24,7 @@ export type Preferences = {
 
 export const defaults: Preferences = {
   placement: "floating",
+  compactStyle: "capsule",
   hoverExpand: true,
   hoverDelay: 150,
   leaveDelay: 340,
@@ -45,6 +48,7 @@ const limits: Partial<Record<keyof Preferences, readonly [number, number]>> = {
 const choices: Partial<Record<keyof Preferences, readonly string[]>> = {
   motion: ["fluid", "gentle", "reduced"],
   placement: ["floating", "attached"],
+  compactStyle: ["capsule", "circle"],
   backgroundStyle: ["solid", "transparent"],
 };
 

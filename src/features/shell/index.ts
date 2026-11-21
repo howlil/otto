@@ -10,6 +10,7 @@ export {
   readPreferences,
   surfaceOpacityPercent,
   type BackgroundStyle,
+  type CompactStyle,
   type Motion,
   type PanelPosition,
   type Page,

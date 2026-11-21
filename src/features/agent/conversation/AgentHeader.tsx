@@ -18,6 +18,9 @@ export function AgentHeader({
   onNewSession,
   gearRef,
   runtimeSwitcher,
+  compactCircle,
+  compactStyleLocked,
+  onToggleCompactStyle,
 }: {
   view: AgentHeaderView;
   provider: AgentProvider;
@@ -31,6 +34,9 @@ export function AgentHeader({
   onNewSession: () => void;
   gearRef: RefObject<HTMLButtonElement | null>;
   runtimeSwitcher?: HeaderRuntimeSwitcher;
+  compactCircle?: boolean;
+  compactStyleLocked?: boolean;
+  onToggleCompactStyle?: () => void;
 }) {
   const back = useRef<HTMLButtonElement>(null);
   const historyButton = useRef<HTMLButtonElement>(null);
@@ -69,6 +75,9 @@ export function AgentHeader({
           onHistory={onHistory}
           onNewSession={onNewSession}
           onSettings={onSettings}
+          compactCircle={compactCircle}
+          compactStyleLocked={compactStyleLocked}
+          onToggleCompactStyle={onToggleCompactStyle}
         />
       )}
     </header>

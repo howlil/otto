@@ -3,6 +3,7 @@ import { nativeAvailable } from "./runtime";
 
 export type NotchSurface =
   | "agentCompact"
+  | "agentCompactCircle"
   | "settings"
   | "agentReady"
   | "agentThinking"

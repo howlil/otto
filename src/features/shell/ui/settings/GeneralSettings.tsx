@@ -3,6 +3,7 @@ import {
   Button,
   ChoiceGroup,
   Range,
+  SettingGroup,
   SettingRow,
   StatusMessage,
   Toggle,
@@ -29,7 +30,7 @@ function BackgroundSettings({
   const [minOpacity, maxOpacity] = BACKGROUND_OPACITY_RANGE;
   return (
     <>
-      <SettingRow title="Background" help="Solid dark or see-through surface">
+      <SettingRow title="Background" help="Solid dark, or see-through so your desktop shows behind">
         <ChoiceGroup<BackgroundStyle>
           value={prefs.backgroundStyle}
           choices={backgroundChoices}
@@ -116,47 +117,53 @@ export function GeneralSettings({
   const { state } = update;
   return (
     <div>
-      <BackgroundSettings prefs={prefs} change={change} />
-      <Toggle
-        title="Hide from screen capture"
-        help="Best effort. Some recorders may still show Otto."
-        checked={captureProtected ?? prefs.hideFromCapture}
-        disabled={!captureProtectionSupported || captureProtectionPending}
-        onChange={(enabled) => void setCaptureProtection(enabled)}
-      />
-      {notice && (
-        <StatusMessage tone={captureProtectionError ? "error" : "info"}>{notice}</StatusMessage>
-      )}
-      <SettingRow title="Updates" help={updateHelp(state)}>
-        {state.status === "available" && (
-          <Button size="xs" onClick={() => void update.installUpdate()}>
-            Update now
-          </Button>
+      <SettingGroup title="Appearance">
+        <BackgroundSettings prefs={prefs} change={change} />
+      </SettingGroup>
+      <SettingGroup title="Privacy">
+        <Toggle
+          title="Hide from screen capture"
+          help="Keeps Otto out of screenshots and recordings. Some recorders may still show it."
+          checked={captureProtected ?? prefs.hideFromCapture}
+          disabled={!captureProtectionSupported || captureProtectionPending}
+          onChange={(enabled) => void setCaptureProtection(enabled)}
+        />
+        {notice && (
+          <StatusMessage tone={captureProtectionError ? "error" : "info"}>{notice}</StatusMessage>
         )}
-        {state.status === "error" && (
-          <Button variant="quiet" size="xs" onClick={() => void update.checkForUpdate()}>
-            Try again
+      </SettingGroup>
+      <SettingGroup title="App">
+        <SettingRow title="Updates" help={updateHelp(state)}>
+          {state.status === "available" && (
+            <Button size="xs" onClick={() => void update.installUpdate()}>
+              Update now
+            </Button>
+          )}
+          {state.status === "error" && (
+            <Button variant="quiet" size="xs" onClick={() => void update.checkForUpdate()}>
+              Try again
+            </Button>
+          )}
+        </SettingRow>
+        <SettingRow title="Quit Otto" help="Closes Otto and stops any answer in progress">
+          <Button
+            size="xs"
+            disabled={!quitSupported || quitPending}
+            aria-busy={quitPending}
+            onClick={() => {
+              setQuitPending(true);
+              setQuitError(null);
+              void onQuit().catch((error) => {
+                setQuitPending(false);
+                setQuitError(error instanceof Error ? error.message : String(error));
+              });
+            }}
+          >
+            {quitPending ? "Quitting…" : "Quit"}
           </Button>
-        )}
-      </SettingRow>
-      <SettingRow title="Quit Otto" help="Stops active AI work">
-        <Button
-          size="xs"
-          disabled={!quitSupported || quitPending}
-          aria-busy={quitPending}
-          onClick={() => {
-            setQuitPending(true);
-            setQuitError(null);
-            void onQuit().catch((error) => {
-              setQuitPending(false);
-              setQuitError(error instanceof Error ? error.message : String(error));
-            });
-          }}
-        >
-          {quitPending ? "Quitting…" : "Quit"}
-        </Button>
-      </SettingRow>
-      {quitError && <StatusMessage tone="error">{quitError}</StatusMessage>}
+        </SettingRow>
+        {quitError && <StatusMessage tone="error">{quitError}</StatusMessage>}
+      </SettingGroup>
     </div>
   );
 }

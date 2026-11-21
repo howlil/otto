@@ -7,3 +7,4 @@ pub mod notch_follow;
 pub mod otto_os;
 pub mod overlay;
 pub mod shell_shortcut;
+pub mod voice;

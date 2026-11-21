@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { AgentHeader, type AgentHeaderView } from "./AgentHeader";
 import { AgentPopoverFitProvider, usePanelMeasuredHeight } from "./popover-fit";
 import { AgentTranscript } from "../transcript/AgentTranscript";
@@ -16,6 +16,12 @@ type Props = {
   eventMotion?: string;
   onMeasured: (height: number) => void;
   reducedMotion: boolean;
+  compactCircle?: boolean;
+  compactStyleLocked?: boolean;
+  onToggleCompactStyle?: () => void;
+  voiceControl?: ReactNode;
+  speakingMessageId?: string | null;
+  onToggleSpeak?: (messageId: string, text: string) => void;
 };
 
 function toCaptureError(error: unknown, fallback: string): string {
@@ -72,6 +78,12 @@ export function AgentPanel({
   eventMotion,
   onMeasured,
   reducedMotion,
+  compactCircle,
+  compactStyleLocked,
+  onToggleCompactStyle,
+  voiceControl,
+  speakingMessageId,
+  onToggleSpeak,
 }: Props) {
   const { snapshot, provider, busy, captureBusy, newSession } = agent;
   const captureHandlers = usePanelCaptureHandlers(agent);
@@ -108,6 +120,9 @@ export function AgentPanel({
           onHistory={() => setHistoryOpen(true)}
           onNewSession={() => void newSession()}
           gearRef={settingsButtonRef}
+          compactCircle={compactCircle}
+          compactStyleLocked={compactStyleLocked}
+          onToggleCompactStyle={onToggleCompactStyle}
           runtimeSwitcher={{
             providers: agent.providers,
             readiness: agent.readiness,
@@ -147,6 +162,9 @@ export function AgentPanel({
               onCaptureSource={captureHandlers.onCaptureSource}
               onStageImage={captureHandlers.onStageImage}
               onConfigureCapture={onConfigureCapture}
+              voiceControl={voiceControl}
+              speakingMessageId={speakingMessageId}
+              onToggleSpeak={onToggleSpeak}
             />
           )}
         </TransitionContent>

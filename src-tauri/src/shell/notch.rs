@@ -3,6 +3,7 @@ pub const MAX_TOP_OFFSET: u32 = 64;
 pub fn surface_layouts() -> std::collections::BTreeMap<&'static str, (u32, u32)> {
     [
         ("agentCompact", (228, 40)),
+        ("agentCompactCircle", (40, 40)),
         ("agentReady", (526, 170)),
         ("agentThinking", (526, 236)),
         ("agentFull", (526, 346)),

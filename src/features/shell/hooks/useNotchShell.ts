@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { nativeAvailable } from "../../../platform/tauri/runtime";
 import { useShellInteraction } from "./useShellInteraction";
 import { useShellPlacement, type PlacementStatus } from "./useShellPlacement";
@@ -13,6 +13,8 @@ export type { PlacementStatus } from "./useShellPlacement";
 export function useNotchShell() {
   const preferences = useShellPreferences();
   const ottoOs = useOttoOs();
+  const circleMode = preferences.prefs.compactStyle === "circle";
+  const compactCircle = ottoOs || circleMode;
   const placement = useShellPlacement(
     preferences.prefs,
     nativeAvailable,
@@ -25,6 +27,12 @@ export function useNotchShell() {
     () => (docked ? { ...preferences.prefs, hoverExpand: false } : preferences.prefs),
     [docked, preferences.prefs],
   );
+  const toggleCompactStyle = useCallback(() => {
+    if (ottoOs) return;
+    preferences.change({
+      compactStyle: preferences.prefs.compactStyle === "circle" ? "capsule" : "circle",
+    });
+  }, [ottoOs, preferences.change, preferences.prefs.compactStyle]);
   useOttoOsDock(ottoOs && !docked, preferences.resetPanelPosition);
   const surfaceOpacity = surfaceOpacityPercent(preferences.prefs);
   useEffect(() => {
@@ -47,15 +55,17 @@ export function useNotchShell() {
         "otto.preferences.v1",
         JSON.stringify({
           ...preferences.prefs,
-          placement: ottoOs ? preferences.prefs.placement : placement.placement.applied,
+          placement: compactCircle ? preferences.prefs.placement : placement.placement.applied,
         }),
       );
     } catch {}
-  }, [ottoOs, placement.placement.applied, preferences.prefs]);
+  }, [compactCircle, placement.placement.applied, preferences.prefs]);
   return {
     ...interaction,
     ...preferences,
     ottoOs,
+    compactCircle,
+    toggleCompactStyle,
     placement: placement.placement satisfies PlacementStatus,
     syncPlacement: placement.syncPlacement,
   } satisfies ShellViewModel;

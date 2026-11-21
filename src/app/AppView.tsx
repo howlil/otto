@@ -8,12 +8,14 @@ import type {
   SurfaceSize,
 } from "../features/shell";
 import type { AgentViewModel } from "../features/agent";
+import type { VoiceViewModel } from "../features/voice";
 import type { NotchHost, NotchPlacement } from "../platform/tauri/shell";
 import { ShellContent } from "./ShellContent";
 
 export function ShellView({
   agent,
   shell,
+  voice,
   surfaceError,
   gutter,
   size,
@@ -31,6 +33,7 @@ export function ShellView({
   sizingHost?: NotchHost | null;
   agent: AgentViewModel;
   shell: ShellViewModel;
+  voice?: VoiceViewModel;
   surfaceError: string | null;
   onContentMeasured: (height: number) => void;
   appUpdate: AppUpdateViewModel;
@@ -91,6 +94,7 @@ export function ShellView({
           <ShellContent
             agent={agent}
             shell={shell}
+            voice={voice}
             onContentMeasured={onContentMeasured}
             appUpdate={appUpdate}
             frameSize={

@@ -53,7 +53,7 @@ Download the latest Windows installer (`Otto_1.0.0_x64-setup.exe`) from [**GitHu
 - *Note:* The installer is not yet Authenticode-signed for Windows SmartScreen; click **More info → Run anyway** on first install if prompted, or verify against `SHA256SUMS.txt` on the release page.
 
 ### 2. Have at least one local AI CLI signed in
-Install and sign in to any supported engine (for example `codex login`, `claude auth login`, `opencode auth login`, `pi`, or any ACP CLI below). Installed CLIs are auto-detected from `PATH` — and if you install a new CLI while Otto is open, click **Refresh PATH** in **Settings → Assistant** without restarting.
+Install and sign in to any supported engine (for example `codex login`, `claude auth login`, `opencode auth login`, `pi`, or any ACP CLI below). Installed CLIs are auto-detected from `PATH` — and if you install a new CLI while Otto is open, click **Check again** in **Settings → Assistant** without restarting.
 
 ### 3. Open and ask
 Hover the top notch to preview, click it, or press `Ctrl+Alt+O` from anywhere.

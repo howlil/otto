@@ -7,6 +7,7 @@ import {
   type Preferences,
   type SettingsTab,
 } from "../../src/features/shell/model/preferences";
+import { defaultVoicePreferences, type VoicePreferences } from "../../src/features/voice";
 
 afterEach(cleanup);
 
@@ -54,7 +55,69 @@ const agent = {
 
 function Harness({ initial = "assistant" as SettingsTab, onBack = () => {} }) {
   const [prefs, setPrefs] = useState<Preferences>({ ...defaults, hoverExpand: false });
+  const [voicePrefs, setVoicePrefs] = useState<VoicePreferences>({ ...defaultVoicePreferences });
   const [settingsTab, setSettingsTab] = useState<SettingsTab>(initial);
+  const voice = {
+    snapshot: {
+      phase: "idle",
+      supported: true,
+      runtimeInstalled: false,
+      models: [
+        {
+          id: "small-q5_1",
+          label: "Small (Q5_1)",
+          description: "Recommended for Indonesian + English accuracy",
+          approxBytes: 190_000_000,
+          installed: false,
+          recommended: true,
+        },
+        {
+          id: "base-q5_1",
+          label: "Base (Q5_1)",
+          description: "Faster and lighter on CPU",
+          approxBytes: 60_000_000,
+          installed: false,
+          recommended: false,
+        },
+      ],
+      activeModel: "small-q5_1",
+      download: null,
+      transcript: null,
+      transcriptSeq: 0,
+      error: null,
+    },
+    prefs: voicePrefs,
+    updatePrefs: (patch: Partial<VoicePreferences>) =>
+      setVoicePrefs((curr) => ({ ...curr, ...patch })),
+    devices: [{ id: "default", name: "System default microphone", isDefault: true }],
+    refreshDevices: async () => {},
+    shortcut: "Ctrl+Alt+V",
+    shortcutMessage: "",
+    shortcutBusy: false,
+    saveShortcut: async () => {},
+    level: 0,
+    activeModelInfo: null,
+    activeModelReady: false,
+    listening: false,
+    transcribing: false,
+    downloading: false,
+    downloadProgress: null,
+    toggleRecording: async () => {},
+    startRecording: async () => {},
+    stopRecording: async () => {},
+    cancelVoice: async () => {},
+    downloadModel: async () => {},
+    cancelDownload: async () => {},
+    deleteModel: async () => {},
+    speaking: false,
+    speakingMessageId: null,
+    ttsSupported: true,
+    ttsVoices: [],
+    speakMessage: () => {},
+    stopSpeaking: () => {},
+    toggleSpeakMessage: () => {},
+    noteVoiceSubmission: () => {},
+  } as never;
   const shell = {
     prefs,
     change: (patch: Partial<Preferences>) => setPrefs((current) => ({ ...current, ...patch })),
@@ -86,6 +149,7 @@ function Harness({ initial = "assistant" as SettingsTab, onBack = () => {} }) {
     <SettingsSurface
       agent={agent}
       shell={shell}
+      voice={voice}
       appUpdate={
         {
           state: { status: "current" },
@@ -99,9 +163,9 @@ function Harness({ initial = "assistant" as SettingsTab, onBack = () => {} }) {
 }
 
 describe("one Settings surface", () => {
-  test("merges agent and system settings into five reachable sections", () => {
+  test("merges agent and system settings into six reachable sections", () => {
     render(<Harness />);
-    for (const name of ["Assistant", "Capture", "Behavior", "Position", "General"]) {
+    for (const name of ["Assistant", "Capture", "Voice", "Behavior", "Position", "General"]) {
       expect(screen.getByRole("button", { name })).toBeTruthy();
     }
     for (const gone of ["Interaction", "System", "Placement"]) {
@@ -117,7 +181,7 @@ describe("one Settings surface", () => {
     expect(screen.getByRole("button", { name: "Behavior" }).getAttribute("aria-current")).toBe(
       "page",
     );
-    expect(screen.getByRole("checkbox", { name: "Expand on hover" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: /^Expand on hover/ })).toBeTruthy();
     expect(screen.getByRole("checkbox", { name: /Keep expanded/ })).toBeTruthy();
     expect(document.getElementById("otto-shell-shortcut")).not.toBeNull();
     expect(screen.queryByText("Hover timing")).toBeNull();
@@ -146,7 +210,7 @@ describe("one Settings surface", () => {
 
   test("toggles apply immediately without a save button", () => {
     render(<Harness initial="behavior" />);
-    const hover = screen.getByRole("checkbox", { name: "Expand on hover" }) as HTMLInputElement;
+    const hover = screen.getByRole("checkbox", { name: /^Expand on hover/ }) as HTMLInputElement;
     expect(hover.checked).toBe(false);
     fireEvent.click(hover);
     expect(hover.checked).toBe(true);
@@ -159,10 +223,10 @@ describe("one Settings surface", () => {
       "page",
     );
     fireEvent.keyDown(screen.getByRole("button", { name: "Capture" }), { key: "ArrowDown" });
-    expect(screen.getByRole("button", { name: "Behavior" }).getAttribute("aria-current")).toBe(
+    expect(screen.getByRole("button", { name: "Voice" }).getAttribute("aria-current")).toBe(
       "page",
     );
-    fireEvent.keyDown(screen.getByRole("button", { name: "Behavior" }), { key: "ArrowUp" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Voice" }), { key: "ArrowUp" });
     expect(screen.getByRole("button", { name: "Capture" }).getAttribute("aria-current")).toBe(
       "page",
     );

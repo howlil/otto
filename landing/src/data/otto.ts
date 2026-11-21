@@ -168,7 +168,7 @@ export const faqs = [
   },
   {
     question: "Which AI tools does it support?",
-    answer: "Nineteen local CLI engines: Codex, Claude Code, OpenCode, Pi, and fifteen ACP CLIs such as Gemini CLI, GitHub Copilot, Cursor Agent, and Goose. Install one, then click Refresh PATH in Settings → Assistant.",
+    answer: "Nineteen local CLI engines: Codex, Claude Code, OpenCode, Pi, and fifteen ACP CLIs such as Gemini CLI, GitHub Copilot, Cursor Agent, and Goose. Install one, then click Check again in Settings → Assistant.",
   },
   {
     question: "Which platform does it run on?",

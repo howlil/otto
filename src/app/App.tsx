@@ -12,6 +12,7 @@ import {
   useNotchSurfaceSync,
 } from "../features/shell";
 import type { NotchPlacement } from "../platform/tauri";
+import { useAppVoiceBridge } from "./useAppVoiceBridge";
 
 function motionCue(status: string): string | null {
   switch (status) {
@@ -27,6 +28,7 @@ function motionCue(status: string): string | null {
 export default function App() {
   const shell = useNotchShell();
   const agent = useAgent(shell.expanded && shell.isAgent);
+  const voice = useAppVoiceBridge(agent, shell);
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
   const appUpdate = useAppUpdate();
@@ -42,13 +44,14 @@ export default function App() {
     expanded,
     page,
     agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
+    compactCircle: shell.compactCircle,
   });
   const surface = resolvedSurface;
 
   const measuredHeight =
     expanded && (page === "agent" || page === "settings") ? contentHeights[page] : undefined;
   const requestedShape = notchShape(
-    shell.ottoOs ? "floating" : shell.placement.requested,
+    shell.compactCircle ? "floating" : shell.placement.requested,
     expanded,
   );
   const onSurfaceObserved = useCallback(
@@ -119,6 +122,7 @@ export default function App() {
     <ShellView
       agent={agent}
       shell={shell}
+      voice={voice}
       surfaceError={surfaceError}
       gutter={notchGutter(notchShape(surfacePlacement, expanded))}
       placement={surfacePlacement}

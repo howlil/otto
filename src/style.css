@@ -530,6 +530,22 @@ button:disabled {
   background: color-mix(in srgb, var(--color-otto-danger) 84%, transparent);
 }
 
+.otto-circle-ring-listening {
+  background: color-mix(in srgb, var(--color-otto-ok) 88%, transparent);
+  animation: otto-circle-breathe 0.68s ease-in-out infinite alternate;
+}
+
+.otto-circle-ring-speaking {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--color-otto-ok) 120deg,
+    var(--color-otto-text-bright) 240deg,
+    transparent 360deg
+  );
+  animation: otto-circle-orbit 1.4s linear infinite;
+}
+
 .otto-circle-wave {
   border: 1.5px solid var(--color-otto-text);
   animation: otto-circle-wave 500ms var(--ease-otto) both;
@@ -543,7 +559,9 @@ button:disabled {
   border-color: var(--color-otto-text-bright);
 }
 
-.otto-circle-wave-completed {
+.otto-circle-wave-completed,
+.otto-circle-wave-listening,
+.otto-circle-wave-speaking {
   border-color: var(--color-otto-ok);
 }
 
@@ -574,6 +592,85 @@ button:disabled {
 
 .otto-circle-logo-error {
   animation: otto-shake 350ms ease-out both;
+}
+
+@keyframes otto-eye-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.14);
+  }
+}
+
+@keyframes otto-eye-curious {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  28% {
+    transform: translate3d(-1.5px, -0.5px, 0);
+  }
+  64% {
+    transform: translate3d(1.5px, -0.5px, 0);
+  }
+}
+
+@keyframes otto-eye-listen {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.16);
+  }
+}
+
+@keyframes otto-eye-speak {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scaleY(1);
+  }
+  35% {
+    transform: translate3d(0, -1px, 0) scaleY(0.84);
+  }
+  70% {
+    transform: translate3d(0, 0.5px, 0) scaleY(1.08);
+  }
+}
+
+@keyframes otto-eye-happy {
+  0% {
+    transform: translate3d(0, 1px, 0) scale(0.92);
+  }
+  55% {
+    transform: translate3d(0, -1.5px, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.otto-eyes-idle .otto-eye {
+  animation: otto-eye-blink 5.2s ease-in-out infinite;
+}
+
+.otto-eyes-working {
+  animation: otto-eye-curious 2.4s ease-in-out infinite;
+}
+
+.otto-eyes-listening .otto-eye {
+  animation: otto-eye-listen 0.9s ease-in-out infinite;
+}
+
+.otto-eyes-speaking .otto-eye {
+  animation: otto-eye-speak 0.72s ease-in-out infinite;
+}
+
+.otto-eyes-completed {
+  animation: otto-eye-happy 420ms var(--ease-otto) both;
 }
 
 .md-body {
@@ -762,8 +859,13 @@ h4.md-h {
   .otto-circle-logo-active,
   .otto-circle-logo-shift,
   .otto-circle-logo-complete,
-  .otto-circle-logo-error {
-    animation: none !important;
+  .otto-circle-logo-error,
+  .otto-eyes-idle .otto-eye,
+  .otto-eyes-working,
+  .otto-eyes-listening .otto-eye,
+  .otto-eyes-speaking .otto-eye,
+  .otto-eyes-completed {
+    animation: none;
   }
 }
 

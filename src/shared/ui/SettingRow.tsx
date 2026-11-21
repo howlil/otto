@@ -39,20 +39,33 @@ export function SettingRow({
   );
 }
 
+export function SettingGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="min-w-0 pt-3 first:pt-0">
+      <Text as="h3" variant="meta" className="mb-0.5 text-otto-text-tertiary">
+        {title}
+      </Text>
+      {children}
+    </section>
+  );
+}
+
 export function SettingBlock({
   title,
+  help,
   action,
   htmlFor,
   children,
 }: {
   title: string;
+  help?: string;
   action?: ReactNode;
   htmlFor?: string;
   children: ReactNode;
 }) {
   return (
     <section className="min-w-0 py-1.5">
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className={`${help ? "mb-0.5" : "mb-2"} flex items-center justify-between gap-2`}>
         <Text
           as={htmlFor ? "label" : "span"}
           variant="label"
@@ -63,6 +76,11 @@ export function SettingBlock({
         </Text>
         {action}
       </div>
+      {help && (
+        <Text as="small" variant="meta" className="mb-2 block text-otto-label-muted">
+          {help}
+        </Text>
+      )}
       {children}
     </section>
   );

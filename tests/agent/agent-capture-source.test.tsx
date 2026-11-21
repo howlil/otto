@@ -94,9 +94,10 @@ describe("Agent capture source settings", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /^Selected text/ }).getAttribute("aria-pressed")).toBe(
-      "true",
-    );
+    expect(screen.getByRole("button", { name: /^Selected text(?! shortcut)/ }).getAttribute(
+        "aria-pressed",
+      ),
+    ).toBe("true");
     expect(screen.getByText("The text you highlighted in another app. No screenshot.")).toBeTruthy();
     expect(screen.queryByText("Last observed: Browser Window")).toBeNull();
     expect(refreshed).toBe(0);
@@ -265,7 +266,7 @@ describe("Agent capture source settings", () => {
       />,
     );
 
-    expect(screen.getByText("Text capture shortcut")).toBeTruthy();
+    expect(screen.getByText("Selected text shortcut")).toBeTruthy();
     const autoSendToggle = screen.getByRole("checkbox", { name: /^Instant auto-send/ });
     expect((autoSendToggle as HTMLInputElement).checked).toBe(false);
     fireEvent.click(autoSendToggle);

@@ -88,10 +88,10 @@ function ModelSection({
       ) : (
         <div className="flex min-h-[35px] items-center justify-between gap-2 rounded-otto-control border border-otto-line-soft bg-otto-field-deep px-2.5">
           <Text as="span" variant="status" className="min-w-0 truncate text-otto-text-bright">
-            {observedModel ?? value ?? "Provider default"}
+            {observedModel ?? value ?? "Engine default"}
           </Text>
           <Text as="span" variant="meta" className="shrink-0 text-otto-text-tertiary">
-            Native setting
+            Set by the engine
           </Text>
         </div>
       )}

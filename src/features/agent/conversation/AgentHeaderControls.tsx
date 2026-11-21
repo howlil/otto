@@ -77,6 +77,9 @@ export function ChatControls({
   onHistory,
   onNewSession,
   onSettings,
+  compactCircle,
+  compactStyleLocked = false,
+  onToggleCompactStyle,
 }: {
   hasThread: boolean;
   resetBusy: boolean;
@@ -85,10 +88,27 @@ export function ChatControls({
   onHistory: () => void;
   onNewSession: () => void;
   onSettings: () => void;
+  compactCircle?: boolean;
+  compactStyleLocked?: boolean;
+  onToggleCompactStyle?: () => void;
 }) {
   const blockedReason = "Finish or stop the current request first";
+  const compactToggleLabel = compactCircle
+    ? "Switch compact to Capsule"
+    : "Switch compact to Circle";
   return (
     <>
+      {onToggleCompactStyle && (
+        <IconButton
+          icon={compactCircle ? "capsuleCompact" : "circleCompact"}
+          label={compactToggleLabel}
+          title={compactStyleLocked ? "Otto OS keeps Otto in Circle mode" : compactToggleLabel}
+          variant="quiet"
+          className="shrink-0"
+          disabled={compactStyleLocked}
+          onClick={onToggleCompactStyle}
+        />
+      )}
       <IconButton
         icon="history"
         label="Conversation history"

@@ -199,6 +199,7 @@ fn configure_host(
     if otto_os {
         let circle = slot.map_or(OTTO_OS_CIRCLE_PX, |slot| slot.diameter);
         layouts.insert("agentCompact", (circle, circle));
+        layouts.insert("agentCompactCircle", (circle, circle));
     }
     let bounds = host_bounds(
         drawable,

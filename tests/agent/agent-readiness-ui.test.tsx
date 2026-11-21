@@ -158,15 +158,15 @@ describe("Agent readiness surfaced through the rendered chat", () => {
         locked={false}
       />,
     );
-    expect(screen.queryByText(/Install a provider's command-line tool/)).toBeNull();
+    expect(screen.queryByText(/Install the engine on this PC/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Not installed (1)" }));
     expect(screen.getByRole("button", { name: /^OpenCode/ })).toBeTruthy();
-    expect(screen.getByText(/Install a provider's command-line tool/)).toBeTruthy();
+    expect(screen.getByText(/Install the engine on this PC/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(refreshes).toBe(1);
   });
 
-  test("Refresh PATH re-scans live PATH and stays disabled while locked", () => {
+  test("Check again re-scans live PATH and stays disabled while locked", () => {
     let pathRefreshes = 0;
     const props = {
       readiness: readiness(),
@@ -183,7 +183,7 @@ describe("Agent readiness surfaced through the rendered chat", () => {
       locked: false,
     };
     const view = render(<ProviderSettings {...props} />);
-    const button = screen.getByRole("button", { name: "Refresh PATH" }) as HTMLButtonElement;
+    const button = screen.getByRole("button", { name: "Check again" }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
     fireEvent.click(button);
     expect(pathRefreshes).toBe(1);
@@ -352,7 +352,7 @@ describe("Agent compact capsule state", () => {
       />,
     );
     expect(screen.getByText("Checking available models…")).toBeTruthy();
-    expect(screen.queryByText("Provider default") === null).toBe(true);
+    expect(screen.queryByText("Engine default") === null).toBe(true);
     expect(screen.queryByText("Thinking effort") === null).toBe(true);
 
     const manyEfforts = ["off", "minimal", "low", "medium", "high", "xhigh", "ultra"];

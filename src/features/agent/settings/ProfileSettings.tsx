@@ -22,6 +22,7 @@ export function ProfileSettings({
   return (
     <SettingBlock
       title="Profile & learning style"
+      help="Tell Otto how you like answers explained"
       action={
         filled ? (
           <Button variant="quiet" size="link" className="text-otto-text-tertiary" onClick={onClear}>
@@ -88,7 +89,7 @@ export function ProfileSettings({
             onChange={(event) => update({ instructions: event.target.value })}
           />
           <Text as="p" variant="caption" className="mt-1 text-otto-text-tertiary">
-            Applied automatically to future answers. Stored locally on this PC.
+            Used in every new answer. Saved only on this PC.
           </Text>
         </div>
       </div>

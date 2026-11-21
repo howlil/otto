@@ -3,26 +3,33 @@ import { Icon, OttoLogo, Text, VisuallyHidden } from "../../../shared/ui";
 import { Bars } from "../conversation/AgentControls";
 import { compactDetail, compactLabel } from "../model/surface";
 import { agentIsWorking, captureIsWorking } from "../model/status";
-import { AgentCircle } from "./AgentCircle";
+import { AgentCircle, type AgentCircleVoiceProps } from "./AgentCircle";
 
 export function AgentCapsule({
   snapshot,
   installed,
   readiness,
   error,
+  voice,
   circle = false,
   buttonRef,
   onOpen,
+  onToggleCompactStyle,
 }: {
   snapshot: AgentSnapshot;
   installed: boolean | null;
   readiness: ProviderReadiness;
   error: string | null;
+  voice?: AgentCircleVoiceProps;
   circle?: boolean;
   buttonRef: React.Ref<HTMLButtonElement>;
   onOpen: () => void;
+  onToggleCompactStyle?: () => void;
 }) {
-  const thinking = agentIsWorking(snapshot.status) || captureIsWorking(snapshot.capture.phase);
+  const thinking =
+    agentIsWorking(snapshot.status) ||
+    captureIsWorking(snapshot.capture.phase) ||
+    Boolean(voice?.listening || voice?.transcribing || voice?.speaking);
   if (circle) {
     return (
       <AgentCircle
@@ -30,8 +37,10 @@ export function AgentCapsule({
         installed={installed}
         readiness={readiness}
         error={error}
+        voice={voice}
         buttonRef={buttonRef}
         onOpen={onOpen}
+        onToggleCompactStyle={onToggleCompactStyle}
       />
     );
   }
@@ -42,6 +51,14 @@ export function AgentCapsule({
       className="group flex h-full w-full items-center justify-start gap-[9px] border-0 bg-transparent px-[11px] text-left text-inherit"
       type="button"
       onClick={onOpen}
+      onContextMenu={
+        onToggleCompactStyle
+          ? (event) => {
+              event.preventDefault();
+              onToggleCompactStyle();
+            }
+          : undefined
+      }
     >
       <OttoLogo compact />
       <span className="min-w-0 flex-1">

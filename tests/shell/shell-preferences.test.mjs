@@ -82,4 +82,11 @@ describe("Shell preferences compatibility", () => {
       95,
     );
   });
+  test("compact style defaults to capsule and validates saved circle preference", () => {
+    expect(defaults.compactStyle).toBe("capsule");
+    expect(readSaved(JSON.stringify({ compactStyle: "circle" })).compactStyle).toBe("circle");
+    expect(readSaved(JSON.stringify({ compactStyle: "capsule" })).compactStyle).toBe("capsule");
+    expect(readSaved(JSON.stringify({ compactStyle: "mascot" })).compactStyle).toBe("capsule");
+    expect(readSaved(JSON.stringify({ compactStyle: 42 })).compactStyle).toBe("capsule");
+  });
 });

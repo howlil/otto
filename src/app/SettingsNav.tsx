@@ -5,6 +5,7 @@ import type { SettingsTab } from "../features/shell";
 export const settingsTabs: ReadonlyArray<{ id: SettingsTab; label: string; icon: IconName }> = [
   { id: "assistant", label: "Assistant", icon: "assistant" },
   { id: "capture", label: "Capture", icon: "camera" },
+  { id: "voice", label: "Voice", icon: "mic" },
   { id: "behavior", label: "Behavior", icon: "behavior" },
   { id: "position", label: "Position", icon: "position" },
   { id: "general", label: "General", icon: "general" },

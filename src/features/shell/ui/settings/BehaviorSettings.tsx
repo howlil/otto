@@ -15,6 +15,7 @@ export function BehaviorSettings({
     <div>
       <Toggle
         title="Expand on hover"
+        help="Point at Otto to preview the composer"
         checked={prefs.hoverExpand}
         onChange={(hoverExpand) => change({ hoverExpand })}
       />
@@ -24,7 +25,11 @@ export function BehaviorSettings({
         checked={!prefs.clickOutside}
         onChange={(keepExpanded) => change({ clickOutside: !keepExpanded })}
       />
-      <SettingRow title="Shortcut" help="Expand or collapse Otto" htmlFor="otto-shell-shortcut">
+      <SettingRow
+        title="Open / close shortcut"
+        help="Expand or collapse Otto from any app"
+        htmlFor="otto-shell-shortcut"
+      >
         <ShortcutRecorder
           id="otto-shell-shortcut"
           value={shortcut}

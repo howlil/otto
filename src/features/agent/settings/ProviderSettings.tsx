@@ -47,7 +47,7 @@ function ProviderHeaderActions({
         disabled={locked}
         onClick={onRefreshPath}
       >
-        Refresh PATH
+        Check again
       </Button>
     </div>
   );
@@ -101,6 +101,7 @@ export function ProviderSettings({
   return (
     <SettingBlock
       title="AI Engine"
+      help="The AI app on this PC that writes Otto's answers"
       action={
         <ProviderHeaderActions
           status={readiness.status}

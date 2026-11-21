@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import {
   ChoiceGroup,
   SettingBlock,
+  SettingGroup,
   SettingRow,
   ShortcutRecorder,
   StatusMessage,
@@ -42,7 +43,7 @@ export function CaptureSettings({
 
   return (
     <div className="space-y-4">
-      <SettingBlock title="Send">
+      <SettingBlock title="What to capture">
         <ChoiceGroup<CaptureSource>
           value={source}
           choices={sourceChoices(agent.readiness.imageTransport)}
@@ -73,10 +74,10 @@ export function CaptureSettings({
         )}
         {needsWindowTarget(source) && sourceReady && <LastWindow {...capture} />}
       </SettingBlock>
-      <div className="space-y-3">
+      <SettingGroup title="Shortcuts">
         <SettingRow
-          title="Shortcut"
-          help="Captures selected source"
+          title="Capture shortcut"
+          help="Captures what you chose above"
           htmlFor="otto-capture-shortcut"
         >
           <ShortcutRecorder
@@ -89,8 +90,8 @@ export function CaptureSettings({
           />
         </SettingRow>
         <SettingRow
-          title="Text capture shortcut"
-          help="Always captures highlighted text"
+          title="Selected text shortcut"
+          help="Always grabs the text you highlighted"
           htmlFor="otto-text-capture-shortcut"
         >
           <ShortcutRecorder
@@ -102,9 +103,11 @@ export function CaptureSettings({
             onRecord={(next) => void capture.saveTextShortcut?.(next)}
           />
         </SettingRow>
+      </SettingGroup>
+      <SettingGroup title="After capturing">
         <Toggle
           title="Instant auto-send"
-          help="Send captures immediately instead of staging in composer"
+          help="Off: captures wait in the composer so you can add a question first"
           checked={Boolean(capture.autoSend)}
           disabled={busy}
           onChange={(next) => void capture.setAutoSend?.(next)}
@@ -117,7 +120,7 @@ export function CaptureSettings({
         {capture.captureMessage && (
           <StatusMessage tone="info">{capture.captureMessage}</StatusMessage>
         )}
-      </div>
+      </SettingGroup>
     </div>
   );
 }

@@ -21,11 +21,6 @@ export function AssistantSettings({ agent }: { agent: AgentPanelModel }) {
           {`${agentStatusLabel(snapshot.status)} request is still active. These unlock when it finishes.`}
         </StatusMessage>
       )}
-      <ProfileSettings
-        profile={agent.profile}
-        onChange={agent.setProfile}
-        onClear={agent.clearProfile}
-      />
       <ProviderSettings
         readiness={readiness}
         providers={agent.providers}
@@ -55,6 +50,11 @@ export function AssistantSettings({ agent }: { agent: AgentPanelModel }) {
         setThinkingEffort={agent.setThinkingEffort}
         busy={working}
         onRetry={() => void agent.refreshProvider()}
+      />
+      <ProfileSettings
+        profile={agent.profile}
+        onChange={agent.setProfile}
+        onClear={agent.clearProfile}
       />
       {agent.error && (
         <StatusMessage tone="error" className="text-otto-text-tertiary">

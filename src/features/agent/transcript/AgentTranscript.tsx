@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { AgentComposer } from "../conversation/AgentComposer";
 import { chatActivityLabel, providerIssue, providerIssueTitle } from "../model/status";
 import { AgentEmptyState, CaptureAlerts } from "./AgentEmptyState";
@@ -46,25 +47,7 @@ function resolveTranscriptDisplay(agent: AgentTranscriptModel) {
     !issues.issue &&
     !issues.captureFailure &&
     !stagedCapture;
-  return {
-    stagedCapture,
-    queuedFollowup,
-    ...issues,
-    canAct,
-    canSend,
-    canQueue,
-    showEmptyState,
-  };
-}
-
-function selectStarterPrompt(
-  agent: AgentTranscriptModel,
-  starterMode: NonNullable<AgentTranscriptModel["mode"]>,
-  starterPrompt: string,
-) {
-  agent.setMode?.(starterMode);
-  agent.setDraft(starterPrompt);
-  document.getElementById("otto-prompt")?.focus({ preventScroll: true });
+  return { stagedCapture, queuedFollowup, ...issues, canAct, canSend, canQueue, showEmptyState };
 }
 
 export function AgentTranscript({
@@ -77,6 +60,9 @@ export function AgentTranscript({
   captureActionError,
   captureSource,
   captureShortcut,
+  voiceControl,
+  speakingMessageId,
+  onToggleSpeak,
   onMeasured,
 }: {
   agent: AgentTranscriptModel;
@@ -88,6 +74,9 @@ export function AgentTranscript({
   captureActionError: string | null;
   captureSource: CaptureSource;
   captureShortcut?: string;
+  voiceControl?: ReactNode;
+  speakingMessageId?: string | null;
+  onToggleSpeak?: (messageId: string, text: string) => void;
   onMeasured: (height: number) => void;
 }) {
   const { feed, composer, onFeedScroll } = useTranscriptViewport({
@@ -109,7 +98,11 @@ export function AgentTranscript({
           {view.showEmptyState && (
             <AgentEmptyState
               captureShortcut={captureShortcut}
-              onSelectStarter={(mode, prompt) => selectStarterPrompt(agent, mode, prompt)}
+              onSelectStarter={(mode, prompt) => {
+                agent.setMode?.(mode);
+                agent.setDraft(prompt);
+                document.getElementById("otto-prompt")?.focus({ preventScroll: true });
+              }}
             />
           )}
           <TranscriptMessages
@@ -122,6 +115,8 @@ export function AgentTranscript({
               agent.readiness.status,
             )}
             onInsert={onInsert}
+            speakingMessageId={speakingMessageId}
+            onToggleSpeak={onToggleSpeak}
             onRetry={agent.retryLast}
             onEditPrompt={agent.editPrompt}
             onFollowupChip={agent.sendFollowupChip}
@@ -177,6 +172,7 @@ export function AgentTranscript({
         capturePhase={agent.snapshot.capture.phase}
         canSend={view.canSend}
         stopping={agent.snapshot.status === "stopping"}
+        voiceControl={voiceControl}
         onCapture={onCapture}
         send={agent.send}
         stop={agent.stop}

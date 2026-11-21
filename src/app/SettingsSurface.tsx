@@ -3,6 +3,7 @@ import type { AgentViewModel } from "../features/agent";
 import { AssistantSettings, CaptureSettings } from "../features/agent";
 import type { AppUpdateViewModel, ShellViewModel } from "../features/shell";
 import { BehaviorSettings, GeneralSettings, PositionSettings } from "../features/shell";
+import { VoiceSettings, type VoiceViewModel } from "../features/voice";
 import { IconButton, Text, TransitionContent, useTransitionActive } from "../shared/ui";
 import { SettingsNav, settingsTabs } from "./SettingsNav";
 
@@ -11,11 +12,13 @@ const HEADER_HEIGHT = 51;
 export function SettingsSurface({
   agent,
   shell,
+  voice,
   appUpdate,
   onMeasured,
 }: {
   agent: AgentViewModel;
   shell: ShellViewModel;
+  voice?: VoiceViewModel;
   appUpdate: AppUpdateViewModel;
   onMeasured: (height: number) => void;
 }) {
@@ -73,6 +76,7 @@ export function SettingsSurface({
                   focusShortcut={shell.settingsFocus === "capture-shortcut"}
                 />
               )}
+              {tab === "voice" && voice && <VoiceSettings voice={voice} />}
               {tab === "behavior" && <BehaviorSettings prefs={shell.prefs} change={shell.change} />}
               {tab === "position" && (
                 <PositionSettings

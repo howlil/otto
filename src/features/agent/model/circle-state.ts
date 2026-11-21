@@ -1,10 +1,13 @@
 import type { AgentSnapshot, ProviderReadiness } from "../../../platform/tauri";
+import type { EyeExpression } from "../../../shared/ui";
 import { agentIsWorking, captureIsWorking } from "./status";
 
 export type CircleStateTone =
   | "idle"
   | "checking"
   | "capturing"
+  | "listening"
+  | "speaking"
   | "working"
   | "completed"
   | "attention"
@@ -14,12 +17,21 @@ export type CircleRingTone =
   | "idle"
   | "checking"
   | "capturing"
+  | "listening"
+  | "speaking"
   | "working"
   | "streaming"
   | "stopping"
   | "completed"
   | "attention"
   | "error";
+
+export type CircleVoiceOverlay = {
+  listening?: boolean;
+  transcribing?: boolean;
+  speaking?: boolean;
+  error?: string | null;
+};
 
 export type CircleTransitionCue = "wake" | "shift" | "complete" | "attention" | "error" | "settle";
 
@@ -30,6 +42,7 @@ export type CircleStateDescriptor = {
   active: boolean;
   pipClass: string | null;
   cue: CircleTransitionCue;
+  eyeExpression: EyeExpression;
 };
 
 function errorReason(snapshot: AgentSnapshot, installed: boolean | null, error: string | null) {
@@ -51,6 +64,7 @@ function resolveActiveState(snapshot: AgentSnapshot): CircleStateDescriptor | nu
       active: true,
       pipClass: "bg-otto-hljs-function",
       cue: startingCapture ? "wake" : "shift",
+      eyeExpression: "thinking",
     };
   }
   if (!agentIsWorking(snapshot.status) && snapshot.status !== "stopping") return null;
@@ -67,6 +81,7 @@ function resolveActiveState(snapshot: AgentSnapshot): CircleStateDescriptor | nu
     active: true,
     pipClass: snapshot.status === "stopping" ? "bg-otto-text-tertiary" : "bg-otto-text-bright",
     cue: snapshot.status === "starting" ? "wake" : "shift",
+    eyeExpression: "working",
   };
 }
 
@@ -83,6 +98,7 @@ function resolveRestState(
       active: false,
       pipClass: "bg-otto-warn",
       cue: "attention",
+      eyeExpression: "attention",
     };
   }
   if (snapshot.status === "completed") {
@@ -93,6 +109,7 @@ function resolveRestState(
       active: false,
       pipClass: "bg-otto-ok",
       cue: "complete",
+      eyeExpression: "completed",
     };
   }
   if (snapshot.status === "idle" && readiness.status === "checking") {
@@ -103,6 +120,7 @@ function resolveRestState(
       active: true,
       pipClass: null,
       cue: "shift",
+      eyeExpression: "thinking",
     };
   }
   return {
@@ -112,6 +130,7 @@ function resolveRestState(
     active: false,
     pipClass: null,
     cue: "settle",
+    eyeExpression: "idle",
   };
 }
 
@@ -120,8 +139,42 @@ export function resolveCircleState(
   installed: boolean | null,
   readiness: ProviderReadiness,
   error: string | null,
+  voice?: CircleVoiceOverlay,
 ): CircleStateDescriptor {
-  const failure = errorReason(snapshot, installed, error);
+  if (voice?.listening) {
+    return {
+      tone: "listening",
+      ringTone: "listening",
+      phaseKey: "voice:listening",
+      active: true,
+      pipClass: "bg-otto-ok",
+      cue: "wake",
+      eyeExpression: "listening",
+    };
+  }
+  if (voice?.transcribing) {
+    return {
+      tone: "working",
+      ringTone: "working",
+      phaseKey: "voice:transcribing",
+      active: true,
+      pipClass: "bg-otto-text-bright",
+      cue: "shift",
+      eyeExpression: "thinking",
+    };
+  }
+  if (voice?.speaking) {
+    return {
+      tone: "speaking",
+      ringTone: "speaking",
+      phaseKey: "voice:speaking",
+      active: true,
+      pipClass: "bg-otto-ok",
+      cue: "shift",
+      eyeExpression: "speaking",
+    };
+  }
+  const failure = errorReason(snapshot, installed, error) ?? (voice?.error ? "voice" : null);
   if (failure) {
     return {
       tone: "error",
@@ -130,6 +183,7 @@ export function resolveCircleState(
       active: false,
       pipClass: "bg-otto-danger",
       cue: "error",
+      eyeExpression: "error",
     };
   }
   return resolveActiveState(snapshot) ?? resolveRestState(snapshot, readiness);

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-22
+
+### Added
+- Standalone **Circle** compact mascot style (`40×40`, automatic temporary floating placement without overwriting a saved `Attached` preference) switchable via the Expanded header button, right-click on the Compact surface, or **Settings → Position**, with expressive live Otto eyes (`idle`, `thinking`/`working`, `listening`, `speaking`, `completed`, `attention`, `error`).
+- Offline **Voice Input** powered by on-demand local **Whisper** (`Small Q5_1` ~190 MB recommended for Indonesian + English, or `Base Q5_1` ~60 MB) with `0 MB` idle memory when not transcribing, Win32 `16 kHz` microphone capture, live volume ring feedback, silence auto-stop, global `Ctrl+Alt+V` shortcut, composer Mic control, and **Settings → Voice**.
+- **Read Aloud** speech output (`Listen / Stop`) on completed answers using Windows native speech synthesis (automatically stripping Markdown syntax and summarizing fenced code blocks) with `Auto-read answers` (`Off`, `Voice replies`, `Always`), selectable Windows voice, speaking speed (`75%`–`150%`), and continuous background playback when collapsed to Circle.
+
 ## [1.3.1] - 2026-11-22
 
 ### Fixed
@@ -52,7 +59,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Security
 - Enforced zero auto-approval (`G8`) for all incoming CLI host permission requests and deterministic drop-based cleanup for ephemeral staged capture files without logging secrets or images.
 
-[Unreleased]: https://github.com/howlil/otto/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/howlil/otto/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/howlil/otto/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/howlil/otto/compare/v1.3.0...v1.3.1
 [1.1.0]: https://github.com/howlil/otto/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/howlil/otto/compare/v0.3.1...v1.0.0

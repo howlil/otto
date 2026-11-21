@@ -1,5 +1,6 @@
 export { AgentPanel } from "./conversation/AgentPanel";
 export { AgentCapsule } from "./capsule/AgentCapsule";
+export type { AgentCircleVoiceProps } from "./capsule/AgentCircle";
 export { AssistantSettings } from "./settings/AssistantSettings";
 export { CaptureSettings } from "./capture/CaptureSettings";
 export { useAgent } from "./hooks/useAgent";

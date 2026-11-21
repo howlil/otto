@@ -129,6 +129,7 @@ mod tests {
     fn native_is_the_only_layout_and_fallback_matches_the_reference() {
         let layouts = resolve_layouts(&DisplayGeometry::default(), false);
         assert_eq!(layouts["agentCompact"], (228, 40));
+        assert_eq!(layouts["agentCompactCircle"], (40, 40));
         assert_eq!(layouts["agentReady"], (526, 170));
         assert_eq!(layouts["settings"], (526, 420));
     }

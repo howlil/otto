@@ -57,6 +57,8 @@ export type ShellViewModel = {
   quitSupported: boolean;
   quitOtto: () => Promise<void>;
   ottoOs: boolean;
+  compactCircle: boolean;
+  toggleCompactStyle: () => void;
   placement: PlacementStatus;
   syncPlacement: (placement: Placement) => void;
 };

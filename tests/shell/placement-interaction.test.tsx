@@ -173,7 +173,7 @@ describe("Notch placement recovery", () => {
     render(<PositionSettings prefs={result.current.prefs} change={() => {}} placement={result.current.placement} />);
 
     expect(screen.getByText("Windows kept the previous notch placement.")).toBeTruthy();
-    const floating = screen.getByRole("button", { name: "Floating" });
+    const floating = screen.getByRole("button", { name: /^Floating/ });
     expect(floating.getAttribute("aria-pressed")).toBe("true");
 
     const attempts = result.current.placement.attempt;
@@ -204,5 +204,50 @@ describe("Notch placement recovery", () => {
     const capsule = floating.container.querySelector("[data-placement='floating']") as HTMLElement;
     expect(capsule.style.paddingLeft).toBe("");
     expect(floating.container.querySelectorAll(".otto-shoulder-l, .otto-shoulder-r").length).toBe(0);
+  });
+
+  test("circle mode floats temporarily without overwriting a saved attached placement", async () => {
+    const { result } = await shellHook({ placement: "attached" });
+    act(() => result.current.syncPlacement("attached"));
+    expect(result.current.placement.requested).toBe("attached");
+    expect(result.current.compactCircle).toBe(false);
+
+    act(() => result.current.toggleCompactStyle());
+    expect(result.current.compactCircle).toBe(true);
+    expect(result.current.prefs.compactStyle).toBe("circle");
+
+    act(() => result.current.syncPlacement("floating"));
+    expect(result.current.placement.error).toBeNull();
+    expect(result.current.placement.requested).toBe("attached");
+    expect(persisted().placement).toBe("attached");
+    expect(persisted().compactStyle).toBe("circle");
+
+    act(() => result.current.toggleCompactStyle());
+    expect(result.current.compactCircle).toBe(false);
+    expect(result.current.placement.requested).toBe("attached");
+  });
+
+  test("position settings switch compact style and explain automatic floating over attached", async () => {
+    const { result } = await shellHook({ placement: "attached", compactStyle: "circle" });
+    render(
+      <PositionSettings
+        prefs={result.current.prefs}
+        change={result.current.change}
+        placement={result.current.placement}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Circle" }).getAttribute("aria-pressed")).toBe("true");
+    expect((screen.getByRole("button", { name: /Attached/ }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(
+      screen.getByText(
+        "Circle mode floats automatically. Switch back to Capsule to restore Attached.",
+      ),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Capsule" }));
+    expect(result.current.prefs.compactStyle).toBe("capsule");
   });
 });

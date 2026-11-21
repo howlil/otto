@@ -1,5 +1,5 @@
 export { Icon, type IconName } from "./Icon";
-export { Eyes } from "./Eyes";
+export { Eyes, type EyeExpression } from "./Eyes";
 export { OttoLogo } from "./OttoLogo";
 export { IconButton, VisuallyHidden } from "./a11y";
 export { Button } from "./Button";
@@ -9,7 +9,7 @@ export {
   type Choice,
 } from "./Field";
 export { Range, TextArea, Toggle } from "./FieldControls";
-export { SettingBlock, SettingRow } from "./SettingRow";
+export { SettingBlock, SettingGroup, SettingRow } from "./SettingRow";
 export {
   ShortcutRecorder,
   shortcutKeys,

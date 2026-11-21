@@ -11,6 +11,7 @@ describe("Otto shell surface ownership", () => {
   test("the compact shell always opens the Agent capsule", () => {
     expect(resolveSurface(request)).toBe("agentCompact");
     expect(resolveSurface({ ...request, page: "settings" })).toBe("agentCompact");
+    expect(resolveSurface({ ...request, compactCircle: true })).toBe("agentCompactCircle");
   });
 
   test("one Settings surface and the Agent content use their own native bounds", () => {

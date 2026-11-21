@@ -2,6 +2,7 @@ mod agent;
 mod ipc;
 mod platform;
 mod shell;
+mod voice;
 
 use tauri::Manager;
 
@@ -63,6 +64,15 @@ pub fn run() {
             ipc::notch::notch_configure_host,
             ipc::notch::notch_set_region,
             ipc::otto_os::otto_os_active,
+            ipc::voice::voice_status,
+            ipc::voice::voice_list_devices,
+            ipc::voice::voice_shortcut,
+            ipc::voice::voice_download_model,
+            ipc::voice::voice_cancel_download,
+            ipc::voice::voice_delete_model,
+            ipc::voice::voice_start_recording,
+            ipc::voice::voice_stop_recording,
+            ipc::voice::voice_cancel,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -72,6 +82,12 @@ pub fn run() {
             #[cfg(windows)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
+            let voice_dir = app
+                .path()
+                .app_local_data_dir()
+                .unwrap_or_else(|_| std::env::temp_dir().join("otto"))
+                .join("voice");
+            app.manage(voice::VoiceRuntime::new(voice_dir));
             let agent = match app.path().app_local_data_dir() {
                 Ok(path) => agent::AgentRuntime::persistent_with_history(
                     path.join("agent-active.marker"),
@@ -106,6 +122,9 @@ pub fn run() {
             #[cfg(windows)]
             {
                 app.manage(platform::windows::shell_shortcut::start(
+                    app.handle().clone(),
+                )?);
+                app.manage(platform::windows::voice_shortcut::start(
                     app.handle().clone(),
                 )?);
             }

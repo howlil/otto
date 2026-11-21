@@ -32,6 +32,7 @@ export type AgentTranscriptModel = {
   busy: boolean;
   captureBusy: boolean;
   send: () => Promise<void>;
+  sendText?: (text: string) => Promise<void>;
   stop: () => Promise<void>;
   refreshProvider: () => Promise<void>;
   retryConnection: () => Promise<void>;

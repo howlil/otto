@@ -7,3 +7,4 @@ export * from "./overlay";
 export * from "./runtime";
 export * from "./shell";
 export * from "./shell-shortcut";
+export * from "./voice";

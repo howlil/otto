@@ -43,7 +43,7 @@ export function MissingProviders({
             className="mt-2 text-otto-text-tertiary"
             action={{ label: "Refresh", onClick: onRetry }}
           >
-            Install a provider's command-line tool on this PC, then Refresh.
+            Install the engine on this PC, then press Refresh so Otto can find it.
           </StatusMessage>
         </>
       )}

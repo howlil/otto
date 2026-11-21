@@ -104,29 +104,35 @@ export function useAgentRequestActions(params: RequestActionParams) {
     ],
   );
 
+  const sendText = useCallback(
+    async (rawText: string) => {
+      const resolved = resolveDraftSubmission(rawText, mode);
+      if (resolved.switchedMode) setMode(resolved.switchedMode);
+      const question =
+        resolved.question || (stagedCapture ? defaultPromptForStagedCapture(stagedCapture) : "");
+      if (!question) {
+        if (resolved.switchedMode) setDraft("");
+        return;
+      }
+      if (busy || isRuntimePending() || submitted.current || readiness.status !== "ready") return;
+      await dispatchAsk(question, resolved.requestText || question, resolved.activeMode);
+    },
+    [
+      busy,
+      dispatchAsk,
+      isRuntimePending,
+      mode,
+      readiness.status,
+      setDraft,
+      setMode,
+      stagedCapture,
+      submitted,
+    ],
+  );
+
   const send = useCallback(async () => {
-    const resolved = resolveDraftSubmission(draft, mode);
-    if (resolved.switchedMode) setMode(resolved.switchedMode);
-    const question =
-      resolved.question || (stagedCapture ? defaultPromptForStagedCapture(stagedCapture) : "");
-    if (!question) {
-      if (resolved.switchedMode) setDraft("");
-      return;
-    }
-    if (busy || isRuntimePending() || submitted.current || readiness.status !== "ready") return;
-    await dispatchAsk(question, resolved.requestText || question, resolved.activeMode);
-  }, [
-    busy,
-    dispatchAsk,
-    draft,
-    isRuntimePending,
-    mode,
-    readiness.status,
-    setDraft,
-    setMode,
-    stagedCapture,
-    submitted,
-  ]);
+    await sendText(draft);
+  }, [draft, sendText]);
 
   const runQuickAction = useCallback(
     async (actionMode: LearningMode, actionPrompt: string) => {
@@ -148,5 +154,5 @@ export function useAgentRequestActions(params: RequestActionParams) {
     }
   }, [clearError, setRequestError]);
 
-  return { send, runQuickAction, stop };
+  return { send, sendText, runQuickAction, stop };
 }

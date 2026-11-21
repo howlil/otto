@@ -11,6 +11,8 @@ export function TranscriptMessages({
   busy,
   canAct = !busy,
   activity = null,
+  speakingMessageId = null,
+  onToggleSpeak,
   onInsert,
   onRetry,
   onEditPrompt,
@@ -20,6 +22,8 @@ export function TranscriptMessages({
   busy: boolean;
   canAct?: boolean;
   activity?: string | null;
+  speakingMessageId?: string | null;
+  onToggleSpeak?: (messageId: string, text: string) => void;
   onInsert?: (value: string) => Promise<void>;
   onRetry?: () => Promise<void>;
   onEditPrompt?: (messageId: string, text: string) => Promise<void>;
@@ -79,12 +83,15 @@ export function TranscriptMessages({
                   <DeferredMessageContent text={message.text} />
                   {!busy && message.text.trim() && (
                     <AssistantTurnActions
+                      messageId={message.id}
                       text={message.text}
                       isLatest={isLast}
                       stoppedPartial={stoppedPartial}
                       canAct={canAct}
                       showFollowupChips={showFollowupChips}
                       latency={isLast ? latestLatency : null}
+                      speaking={speakingMessageId === message.id}
+                      onToggleSpeak={onToggleSpeak}
                       onInsert={onInsert}
                       onRetry={onRetry}
                       onFollowupChip={onFollowupChip}
