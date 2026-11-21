@@ -289,8 +289,10 @@ where
             if count > 0 {
                 let raw = unsafe { std::slice::from_raw_parts(header.lpData, count * 2) };
                 let frame: Vec<i16> = raw
-                    .chunks_exact(2)
-                    .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| i16::from_le_bytes(*pair))
                     .collect();
                 let rms = compute_rms_level(&frame);
                 if last_level.elapsed() >= LEVEL_EMIT_INTERVAL {
