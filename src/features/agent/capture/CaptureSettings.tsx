@@ -1,22 +1,26 @@
 import { useEffect } from "react";
 import {
-  ChoiceGroup,
   SettingBlock,
   SettingGroup,
   SettingRow,
   ShortcutRecorder,
   StatusMessage,
   Text,
-  Toggle,
 } from "../../../shared/ui";
-import type { CaptureSource } from "../../../platform/tauri";
 import type { AgentPanelModel } from "../model/view-model";
+import { CaptureDeliveryPicker } from "./CaptureDeliverySection";
+import {
+  CaptureSourceGrid,
+  IMAGE_REASON,
+  LastWindow,
+  needsWindowTarget,
+  sourceChoices,
+} from "./CaptureSourceSection";
 import {
   DEFAULT_CAPTURE_SHORTCUT,
   DEFAULT_TEXT_CAPTURE_SHORTCUT,
   recordShortcut,
 } from "./shortcut-keys";
-import { IMAGE_REASON, LastWindow, needsWindowTarget, sourceChoices } from "./CaptureSourceSection";
 
 export function CaptureSettings({
   agent,
@@ -43,13 +47,12 @@ export function CaptureSettings({
 
   return (
     <div className="space-y-4">
-      <SettingBlock title="What to capture">
-        <ChoiceGroup<CaptureSource>
+      <SettingBlock title="Capture source" icon="camera">
+        <CaptureSourceGrid
           value={source}
           choices={sourceChoices(agent.readiness.imageTransport)}
-          onChange={(next) => void selectSource(next)}
           disabled={busy}
-          presentation="row"
+          onChange={(next) => void selectSource(next)}
         />
         {!agent.readiness.imageTransport && (
           <Text as="p" variant="caption" className="mt-2 text-otto-text-tertiary">
@@ -74,10 +77,18 @@ export function CaptureSettings({
         )}
         {needsWindowTarget(source) && sourceReady && <LastWindow {...capture} />}
       </SettingBlock>
+      <SettingBlock title="After capture" icon="send">
+        <CaptureDeliveryPicker
+          autoSend={Boolean(capture.autoSend)}
+          disabled={busy}
+          onChange={(next) => void capture.setAutoSend?.(next)}
+        />
+      </SettingBlock>
       <SettingGroup title="Shortcuts">
         <SettingRow
+          icon="camera"
           title="Capture shortcut"
-          help="Captures what you chose above"
+          titleHint="Runs the capture source chosen above"
           htmlFor="otto-capture-shortcut"
         >
           <ShortcutRecorder
@@ -90,8 +101,9 @@ export function CaptureSettings({
           />
         </SettingRow>
         <SettingRow
+          icon="textSelect"
           title="Selected text shortcut"
-          help="Always grabs the text you highlighted"
+          titleHint="Grabs highlighted text directly"
           htmlFor="otto-text-capture-shortcut"
         >
           <ShortcutRecorder
@@ -103,22 +115,15 @@ export function CaptureSettings({
             onRecord={(next) => void capture.saveTextShortcut?.(next)}
           />
         </SettingRow>
-      </SettingGroup>
-      <SettingGroup title="After capturing">
-        <Toggle
-          title="Instant auto-send"
-          help="Off: captures wait in the composer so you can add a question first"
-          checked={Boolean(capture.autoSend)}
-          disabled={busy}
-          onChange={(next) => void capture.setAutoSend?.(next)}
-        />
         {!available && (
-          <StatusMessage tone="info">
+          <StatusMessage tone="info" className="mt-1">
             Capture shortcuts can only be configured in Otto for Windows.
           </StatusMessage>
         )}
         {capture.captureMessage && (
-          <StatusMessage tone="info">{capture.captureMessage}</StatusMessage>
+          <StatusMessage tone="info" className="mt-1">
+            {capture.captureMessage}
+          </StatusMessage>
         )}
       </SettingGroup>
     </div>

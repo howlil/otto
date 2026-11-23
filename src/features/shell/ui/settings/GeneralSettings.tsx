@@ -1,68 +1,20 @@
 import { useState } from "react";
-import {
-  Button,
-  ChoiceGroup,
-  Range,
-  SettingGroup,
-  SettingRow,
-  StatusMessage,
-  Toggle,
-} from "../../../../shared/ui";
+import { Button, SettingRow, StatusMessage, Text, Toggle } from "../../../../shared/ui";
 import type { AppUpdateState } from "../../hooks/useAppUpdate";
-import {
-  BACKGROUND_OPACITY_RANGE,
-  type BackgroundStyle,
-  type Preferences,
-} from "../../model/preferences";
+import type { Preferences } from "../../model/preferences";
+import { BackgroundSettings } from "./BackgroundSettings";
+import { LogoCustomizer } from "./LogoCustomizer";
 
-const backgroundChoices = [
-  { value: "solid" as const, label: "Solid" },
-  { value: "transparent" as const, label: "Transparent" },
-];
-
-function BackgroundSettings({
-  prefs,
-  change,
-}: {
-  prefs: Preferences;
-  change: (patch: Partial<Preferences>) => void;
-}) {
-  const [minOpacity, maxOpacity] = BACKGROUND_OPACITY_RANGE;
-  return (
-    <>
-      <SettingRow title="Background" help="Solid dark, or see-through so your desktop shows behind">
-        <ChoiceGroup<BackgroundStyle>
-          value={prefs.backgroundStyle}
-          choices={backgroundChoices}
-          onChange={(backgroundStyle) => change({ backgroundStyle })}
-        />
-      </SettingRow>
-      {prefs.backgroundStyle === "transparent" && (
-        <Range
-          label="Opacity"
-          value={prefs.backgroundOpacity}
-          min={minOpacity}
-          max={maxOpacity}
-          unit="%"
-          onChange={(backgroundOpacity) => change({ backgroundOpacity })}
-        />
-      )}
-    </>
-  );
-}
-
-function updateHelp(state: AppUpdateState): string {
+function updateStatusText(state: AppUpdateState): string | null {
   switch (state.status) {
     case "checking":
-      return "Checking for updates…";
+      return "Checking…";
     case "current":
-      return "Otto is up to date";
-    case "available":
-      return `Version ${state.version} is ready`;
+      return "Up to date";
     case "installing":
-      return "Installing update…";
+      return "Installing…";
     default:
-      return "Update check unavailable";
+      return null;
   }
 }
 
@@ -73,7 +25,7 @@ function captureNotice(
   protectedState: boolean | null,
 ): string | null {
   if (!supported) return "Requires Otto for Windows.";
-  if (pending) return "Applying the Windows capture setting…";
+  if (pending) return "Applying capture setting…";
   if (error) return error;
   if (protectedState === null) return "Windows capture state is unavailable.";
   return null;
@@ -115,15 +67,16 @@ export function GeneralSettings({
     captureProtected,
   );
   const { state } = update;
+  const statusLabel = updateStatusText(state);
   return (
-    <div>
-      <SettingGroup title="Appearance">
-        <BackgroundSettings prefs={prefs} change={change} />
-      </SettingGroup>
-      <SettingGroup title="Privacy">
+    <div className="space-y-3">
+      <BackgroundSettings prefs={prefs} change={change} />
+      <LogoCustomizer />
+      <div className="space-y-1">
         <Toggle
+          icon="eyeOff"
           title="Hide from screen capture"
-          help="Keeps Otto out of screenshots and recordings. Some recorders may still show it."
+          titleHint="Keeps Otto out of screenshots and recordings when supported"
           checked={captureProtected ?? prefs.hideFromCapture}
           disabled={!captureProtectionSupported || captureProtectionPending}
           onChange={(enabled) => void setCaptureProtection(enabled)}
@@ -131,23 +84,42 @@ export function GeneralSettings({
         {notice && (
           <StatusMessage tone={captureProtectionError ? "error" : "info"}>{notice}</StatusMessage>
         )}
-      </SettingGroup>
-      <SettingGroup title="App">
-        <SettingRow title="Updates" help={updateHelp(state)}>
-          {state.status === "available" && (
-            <Button size="xs" onClick={() => void update.installUpdate()}>
+        <SettingRow
+          icon="download"
+          title="Updates"
+          help={state.status === "available" ? `Version ${state.version}` : undefined}
+        >
+          {state.status === "available" ? (
+            <Button
+              variant="primary"
+              size="xs"
+              icon="download"
+              onClick={() => void update.installUpdate()}
+            >
               Update now
             </Button>
-          )}
-          {state.status === "error" && (
-            <Button variant="quiet" size="xs" onClick={() => void update.checkForUpdate()}>
+          ) : state.status === "error" ? (
+            <Button
+              variant="secondary"
+              size="xs"
+              icon="refresh"
+              onClick={() => void update.checkForUpdate()}
+            >
               Try again
             </Button>
+          ) : (
+            statusLabel && (
+              <Text as="span" variant="meta" className="text-otto-text-tertiary">
+                {statusLabel}
+              </Text>
+            )
           )}
         </SettingRow>
-        <SettingRow title="Quit Otto" help="Closes Otto and stops any answer in progress">
+        <SettingRow icon="power" title="Quit Otto">
           <Button
             size="xs"
+            icon="power"
+            className="hover:border-otto-danger/45 hover:text-otto-danger-copy"
             disabled={!quitSupported || quitPending}
             aria-busy={quitPending}
             onClick={() => {
@@ -163,7 +135,7 @@ export function GeneralSettings({
           </Button>
         </SettingRow>
         {quitError && <StatusMessage tone="error">{quitError}</StatusMessage>}
-      </SettingGroup>
+      </div>
     </div>
   );
 }

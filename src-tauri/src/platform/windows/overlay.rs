@@ -746,6 +746,23 @@ mod tests {
         assert_eq!(window["contentProtected"], true);
         assert_eq!(window["alwaysOnTop"], true);
         assert_eq!(window["skipTaskbar"], true);
+
+        let args = window["additionalBrowserArgs"]
+            .as_str()
+            .expect("additionalBrowserArgs configured");
+        for required in [
+            "msWebOOUI",
+            "msPdfOOUI",
+            "msSmartScreenProtection",
+            "--num-raster-threads=1",
+            "--disk-cache-size=",
+            "--max-old-space-size=",
+        ] {
+            assert!(
+                args.contains(required),
+                "expected additionalBrowserArgs to contain {required}"
+            );
+        }
     }
 
     #[test]

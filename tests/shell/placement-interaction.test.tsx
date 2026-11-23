@@ -33,6 +33,7 @@ const { ShellFrame } = await import("../../src/features/shell/ui/ShellFrame");
 const { PositionSettings } = await import("../../src/features/shell/ui/settings/PositionSettings");
 const { defaults } = await import("../../src/features/shell/model/preferences");
 const { useNotchShell } = await import("../../src/features/shell/hooks/useNotchShell");
+const { targetRegion } = await import("../../src/features/shell/surface-sync/useRenderedRegion");
 
 function save(preferences: Record<string, unknown> = {}) {
   localStorage.setItem(
@@ -249,5 +250,96 @@ describe("Notch placement recovery", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Capsule" }));
     expect(result.current.prefs.compactStyle).toBe("capsule");
+  });
+
+  test("position settings allow detaching from Otto OS and unlocking compact style", async () => {
+    const { result } = await shellHook({ dockWithOttoOs: true });
+    let docked = true;
+    const renderPosition = () =>
+      render(
+        <PositionSettings
+          prefs={{ ...result.current.prefs, dockWithOttoOs: docked }}
+          change={result.current.change}
+          placement={{
+            ...result.current.placement,
+            ottoOs: docked,
+            ottoOsDetected: true,
+            dockWithOttoOs: docked,
+            setDockWithOttoOs: (next) => {
+              docked = next;
+              result.current.placement.setDockWithOttoOs(next);
+            },
+          }}
+        />,
+      );
+
+    const view = renderPosition();
+    const toggle = screen.getByRole("checkbox", { name: /Dock with Otto OS/ }) as HTMLInputElement;
+    expect(toggle.checked).toBe(true);
+    expect((screen.getByRole("button", { name: "Capsule" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+
+    fireEvent.click(toggle);
+    expect(docked).toBe(false);
+    expect(result.current.prefs.dockWithOttoOs).toBe(false);
+
+    view.rerender(
+      <PositionSettings
+        prefs={{ ...result.current.prefs, dockWithOttoOs: false }}
+        change={result.current.change}
+        placement={{
+          ...result.current.placement,
+          ottoOs: false,
+          ottoOsDetected: true,
+          dockWithOttoOs: false,
+          setDockWithOttoOs: result.current.placement.setDockWithOttoOs,
+        }}
+      />,
+    );
+    expect((screen.getByRole("button", { name: "Capsule" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    expect((screen.getByRole("button", { name: /Attached/ }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  test("ShellFrame and targetRegion honor bottom and right dynamic anchors for edge-aware expansion", () => {
+    const view = render(
+      <ShellFrame
+        placement="floating"
+        gutter={0}
+        size={{ width: 526, height: 346 }}
+        nativeSize={{ width: 550, height: 610 }}
+        morphMs={0}
+        stageRef={{ current: null }}
+        anchor={{ horizontal: "right", vertical: "bottom" }}
+      >
+        <main />
+      </ShellFrame>,
+    );
+    const root = view.container.querySelector<HTMLElement>("[data-anchor-x]")!;
+    const stage = view.container.querySelector<HTMLElement>("[data-surface-stage]")!;
+    expect(root.dataset.anchorX).toBe("right");
+    expect(root.dataset.anchorY).toBe("bottom");
+    expect(stage.style.right).toBe("0px");
+    expect(stage.style.bottom).toBe("0px");
+
+    const region = targetRegion(
+      {
+        revision: 2,
+        placement: "floating",
+        width: 550,
+        height: 610,
+        scale: 1,
+        layouts: {} as never,
+        anchor: { horizontal: "right", vertical: "bottom" },
+      },
+      { width: 526, height: 346 },
+      "card",
+      4,
+    );
+    expect(region?.body).toEqual({ x: 23, y: 263, width: 527, height: 347 });
   });
 });

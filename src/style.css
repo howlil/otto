@@ -77,6 +77,11 @@
   --color-otto-disabled-outline: #7a7a81;
   --color-otto-label-faded: #aaa;
   --color-otto-disabled-selected: #707077;
+  --color-otto-logo-midnight: #172133;
+  --color-otto-logo-emerald: #142c25;
+  --color-otto-logo-violet: #261b38;
+  --color-otto-logo-crimson: #341821;
+  --color-otto-logo-amber: #302314;
   --font-otto-ui: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-otto-mono: Consolas, monospace;
 
@@ -276,6 +281,29 @@ button:disabled {
     transform var(--otto-press-duration) var(--ease-otto-press);
 }
 
+[data-background="blur"] .otto-shell-surface {
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  border-color: rgb(255 255 255 / 12%);
+}
+
+[data-background="liquid-glass"] .otto-shell-surface {
+  backdrop-filter: blur(30px) saturate(190%) brightness(1.06);
+  -webkit-backdrop-filter: blur(30px) saturate(190%) brightness(1.06);
+  border-color: rgb(255 255 255 / 22%);
+  background-image: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 16%) 0%,
+    rgb(255 255 255 / 4%) 44%,
+    rgb(159 188 216 / 10%) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 28%),
+    inset 0 -1px 0 0 rgb(255 255 255 / 10%),
+    inset 1px 0 0 0 rgb(255 255 255 / 14%),
+    inset -1px 0 0 0 rgb(255 255 255 / 14%);
+}
+
 @keyframes otto-page-enter {
   from {
     opacity: 0;
@@ -301,12 +329,16 @@ button:disabled {
 @keyframes otto-page-center-enter {
   from {
     opacity: 0;
-    transform: translate3d(0, 8px, 0);
+    transform: translate3d(0, var(--otto-enter-y, 8px), 0);
   }
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);
   }
+}
+
+[data-anchor-y="bottom"] {
+  --otto-enter-y: -8px;
 }
 
 @keyframes otto-page-center-exit {
@@ -530,22 +562,6 @@ button:disabled {
   background: color-mix(in srgb, var(--color-otto-danger) 84%, transparent);
 }
 
-.otto-circle-ring-listening {
-  background: color-mix(in srgb, var(--color-otto-ok) 88%, transparent);
-  animation: otto-circle-breathe 0.68s ease-in-out infinite alternate;
-}
-
-.otto-circle-ring-speaking {
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    var(--color-otto-ok) 120deg,
-    var(--color-otto-text-bright) 240deg,
-    transparent 360deg
-  );
-  animation: otto-circle-orbit 1.4s linear infinite;
-}
-
 .otto-circle-wave {
   border: 1.5px solid var(--color-otto-text);
   animation: otto-circle-wave 500ms var(--ease-otto) both;
@@ -559,9 +575,7 @@ button:disabled {
   border-color: var(--color-otto-text-bright);
 }
 
-.otto-circle-wave-completed,
-.otto-circle-wave-listening,
-.otto-circle-wave-speaking {
+.otto-circle-wave-completed {
   border-color: var(--color-otto-ok);
 }
 
@@ -596,11 +610,10 @@ button:disabled {
 
 @keyframes otto-eye-blink {
   0%,
-  92%,
   100% {
     transform: scaleY(1);
   }
-  96% {
+  50% {
     transform: scaleY(0.14);
   }
 }
@@ -618,29 +631,6 @@ button:disabled {
   }
 }
 
-@keyframes otto-eye-listen {
-  0%,
-  100% {
-    transform: scaleY(1);
-  }
-  50% {
-    transform: scaleY(1.16);
-  }
-}
-
-@keyframes otto-eye-speak {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scaleY(1);
-  }
-  35% {
-    transform: translate3d(0, -1px, 0) scaleY(0.84);
-  }
-  70% {
-    transform: translate3d(0, 0.5px, 0) scaleY(1.08);
-  }
-}
-
 @keyframes otto-eye-happy {
   0% {
     transform: translate3d(0, 1px, 0) scale(0.92);
@@ -653,20 +643,12 @@ button:disabled {
   }
 }
 
-.otto-eyes-idle .otto-eye {
-  animation: otto-eye-blink 5.2s ease-in-out infinite;
+.otto-eyes-blinking .otto-eye {
+  animation: otto-eye-blink 200ms ease-in-out 1;
 }
 
 .otto-eyes-working {
   animation: otto-eye-curious 2.4s ease-in-out infinite;
-}
-
-.otto-eyes-listening .otto-eye {
-  animation: otto-eye-listen 0.9s ease-in-out infinite;
-}
-
-.otto-eyes-speaking .otto-eye {
-  animation: otto-eye-speak 0.72s ease-in-out infinite;
 }
 
 .otto-eyes-completed {
@@ -862,8 +844,6 @@ h4.md-h {
   .otto-circle-logo-error,
   .otto-eyes-idle .otto-eye,
   .otto-eyes-working,
-  .otto-eyes-listening .otto-eye,
-  .otto-eyes-speaking .otto-eye,
   .otto-eyes-completed {
     animation: none;
   }

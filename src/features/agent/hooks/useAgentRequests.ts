@@ -114,7 +114,8 @@ export function useAgentRequestActions(params: RequestActionParams) {
         if (resolved.switchedMode) setDraft("");
         return;
       }
-      if (busy || isRuntimePending() || submitted.current || readiness.status !== "ready") return;
+      const blocked = busy || isRuntimePending() || Boolean(submitted.current);
+      if (blocked || readiness.status !== "ready") return;
       await dispatchAsk(question, resolved.requestText || question, resolved.activeMode);
     },
     [

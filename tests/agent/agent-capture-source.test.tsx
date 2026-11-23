@@ -94,11 +94,11 @@ describe("Agent capture source settings", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /^Selected text(?! shortcut)/ }).getAttribute(
-        "aria-pressed",
-      ),
-    ).toBe("true");
-    expect(screen.getByText("The text you highlighted in another app. No screenshot.")).toBeTruthy();
+    const selectedText = screen.getByRole("button", { name: /^Selected text(?! shortcut)/ });
+    expect(selectedText.getAttribute("aria-pressed")).toBe("true");
+    expect(selectedText.getAttribute("title")).toBe(
+      "The text you highlighted in another app. No screenshot.",
+    );
     expect(screen.queryByText("Last observed: Browser Window")).toBeNull();
     expect(refreshed).toBe(0);
   });
@@ -195,7 +195,7 @@ describe("Agent capture source settings", () => {
       />,
     );
 
-    const region = screen.getByRole("button", { name: /^Select area/ });
+    const region = screen.getByRole("button", { name: /^Region snip/ });
     expect(region.getAttribute("aria-pressed")).toBe("true");
     expect(screen.queryByText("Last observed: Browser Window")).toBeNull();
     expect(refreshed).toBe(0);
@@ -233,10 +233,42 @@ describe("Agent capture source settings", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /^Select area/ }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: /^Region snip/ }).hasAttribute("disabled")).toBe(true);
   });
 
-  test("exposes independent selected text shortcut and instant auto-send toggle", () => {
+  test("orders visual capture sources consistently ahead of text-only capture", () => {
+    render(
+      <AgentCaptureSettings
+        capture={{
+          source: "region",
+          selectSource: async () => {},
+          targetTitle: null,
+          targetWarning: null,
+          targetPending: false,
+          refreshTarget: async () => {},
+          sourceReady: true,
+          sourcePending: false,
+          shortcut: "Ctrl+Shift+O",
+          setShortcut: () => {},
+          captureMessage: "",
+          savingCapture: false,
+          available: true,
+          saveShortcut: async () => {},
+        }}
+        focusCaptureShortcut={false}
+      />,
+    );
+
+    const buttons = screen
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("data-active-key"))
+      .filter((key): key is string =>
+        ["region", "window", "scrollingWindow", "fullScreen", "selectedText"].includes(key ?? ""),
+      );
+    expect(buttons).toEqual(["region", "window", "scrollingWindow", "fullScreen", "selectedText"]);
+  });
+
+  test("exposes independent selected text shortcut and after-capturing delivery choices", () => {
     const toggled: boolean[] = [];
     render(
       <AgentCaptureSettings
@@ -267,9 +299,11 @@ describe("Agent capture source settings", () => {
     );
 
     expect(screen.getByText("Selected text shortcut")).toBeTruthy();
-    const autoSendToggle = screen.getByRole("checkbox", { name: /^Instant auto-send/ });
-    expect((autoSendToggle as HTMLInputElement).checked).toBe(false);
-    fireEvent.click(autoSendToggle);
+    const stageButton = screen.getByRole("button", { name: /^Stage in composer/ });
+    const instantButton = screen.getByRole("button", { name: /^Instant auto-send/ });
+    expect(stageButton.getAttribute("aria-pressed")).toBe("true");
+    expect(instantButton.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(instantButton);
     expect(toggled).toEqual([true]);
   });
 });

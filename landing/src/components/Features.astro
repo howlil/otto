@@ -1,119 +1,62 @@
 ---
+import ModelSwitch from "@/islands/ModelSwitch";
+import BackgroundDemo from "@/islands/BackgroundDemo";
 import { alsoIncluded } from "@/data/otto";
-
-const chips = ["Simpler", "Give an example", "Quiz me", "Go deeper"];
 ---
 
 <section id="features" class="mx-auto max-w-6xl px-4 py-28">
-  <div class="max-w-2xl">
-    <h2 class="reveal font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-      Everything Otto does, in one quiet notch.
-    </h2>
-    <p class="reveal mt-5 text-lg leading-relaxed text-otto-muted">
-      Each feature follows one rule: help arrives where you are, and it leaves the moment you are done.
-    </p>
-  </div>
-
-  <div class="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-    <article class="spotlight reveal group rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8 md:col-span-2">
-      <div class="grid-fade relative mb-8 h-44 overflow-hidden rounded-2xl border border-otto-line bg-otto-bg">
-        <div class="absolute left-1/2 top-4 h-9 w-40 -translate-x-1/2 rounded-full border border-white/15 bg-black transition-[width,height,border-radius] duration-500 ease-otto group-hover:h-24 group-hover:w-[min(340px,80%)] group-hover:rounded-[20px]">
-        </div>
-      </div>
-      <h3 class="font-display text-2xl font-semibold tracking-tight">A notch, not a window</h3>
-      <p class="mt-3 max-w-xl leading-relaxed text-otto-muted">
-        Otto sits at the top edge of your screen. Hover to peek without taking focus, click or press Ctrl+Alt+O to pin it, and collapse mid-answer while the reply keeps streaming.
-      </p>
-    </article>
-
-    <article class="spotlight reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
-      <div class="grid-fade relative mb-8 h-44 overflow-hidden rounded-2xl border border-otto-line bg-otto-bg">
-        <div class="snip absolute rounded-md border border-dashed border-otto-text/80 bg-white/[0.04]"></div>
-        <div class="absolute bottom-3 left-3 flex gap-1.5">
-          <span class="chip-pop rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-otto-body" style="--delay: 1.2s">Explain</span>
-          <span class="chip-pop rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-otto-body" style="--delay: 1.5s">Solve</span>
-        </div>
-      </div>
-      <h3 class="font-display text-2xl font-semibold tracking-tight">Capture only what you point at</h3>
-      <p class="mt-3 leading-relaxed text-otto-muted">
-        Region snip with scroll stitching for long pages, window and full-screen capture, selected text read through Windows UI Automation, and pasted images. Nothing is captured without your action.
-      </p>
-    </article>
-
-    <article class="spotlight reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
-      <div class="relative mb-8 h-44 overflow-hidden rounded-2xl border border-otto-line bg-otto-bg p-5">
-        <p class="text-[11px] text-otto-muted">Your draft in another app</p>
-        <p class="mt-4 font-mono text-[13px] text-otto-text"><span class="typer" style="--n: 36">Ice floats because it is less dense.</span></p>
-        <span class="absolute bottom-4 left-5 rounded-full bg-otto-sage/15 px-2.5 py-1 text-[11px] text-otto-sage">Clipboard untouched</span>
-      </div>
-      <h3 class="font-display text-2xl font-semibold tracking-tight">Insert back where you work</h3>
-      <p class="mt-3 leading-relaxed text-otto-muted">
-        Click Insert on any answer to type clean text at your last focused caret in another app. It never overwrites your clipboard.
-      </p>
-    </article>
-
-    <article class="spotlight reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
-      <div class="relative mb-8 h-44 overflow-hidden rounded-2xl border border-otto-line bg-otto-bg p-5 font-mono text-[12px] leading-relaxed text-otto-body">
-        <span class="absolute right-3 top-3 rounded-md bg-white/10 px-2 py-1 font-sans text-[11px] text-otto-text">Copy</span>
-        <p><span class="text-otto-lavender">const</span> <span class="text-otto-sage">floats</span> = ice.density &lt; water.density;</p>
-        <p class="mt-2"><span class="text-otto-lavender">return</span> <span class="text-otto-amber">true</span>;</p>
-        <p class="mt-5 font-sans text-[13px] text-otto-muted">Tables, math, and code render safely.</p>
-      </div>
-      <h3 class="font-display text-2xl font-semibold tracking-tight">Answers you can use</h3>
-      <p class="mt-3 leading-relaxed text-otto-muted">
-        GitHub-flavored tables, KaTeX math, and syntax-highlighted code with a copy button. Raw HTML and scripts never run, and remote images are never fetched.
-      </p>
-    </article>
-
-    <article class="spotlight reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
-      <div class="relative mb-8 h-44 overflow-hidden rounded-2xl border border-otto-line bg-otto-bg p-4">
-        <div class="flex items-center gap-2 rounded-lg border border-otto-line bg-otto-surface px-3 py-2 text-[12px] text-otto-muted">
-          Search history: <span class="text-otto-text">derivative</span>
-        </div>
-        <ul class="mt-3 space-y-1.5 text-[12px]">
-          <li class="rounded-md bg-white/[0.08] px-3 py-2 text-otto-text">Derivative, step by step</li>
-          <li class="rounded-md px-3 py-2 text-otto-muted">Why does ice float?</li>
-          <li class="rounded-md px-3 py-2 text-otto-muted">Lab report, translated</li>
-        </ul>
-      </div>
-      <h3 class="font-display text-2xl font-semibold tracking-tight">Searchable local history</h3>
-      <p class="mt-3 leading-relaxed text-otto-muted">
-        Conversations stay on your PC, with full-text search, rename, delete, and Markdown export. Up to 100 messages per conversation.
-      </p>
-    </article>
-
-    <article class="spotlight reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8 md:col-span-2 lg:col-span-3">
-      <div class="grid gap-8 lg:grid-cols-2 lg:items-center">
-        <div>
-          <h3 class="font-display text-2xl font-semibold tracking-tight">Follow-ups that teach</h3>
-          <p class="mt-3 max-w-xl leading-relaxed text-otto-muted">
-            Retry, edit and re-run a prompt, queue one follow-up while the answer streams, and stop anytime. A stopped answer keeps its partial text, marked Stopped. After each answer, one-click chips offer the next step.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2.5 rounded-2xl border border-otto-line bg-otto-bg p-6">
-          {
-            chips.map((chip, index) => (
-              <span class="chip-pop rounded-full border border-white/15 px-3.5 py-2 text-sm text-otto-body" style={`--delay: ${0.2 + index * 0.15}s`}>
-                {chip}
-              </span>
-            ))
-          }
-        </div>
+  <h2 class="reveal max-w-2xl font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+    Switch engines, change the look, keep the answer.
+  </h2>
+  <div class="mt-14 grid grid-cols-1 gap-4 lg:grid-cols-5">
+    <article class="reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8 lg:col-span-2 lg:row-span-2">
+      <p class="font-mono text-xs text-otto-muted">Ctrl M</p>
+      <h3 class="mt-3 font-display text-2xl font-semibold tracking-tight">Engine and model, one key away.</h3>
+      <div class="mt-8">
+        <ModelSwitch client:visible />
       </div>
     </article>
-  </div>
-
-  <div class="reveal mt-16 rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
-    <h3 class="font-display text-xl font-semibold tracking-tight">Also included</h3>
-    <ul class="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-      {
-        alsoIncluded.map((item) => (
-          <li class="flex gap-3 text-[15px] leading-relaxed text-otto-body">
-            <span class="mt-2.5 size-1.5 shrink-0 rounded-full bg-otto-sage"></span>
-            {item}
-          </li>
-        ))
-      }
-    </ul>
+    <article class="reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8 lg:col-span-3">
+      <h3 class="font-display text-2xl font-semibold tracking-tight">Solid, or see-through.</h3>
+      <div class="mt-6">
+        <BackgroundDemo client:visible />
+      </div>
+    </article>
+    <article class="reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8 lg:col-span-3">
+      <h3 class="font-display text-2xl font-semibold tracking-tight">Answers keep their shape.</h3>
+      <pre class="mt-6 overflow-x-auto rounded-otto-panel border border-otto-line-soft bg-otto-bg p-4 font-mono text-[12px] leading-[1.7] text-otto-text-secondary"><code><span class="text-otto-hljs-keyword">def</span> <span class="text-otto-hljs-function">slope</span>(f, x, h=<span class="text-otto-hljs-number">1e-6</span>):
+    <span class="text-otto-hljs-keyword">return</span> (f(x + h) - f(x)) / h</code></pre>
+      <table class="mt-5 w-full border-collapse text-left text-otto-xs">
+        <thead>
+          <tr class="border-b border-otto-line-soft text-otto-text-tertiary">
+            <th class="py-2 pr-4 font-medium">Mode</th>
+            <th class="py-2 font-medium">Best for</th>
+          </tr>
+        </thead>
+        <tbody class="text-otto-text-secondary">
+          <tr class="border-b border-otto-line-soft">
+            <td class="py-2 pr-4">Solve</td>
+            <td class="py-2">Verified math and logic</td>
+          </tr>
+          <tr class="border-b border-otto-line-soft">
+            <td class="py-2 pr-4">Mentor</td>
+            <td class="py-2">Guided steps with questions</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4">Practice</td>
+            <td class="py-2">Short recall drills</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="mt-5 font-mono text-sm text-otto-text">f′(x) = lim<sub>h→0</sub> (f(x + h) − f(x)) / h</p>
+    </article>
+    <article class="reveal flex flex-col justify-between rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8 lg:col-span-3">
+      <h3 class="font-display text-2xl font-semibold tracking-tight">Also included</h3>
+      <ul class="mt-6 flex flex-wrap gap-2">
+        {alsoIncluded.map((item) => (
+          <li class="rounded-full border border-otto-line-soft bg-otto-control px-3 py-1.5 text-sm text-otto-body">{item}</li>
+        ))}
+      </ul>
+    </article>
   </div>
 </section>

@@ -1,4 +1,4 @@
-import { ChoiceGroup, SelectField, Text } from "../../../shared/ui";
+import { ChoiceGroup, Icon, SelectField, Text } from "../../../shared/ui";
 import { effortHint, formatEffortLabel } from "./model-usage";
 
 export function ThinkingEffortField({
@@ -16,16 +16,22 @@ export function ThinkingEffortField({
   if (efforts.length <= 6) {
     return (
       <fieldset className="min-w-0 border-0 p-0" aria-labelledby="otto-agent-thinking-label">
-        <Text
-          as="span"
-          variant="label"
-          id="otto-agent-thinking-label"
-          className="mb-1.5 block text-otto-text-secondary"
-        >
-          Thinking effort
-        </Text>
+        <span className="mb-1.5 flex items-center gap-2">
+          <span className="flex size-4 shrink-0 items-center justify-center text-otto-text-tertiary">
+            <Icon name="brain" size={14} />
+          </span>
+          <Text
+            as="span"
+            variant="label"
+            id="otto-agent-thinking-label"
+            className="text-otto-text-secondary"
+          >
+            Thinking effort
+          </Text>
+        </span>
         <ChoiceGroup
           value={value}
+          wrap={efforts.length > 4}
           choices={efforts.map((effort) => ({
             value: effort,
             label: formatEffortLabel(effort),
@@ -44,14 +50,19 @@ export function ThinkingEffortField({
   }
   return (
     <div className="min-w-0">
-      <Text
-        as="label"
-        variant="label"
-        className="mb-1.5 block text-otto-text-secondary"
-        htmlFor="otto-agent-thinking"
-      >
-        Thinking effort
-      </Text>
+      <span className="mb-1.5 flex items-center gap-2">
+        <span className="flex size-4 shrink-0 items-center justify-center text-otto-text-tertiary">
+          <Icon name="brain" size={14} />
+        </span>
+        <Text
+          as="label"
+          variant="label"
+          className="text-otto-text-secondary"
+          htmlFor="otto-agent-thinking"
+        >
+          Thinking effort
+        </Text>
+      </span>
       <SelectField
         id="otto-agent-thinking"
         value={value}

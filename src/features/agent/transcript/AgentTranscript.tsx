@@ -1,70 +1,15 @@
-import type { ReactNode } from "react";
 import { AgentComposer } from "../conversation/AgentComposer";
-import { chatActivityLabel, providerIssue, providerIssueTitle } from "../model/status";
-import { AgentEmptyState, CaptureAlerts } from "./AgentEmptyState";
+import { chatActivityLabel } from "../model/status";
+import { CaptureAlerts, TranscriptIntro } from "./AgentEmptyState";
 import { PermissionChoiceCard } from "./PermissionChoiceCard";
+import { resolveTranscriptDisplay } from "./transcript-display";
 import { TranscriptMessages } from "./TranscriptMessages";
 import { TranscriptOutcome } from "./TranscriptOutcome";
 import type { AgentTranscriptModel } from "../model/view-model";
 import type { CaptureSource } from "../../../platform/tauri";
 import { useTranscriptViewport } from "./useTranscriptViewport";
 
-function resolveTranscriptIssue(agent: AgentTranscriptModel) {
-  const { snapshot, readiness, error, errorKind } = agent;
-  const runFailure = snapshot.status === "failed" ? snapshot.error : null;
-  const displayedErrorKind = errorKind ?? (runFailure ? "request" : null);
-  const issueTitle =
-    displayedErrorKind === "connection"
-      ? "Otto connection unavailable"
-      : displayedErrorKind === "request"
-        ? "Request failed"
-        : providerIssueTitle(readiness);
-  const captureFailure =
-    snapshot.capture.phase === "failed"
-      ? (snapshot.capture.error ?? "Capture could not be completed.")
-      : null;
-  const issue = providerIssue(readiness, captureFailure ? null : error || runFailure);
-  return { displayedErrorKind, issueTitle, captureFailure, issue };
-}
-
-function resolveTranscriptDisplay(agent: AgentTranscriptModel) {
-  const { snapshot, readiness, draft, captureBusy, busy } = agent;
-  const stagedCapture = snapshot.capture.staged ?? null;
-  const queuedFollowup = snapshot.queuedFollowup ?? null;
-  const issues = resolveTranscriptIssue(agent);
-  const canAct = !busy && !captureBusy && readiness.status === "ready";
-  const canSend = canAct && (draft.trim().length > 0 || stagedCapture !== null);
-  const canQueue =
-    busy &&
-    snapshot.status !== "stopping" &&
-    !captureBusy &&
-    readiness.status === "ready" &&
-    draft.trim().length > 0;
-  const showEmptyState =
-    snapshot.messages.length === 0 &&
-    snapshot.status === "idle" &&
-    canAct &&
-    !issues.issue &&
-    !issues.captureFailure &&
-    !stagedCapture;
-  return { stagedCapture, queuedFollowup, ...issues, canAct, canSend, canQueue, showEmptyState };
-}
-
-export function AgentTranscript({
-  agent,
-  onConfigureCapture,
-  onCapture,
-  onCaptureSource,
-  onStageImage,
-  onInsert,
-  captureActionError,
-  captureSource,
-  captureShortcut,
-  voiceControl,
-  speakingMessageId,
-  onToggleSpeak,
-  onMeasured,
-}: {
+type AgentTranscriptProps = {
   agent: AgentTranscriptModel;
   onConfigureCapture: () => void;
   onCapture: () => void;
@@ -73,12 +18,23 @@ export function AgentTranscript({
   onInsert?: (value: string) => Promise<void>;
   captureActionError: string | null;
   captureSource: CaptureSource;
-  captureShortcut?: string;
-  voiceControl?: ReactNode;
-  speakingMessageId?: string | null;
-  onToggleSpeak?: (messageId: string, text: string) => void;
+  reducedMotion?: boolean;
   onMeasured: (height: number) => void;
-}) {
+};
+
+export function AgentTranscript(props: AgentTranscriptProps) {
+  const {
+    agent,
+    onConfigureCapture,
+    onCapture,
+    onCaptureSource,
+    onStageImage,
+    onInsert,
+    captureActionError,
+    captureSource,
+    reducedMotion,
+    onMeasured,
+  } = props;
   const { feed, composer, onFeedScroll } = useTranscriptViewport({
     onMeasured,
     captureActionError,
@@ -95,16 +51,12 @@ export function AgentTranscript({
         onScroll={onFeedScroll}
       >
         <div className="flex min-w-0 flex-col gap-[11px]">
-          {view.showEmptyState && (
-            <AgentEmptyState
-              captureShortcut={captureShortcut}
-              onSelectStarter={(mode, prompt) => {
-                agent.setMode?.(mode);
-                agent.setDraft(prompt);
-                document.getElementById("otto-prompt")?.focus({ preventScroll: true });
-              }}
-            />
-          )}
+          <TranscriptIntro
+            agent={agent}
+            showOnboarding={view.showOnboarding}
+            showEmptyState={view.showEmptyState}
+            reducedMotion={reducedMotion}
+          />
           <TranscriptMessages
             snapshot={agent.snapshot}
             busy={agent.busy}
@@ -115,8 +67,6 @@ export function AgentTranscript({
               agent.readiness.status,
             )}
             onInsert={onInsert}
-            speakingMessageId={speakingMessageId}
-            onToggleSpeak={onToggleSpeak}
             onRetry={agent.retryLast}
             onEditPrompt={agent.editPrompt}
             onFollowupChip={agent.sendFollowupChip}
@@ -172,7 +122,6 @@ export function AgentTranscript({
         capturePhase={agent.snapshot.capture.phase}
         canSend={view.canSend}
         stopping={agent.snapshot.status === "stopping"}
-        voiceControl={voiceControl}
         onCapture={onCapture}
         send={agent.send}
         stop={agent.stop}

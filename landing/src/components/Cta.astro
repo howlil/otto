@@ -2,19 +2,28 @@
 import { releaseUrl, repoUrl } from "@/data/otto";
 ---
 
-<section class="mx-auto max-w-6xl px-4 pb-28 pt-12">
-  <div class="reveal relative overflow-hidden rounded-[32px] border border-otto-line bg-otto-surface px-6 py-16 text-center sm:px-16 sm:py-24">
-    <div aria-hidden="true" class="glow absolute left-1/2 top-0 h-[420px] w-[min(760px,120vw)] -translate-x-1/2 -translate-y-1/2 rounded-full"></div>
-    <h2 class="relative font-display text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
-      Your next question, answered where you are.
+<section class="mx-auto max-w-6xl px-4 py-28">
+  <div class="reveal relative overflow-hidden rounded-[32px] border border-otto-line bg-otto-surface px-6 py-16 text-center sm:px-16 sm:py-20">
+    <div aria-hidden="true" class="glow absolute left-1/2 top-0 h-[300px] w-[min(640px,120vw)] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-60"></div>
+    <div aria-hidden="true" class="relative mx-auto mb-10 flex h-10 w-[228px] max-w-full items-center gap-[9px] rounded-full border border-otto-line bg-otto-surface px-[11px] text-left">
+      <span class="grid h-7 w-7 flex-none place-items-center rounded-full bg-otto-raised-soft">
+        <span class="flex items-center gap-1.5">
+          <i class="block h-3 w-[5px] rounded-[7px] bg-otto-agent-eye"></i>
+          <i class="block h-3 w-[5px] rounded-[7px] bg-otto-agent-eye"></i>
+        </span>
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-otto-md font-[590] text-otto-text">Codex</span>
+        <small class="block text-otto-xs text-otto-text-secondary">Codex · Ready</small>
+      </span>
+    </div>
+    <h2 class="relative font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+      Put Otto at the top of your screen.
     </h2>
-    <p class="relative mx-auto mt-6 max-w-xl text-lg leading-relaxed text-otto-muted">
-      Install Otto, sign in to the AI tool you already use, and press Ctrl+Alt+O the next time you get stuck.
-    </p>
-    <div class="relative mt-10 flex flex-wrap items-center justify-center gap-3">
+    <div class="relative mt-10 flex flex-wrap justify-center gap-3">
       <a href={releaseUrl} class="btn-primary">Download for Windows</a>
       <a href={repoUrl} class="btn-secondary">View on GitHub</a>
     </div>
-    <p class="relative mt-6 text-xs text-otto-muted">Windows 11 · Installs for your user account · Updates are minisign-verified</p>
+    <p class="relative mt-6 text-xs text-otto-muted">Windows 11 · Uses the AI CLIs you already have · No extra API key</p>
   </div>
 </section>

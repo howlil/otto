@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type Ref } from "react";
+import { useEffect, useState, type Ref } from "react";
 import type { AgentSnapshot, ProviderReadiness } from "../../../platform/tauri";
 import { OttoLogo, VisuallyHidden } from "../../../shared/ui";
 import {
@@ -7,18 +7,10 @@ import {
   type CircleStateDescriptor,
   type CircleStateTone,
   type CircleTransitionCue,
-  type CircleVoiceOverlay,
 } from "../model/circle-state";
 import { compactDetail, compactLabel } from "../model/surface";
 
 const CIRCLE_CUE_DURATION_MS = 540;
-
-export type AgentCircleVoiceProps = CircleVoiceOverlay & {
-  level?: number;
-  onStopListening?: () => void;
-  onCancelListening?: () => void;
-  onStopSpeaking?: () => void;
-};
 
 function logoMotionClass(state: CircleStateDescriptor, cue: CircleTransitionCue | null): string {
   if (cue === "error") return "otto-circle-logo-error";
@@ -64,33 +56,11 @@ function useCircleTransition(state: CircleStateDescriptor) {
   return transition;
 }
 
-function handleCircleContextMenu(
-  event: React.MouseEvent<HTMLButtonElement>,
-  voice?: AgentCircleVoiceProps,
-  onToggleCompactStyle?: () => void,
-) {
-  if (voice?.listening && voice.onCancelListening) {
-    event.preventDefault();
-    voice.onCancelListening();
-    return;
-  }
-  if (voice?.speaking && voice.onStopSpeaking) {
-    event.preventDefault();
-    voice.onStopSpeaking();
-    return;
-  }
-  if (onToggleCompactStyle) {
-    event.preventDefault();
-    onToggleCompactStyle();
-  }
-}
-
 export function AgentCircle({
   snapshot,
   installed,
   readiness,
   error,
-  voice,
   buttonRef,
   onOpen,
   onToggleCompactStyle,
@@ -99,18 +69,12 @@ export function AgentCircle({
   installed: boolean | null;
   readiness: ProviderReadiness;
   error: string | null;
-  voice?: AgentCircleVoiceProps;
   buttonRef: Ref<HTMLButtonElement>;
   onOpen: () => void;
   onToggleCompactStyle?: () => void;
 }) {
-  const state = resolveCircleState(snapshot, installed, readiness, error, voice);
+  const state = resolveCircleState(snapshot, installed, readiness, error);
   const transition = useCircleTransition(state);
-  const voiceLevel = Math.max(0, Math.min(1, voice?.level ?? 0));
-  const ringStyle: CSSProperties | undefined =
-    voice?.listening && voiceLevel > 0
-      ? { transform: `scale(${(1 + voiceLevel * 0.14).toFixed(3)})` }
-      : undefined;
 
   return (
     <button
@@ -121,17 +85,20 @@ export function AgentCircle({
       data-circle-motion={transition.cue ?? undefined}
       className="group relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-0 bg-transparent p-0 text-inherit [&_[data-otto-logo]]:bg-transparent"
       type="button"
-      onClick={() => {
-        if (voice?.listening && voice.onStopListening) voice.onStopListening();
-        else onOpen();
-      }}
-      onContextMenu={(event) => handleCircleContextMenu(event, voice, onToggleCompactStyle)}
+      onClick={onOpen}
+      onContextMenu={
+        onToggleCompactStyle
+          ? (event) => {
+              event.preventDefault();
+              onToggleCompactStyle();
+            }
+          : undefined
+      }
     >
       {state.ringTone !== "idle" && (
         <span
           aria-hidden="true"
           data-circle-ring={state.ringTone}
-          style={ringStyle}
           className={`otto-circle-ring otto-circle-ring-${state.ringTone} pointer-events-none absolute inset-[1.5px] rounded-full transition-transform duration-75`}
         />
       )}

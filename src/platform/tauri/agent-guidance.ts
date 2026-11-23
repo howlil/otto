@@ -3,12 +3,18 @@ import { invoke } from "@tauri-apps/api/core";
 export type LearningMode = "direct" | "solve" | "mentor" | "simple" | "write" | "practice";
 
 export type AssistantProfile = {
+  name: string;
+  role: string;
+  focus: string;
   language: string;
   level: string;
   instructions: string;
 };
 
 export type AssistantGuidancePayload = {
+  name: string | null;
+  role: string | null;
+  focus: string | null;
   language: string | null;
   level: string | null;
   instructions: string | null;
@@ -16,9 +22,12 @@ export type AssistantGuidancePayload = {
 
 export function toGuidancePayload(profile: AssistantProfile): AssistantGuidancePayload {
   return {
-    language: profile.language.trim() || null,
-    level: profile.level.trim() || null,
-    instructions: profile.instructions.trim() || null,
+    name: profile.name?.trim() || null,
+    role: profile.role?.trim() || null,
+    focus: profile.focus?.trim() || null,
+    language: profile.language?.trim() || null,
+    level: profile.level?.trim() || null,
+    instructions: profile.instructions?.trim() || null,
   };
 }
 

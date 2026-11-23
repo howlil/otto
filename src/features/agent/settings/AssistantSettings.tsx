@@ -5,7 +5,13 @@ import { ModelUsageSettings } from "./ModelUsageSettings";
 import { ProfileSettings } from "./ProfileSettings";
 import { ProviderSettings } from "./ProviderSettings";
 
-export function AssistantSettings({ agent }: { agent: AgentPanelModel }) {
+export function AssistantSettings({
+  agent,
+  onStartOnboarding,
+}: {
+  agent: AgentPanelModel;
+  onStartOnboarding?: () => void;
+}) {
   const { readiness, snapshot } = agent;
   const working = agent.busy || agent.captureBusy;
   const providerStatus =
@@ -55,6 +61,7 @@ export function AssistantSettings({ agent }: { agent: AgentPanelModel }) {
         profile={agent.profile}
         onChange={agent.setProfile}
         onClear={agent.clearProfile}
+        onStartOnboarding={onStartOnboarding}
       />
       {agent.error && (
         <StatusMessage tone="error" className="text-otto-text-tertiary">

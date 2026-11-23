@@ -24,7 +24,8 @@
         "skipTaskbar": true,
         "contentProtected": true,
         "shadow": false,
-        "center": true
+        "center": true,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate,MediaRouter,OptimizationHints,InterestFeedContentSuggestions,AutofillServerCommunication --disable-background-networking --disable-component-update --disable-sync --disable-domain-reliability --metrics-recording-only --num-raster-threads=1 --renderer-process-limit=1 --disk-cache-size=10485760 --media-cache-size=1048576 --force-gpu-mem-available-mb=32 --js-flags=\"--max-old-space-size=64 --optimize-for-size\""
       }
     ],
     "security": {

@@ -5,34 +5,55 @@ import {
   type NotchHost,
   type NotchPlacement,
   type NotchPosition,
+  type NotchRectPx,
 } from "../../../platform/tauri/shell";
 import { nativeAvailable } from "../../../platform/tauri/runtime";
 import { HOST_CAPACITY } from "./layout";
+
+export type HostSettleRequest = {
+  id: number;
+  position: NotchPosition;
+  surfaceRect: NotchRectPx | null;
+};
 
 export function useNotchHost({
   placement,
   topOffset,
   position,
   positionReset,
+  dockWithOttoOs = true,
+  compactCircle = false,
+  settle = null,
   attempt,
   report,
   onMoved,
+  onSettled,
 }: {
   placement: NotchPlacement;
   topOffset: number;
   position: NotchPosition | null;
   positionReset: number;
+  dockWithOttoOs?: boolean;
+  compactCircle?: boolean;
+  settle?: HostSettleRequest | null;
   attempt: number;
   report: (message: string) => void;
   onMoved: (position: NotchPosition) => void;
+  onSettled?: (position: NotchPosition) => void;
 }) {
   const [host, setHost] = useState<NotchHost | null>(null);
-  const callbacks = useRef({ report, onMoved });
-  callbacks.current = { report, onMoved };
+  const callbacks = useRef({ report, onMoved, onSettled });
+  callbacks.current = { report, onMoved, onSettled };
   const positionRef = useRef(position);
   positionRef.current = position;
+  const compactCircleRef = useRef(compactCircle);
+  compactCircleRef.current = compactCircle;
+  const settleRef = useRef(settle);
+  settleRef.current = settle;
+  const appliedSettleId = useRef(0);
   const chain = useRef(Promise.resolve());
   const version = useRef(0);
+  const settleId = settle?.id ?? 0;
 
   useEffect(() => {
     if (!nativeAvailable) return;
@@ -41,24 +62,35 @@ export function useNotchHost({
     let frame = 0;
     let unlisten: (() => void) | undefined;
     let viewport = `${window.innerWidth},${window.innerHeight},${window.devicePixelRatio}`;
-    const commit = (applied: NotchHost) => {
+    const commit = (applied: NotchHost, hadCustomPosition: boolean) => {
       setHost((previous) => (previous?.revision === applied.revision ? previous : applied));
+      if (hadCustomPosition && applied.position) {
+        callbacks.current.onSettled?.(applied.position);
+      }
     };
-    const configuredPosition = () => (placement === "floating" ? positionRef.current : null);
+    const configuredRequest = () => {
+      if (placement !== "floating") return { pos: null, surfaceRect: null };
+      const pending = settleId > 0 ? settleRef.current : null;
+      if (pending && pending.id === settleId && pending.id !== appliedSettleId.current) {
+        appliedSettleId.current = pending.id;
+        return { pos: pending.position, surfaceRect: pending.surfaceRect };
+      }
+      return { pos: positionRef.current, surfaceRect: null };
+    };
     const run = async (current: number, resetRevision: number) => {
       const isCurrent = () =>
         active && current === version.current && resetRevision === positionReset;
       if (!isCurrent()) return;
+      const { pos, surfaceRect } = configuredRequest();
       try {
-        const applied = await configureNotchHost(
-          placement,
-          topOffset,
-          HOST_CAPACITY,
-          configuredPosition(),
+        const applied = await configureNotchHost(placement, topOffset, HOST_CAPACITY, pos, {
           attempt,
-        );
+          dockWithOttoOs,
+          compactCircle: compactCircleRef.current,
+          surfaceRect,
+        });
         if (!isCurrent()) return;
-        commit(applied);
+        commit(applied, pos !== null);
       } catch {
         if (!isCurrent()) return;
         failed = true;
@@ -98,7 +130,7 @@ export function useNotchHost({
       unlisten?.();
       window.removeEventListener("resize", resized);
     };
-  }, [placement, topOffset, positionReset, attempt]);
+  }, [placement, topOffset, dockWithOttoOs, positionReset, settleId, attempt]);
 
   return host;
 }

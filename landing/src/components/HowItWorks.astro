@@ -1,28 +1,69 @@
 ---
 import CopyCommand from "@/islands/CopyCommand";
 import { steps } from "@/data/otto";
+
+const [install, signIn, ask] = steps;
 ---
 
 <section id="how" class="mx-auto max-w-6xl px-4 py-28">
   <h2 class="reveal max-w-2xl font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
     Three steps from download to first answer.
   </h2>
-  <ol class="mt-14 grid gap-4 lg:grid-cols-3">
-    {
-      steps.map((step, index) => (
-        <li class="spotlight reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
-          <span class="font-mono text-sm text-otto-muted">0{index + 1}</span>
-          <h3 class="mt-6 font-display text-2xl font-semibold tracking-tight">{step.title}</h3>
-          <p class="mt-3 leading-relaxed text-otto-muted">{step.body}</p>
-          {step.commands.length > 0 && (
-            <div class="mt-6 space-y-2.5">
-              {step.commands.map((command) => (
-                <CopyCommand command={command} client:visible />
-              ))}
+  <ol class="mt-14 grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <li class="reveal flex flex-col rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
+      <div aria-hidden="true" class="flex h-40 flex-col justify-center gap-4 rounded-otto-card border border-otto-line-soft bg-otto-bg p-5">
+        <div class="flex items-center gap-3">
+          <img src="/otto-icon.png" alt="" width="34" height="34" class="size-[34px] rounded-otto-panel" />
+          <div class="min-w-0 flex-1">
+            <p class="text-otto-xs text-otto-text">Otto setup</p>
+            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-otto-raised-soft">
+              <div class="h-full w-[82%] rounded-full bg-otto-ok"></div>
             </div>
-          )}
-        </li>
-      ))
-    }
+          </div>
+        </div>
+        <p class="text-otto-2xs text-otto-text-tertiary">Per-user install, no admin prompt</p>
+      </div>
+      <span class="mt-6 font-mono text-sm text-otto-muted">01</span>
+      <h3 class="mt-3 font-display text-2xl font-semibold tracking-tight">{install.title}</h3>
+      <p class="mt-3 leading-relaxed text-otto-muted">{install.body}</p>
+    </li>
+    <li class="reveal flex flex-col rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
+      <div aria-hidden="true" class="flex h-40 flex-col justify-center gap-2.5 rounded-otto-card border border-otto-line-soft bg-otto-bg p-5">
+        {["Codex", "Claude Code", "OpenCode"].map((name, index) => (
+          <div class="flex items-center justify-between rounded-otto-control border border-otto-line-soft bg-otto-control px-3 py-2">
+            <span class="text-otto-xs text-otto-text">{name}</span>
+            <span class={`size-1.5 rounded-full ${index === 0 ? "bg-otto-ok" : "bg-otto-line-mid"}`}></span>
+          </div>
+        ))}
+      </div>
+      <span class="mt-6 font-mono text-sm text-otto-muted">02</span>
+      <h3 class="mt-3 font-display text-2xl font-semibold tracking-tight">{signIn.title}</h3>
+      <p class="mt-3 leading-relaxed text-otto-muted">{signIn.body}</p>
+      <div class="mt-6 space-y-2.5">
+        {signIn.commands.map((command) => (
+          <CopyCommand command={command} client:visible />
+        ))}
+      </div>
+    </li>
+    <li class="reveal flex flex-col rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
+      <div aria-hidden="true" class="flex h-40 flex-col items-center justify-center gap-4 rounded-otto-card border border-otto-line-soft bg-otto-bg p-5">
+        <div class="flex h-10 w-[228px] max-w-full items-center gap-[9px] rounded-full border border-otto-line bg-otto-surface px-[11px]">
+          <span class="grid h-7 w-7 flex-none place-items-center rounded-full bg-otto-raised-soft">
+            <span class="flex items-center gap-1.5">
+              <i class="block h-3 w-[5px] rounded-[7px] bg-otto-agent-eye"></i>
+              <i class="block h-3 w-[5px] rounded-[7px] bg-otto-agent-eye"></i>
+            </span>
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-otto-md font-[590] text-otto-text">Codex</span>
+            <small class="block text-otto-xs text-otto-text-secondary">Codex · Ready</small>
+          </span>
+        </div>
+        <p class="font-mono text-[11px] text-otto-text-tertiary">Ctrl Alt O</p>
+      </div>
+      <span class="mt-6 font-mono text-sm text-otto-muted">03</span>
+      <h3 class="mt-3 font-display text-2xl font-semibold tracking-tight">{ask.title}</h3>
+      <p class="mt-3 leading-relaxed text-otto-muted">{ask.body}</p>
+    </li>
   </ol>
 </section>

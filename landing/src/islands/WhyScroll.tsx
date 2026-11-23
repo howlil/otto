@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { motion, type MotionValue, useReducedMotion, useScroll, useTransform } from "motion/react";
 
 const words =
-  "Every time you leave your study or reading task to ask an AI, the thread snaps. You copy the question into another window, paste the answer back, and lose your place. Otto keeps help where you already are, stays out of your focus, and gets out of the way the moment you are done.".split(
+  "Every time you leave your task to ask an AI, the thread snaps. Otto keeps help where you already are, then gets out of the way.".split(
     " ",
   );
 

@@ -7,29 +7,42 @@ export type PlacementStatus = {
   requested: Placement;
   supported: boolean;
   ottoOs: boolean;
+  ottoOsDetected: boolean;
+  dockWithOttoOs: boolean;
   circleMode: boolean;
   error: string | null;
   attempt: number;
   change: (placement: Placement) => void;
   retry: () => void;
   resetPosition: () => void;
+  setDockWithOttoOs: (dock: boolean) => void;
 };
 
-export function useShellPlacement(
-  prefs: Preferences,
-  supported: boolean,
-  setPlacementPreference: (placement: Placement) => void,
-  resetPosition: () => void,
-  ottoOs: boolean,
-) {
+export function useShellPlacement({
+  prefs,
+  supported,
+  setPlacementPreference,
+  resetPosition,
+  setDockWithOttoOs,
+  ottoOs,
+  ottoOsDetected,
+}: {
+  prefs: Preferences;
+  supported: boolean;
+  setPlacementPreference: (placement: Placement) => void;
+  resetPosition: () => void;
+  setDockWithOttoOs: (dock: boolean) => void;
+  ottoOs: boolean;
+  ottoOsDetected: boolean;
+}) {
   const circleMode = prefs.compactStyle === "circle";
   const [appliedPlacement, setAppliedPlacement] = useState<Placement>("floating");
   const [placementError, setPlacementError] = useState<string | null>(null);
   const [placementAttempt, setPlacementAttempt] = useState(0);
   const requestedPlacement = useRef<Placement>(prefs.placement);
   requestedPlacement.current = prefs.placement;
-  const floatingOverrideRef = useRef(ottoOs || circleMode);
-  floatingOverrideRef.current = ottoOs || circleMode;
+  const floatingOverrideRef = useRef(ottoOsDetected || circleMode);
+  floatingOverrideRef.current = ottoOsDetected || circleMode;
 
   const changePlacement = useCallback(
     (placement: Placement) => {
@@ -62,12 +75,15 @@ export function useShellPlacement(
       requested: prefs.placement,
       supported,
       ottoOs,
+      ottoOsDetected,
+      dockWithOttoOs: prefs.dockWithOttoOs,
       circleMode,
       error: placementError,
       attempt: placementAttempt,
       change: changePlacement,
       retry: retryPlacement,
       resetPosition,
+      setDockWithOttoOs,
     } satisfies PlacementStatus,
     syncPlacement,
   };

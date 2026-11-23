@@ -1,10 +1,20 @@
-use crate::shell::notch::{PositionPx, RectPx, RegionOrder, RegionPx, host_bounds};
+use super::notch_window::{
+    observed_bounds, pick_monitor, position_host, reveal, show_startup_error_and_exit,
+};
+#[cfg(windows)]
+use crate::shell::notch::shifted_region;
+use crate::shell::notch::{
+    HostAnchor, PositionPx, RectPx, RegionOrder, RegionPx, host_bounds, resolve_floating_host,
+    resolve_surface_rect, surface_probe_center,
+};
 use crate::shell::otto_os::circle_slot;
 use crate::shell::sizing::{DisplayGeometry, content_top, drawable_monitor, resolve_layouts};
 use std::sync::Mutex;
-use tauri::{Manager, State, WebviewWindow};
-#[cfg(not(windows))]
-use tauri::{PhysicalPosition, PhysicalSize};
+use tauri::{State, WebviewWindow};
+
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +28,8 @@ pub struct NotchHost {
     display: DisplayGeometry,
     content_top: u32,
     pub(super) otto_os: bool,
+    pub(super) anchor: HostAnchor,
+    pub(super) position: PositionPx,
 }
 
 const OTTO_OS_CIRCLE_PX: u32 = 40;
@@ -43,7 +55,7 @@ pub(super) struct ConfiguredHost {
 pub(super) struct HostState {
     pub(super) host: Option<ConfiguredHost>,
     order: RegionOrder,
-    region: Option<RegionPx>,
+    pub(super) region: Option<RegionPx>,
     pub(super) revealed: bool,
     #[cfg(windows)]
     pub(super) last_signal: Option<std::time::Instant>,
@@ -56,54 +68,6 @@ pub(super) struct HostState {
 #[derive(Default)]
 pub struct NotchHostState(pub(super) Mutex<HostState>);
 
-fn observed_bounds(window: &WebviewWindow) -> Result<RectPx, String> {
-    let size = window.outer_size().map_err(|error| error.to_string())?;
-    let position = window.outer_position().map_err(|error| error.to_string())?;
-    Ok(RectPx {
-        x: position.x,
-        y: position.y,
-        width: size.width,
-        height: size.height,
-    })
-}
-
-fn position_host(window: &WebviewWindow, bounds: RectPx) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{
-            SWP_NOACTIVATE, SWP_NOZORDER, SetWindowPos,
-        };
-        let hwnd = window.hwnd().map_err(|error| error.to_string())?;
-        let ok = unsafe {
-            SetWindowPos(
-                hwnd.0 as _,
-                std::ptr::null_mut(),
-                bounds.x,
-                bounds.y,
-                bounds.width as i32,
-                bounds.height as i32,
-                SWP_NOACTIVATE | SWP_NOZORDER,
-            )
-        };
-        if ok == 0 {
-            return Err("Windows could not position Otto's host.".into());
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        window
-            .set_size(PhysicalSize::new(bounds.width, bounds.height))
-            .map_err(|error| error.to_string())?;
-        window
-            .set_position(PhysicalPosition::new(bounds.x, bounds.y))
-            .map_err(|error| error.to_string())?;
-    }
-    if observed_bounds(window)? != bounds {
-        return Err("Windows did not retain Otto's host geometry.".into());
-    }
-    Ok(())
-}
-
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostRequest {
@@ -114,6 +78,12 @@ pub struct HostRequest {
     height: u32,
     client_id: String,
     attempt: u32,
+    #[serde(default = "default_true")]
+    dock_with_otto_os: bool,
+    #[serde(default)]
+    compact_circle: bool,
+    #[serde(default)]
+    surface_rect: Option<RectPx>,
 }
 
 #[tauri::command]
@@ -142,6 +112,9 @@ fn configure_host(
         height,
         client_id,
         attempt,
+        dock_with_otto_os,
+        compact_circle,
+        surface_rect,
     } = request;
     if !matches!(placement.as_str(), "floating" | "attached")
         || client_id.is_empty()
@@ -149,10 +122,9 @@ fn configure_host(
     {
         return Err("Invalid notch placement.".into());
     }
-    let monitor = window
-        .current_monitor()
-        .map_err(|error| error.to_string())?
-        .ok_or("Monitor unavailable.")?;
+    let probe_point = position
+        .map(|pos| surface_probe_center(pos, surface_rect, (width, height), compact_circle));
+    let monitor = pick_monitor(window, probe_point)?;
     let scale = monitor.scale_factor();
     let size = monitor.size();
     let origin = monitor.position();
@@ -163,7 +135,8 @@ fn configure_host(
     });
     #[cfg(not(target_os = "macos"))]
     let display = DisplayGeometry::default();
-    let otto_os = placement == "floating" && crate::ipc::otto_os::active();
+    let otto_os_present = crate::ipc::otto_os::active();
+    let otto_os = placement == "floating" && otto_os_present && dock_with_otto_os;
     let mut drawable = drawable_monitor(
         &display,
         placement == "attached",
@@ -189,27 +162,57 @@ fn configure_host(
         scale,
         diameter: slot.diameter,
     });
-    if otto_os && slot.is_none() {
+    if otto_os_present && placement == "floating" && slot.is_none() {
         let reserved = (work.position.y - drawable.y).max(0);
         drawable.y += reserved;
         drawable.height = drawable.height.saturating_sub(reserved as u32);
     }
-    let position = position.or(slot.map(|slot| slot.position));
     let mut layouts = resolve_layouts(&display, placement == "attached");
     if otto_os {
         let circle = slot.map_or(OTTO_OS_CIRCLE_PX, |slot| slot.diameter);
         layouts.insert("agentCompact", (circle, circle));
         layouts.insert("agentCompactCircle", (circle, circle));
     }
-    let bounds = host_bounds(
-        drawable,
-        i64::from(work.position.y) + i64::from(work.size.height),
-        scale,
-        (width, height),
-        placement == "attached",
-        top_offset,
-        position,
-    )?;
+    let (bounds, anchor) = if placement == "floating"
+        && let Some(pos) = position
+    {
+        let work_rect = RectPx {
+            x: work.position.x,
+            y: work.position.y,
+            width: work.size.width,
+            height: work.size.height,
+        };
+        let compact_key = if compact_circle || otto_os {
+            "agentCompactCircle"
+        } else {
+            "agentCompact"
+        };
+        let compact = layouts.get(compact_key).copied().unwrap_or((228, 40));
+        let default_h = ((f64::from(height) * scale).round() as u32)
+            .min(work.size.height)
+            .max(1);
+        let screen_surface = resolve_surface_rect(
+            pos,
+            surface_rect,
+            host_width.min(work.size.width).max(1),
+            default_h,
+            compact,
+            scale,
+        );
+        resolve_floating_host(work_rect, scale, (width, height), screen_surface)?
+    } else {
+        let target_position = position.or(slot.map(|slot| slot.position));
+        let rect = host_bounds(
+            drawable,
+            i64::from(work.position.y) + i64::from(work.size.height),
+            scale,
+            (width, height),
+            placement == "attached",
+            top_offset,
+            target_position,
+        )?;
+        (rect, HostAnchor::default())
+    };
     let mut state = state
         .0
         .lock()
@@ -224,6 +227,7 @@ fn configure_host(
         && host.view.placement == placement
         && host.view.display == display
         && host.view.otto_os == otto_os
+        && host.view.anchor == anchor
         && host.view.layouts == layouts
     {
         return Ok(host.view.clone());
@@ -232,12 +236,24 @@ fn configure_host(
         && state.revealed
         && previous.width == bounds.width
         && previous.height == bounds.height;
-    if previous != bounds
-        && !glides
-        && let Err(error) = position_host(window, bounds)
-    {
-        let _ = position_host(window, previous);
-        return Err(error);
+    if previous != bounds && !glides {
+        #[cfg(windows)]
+        if state.revealed
+            && (previous.x != bounds.x || previous.y != bounds.y)
+            && let Some(current_region) = state.region
+            && let Some(shifted) = shifted_region(current_region, previous, bounds)
+        {
+            let _ = crate::platform::windows::region::apply_reported_region(
+                window,
+                &shifted,
+                Some(&current_region),
+                false,
+            );
+        }
+        if let Err(error) = position_host(window, bounds) {
+            let _ = position_host(window, previous);
+            return Err(error);
+        }
     }
     state.order.revision = state
         .order
@@ -250,6 +266,8 @@ fn configure_host(
         content_top: content_top(&display, placement == "attached"),
         layouts,
         otto_os,
+        anchor,
+        position: PositionPx::anchored(bounds, anchor),
         display,
         placement,
         width: f64::from(bounds.width) / scale,
@@ -269,24 +287,6 @@ fn configure_host(
         attempt,
     });
     Ok(host)
-}
-
-fn reveal(window: &WebviewWindow) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{SW_SHOWNOACTIVATE, ShowWindow};
-        crate::platform::windows::overlay::ensure_tool_style(window)
-            .map_err(|error| error.to_string())?;
-        let hwnd = window.hwnd().map_err(|error| error.to_string())?;
-        unsafe {
-            ShowWindow(hwnd.0 as _, SW_SHOWNOACTIVATE);
-        }
-        crate::platform::windows::overlay::ensure_tool_style(window)
-            .map_err(|error| error.to_string())?;
-    }
-    #[cfg(not(windows))]
-    window.show().map_err(|error| error.to_string())?;
-    Ok(())
 }
 
 #[tauri::command]
@@ -369,24 +369,5 @@ fn report_startup_failure(window: &WebviewWindow, state: &NotchHostState, error:
     if state.0.lock().is_ok_and(|state| state.revealed) {
         return;
     }
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
-        let message: Vec<u16> = format!("Otto could not prepare its window.\n\n{error}\n\nClose this message, then reopen Otto to retry.").encode_utf16().chain(Some(0)).collect();
-        let title: Vec<u16> = "Otto window unavailable"
-            .encode_utf16()
-            .chain(Some(0))
-            .collect();
-        unsafe {
-            MessageBoxW(
-                std::ptr::null_mut(),
-                message.as_ptr(),
-                title.as_ptr(),
-                MB_OK | MB_ICONERROR,
-            );
-        }
-    }
-    #[cfg(not(windows))]
-    eprintln!("Otto window unavailable: {error}");
-    window.app_handle().exit(1);
+    show_startup_error_and_exit(window, error);
 }

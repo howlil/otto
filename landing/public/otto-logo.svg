@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <defs>
+    <linearGradient id="otto-bg" x1="64" y1="8" x2="64" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2A2D36"/>
+      <stop offset="100%" stop-color="#1A1C22"/>
+    </linearGradient>
+    <linearGradient id="otto-rim" x1="64" y1="8" x2="64" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4A4E5B"/>
+      <stop offset="100%" stop-color="#2B2E35"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="36" fill="url(#otto-bg)" stroke="url(#otto-rim)" stroke-width="3"/>
+  <rect x="40" y="39" width="17" height="50" rx="8.5" fill="#F4F4F4"/>
+  <rect x="71" y="39" width="17" height="50" rx="8.5" fill="#F4F4F4"/>
+</svg>

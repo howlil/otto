@@ -16,8 +16,9 @@ export function MissingProviders({
     <div className="mt-2">
       <Button
         variant="quiet"
-        size="link"
-        className="text-otto-text-tertiary"
+        size="xs"
+        icon={open ? "chevronDown" : "chevronRight"}
+        className="-ml-2 text-otto-text-tertiary"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >

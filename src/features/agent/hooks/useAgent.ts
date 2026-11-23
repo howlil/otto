@@ -31,7 +31,7 @@ const initial: AgentSnapshot = {
   error: null,
 };
 
-export function useAgent(readinessActive: boolean): AgentViewModel {
+export function useAgent(readinessActive: boolean, warmActive = readinessActive): AgentViewModel {
   const capture = useCaptureShortcut();
   const { captureNow, insertText, stageImage, clearStaged } = useAgentCapture();
   const guidance = useAgentGuidance();
@@ -58,11 +58,8 @@ export function useAgent(readinessActive: boolean): AgentViewModel {
   const [thinkingEffort, setThinkingEffortValue] = useState<string | null>(null);
   const activeRun = ["starting", "streaming", "stopping"].includes(snapshot.status);
   const captureBusy = captureIsWorking(snapshot.capture.phase);
-  const { readiness, refreshing, providers, refreshProvider, refreshPath } = useProviderReadiness(
-    provider,
-    model,
-    readinessActive,
-  );
+  const providerState = useProviderReadiness(provider, model, readinessActive, warmActive);
+  const { readiness, refreshing, providers, refreshProvider, refreshPath } = providerState;
   const runtimePrefs = useAgentRuntimePrefs();
   const pinnedModels = runtimePrefs.prefs.pinnedModels[provider] ?? [];
   const togglePinnedModel = useCallback(
@@ -177,11 +174,7 @@ export function useAgent(readinessActive: boolean): AgentViewModel {
     setProvider: runtime.selectProvider,
     setModel: runtime.selectModel,
     setThinkingEffort: runtime.selectThinkingEffort,
-    mode: guidance.mode,
-    setMode: guidance.setMode,
-    profile: guidance.profile,
-    setProfile: guidance.setProfile,
-    clearProfile: guidance.clearProfile,
+    ...guidance,
     locked,
     error: connection.error ?? snapshot.error,
     busy: operationBusy,

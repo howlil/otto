@@ -12,7 +12,17 @@ export type NotchSurface =
 
 export type NotchShape = "capsule" | "card" | "attached";
 export type NotchPlacement = "floating" | "attached";
-export type NotchPosition = { x: number; y: number };
+export type HorizontalAnchor = "left" | "center" | "right";
+export type VerticalAnchor = "top" | "bottom";
+export type HostAnchor = { horizontal: HorizontalAnchor; vertical: VerticalAnchor };
+export type NotchRectPx = { x: number; y: number; width: number; height: number };
+export type NotchPosition = {
+  x: number;
+  y: number;
+  anchorX?: HorizontalAnchor;
+  anchorY?: VerticalAnchor;
+  height?: number;
+};
 
 export type DisplayGeometry = {
   source: "physical-notch" | "notchless" | "approximate";
@@ -34,6 +44,8 @@ export type NotchHost = {
   scale: number;
   layouts: NotchLayouts;
   ottoOs?: boolean;
+  anchor?: HostAnchor;
+  position?: NotchPosition;
 };
 
 export type NotchRegionPx = {
@@ -70,10 +82,25 @@ export async function configureNotchHost(
   topOffset: number,
   capacity: { width: number; height: number },
   position: NotchPosition | null,
-  attempt = 0,
+  options?: {
+    attempt?: number;
+    dockWithOttoOs?: boolean;
+    compactCircle?: boolean;
+    surfaceRect?: NotchRectPx | null;
+  },
 ): Promise<NotchHost> {
   return invokeNotch("notch_configure_host", {
-    request: { placement, topOffset, position, ...capacity, clientId: notchClientId, attempt },
+    request: {
+      placement,
+      topOffset,
+      position,
+      ...capacity,
+      clientId: notchClientId,
+      attempt: options?.attempt ?? 0,
+      dockWithOttoOs: options?.dockWithOttoOs ?? true,
+      compactCircle: options?.compactCircle ?? false,
+      surfaceRect: options?.surfaceRect ?? null,
+    },
   });
 }
 
@@ -81,6 +108,11 @@ export async function startNotchDragging(): Promise<void> {
   if (!nativeAvailable) return;
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   await getCurrentWindow().startDragging();
+}
+
+export async function finishNotchDragging(): Promise<NotchPosition | null> {
+  if (!nativeAvailable) return null;
+  return invokeNotch<NotchPosition | null>("notch_finish_drag", {});
 }
 
 export async function setNotchRegion(region: NotchRegionPx): Promise<boolean> {

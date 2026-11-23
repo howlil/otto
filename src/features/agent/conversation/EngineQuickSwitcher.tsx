@@ -101,7 +101,9 @@ export function EngineQuickSwitcher({
           setOpenedByShortcut(false);
           setOpen((current) => !current);
         }}
-        className="group flex max-w-full min-w-0 flex-col rounded-otto-chip border-0 bg-transparent px-1.5 py-0.5 text-left transition-colors duration-150 hover:bg-otto-control/70 focus-visible:outline-1 focus-visible:outline-otto-line-focused"
+        className={`group flex max-w-full min-w-0 flex-col rounded-otto-chip border-0 px-1.5 py-0.5 text-left transition-colors duration-150 focus-visible:outline-1 focus-visible:outline-otto-line-focused ${
+          open ? "bg-otto-control/85" : "bg-transparent hover:bg-otto-control/70"
+        }`}
       >
         <span className="flex min-w-0 items-center gap-1">
           <Text

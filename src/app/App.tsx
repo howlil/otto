@@ -8,11 +8,13 @@ import {
   resolveSurface,
   updateMeasuredHeights,
   useAppUpdate,
+  useIdleMemoryMode,
   useNotchShell,
   useNotchSurfaceSync,
+  type HostSettleRequest,
+  type PanelPosition,
 } from "../features/shell";
 import type { NotchPlacement } from "../platform/tauri";
-import { useAppVoiceBridge } from "./useAppVoiceBridge";
 
 function motionCue(status: string): string | null {
   switch (status) {
@@ -26,32 +28,34 @@ function motionCue(status: string): string | null {
 }
 
 export default function App() {
-  const shell = useNotchShell();
-  const agent = useAgent(shell.expanded && shell.isAgent);
-  const voice = useAppVoiceBridge(agent, shell);
+  const dragEndRef = useRef<(position: PanelPosition) => void>(() => {});
+  const onDragEnd = useCallback((position: PanelPosition) => dragEndRef.current(position), []);
+  const shell = useNotchShell({ onDragEnd });
+  const agent = useAgent(shell.expanded && shell.isAgent, shell.pinned && shell.isAgent);
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>({});
-  const appUpdate = useAppUpdate();
+  const [pendingSettle, setPendingSettle] = useState<HostSettleRequest | null>(null);
+  const appUpdate = useAppUpdate(
+    shell.expanded && shell.page === "settings" && shell.settingsTab === "general",
+  );
+  useIdleMemoryMode(shell.expanded || agent.busy || agent.captureBusy);
   const { page, expanded, prefs, reducedMotion, setEventMotion } = shell;
   const onContentMeasured = useCallback(
-    (height: number) => {
-      setContentHeights((current) => updateMeasuredHeights(current, page, height));
-    },
+    (height: number) =>
+      setContentHeights((current) => updateMeasuredHeights(current, page, height)),
     [page],
   );
-
-  const resolvedSurface = resolveSurface({
+  const surface = resolveSurface({
     expanded,
     page,
     agentSurface: resolveAgentSurface(agent.snapshot, agent.installed, agent.error),
     compactCircle: shell.compactCircle,
   });
-  const surface = resolvedSurface;
 
   const measuredHeight =
     expanded && (page === "agent" || page === "settings") ? contentHeights[page] : undefined;
   const requestedShape = notchShape(
-    shell.compactCircle ? "floating" : shell.placement.requested,
+    shell.compactCircle || shell.ottoOsDetected ? "floating" : shell.placement.requested,
     expanded,
   );
   const onSurfaceObserved = useCallback(
@@ -77,6 +81,7 @@ export default function App() {
     morphMs,
     stageRef,
     placement: surfacePlacement,
+    anchor: surfaceAnchor,
     recovery,
     sizingHost,
   } = useNotchSurfaceSync({
@@ -85,6 +90,9 @@ export default function App() {
     topOffset: prefs.topOffset,
     position: prefs.position,
     positionReset: shell.positionReset,
+    dockWithOttoOs: prefs.dockWithOttoOs,
+    compactCircle: shell.compactCircle,
+    settle: pendingSettle,
     measuredHeight,
     reducedMotion,
     durationMs: morphDuration(prefs.motion),
@@ -92,7 +100,27 @@ export default function App() {
     onObserved: onSurfaceObserved,
     onError: onSurfaceError,
     onMoved: onPanelMoved,
+    onSettled: shell.setPanelPosition,
   });
+
+  dragEndRef.current = (position: PanelPosition) => {
+    const rect = stageRef.current?.getBoundingClientRect();
+    const surfaceRect =
+      rect && rect.width > 0 && rect.height > 0
+        ? {
+            x: Math.round(rect.left * surfaceScale),
+            y: Math.round(rect.top * surfaceScale),
+            width: Math.max(1, Math.round(rect.width * surfaceScale)),
+            height: Math.max(1, Math.round(rect.height * surfaceScale)),
+          }
+        : null;
+    shell.setPanelPosition(position);
+    setPendingSettle((current) => ({
+      id: (current?.id ?? 0) + 1,
+      position,
+      surfaceRect,
+    }));
+  };
 
   const lastStatus = useRef(agent.snapshot.status);
   useEffect(() => {
@@ -122,10 +150,10 @@ export default function App() {
     <ShellView
       agent={agent}
       shell={shell}
-      voice={voice}
       surfaceError={surfaceError}
       gutter={notchGutter(notchShape(surfacePlacement, expanded))}
       placement={surfacePlacement}
+      anchor={surfaceAnchor}
       recovery={recovery}
       sizingHost={sizingHost}
       onRetrySurface={() => {

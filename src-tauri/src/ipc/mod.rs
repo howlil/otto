@@ -4,7 +4,7 @@ pub mod app;
 pub mod notch;
 #[cfg(windows)]
 pub mod notch_follow;
+pub mod notch_window;
 pub mod otto_os;
 pub mod overlay;
 pub mod shell_shortcut;
-pub mod voice;

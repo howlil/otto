@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AgentModelOption } from "../../../platform/tauri";
-import { TextField, VisuallyHidden } from "../../../shared/ui";
+import { Icon, TextField, VisuallyHidden } from "../../../shared/ui";
 import { FilteredModelList, PinnedModelChips } from "./ModelPickerList";
 import { ModelSelectRow } from "./ModelSelectRow";
 import { sortAndFilterModels } from "./model-picker";
@@ -59,6 +59,11 @@ export function ModelPicker({
           <label htmlFor={`${id}-filter`}>
             <VisuallyHidden>Filter models</VisuallyHidden>
           </label>
+          <Icon
+            name="search"
+            size={13}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-otto-text-tertiary"
+          />
           <TextField
             ref={searchRef}
             id={`${id}-filter`}
@@ -67,6 +72,7 @@ export function ModelPicker({
             value={query}
             disabled={busy}
             placeholder="Filter models…"
+            className="pl-7"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && filtered.length > 0) {

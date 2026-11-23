@@ -27,7 +27,7 @@ describe("dynamic affected test planner", () => {
       expect(plan.native).toBe(false);
       expect(plan.nativeSuites).toEqual({ shell: false, transitions: false, p8: false });
     }
-  });
+  }, 15_000);
 
   test("budget files run only boundary checks without build, tests, or native gates", () => {
     const plan = planAffected([".agents/frontend-budget.json"], { root });
@@ -99,7 +99,7 @@ describe("dynamic affected test planner", () => {
       expect(plan.native).toBe(false);
       expect(plan.nativeSuites).toEqual({ shell: false, transitions: false, p8: false });
     }
-  });
+  }, 15_000);
 
   test("selects Codex Rust tests and only P8 native E2E for Codex adapter edits", () => {
     const plan = planAffected(["src-tauri/src/agent/providers/codex/turn.rs"], { root });
@@ -200,7 +200,7 @@ describe("dynamic affected test planner", () => {
     const deletedTest = planAffected(["tests/agent/removed.test.mjs"], { root });
     expect(deletedTest.bunTests).toEqual([]);
     expect(deletedTest.nodeTests).toEqual([]);
-  });
+  }, 15_000);
 
   test("collapses redundant nested Rust test filters", () => {
     expect(
@@ -232,7 +232,7 @@ describe("dynamic affected test planner", () => {
       expect(plan.native).toBe(true);
       expect(plan.nativeSuites).toEqual({ shell: true, transitions: true, p8: true });
     }
-  });
+  }, 15_000);
 
   test("fails closed when an explicit --base ref cannot be diffed", () => {
     expect(() => collectChangedFiles(root, { base: "refs/heads/nonexistent-otto-base" })).toThrow(

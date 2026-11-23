@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from "react";
-import { Button } from "./Button";
+import { IconButton } from "./a11y";
 import { Text } from "./Text";
 
 export type ShortcutAttempt =
@@ -28,7 +28,7 @@ function Keycaps({ shortcut }: { shortcut: string }) {
   return keys.map((key) => (
     <kbd
       key={key}
-      className="rounded-otto-chip bg-otto-raised-deep px-1.5 py-0.5 font-otto-mono text-otto-xs"
+      className="rounded-otto-chip border border-otto-line-soft bg-otto-raised-deep px-1.5 py-0.5 font-otto-mono text-otto-2xs text-otto-text-bright"
     >
       {key}
     </kbd>
@@ -70,29 +70,35 @@ export function ShortcutRecorder({
   };
   return (
     <span className="flex flex-col items-end gap-1">
-      <span className="flex items-center gap-2">
+      <span className="flex items-center gap-1.5">
         {value !== defaultValue && !recording && (
-          <Button
+          <IconButton
+            icon="reset"
+            label="Reset"
+            title="Reset shortcut"
             variant="quiet"
-            size="xs"
+            size={13}
             disabled={disabled}
             onClick={() => onRecord(defaultValue)}
-          >
-            Reset
-          </Button>
+          />
         )}
         <button
           id={id}
           type="button"
           disabled={disabled}
-          className="flex min-h-[32px] items-center gap-1 rounded-otto-control border border-otto-line-mid bg-otto-field-deep px-2 text-otto-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-otto-input-selected disabled:opacity-50"
+          title={recording ? "Press shortcut keys or Esc to cancel" : "Click to change shortcut"}
+          className={`flex h-8 items-center gap-1 rounded-otto-control border px-2 text-otto-text transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-otto-input-selected disabled:opacity-45 ${
+            recording
+              ? "border-otto-line-focused bg-otto-selected"
+              : "border-otto-line-mid bg-otto-field-deep hover:border-otto-line-hover"
+          }`}
           onClick={() => (recording ? stop() : setRecording(true))}
           onKeyDown={onKeyDown}
           onBlur={stop}
         >
           {recording ? (
             <Text as="span" variant="meta" className="text-otto-text-bright" role="status">
-              Press keys… Esc cancels
+              Press keys…
             </Text>
           ) : (
             <Keycaps shortcut={value} />

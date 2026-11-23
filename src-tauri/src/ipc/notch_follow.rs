@@ -13,6 +13,7 @@ struct FollowPlan {
     signal_due: bool,
     spring: SpringFollow,
     dt_seconds: f64,
+    region_body: Option<RectPx>,
 }
 
 fn follow_plan(state: &NotchHostState, now: Instant) -> Option<FollowPlan> {
@@ -35,6 +36,7 @@ fn follow_plan(state: &NotchHostState, now: Instant) -> Option<FollowPlan> {
             .is_none_or(|last| last.elapsed() >= SIGNAL_INTERVAL),
         spring: state.follow_spring,
         dt_seconds,
+        region_body: state.region.map(|region| region.body),
     })
 }
 
@@ -79,26 +81,27 @@ pub fn follow(
     app: &tauri::AppHandle,
     hwnd: isize,
     presence: crate::platform::windows::otto_os::Presence,
-) {
+) -> bool {
     if crate::platform::windows::otto_os::pointer_pressed() {
-        return;
+        return true;
     }
     let state = app.state::<NotchHostState>();
     let now = Instant::now();
     let Some(mut plan) = follow_plan(&state, now) else {
-        return;
+        return false;
     };
     let Some(current) = window_bounds(hwnd) else {
-        return;
+        return false;
     };
     let mut target = None;
+    let mut moved = false;
     let signal = match plan.track {
         Some(track) => {
             let Some(slot) = presence
                 .notch
                 .and_then(|notch| circle_slot(notch, track.host_width, track.monitor, track.scale))
             else {
-                return;
+                return false;
             };
             if slot.diameter != track.diameter {
                 Some("otto-display-changed")
@@ -111,15 +114,25 @@ pub fn follow(
                 );
                 if next != (current.x, current.y) {
                     move_window(hwnd, next.0, next.1);
+                    moved = true;
                 }
                 None
             }
         }
-        None => in_dock_zone(current, presence.bar, plan.scale).then_some("otto-os-dock"),
+        None => {
+            let visible = plan.region_body.map_or(current, |body| RectPx {
+                x: current.x + body.x,
+                y: current.y + body.y,
+                width: body.width,
+                height: body.height,
+            });
+            in_dock_zone(visible, presence.bar, plan.scale).then_some("otto-os-dock")
+        }
     };
     let signal = signal.filter(|_| plan.signal_due);
+    let active = moved || plan.spring.is_moving() || signal.is_some();
     if target.is_none() && signal.is_none() {
-        return;
+        return active;
     }
     if let Ok(mut state) = state.0.try_lock() {
         if let (Some(position), Some(host)) = (target, state.host.as_mut()) {
@@ -135,4 +148,5 @@ pub fn follow(
     if let Some(event) = signal {
         let _ = app.emit(event, ());
     }
+    active
 }

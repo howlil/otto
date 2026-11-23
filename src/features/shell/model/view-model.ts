@@ -1,6 +1,13 @@
 import type { PointerEvent, RefObject } from "react";
 import type { PlacementStatus } from "../hooks/useShellPlacement";
-import type { Page, Placement, Preferences, SettingsFocus, SettingsTab } from "./preferences";
+import type {
+  Page,
+  PanelPosition,
+  Placement,
+  Preferences,
+  SettingsFocus,
+  SettingsTab,
+} from "./preferences";
 
 export type AppUpdateState =
   | { status: "checking" }
@@ -47,7 +54,7 @@ export type ShellViewModel = {
   prefs: Preferences;
   change: (patch: Partial<Preferences>) => void;
   setPlacementPreference: (placement: Placement) => void;
-  setPanelPosition: (position: { x: number; y: number }) => void;
+  setPanelPosition: (position: PanelPosition) => void;
   positionReset: number;
   captureProtected: boolean | null;
   captureProtectionSupported: boolean;
@@ -57,6 +64,7 @@ export type ShellViewModel = {
   quitSupported: boolean;
   quitOtto: () => Promise<void>;
   ottoOs: boolean;
+  ottoOsDetected: boolean;
   compactCircle: boolean;
   toggleCompactStyle: () => void;
   placement: PlacementStatus;

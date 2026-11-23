@@ -1,6 +1,11 @@
 import type { AgentRateLimit } from "../../../platform/tauri";
-import { Text } from "../../../shared/ui";
+import { Icon, Text } from "../../../shared/ui";
 import { formatResetTime, rateLimitDisplayLabel, rateLimitTone } from "../model/rate-limits";
+
+function rateLimitListClass(compact: boolean, count: number): string {
+  if (!compact) return "space-y-2.5";
+  return count > 1 ? "grid grid-cols-2 gap-2" : "space-y-2";
+}
 
 function RateLimitRow({
   limit,
@@ -19,13 +24,19 @@ function RateLimitRow({
   const reset = formatResetTime(limit.resetsAt, now);
 
   return (
-    <div className="min-w-0">
+    <div
+      className={
+        compact
+          ? "min-w-0 rounded-otto-control border border-otto-line-soft bg-otto-ink-deep px-2.5 py-2"
+          : "min-w-0"
+      }
+    >
       <div className="flex items-baseline justify-between gap-2">
         <Text
           as="span"
-          variant={compact ? "caption" : "status"}
+          variant={compact ? "meta" : "status"}
           id={labelId}
-          className={`min-w-0 truncate ${compact ? "text-otto-text-secondary" : "text-otto-text-bright"}`}
+          className={`min-w-0 truncate ${compact ? "font-medium text-otto-text-bright" : "text-otto-text-bright"}`}
         >
           {title}
         </Text>
@@ -45,23 +56,23 @@ function RateLimitRow({
         </div>
       </div>
       <div
-        className={`${compact ? "mt-1 h-1" : "mt-1.5 h-1.5"} overflow-hidden rounded-full bg-otto-control`}
+        className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-otto-control"
         role="progressbar"
         aria-labelledby={labelId}
-        aria-valuenow={used}
+        aria-valuenow={remaining}
         aria-valuemin={0}
         aria-valuemax={100}
       >
         <span
           className={`block h-full w-full origin-left rounded-full motion-safe:transition-transform motion-safe:duration-200 ${tone.bar}`}
-          style={{ transform: `scaleX(${used / 100})` }}
+          style={{ transform: `scaleX(${remaining / 100})` }}
         />
       </div>
       {reset && (
         <Text
           as="p"
           variant="caption"
-          className="m-0 mt-1 tabular-nums text-otto-text-tertiary"
+          className="m-0 mt-1 truncate tabular-nums text-otto-text-tertiary"
           title={limit.resetsAt ?? undefined}
         >
           {reset}
@@ -83,15 +94,18 @@ export function ProviderRateLimits({
   if (rateLimits.length === 0) return null;
 
   return (
-    <div className={compact ? "space-y-2" : "space-y-2.5 pt-2"}>
-      <Text
-        as="span"
-        variant={compact ? "meta" : "label"}
-        className="block text-otto-text-secondary"
-      >
-        Usage limits
-      </Text>
-      <div className={compact ? "space-y-2" : "space-y-2.5"}>
+    <div className={compact ? "space-y-1.5" : "space-y-2.5 pt-2"}>
+      <span className="flex items-center gap-1.5">
+        <Icon name="gauge" size={13} className="shrink-0 text-otto-text-tertiary" />
+        <Text
+          as="span"
+          variant={compact ? "meta" : "label"}
+          className={compact ? "font-medium text-otto-text-secondary" : "text-otto-text-secondary"}
+        >
+          Usage limits
+        </Text>
+      </span>
+      <div className={rateLimitListClass(compact, rateLimits.length)}>
         {rateLimits.map((limit) => (
           <RateLimitRow key={limit.id} limit={limit} compact={compact} now={now} />
         ))}

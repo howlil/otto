@@ -2,9 +2,18 @@ mod agent;
 mod ipc;
 mod platform;
 mod shell;
-mod voice;
 
+use std::time::Duration;
 use tauri::Manager;
+
+fn build_async_runtime() -> std::io::Result<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .max_blocking_threads(6)
+        .thread_keep_alive(Duration::from_secs(10))
+        .enable_all()
+        .build()
+}
 
 pub fn run() {
     #[cfg(windows)]
@@ -17,6 +26,17 @@ pub fn run() {
         }
     };
 
+    let _async_runtime = match build_async_runtime() {
+        Ok(runtime) => {
+            tauri::async_runtime::set(runtime.handle().clone());
+            Some(runtime)
+        }
+        Err(error) => {
+            eprintln!("Unable to initialize bounded Otto async runtime: {error}");
+            None
+        }
+    };
+
     tauri::Builder::default()
         .manage(ipc::notch::NotchHostState::default())
         .manage(ipc::agent::AgentSubscriptions::default())
@@ -25,6 +45,7 @@ pub fn run() {
             ipc::shell_shortcut::shell_shortcut,
             ipc::overlay::overlay_protection_status,
             ipc::overlay::overlay_set_capture_protection,
+            ipc::overlay::overlay_set_memory_mode,
             ipc::agent::agent_snapshot,
             ipc::agent::agent_history_list,
             ipc::agent::agent_history_export_markdown,
@@ -63,16 +84,8 @@ pub fn run() {
             ipc::agent_capture::agent_insert_text,
             ipc::notch::notch_configure_host,
             ipc::notch::notch_set_region,
+            ipc::notch_window::notch_finish_drag,
             ipc::otto_os::otto_os_active,
-            ipc::voice::voice_status,
-            ipc::voice::voice_list_devices,
-            ipc::voice::voice_shortcut,
-            ipc::voice::voice_download_model,
-            ipc::voice::voice_cancel_download,
-            ipc::voice::voice_delete_model,
-            ipc::voice::voice_start_recording,
-            ipc::voice::voice_stop_recording,
-            ipc::voice::voice_cancel,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -82,12 +95,6 @@ pub fn run() {
             #[cfg(windows)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
-            let voice_dir = app
-                .path()
-                .app_local_data_dir()
-                .unwrap_or_else(|_| std::env::temp_dir().join("otto"))
-                .join("voice");
-            app.manage(voice::VoiceRuntime::new(voice_dir));
             let agent = match app.path().app_local_data_dir() {
                 Ok(path) => agent::AgentRuntime::persistent_with_history(
                     path.join("agent-active.marker"),
@@ -109,9 +116,9 @@ pub fn run() {
                     handle,
                     hwnd,
                     move |presence| {
-                        if let Some(hwnd) = hwnd {
-                            ipc::notch_follow::follow(&follower, hwnd, presence);
-                        }
+                        hwnd.is_some_and(|hwnd| {
+                            ipc::notch_follow::follow(&follower, hwnd, presence)
+                        })
                     },
                 ));
             }
@@ -122,9 +129,6 @@ pub fn run() {
             #[cfg(windows)]
             {
                 app.manage(platform::windows::shell_shortcut::start(
-                    app.handle().clone(),
-                )?);
-                app.manage(platform::windows::voice_shortcut::start(
                     app.handle().clone(),
                 )?);
             }

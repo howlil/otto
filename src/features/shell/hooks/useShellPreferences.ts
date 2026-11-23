@@ -34,13 +34,25 @@ export function useShellPreferences() {
   );
   const setPanelPosition = useCallback((position: PanelPosition) => {
     setPrefs((current) =>
-      current.position?.x === position.x && current.position?.y === position.y
+      current.position?.x === position.x &&
+      current.position?.y === position.y &&
+      current.position?.anchorX === position.anchorX &&
+      current.position?.anchorY === position.anchorY &&
+      current.position?.height === position.height
         ? current
         : { ...current, position },
     );
   }, []);
   const resetPanelPosition = useCallback(() => {
     setPrefs((current) => (current.position === null ? current : { ...current, position: null }));
+    setPositionReset((current) => current + 1);
+  }, []);
+  const setDockWithOttoOs = useCallback((dockWithOttoOs: boolean) => {
+    setPrefs((current) =>
+      current.dockWithOttoOs === dockWithOttoOs && current.position === null
+        ? current
+        : { ...current, dockWithOttoOs, position: null },
+    );
     setPositionReset((current) => current + 1);
   }, []);
   const setCaptureProtection = useCallback(async (enabled: boolean) => {
@@ -78,6 +90,7 @@ export function useShellPreferences() {
     setPlacementPreference,
     setPanelPosition,
     resetPanelPosition,
+    setDockWithOttoOs,
     positionReset,
     captureProtected,
     captureProtectionSupported: nativeAvailable,

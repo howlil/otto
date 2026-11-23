@@ -51,15 +51,26 @@ export function targetRegion(
   const scale = host.scale;
   const shoulder = shape === "attached" ? Math.round(SHOULDER_PX * scale) : 0;
   const hostWidth = Math.round(host.width * scale);
-  const left = ((host.width - size.width) / 2) * scale;
+  const hostHeight = Math.round(host.height * scale);
+  const horizontal = host.anchor?.horizontal ?? "center";
+  const vertical = host.anchor?.vertical ?? "top";
+  const left =
+    horizontal === "left"
+      ? 0
+      : horizontal === "right"
+        ? (host.width - size.width) * scale
+        : ((host.width - size.width) / 2) * scale;
   const x = Math.max(shoulder, Math.floor(left) - 1);
   const right = Math.min(hostWidth - shoulder, Math.ceil(left + size.width * scale) + 1);
-  const bottom = Math.min(Math.round(host.height * scale), Math.ceil(size.height * scale) + 1);
-  if (right <= x || bottom <= 0) return null;
+  const y =
+    vertical === "bottom" ? Math.max(0, Math.floor((host.height - size.height) * scale) - 1) : 0;
+  const bottom =
+    vertical === "bottom" ? hostHeight : Math.min(hostHeight, Math.ceil(size.height * scale) + 1);
+  if (right <= x || bottom <= y) return null;
   return {
     hostRevision: host.revision,
     sequence,
-    body: { x, y: 0, width: right - x, height: bottom },
+    body: { x, y, width: right - x, height: bottom - y },
     radius: { top: 0, bottom: 0 },
     shoulder,
     morph: true,

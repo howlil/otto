@@ -1,4 +1,5 @@
 import type { ComponentPropsWithRef, ComponentPropsWithoutRef } from "react";
+import { Icon } from "./Icon";
 
 export type FieldDensity = "compact" | "standard";
 export type FieldAppearance = "surface" | "embedded";
@@ -35,5 +36,21 @@ export function SelectField({
   className = "",
   ...props
 }: ComponentPropsWithoutRef<"select"> & { density?: FieldDensity }) {
-  return <select {...props} className={fieldClassName(density, "surface", className)} />;
+  return (
+    <span className={`relative block ${className}`.trim()}>
+      <select
+        {...props}
+        className={fieldClassName(
+          density,
+          "surface",
+          "cursor-pointer appearance-none pr-7 [&_optgroup]:bg-otto-surface [&_optgroup]:text-otto-text-tertiary [&_option]:bg-otto-surface [&_option]:text-otto-text",
+        )}
+      />
+      <Icon
+        name="chevronDown"
+        size={13}
+        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-otto-text-tertiary"
+      />
+    </span>
+  );
 }

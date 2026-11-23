@@ -10,7 +10,8 @@ use serde_json::Value;
 use std::{path::Path, sync::atomic::Ordering, time::Duration};
 use tokio::{sync::mpsc, time::timeout};
 
-const IDLE_STANDBY_TIMEOUT: Duration = Duration::from_secs(300);
+const WARM_STANDBY_TIMEOUT: Duration = Duration::from_secs(60);
+const IDLE_STANDBY_TIMEOUT: Duration = Duration::from_secs(180);
 
 enum TurnOutcome {
     Completed {
@@ -282,6 +283,7 @@ pub(in crate::agent::providers) async fn run(
 ) {
     let mut live: Option<PersistentClaude> = None;
     let mut session: Option<String> = None;
+    let mut used = matches!(initial, Control::Ask { .. });
     let mut next: Option<Control> = match initial {
         Control::Warm {
             cwd,
@@ -350,9 +352,15 @@ pub(in crate::agent::providers) async fn run(
                 TurnOutcome::Closed => return,
             }
         }
-        let idle_wait = timeout(IDLE_STANDBY_TIMEOUT, controls.recv()).await;
+        let standby = if used {
+            IDLE_STANDBY_TIMEOUT
+        } else {
+            WARM_STANDBY_TIMEOUT
+        };
+        let idle_wait = timeout(standby, controls.recv()).await;
         match idle_wait {
             Ok(Some(next_control @ Control::Ask { .. })) => {
+                used = true;
                 next = Some(next_control);
             }
             Ok(Some(Control::Close { claimed, finished })) => {

@@ -33,15 +33,6 @@ const { title, description } = Astro.props;
   </head>
   <body>
     <slot />
-    <script>
-      for (const card of document.querySelectorAll<HTMLElement>(".spotlight")) {
-        card.addEventListener("pointermove", (event) => {
-          const rect = card.getBoundingClientRect();
-          card.style.setProperty("--x", `${event.clientX - rect.left}px`);
-          card.style.setProperty("--y", `${event.clientY - rect.top}px`);
-        });
-      }
-    </script>
     <script define:vars={{ latestUrl: releaseUrl }}>
       document.addEventListener("click", async (event) => {
         const link = event.target instanceof Element ? event.target.closest(`a[href="${latestUrl}"]`) : null;

@@ -19,6 +19,13 @@ export type AgentTranscriptModel = {
   setDraft: (draft: string) => void;
   mode?: LearningMode;
   setMode?: (mode: LearningMode) => void;
+  profile?: AssistantProfile;
+  onboardingPending?: boolean;
+  onboardingOpen?: boolean;
+  completeOnboarding?: (profile: AssistantProfile) => void;
+  skipOnboarding?: () => void;
+  openOnboarding?: () => void;
+  closeOnboarding?: () => void;
   runQuickAction?: (mode: LearningMode, prompt: string) => Promise<void>;
   sendFollowupChip?: (mode: LearningMode, prompt: string) => Promise<void>;
   retryLast?: () => Promise<void>;

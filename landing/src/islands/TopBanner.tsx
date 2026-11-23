@@ -1,16 +1,16 @@
 import { AnnouncementBar } from "@/components/arc/announcement-bar/announcement-bar";
-import { releaseUrl } from "@/data/otto";
+import { changelogUrl } from "@/data/otto";
 
 export default function TopBanner() {
   return (
     <AnnouncementBar
-      label="Release announcement"
+      label="Release notes"
       autoPlay={false}
       messages={[
         {
-          id: "otto-1-0-0",
-          message: "Otto 1.0.0 is out for Windows 11.",
-          action: { label: "Download the installer", href: releaseUrl },
+          id: "otto-1-4-0",
+          message: "Coming in 1.4.0: Circle mascot, local voice input, and Read Aloud.",
+          action: { label: "See the changelog", href: changelogUrl },
         },
       ]}
     />

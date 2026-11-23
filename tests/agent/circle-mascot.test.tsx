@@ -56,12 +56,6 @@ describe("Circle mascot compact mode", () => {
       resolveCircleState({ ...baseSnapshot, status: "streaming" }, true, ready, null).eyeExpression,
     ).toBe("working");
     expect(
-      resolveCircleState(baseSnapshot, true, ready, null, { listening: true }).eyeExpression,
-    ).toBe("listening");
-    expect(
-      resolveCircleState(baseSnapshot, true, ready, null, { speaking: true }).eyeExpression,
-    ).toBe("speaking");
-    expect(
       resolveCircleState({ ...baseSnapshot, status: "completed" }, true, ready, null).eyeExpression,
     ).toBe("completed");
     expect(
@@ -111,6 +105,22 @@ describe("Circle mascot compact mode", () => {
     expect(container.querySelector("[data-eye-expression='completed']")).not.toBeNull();
     fireEvent.contextMenu(screen.getByRole("button", { name: /Open Agent/ }));
     expect(toggled).toBe(2);
+
+    rerender(
+      <AgentCapsule
+        snapshot={baseSnapshot}
+        installed={true}
+        readiness={ready}
+        error={null}
+        circle={true}
+        buttonRef={createRef()}
+        onOpen={() => {}}
+      />,
+    );
+
+    const idleEyes = container.querySelector("[data-eye-expression='idle']");
+    expect(idleEyes).not.toBeNull();
+    expect(idleEyes?.className).not.toContain("otto-eyes-idle");
   });
 
   test("exposes quick compact style toggle in the expanded header and locks it under Otto OS", () => {

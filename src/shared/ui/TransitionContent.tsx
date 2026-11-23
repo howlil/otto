@@ -18,12 +18,15 @@ export function useTransitionActive(): boolean {
 type TransitionKind = "page" | "tab" | "compact";
 type Direction = "forward" | "back" | "center";
 type FrameSize = { width: number; height: number } | null | undefined;
+type TransitionAnchor = { horizontal: "left" | "center" | "right"; vertical: "top" | "bottom" };
 type Frame = { key: string; node: ReactNode; size: FrameSize };
 
-function frameStyle(size: FrameSize): CSSProperties | undefined {
-  return size
-    ? { width: size.width, height: size.height, left: "50%", marginLeft: -size.width / 2 }
-    : undefined;
+function frameStyle(size: FrameSize, anchor?: TransitionAnchor): CSSProperties | undefined {
+  if (!size) return undefined;
+  const horizontal = anchor?.horizontal ?? "center";
+  if (horizontal === "left") return { width: size.width, height: size.height, left: 0 };
+  if (horizontal === "right") return { width: size.width, height: size.height, right: 0 };
+  return { width: size.width, height: size.height, left: "50%", marginLeft: -size.width / 2 };
 }
 
 function transitionClasses(kind: TransitionKind, direction: Direction): [string, string] {
@@ -39,6 +42,7 @@ export function TransitionContent({
   reducedMotion,
   className = "",
   frameSize,
+  anchor,
   children,
 }: {
   transitionKey: string;
@@ -47,6 +51,7 @@ export function TransitionContent({
   reducedMotion: boolean;
   className?: string;
   frameSize?: FrameSize;
+  anchor?: TransitionAnchor;
   children: ReactNode;
 }) {
   const active = useTransitionActive();
@@ -78,6 +83,10 @@ export function TransitionContent({
   const [incoming, exit] = transitionClasses(kind, direction);
   const enter = reducedMotion ? "" : incoming;
 
+  const bottomAnchor = anchor?.vertical === "bottom";
+  const rightAnchor = anchor?.horizontal === "right";
+  const verticalClass = bottomAnchor ? "bottom-0" : "top-0";
+
   return (
     <div className={`relative min-w-0 ${className}`}>
       {outgoing && outgoing.key !== transitionKey && (
@@ -85,8 +94,8 @@ export function TransitionContent({
           key={outgoing.key}
           aria-hidden="true"
           inert
-          className={`pointer-events-none absolute top-0 z-10 ${outgoing.size ? "" : "left-0"} ${layout} ${exit}`}
-          style={frameStyle(outgoing.size)}
+          className={`pointer-events-none absolute ${verticalClass} z-10 ${outgoing.size ? "" : "left-0"} ${layout} ${exit}`}
+          style={frameStyle(outgoing.size, anchor)}
           onAnimationEnd={(event) => {
             if (event.target !== event.currentTarget) return;
             setRetained((current) => (current?.key === outgoing.key ? null : current));
@@ -97,8 +106,8 @@ export function TransitionContent({
       )}
       <div
         key={transitionKey}
-        className={`${frameSize ? "relative" : ""} ${layout} ${enter}`}
-        style={frameStyle(frameSize)}
+        className={`${frameSize ? (bottomAnchor || rightAnchor ? `absolute ${verticalClass}` : "relative") : ""} ${layout} ${enter}`}
+        style={frameStyle(frameSize, anchor)}
       >
         <TransitionActivity.Provider value={active}>{children}</TransitionActivity.Provider>
       </div>

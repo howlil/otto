@@ -58,10 +58,10 @@ export function PinnedModelChips({
             aria-pressed={active}
             disabled={busy}
             onClick={() => onSelect(option.id)}
-            className={`inline-flex max-w-full items-center gap-1 rounded-otto-chip border px-2 py-0.5 text-otto-xs transition-colors duration-150 disabled:opacity-50 ${
+            className={`inline-flex h-6 max-w-full items-center gap-1 rounded-otto-chip border px-2 text-otto-xs font-medium transition-colors duration-150 focus-visible:outline-1 focus-visible:outline-otto-line-focused disabled:opacity-50 ${
               active
                 ? "border-otto-line-focused bg-otto-selected text-otto-text-bright"
-                : "border-otto-line bg-otto-control text-otto-text-secondary hover:bg-otto-control-hover"
+                : "border-otto-line-soft bg-otto-ink-deep text-otto-text-secondary hover:border-otto-line-hover hover:bg-otto-control-hover hover:text-otto-text-bright"
             }`}
           >
             <Icon name="pin" size={10} className="shrink-0 text-otto-text-tertiary" />

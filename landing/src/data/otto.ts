@@ -8,7 +8,7 @@ export const engines = [
   "Claude Code",
   "OpenCode",
   "Pi",
-  "Agy",
+  "Antigravity",
   "Goose",
   "Cline",
   "Gemini CLI",
@@ -30,25 +30,6 @@ export const stats = [
   { value: 6, label: "learning modes" },
   { value: 5, label: "ways to capture context" },
   { value: 0, label: "extra API keys or subscriptions" },
-];
-
-export const principles = [
-  {
-    title: "Keep your focus",
-    body: "Hover previews never take keyboard focus. Finished answers show as a quiet status you open when you are ready.",
-  },
-  {
-    title: "Learn, don't just copy",
-    body: "Mentor asks guiding questions, Solve checks its work, and Practice quizzes you until the idea sticks.",
-  },
-  {
-    title: "Your tools, your login",
-    body: "Otto reuses the CLIs you already signed in to. No new API keys, no hosted model gateway, no extra account.",
-  },
-  {
-    title: "You stay in control",
-    body: "Capture starts only when you trigger it. Permission requests are never approved for you, and Stop keeps the partial answer, marked as stopped.",
-  },
 ];
 
 export const modes = [
@@ -115,30 +96,33 @@ export const demo = {
 };
 
 export const alsoIncluded = [
-  "Retry, Regenerate, and Edit prompt & re-run",
+  "Circle mascot with live states",
+  "Local Whisper voice input on Ctrl Alt V",
+  "Read Aloud, with voice-only or always-on modes",
+  "Solid or Transparent background, 30 to 95% opacity",
+  "Ctrl M to switch engine, model, or effort",
+  "Warm standby for faster first answers",
   "Queue one follow-up while the answer streams",
-  "Stop that keeps partial text, marked Stopped",
-  "Switch engine, model, or thinking effort from the header",
-  "Live PATH refresh after you install a new CLI",
-  "Paste or drop images with Ctrl+V",
-  "Optional Instant auto-send for one-keystroke submit",
-  "Profile & Learning Style for your language and level",
-  "Export a conversation as Markdown to your clipboard",
+  "Edit prompt & re-run, Regenerate, and Retry",
+  "Searchable history with Markdown export",
+  "Paste images with Ctrl V",
 ];
 
 export const shortcuts = [
-  { keys: ["Ctrl", "Alt", "O"], action: "Expand or collapse Otto from anywhere" },
+  { keys: ["Ctrl", "Alt", "O"], action: "Expand or collapse Otto" },
+  { keys: ["Ctrl", "Alt", "V"], action: "Voice input, transcribed locally by Whisper" },
   { keys: ["Ctrl", "Shift", "O"], action: "Visual capture: region, window, scrolling window, or full screen" },
   { keys: ["Ctrl", "Shift", "T"], action: "Selected text capture through Windows UI Automation" },
+  { keys: ["Ctrl", "M"], action: "Switch engine, model, or thinking effort" },
   { keys: ["Ctrl", "V"], action: "Stage an image from the clipboard into the composer" },
   { keys: ["Enter"], action: "Send, or queue a follow-up while the answer streams" },
-  { keys: ["Esc"], action: "Close a popover, cancel a snip, or collapse to compact" },
+  { keys: ["Esc"], action: "Close a popover or cancel the current action" },
 ];
 
 export const steps = [
   {
     title: "Install Otto",
-    body: "Download Otto_1.0.0_x64-setup.exe from GitHub Releases. It installs for your Windows user account, so there is no admin prompt.",
+    body: "Download the Windows setup file from GitHub Releases. It installs for your Windows user account, so there is no admin prompt.",
     commands: [] as string[],
   },
   {
@@ -148,7 +132,7 @@ export const steps = [
   },
   {
     title: "Ask from anywhere",
-    body: "Hover the notch to peek, click it, or press Ctrl+Alt+O. Capture a region, get the explanation, insert it, and return to your work.",
+    body: "Click the notch or press Ctrl+Alt+O. Capture a region, get the explanation, insert it, and return to your work.",
     commands: [] as string[],
   },
 ];
@@ -168,11 +152,11 @@ export const faqs = [
   },
   {
     question: "Which AI tools does it support?",
-    answer: "Nineteen local CLI engines: Codex, Claude Code, OpenCode, Pi, and fifteen ACP CLIs such as Gemini CLI, GitHub Copilot, Cursor Agent, and Goose. Install one, then click Check again in Settings → Assistant.",
+    answer: "Nineteen local CLI engines, including Codex, Claude Code, OpenCode, Pi, Gemini CLI, GitHub Copilot, Cursor Agent, and Goose. Install one, then click Check again in Settings → Assistant.",
   },
   {
     question: "Which platform does it run on?",
-    answer: "Windows 11 today. Updates are minisign-verified and checked on launch and every six hours from Settings → General.",
+    answer: "Windows 11 today. Updates are minisign-verified and checked on launch and every six hours.",
   },
   {
     question: "Why does Windows warn when I install it?",

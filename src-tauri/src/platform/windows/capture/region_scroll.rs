@@ -31,7 +31,7 @@ pub(super) struct RegionScrollCanvas {
     max_height: usize,
     max_pixels: usize,
     initial: RgbaFrame,
-    latest: RgbaFrame,
+    latest: Option<RgbaFrame>,
     band: Option<ScrollBand>,
 }
 
@@ -42,15 +42,18 @@ impl RegionScrollCanvas {
         max_height: usize,
         max_pixels: usize,
     ) -> Self {
-        let latest = initial.clone();
         Self {
             monitor,
             max_height,
             max_pixels,
             initial,
-            latest,
+            latest: None,
             band: None,
         }
+    }
+
+    fn latest_frame(&self) -> &RgbaFrame {
+        self.latest.as_ref().unwrap_or(&self.initial)
     }
 
     pub(super) const fn monitor(&self) -> RegionRect {
@@ -82,19 +85,20 @@ impl RegionScrollCanvas {
     }
 
     pub(super) fn push_frame(&mut self, next: RgbaFrame, wheel_hint: i16) -> bool {
+        let prev = self.latest_frame();
         if next.width == 0
             || next.height == 0
-            || next.width != self.latest.width
-            || next.height != self.latest.height
+            || next.width != prev.width
+            || next.height != prev.height
         {
             return false;
         }
-        let Some((c0, c1)) = active_column_span(&self.latest, &next) else {
+        let Some((c0, c1)) = active_column_span(prev, &next) else {
             return false;
         };
         let bounds = self.band.as_ref().map(|b| (b.top, b.bottom));
-        let down = find_band_overlap(&self.latest, &next, c0, c1, bounds);
-        let up = find_band_overlap(&next, &self.latest, c0, c1, bounds);
+        let down = find_band_overlap(prev, &next, c0, c1, bounds);
+        let up = find_band_overlap(&next, prev, c0, c1, bounds);
         let Some((m, signed_delta)) = choose_direction(down, up, wheel_hint) else {
             return false;
         };
@@ -102,7 +106,7 @@ impl RegionScrollCanvas {
             return false;
         }
         self.apply_scroll_step(&next, m.top, m.bottom, signed_delta);
-        self.latest = next;
+        self.latest = Some(next);
         true
     }
 
@@ -177,10 +181,11 @@ impl RegionScrollCanvas {
         if out_w < MIN_CROP_EDGE {
             return None;
         }
+        let latest = self.latest_frame();
         let (h_top, h_body, h_bot) = (
             b.top,
             (b.doc_end - b.doc_start) as usize,
-            self.latest.height.saturating_sub(b.bottom),
+            latest.height.saturating_sub(b.bottom),
         );
         let map_y = |ly: usize, off: i32| -> usize {
             if ly < b.top {
@@ -196,7 +201,7 @@ impl RegionScrollCanvas {
             0,
         );
         let u2 = map_y(
-            (ey - self.monitor.top).clamp(0, self.latest.height as i32) as usize,
+            (ey - self.monitor.top).clamp(0, latest.height as i32) as usize,
             b.offset,
         );
         let (u_top, u_bot) = if u1 <= u2 { (u1, u2) } else { (u2, u1) };
@@ -216,7 +221,7 @@ impl RegionScrollCanvas {
                 let start = (u - h_top) * stride;
                 &b.pixels[start + b_left..start + b_right]
             } else {
-                &frame_row(&self.latest, b.bottom + (u - h_top - h_body))[b_left..b_right]
+                &frame_row(latest, b.bottom + (u - h_top - h_body))[b_left..b_right]
             };
             pixels.extend_from_slice(slice);
         }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, type PointerEvent } from "react";
-import { startNotchDragging } from "../../../platform/tauri/shell";
-import type { Placement } from "../model/preferences";
+import { finishNotchDragging, startNotchDragging } from "../../../platform/tauri/shell";
+import type { PanelPosition, Placement } from "../model/preferences";
 
 function canDragTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return true;
@@ -13,23 +13,37 @@ export function usePanelDrag({
   expanded,
   pinned,
   pin,
+  onDragEnd,
 }: {
   surfaceKey: Placement;
   expanded: boolean;
   pinned: boolean;
   pin: () => void;
+  onDragEnd?: (position: PanelPosition) => void;
 }) {
   const candidate = useRef<{ x: number; y: number } | null>(null);
   const dragging = useRef(false);
   const releaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onDragEndRef = useRef(onDragEnd);
+  onDragEndRef.current = onDragEnd;
 
-  const scheduleRelease = useCallback((delay: number) => {
-    if (releaseTimer.current) clearTimeout(releaseTimer.current);
-    releaseTimer.current = setTimeout(() => {
-      dragging.current = false;
+  const clearReleaseTimer = useCallback(() => {
+    if (releaseTimer.current) {
+      clearTimeout(releaseTimer.current);
       releaseTimer.current = null;
-    }, delay);
+    }
   }, []);
+
+  const scheduleRelease = useCallback(
+    (delay: number) => {
+      clearReleaseTimer();
+      releaseTimer.current = setTimeout(() => {
+        dragging.current = false;
+        releaseTimer.current = null;
+      }, delay);
+    },
+    [clearReleaseTimer],
+  );
 
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLElement>) => {
@@ -54,11 +68,19 @@ export function usePanelDrag({
       candidate.current = null;
       dragging.current = true;
       scheduleRelease(2000);
-      void startNotchDragging().catch(() => {
-        dragging.current = false;
-      });
+      void startNotchDragging()
+        .then(() => finishNotchDragging())
+        .then((position) => {
+          clearReleaseTimer();
+          dragging.current = false;
+          if (position) onDragEndRef.current?.(position);
+        })
+        .catch(() => {
+          clearReleaseTimer();
+          dragging.current = false;
+        });
     },
-    [scheduleRelease],
+    [clearReleaseTimer, scheduleRelease],
   );
   const handlePointerUp = useCallback(() => {
     candidate.current = null;

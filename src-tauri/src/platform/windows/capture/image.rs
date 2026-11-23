@@ -1,5 +1,5 @@
 use super::{
-    scroll::{RgbaFrame, ScrollLimits, capture_scrolling_frames, stitch_frames},
+    scroll::{RgbaFrame, ScrollLimits, capture_scrolling_stitched},
     target::{WindowTarget, valid_capture_window, window_pid},
 };
 use crate::agent::CapturedImage;
@@ -64,7 +64,7 @@ pub(super) fn capture_foreground(target: WindowTarget) -> Result<CapturedImage, 
 
 pub(super) fn capture_scrolling(target: WindowTarget) -> Result<CapturedImage, String> {
     let (hwnd, rect) = window_bounds(target)?;
-    let frames = capture_scrolling_frames(
+    let stitched = capture_scrolling_stitched(
         hwnd,
         rect,
         std::process::id(),
@@ -84,7 +84,6 @@ pub(super) fn capture_scrolling(target: WindowTarget) -> Result<CapturedImage, S
             )
         },
     )?;
-    let stitched = stitch_frames(&frames, MAX_EDGE as usize, MAX_PIXELS as usize)?;
     write_png_capture(&stitched)
 }
 

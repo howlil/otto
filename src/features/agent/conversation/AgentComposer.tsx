@@ -1,4 +1,4 @@
-import type { FormEvent, ReactNode, Ref } from "react";
+import type { FormEvent, Ref } from "react";
 import type {
   AgentProvider,
   CapturePhase,
@@ -36,7 +36,6 @@ type AgentComposerProps = {
   capturePhase: CapturePhase;
   canSend: boolean;
   stopping: boolean;
-  voiceControl?: ReactNode;
   onCapture: () => void;
   send: () => Promise<void>;
   stop: () => Promise<void>;
@@ -146,7 +145,6 @@ export function AgentComposer(props: AgentComposerProps) {
           expanded={expanded}
           captureControl={captureControl}
           modeControl={modeControl}
-          voiceControl={props.voiceControl}
           busy={props.busy}
           stopping={props.stopping}
           canSend={props.canSend}

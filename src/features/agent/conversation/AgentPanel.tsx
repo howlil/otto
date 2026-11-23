@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type RefObject } from "react";
 import { AgentHeader, type AgentHeaderView } from "./AgentHeader";
 import { AgentPopoverFitProvider, usePanelMeasuredHeight } from "./popover-fit";
 import { AgentTranscript } from "../transcript/AgentTranscript";
-import { History } from "../history/History";
 import { resolveRateLimits } from "../model/rate-limits";
 import type { AgentPanelModel } from "../model/view-model";
 import type { CaptureSource } from "../../../platform/tauri";
 import { TransitionContent } from "../../../shared/ui";
+
+const LazyHistory = lazy(() =>
+  import("../history/History").then((module) => ({ default: module.History })),
+);
 
 type Props = {
   agent: AgentPanelModel;
@@ -19,9 +22,6 @@ type Props = {
   compactCircle?: boolean;
   compactStyleLocked?: boolean;
   onToggleCompactStyle?: () => void;
-  voiceControl?: ReactNode;
-  speakingMessageId?: string | null;
-  onToggleSpeak?: (messageId: string, text: string) => void;
 };
 
 function toCaptureError(error: unknown, fallback: string): string {
@@ -81,9 +81,6 @@ export function AgentPanel({
   compactCircle,
   compactStyleLocked,
   onToggleCompactStyle,
-  voiceControl,
-  speakingMessageId,
-  onToggleSpeak,
 }: Props) {
   const { snapshot, provider, busy, captureBusy, newSession } = agent;
   const captureHandlers = usePanelCaptureHandlers(agent);
@@ -143,18 +140,19 @@ export function AgentPanel({
           className="min-h-0 flex-1"
         >
           {view === "history" ? (
-            <History
-              history={agent.history}
-              activeConversationId={snapshot.messages.length > 0 ? snapshot.conversationId : null}
-              busy={busy || captureBusy}
-              onDone={() => setHistoryOpen(false)}
-              onMeasured={onMeasured}
-            />
+            <Suspense fallback={null}>
+              <LazyHistory
+                history={agent.history}
+                activeConversationId={snapshot.messages.length > 0 ? snapshot.conversationId : null}
+                busy={busy || captureBusy}
+                onDone={() => setHistoryOpen(false)}
+                onMeasured={onMeasured}
+              />
+            </Suspense>
           ) : (
             <AgentTranscript
               agent={agent}
               captureSource={agent.capture?.source ?? "window"}
-              captureShortcut={agent.capture?.shortcut}
               onInsert={agent.insertText}
               captureActionError={captureHandlers.captureActionError}
               onMeasured={onContentMeasured}
@@ -162,9 +160,7 @@ export function AgentPanel({
               onCaptureSource={captureHandlers.onCaptureSource}
               onStageImage={captureHandlers.onStageImage}
               onConfigureCapture={onConfigureCapture}
-              voiceControl={voiceControl}
-              speakingMessageId={speakingMessageId}
-              onToggleSpeak={onToggleSpeak}
+              reducedMotion={reducedMotion}
             />
           )}
         </TransitionContent>

@@ -7,7 +7,6 @@ import {
   type Preferences,
   type SettingsTab,
 } from "../../src/features/shell/model/preferences";
-import { defaultVoicePreferences, type VoicePreferences } from "../../src/features/voice";
 
 afterEach(cleanup);
 
@@ -55,69 +54,7 @@ const agent = {
 
 function Harness({ initial = "assistant" as SettingsTab, onBack = () => {} }) {
   const [prefs, setPrefs] = useState<Preferences>({ ...defaults, hoverExpand: false });
-  const [voicePrefs, setVoicePrefs] = useState<VoicePreferences>({ ...defaultVoicePreferences });
   const [settingsTab, setSettingsTab] = useState<SettingsTab>(initial);
-  const voice = {
-    snapshot: {
-      phase: "idle",
-      supported: true,
-      runtimeInstalled: false,
-      models: [
-        {
-          id: "small-q5_1",
-          label: "Small (Q5_1)",
-          description: "Recommended for Indonesian + English accuracy",
-          approxBytes: 190_000_000,
-          installed: false,
-          recommended: true,
-        },
-        {
-          id: "base-q5_1",
-          label: "Base (Q5_1)",
-          description: "Faster and lighter on CPU",
-          approxBytes: 60_000_000,
-          installed: false,
-          recommended: false,
-        },
-      ],
-      activeModel: "small-q5_1",
-      download: null,
-      transcript: null,
-      transcriptSeq: 0,
-      error: null,
-    },
-    prefs: voicePrefs,
-    updatePrefs: (patch: Partial<VoicePreferences>) =>
-      setVoicePrefs((curr) => ({ ...curr, ...patch })),
-    devices: [{ id: "default", name: "System default microphone", isDefault: true }],
-    refreshDevices: async () => {},
-    shortcut: "Ctrl+Alt+V",
-    shortcutMessage: "",
-    shortcutBusy: false,
-    saveShortcut: async () => {},
-    level: 0,
-    activeModelInfo: null,
-    activeModelReady: false,
-    listening: false,
-    transcribing: false,
-    downloading: false,
-    downloadProgress: null,
-    toggleRecording: async () => {},
-    startRecording: async () => {},
-    stopRecording: async () => {},
-    cancelVoice: async () => {},
-    downloadModel: async () => {},
-    cancelDownload: async () => {},
-    deleteModel: async () => {},
-    speaking: false,
-    speakingMessageId: null,
-    ttsSupported: true,
-    ttsVoices: [],
-    speakMessage: () => {},
-    stopSpeaking: () => {},
-    toggleSpeakMessage: () => {},
-    noteVoiceSubmission: () => {},
-  } as never;
   const shell = {
     prefs,
     change: (patch: Partial<Preferences>) => setPrefs((current) => ({ ...current, ...patch })),
@@ -131,11 +68,16 @@ function Harness({ initial = "assistant" as SettingsTab, onBack = () => {} }) {
       requested: prefs.placement,
       supported: true,
       ottoOs: false,
+      ottoOsDetected: false,
+      dockWithOttoOs: prefs.dockWithOttoOs,
+      circleMode: prefs.compactStyle === "circle",
       error: null,
       attempt: 0,
       change: () => {},
       retry: () => {},
       resetPosition: () => {},
+      setDockWithOttoOs: (dockWithOttoOs: boolean) =>
+        setPrefs((current) => ({ ...current, dockWithOttoOs, position: null })),
     },
     captureProtected: true,
     captureProtectionSupported: true,
@@ -149,7 +91,6 @@ function Harness({ initial = "assistant" as SettingsTab, onBack = () => {} }) {
     <SettingsSurface
       agent={agent}
       shell={shell}
-      voice={voice}
       appUpdate={
         {
           state: { status: "current" },
@@ -162,50 +103,82 @@ function Harness({ initial = "assistant" as SettingsTab, onBack = () => {} }) {
   );
 }
 
+function buttonNamed(name: string): HTMLButtonElement | null {
+  const buttons = Array.from(document.querySelectorAll("button"));
+  return (
+    buttons.find((button) => (button.textContent ?? "").replace(/\s+/g, " ").trim() === name) ??
+    null
+  );
+}
+
 describe("one Settings surface", () => {
-  test("merges agent and system settings into six reachable sections", () => {
+  test("merges agent and system settings into five reachable sections", () => {
     render(<Harness />);
-    for (const name of ["Assistant", "Capture", "Voice", "Behavior", "Position", "General"]) {
-      expect(screen.getByRole("button", { name })).toBeTruthy();
+    for (const name of ["Assistant", "Capture", "Behavior", "Position", "General"]) {
+      expect(buttonNamed(name)).toBeTruthy();
     }
-    for (const gone of ["Interaction", "System", "Placement"]) {
-      expect(screen.queryByRole("button", { name: gone })).toBeNull();
+    for (const gone of ["Interaction", "System", "Placement", "Voice"]) {
+      expect(buttonNamed(gone)).toBeNull();
     }
-    expect(screen.getAllByRole("button", { name: "Back to Agent" })).toHaveLength(1);
+    expect(
+      Array.from(document.querySelectorAll("button")).filter(
+        (button) => (button.textContent ?? "").trim() === "Back to Agent",
+      ),
+    ).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Assistant" })).toBeTruthy();
   });
 
   test("switching sections shows that section's controls and marks it current", () => {
     render(<Harness />);
-    fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
-    expect(screen.getByRole("button", { name: "Behavior" }).getAttribute("aria-current")).toBe(
-      "page",
-    );
+    const behavior = buttonNamed("Behavior")!;
+    fireEvent.click(behavior);
+    expect(behavior.getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("checkbox", { name: /^Expand on hover/ })).toBeTruthy();
     expect(screen.getByRole("checkbox", { name: /Keep expanded/ })).toBeTruthy();
     expect(document.getElementById("otto-shell-shortcut")).not.toBeNull();
     expect(screen.queryByText("Hover timing")).toBeNull();
     expect(screen.queryByText("Motion profile")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "General" }));
+    fireEvent.click(buttonNamed("General")!);
     expect(screen.getByText("Background")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Solid" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.queryByRole("slider", { name: /Opacity/ })).toBeNull();
+    const solid = document.querySelector<HTMLButtonElement>('button[data-active-key="solid"]')!;
+    const blur = document.querySelector<HTMLButtonElement>('button[data-active-key="blur"]')!;
+    const liquidGlass = document.querySelector<HTMLButtonElement>(
+      'button[data-active-key="liquid-glass"]',
+    )!;
+    expect(solid.getAttribute("aria-pressed")).toBe("true");
+    expect(blur.getAttribute("aria-pressed")).toBe("false");
+    expect(liquidGlass.getAttribute("aria-pressed")).toBe("false");
+    expect(buttonNamed("Transparent")).toBeNull();
+    expect(document.querySelector('[data-material-preview="solid"]')).not.toBeNull();
+    expect(document.querySelector('[data-material-preview="blur"]')).not.toBeNull();
+    expect(document.querySelector('[data-material-preview="liquid-glass"]')).not.toBeNull();
+    expect(document.querySelector('input[type="range"][aria-label="Opacity"]')).toBeNull();
+    expect(screen.getByText("Notch logo")).toBeTruthy();
+    expect(buttonNamed("Extract SVG")).toBeTruthy();
     expect(screen.getByRole("checkbox", { name: /Hide from screen capture/ })).toBeTruthy();
     expect(screen.getByText("Updates")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Quit" })).toBeTruthy();
+    expect(buttonNamed("Quit")).toBeTruthy();
     expect(screen.queryByText("Software update")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Transparent" }));
+    fireEvent.click(blur);
     const slider = screen.getByRole("slider", { name: /Opacity/ }) as HTMLInputElement;
     expect(slider.value).toBe("78");
     fireEvent.change(slider, { target: { value: "64" } });
     expect(slider.value).toBe("64");
 
-    fireEvent.click(screen.getByRole("button", { name: "Solid" }));
-    expect(screen.queryByRole("slider", { name: /Opacity/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Transparent" }));
+    fireEvent.click(liquidGlass);
+    expect(liquidGlass.getAttribute("aria-pressed")).toBe("true");
     expect((screen.getByRole("slider", { name: /Opacity/ }) as HTMLInputElement).value).toBe("64");
+
+    fireEvent.click(solid);
+    expect(screen.queryByRole("slider", { name: /Opacity/ })).toBeNull();
+
+    fireEvent.click(buttonNamed("Diamond")!);
+    const resetLogo = buttonNamed("Reset logo")!;
+    expect(resetLogo).toBeTruthy();
+    fireEvent.click(resetLogo);
+    expect(buttonNamed("Reset logo")).toBeNull();
   });
 
   test("toggles apply immediately without a save button", () => {
@@ -223,10 +196,10 @@ describe("one Settings surface", () => {
       "page",
     );
     fireEvent.keyDown(screen.getByRole("button", { name: "Capture" }), { key: "ArrowDown" });
-    expect(screen.getByRole("button", { name: "Voice" }).getAttribute("aria-current")).toBe(
+    expect(screen.getByRole("button", { name: "Behavior" }).getAttribute("aria-current")).toBe(
       "page",
     );
-    fireEvent.keyDown(screen.getByRole("button", { name: "Voice" }), { key: "ArrowUp" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Behavior" }), { key: "ArrowUp" });
     expect(screen.getByRole("button", { name: "Capture" }).getAttribute("aria-current")).toBe(
       "page",
     );

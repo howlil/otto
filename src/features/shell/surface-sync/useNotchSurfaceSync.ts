@@ -1,5 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import type { NotchPlacement, NotchPosition, NotchSurface } from "../../../platform/tauri/shell";
+import type {
+  HostAnchor,
+  NotchPlacement,
+  NotchPosition,
+  NotchSurface,
+} from "../../../platform/tauri/shell";
 import {
   isContentResize,
   isFirstMeasurement,
@@ -10,11 +15,14 @@ import {
 import type { NotchShape } from "../model/placement";
 import { createGeometryQueue } from "./geometry-queue";
 import { HOST_CAPACITY, surfaceLayout } from "./layout";
-import { useNotchHost } from "./useNotchHost";
+import { useNotchHost, type HostSettleRequest } from "./useNotchHost";
 import { useRenderedRegion } from "./useRenderedRegion";
 
 export { createGeometryQueue } from "./geometry-queue";
+export type { HostSettleRequest } from "./useNotchHost";
 export type { SurfaceSize } from "./layout";
+
+const defaultAnchor: HostAnchor = { horizontal: "center", vertical: "top" };
 
 type MotionState = {
   previous: NotchGeometry;
@@ -74,6 +82,9 @@ export function useNotchSurfaceSync({
   topOffset,
   position = null,
   positionReset = 0,
+  dockWithOttoOs = true,
+  compactCircle = false,
+  settle = null,
   measuredHeight,
   reducedMotion,
   durationMs,
@@ -81,12 +92,16 @@ export function useNotchSurfaceSync({
   onObserved,
   onError,
   onMoved = () => {},
+  onSettled,
 }: {
   surface: NotchSurface;
   shape: NotchShape;
   topOffset: number;
   position?: NotchPosition | null;
   positionReset?: number;
+  dockWithOttoOs?: boolean;
+  compactCircle?: boolean;
+  settle?: HostSettleRequest | null;
   measuredHeight: number | undefined;
   reducedMotion: boolean;
   durationMs: number;
@@ -94,15 +109,20 @@ export function useNotchSurfaceSync({
   onObserved: (placement: NotchPlacement) => void;
   onError: (message: string) => void;
   onMoved?: (position: NotchPosition) => void;
+  onSettled?: (position: NotchPosition) => void;
 }) {
   const host = useNotchHost({
     placement: shape === "attached" ? "attached" : "floating",
     topOffset,
     position,
     positionReset,
+    dockWithOttoOs,
+    compactCircle,
+    settle,
     attempt,
     report: onError,
     onMoved,
+    onSettled,
   });
   const next: NotchGeometry = { surface, height: measuredHeight };
   const hostRevision = host?.revision ?? 0;
@@ -143,6 +163,7 @@ export function useNotchSurfaceSync({
       if (placement === (shape === "attached" ? "attached" : "floating")) onObserved(placement);
     },
   });
+  const anchor = host?.anchor ?? defaultAnchor;
   if (recovery)
     return {
       size: {
@@ -155,6 +176,7 @@ export function useNotchSurfaceSync({
       sizingHost: host,
       stageRef,
       placement: recovery.region.shoulder > 0 ? ("attached" as const) : ("floating" as const),
+      anchor,
       recovery,
     };
   return {
@@ -165,6 +187,7 @@ export function useNotchSurfaceSync({
     sizingHost: host,
     stageRef,
     placement: host?.placement ?? "floating",
+    anchor,
     recovery,
   };
 }

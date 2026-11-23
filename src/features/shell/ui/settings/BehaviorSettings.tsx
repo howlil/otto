@@ -12,22 +12,25 @@ export function BehaviorSettings({
 }) {
   const { shortcut, message, busy, save, available } = useShortcutControls();
   return (
-    <div>
+    <div className="space-y-1">
       <Toggle
+        icon="behavior"
         title="Expand on hover"
-        help="Point at Otto to preview the composer"
+        titleHint="Point at Otto to preview the composer"
         checked={prefs.hoverExpand}
         onChange={(hoverExpand) => change({ hoverExpand })}
       />
       <Toggle
+        icon="pin"
         title="Keep expanded"
-        help="Stay open when you click elsewhere"
+        titleHint="Stay open when you click elsewhere"
         checked={!prefs.clickOutside}
         onChange={(keepExpanded) => change({ clickOutside: !keepExpanded })}
       />
       <SettingRow
+        icon="keyboard"
         title="Open / close shortcut"
-        help="Expand or collapse Otto from any app"
+        titleHint="Expand or collapse Otto from any app"
         htmlFor="otto-shell-shortcut"
       >
         <ShortcutRecorder

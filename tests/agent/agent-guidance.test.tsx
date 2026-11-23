@@ -7,6 +7,7 @@ import { AgentHeader } from "../../src/features/agent/conversation/AgentHeader";
 import { AgentPanel } from "../../src/features/agent/conversation/AgentPanel";
 import { AgentTranscript } from "../../src/features/agent/transcript/AgentTranscript";
 import { ProfileSettings } from "../../src/features/agent/settings/ProfileSettings";
+import { AgentOnboardingCard } from "../../src/features/agent/onboarding/AgentOnboardingCard";
 import {
   emptyAssistantProfile,
   loadAssistantGuidance,
@@ -210,21 +211,60 @@ describe("Header quick switcher popover", () => {
   });
 });
 
-describe("Profile settings and empty state starters", () => {
-  test("persists bounded assistant profile and clears cleanly", () => {
-    saveAssistantGuidance({
+describe("Profile settings, onboarding, and empty state starters", () => {
+  test("persists bounded assistant profile, migrates legacy profiles, and clears cleanly", () => {
+    expect(loadAssistantGuidance()).toEqual({
+      mode: "direct",
+      profile: { ...emptyAssistantProfile },
+      onboardingCompleted: false,
+    });
+
+    localStorage.setItem(
+      "otto.assistant-guidance.v1",
+      JSON.stringify({
+        mode: "mentor",
+        profile: { language: "Indonesian", level: "Beginner", instructions: "Use analogies" },
+      }),
+    );
+    expect(loadAssistantGuidance()).toEqual({
       mode: "mentor",
       profile: {
+        name: "",
+        role: "",
+        focus: "",
         language: "Indonesian",
         level: "Beginner",
         instructions: "Use analogies",
       },
+      onboardingCompleted: true,
+    });
+
+    saveAssistantGuidance({
+      mode: "mentor",
+      profile: {
+        name: "Lili",
+        role: "Developer",
+        focus: "Rust, TypeScript",
+        language: "Bahasa Indonesia",
+        level: "Concise & direct",
+        instructions: "Use analogies",
+      },
+      onboardingCompleted: true,
     });
     expect(loadAssistantGuidance()).toEqual({
       mode: "mentor",
-      profile: { language: "Indonesian", level: "Beginner", instructions: "Use analogies" },
+      profile: {
+        name: "Lili",
+        role: "Developer",
+        focus: "Rust, TypeScript",
+        language: "Bahasa Indonesia",
+        level: "Concise & direct",
+        instructions: "Use analogies",
+      },
+      onboardingCompleted: true,
     });
 
+    let startedOnboarding = 0;
     function ProfileHarness() {
       const [profile, setProfile] = useState<AssistantProfile>({ ...emptyAssistantProfile });
       return (
@@ -232,17 +272,199 @@ describe("Profile settings and empty state starters", () => {
           profile={profile}
           onChange={setProfile}
           onClear={() => setProfile({ ...emptyAssistantProfile })}
+          onStartOnboarding={() => {
+            startedOnboarding += 1;
+          }}
         />
       );
     }
     render(<ProfileHarness />);
     expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Setup guide" }));
+    expect(startedOnboarding).toBe(1);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Lili" } });
+    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "Developer" } });
+    fireEvent.change(screen.getByLabelText("Focus & interests"), { target: { value: "Rust" } });
     fireEvent.change(screen.getByLabelText("Answer language"), {
       target: { value: "Indonesian" },
     });
     expect(screen.getByRole("button", { name: "Clear" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Role") as HTMLInputElement).value).toBe("");
     expect((screen.getByLabelText("Answer language") as HTMLInputElement).value).toBe("");
+  });
+
+  test("interactive 3-step onboarding captures user identity, focus, language, and style", () => {
+    const completed: AssistantProfile[] = [];
+    let skipped = 0;
+    let closed = 0;
+    let escaped = 0;
+
+    const view = render(
+      <div onKeyDown={(event) => event.key === "Escape" && (escaped += 1)}>
+        <AgentOnboardingCard
+          reducedMotion
+          onComplete={(profile) => completed.push(profile)}
+          onSkip={() => {
+            skipped += 1;
+          }}
+          onClose={() => {
+            closed += 1;
+          }}
+        />
+      </div>,
+    );
+
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.change(screen.getByLabelText("What should Otto call you?"), {
+      target: { value: "Lili" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Developer" }));
+    expect((screen.getByLabelText("Or describe your role") as HTMLInputElement).value).toBe(
+      "Developer",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Algorithms & CP" }));
+    fireEvent.click(screen.getByRole("button", { name: "Backend & systems" }));
+    expect((screen.getByLabelText("Topics, subjects, or work you focus on") as HTMLInputElement).value).toBe(
+      "Algorithms & CP, Backend & systems",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Bahasa Indonesia" }));
+    fireEvent.click(screen.getByRole("button", { name: /Concise & direct/ }));
+    expect(
+      screen.getByText(/Personalizing prompts for: Lili · Developer · Bahasa Indonesia/),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Finish setup" }));
+
+    expect(completed).toEqual([
+      {
+        name: "Lili",
+        role: "Developer",
+        focus: "Algorithms & CP, Backend & systems",
+        language: "Bahasa Indonesia",
+        level: "Concise & direct",
+        instructions: "",
+      },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+    expect(skipped).toBe(1);
+
+    view.rerender(
+      <div onKeyDown={(event) => event.key === "Escape" && (escaped += 1)}>
+        <AgentOnboardingCard
+          key="reopen"
+          initialProfile={completed[0]}
+          forcedOpen
+          reducedMotion
+          onComplete={(profile) => completed.push(profile)}
+          onSkip={() => {
+            skipped += 1;
+          }}
+          onClose={() => {
+            closed += 1;
+          }}
+        />
+      </div>,
+    );
+    const nameInput = screen.getByLabelText("What should Otto call you?") as HTMLInputElement;
+    expect(nameInput.value).toBe("Lili");
+    fireEvent.keyDown(nameInput, { key: "Escape" });
+    expect(closed).toBe(1);
+    expect(escaped).toBe(0);
+  });
+
+  test("AgentTranscript renders first-run onboarding above composer and transitions to personalized empty state", () => {
+    function TranscriptOnboardingHarness() {
+      const [profile, setProfile] = useState<AssistantProfile>({ ...emptyAssistantProfile });
+      const [pending, setPending] = useState(true);
+      const [open, setOpen] = useState(false);
+      const [draft, setDraft] = useState("");
+      return (
+        <AgentTranscript
+          agent={{
+            snapshot: {
+              runId: 0,
+              seq: 0,
+              status: "idle",
+              provider: "codex",
+              threadId: null,
+              model: "gpt-5",
+              thinkingEffort: null,
+              usage: null,
+              messages: [],
+              activity: [],
+              capture: { requestId: 0, phase: "idle", error: null },
+              error: null,
+            },
+            readiness: {
+              status: "ready",
+              message: "",
+              recovery: "",
+              imageInput: true,
+              imageTransport: true,
+              model: "gpt-5",
+              models: [],
+              thinkingEffort: null,
+              thinkingEfforts: [],
+            },
+            draft,
+            setDraft,
+            profile,
+            onboardingPending: pending,
+            onboardingOpen: open,
+            completeOnboarding: (next) => {
+              setProfile(next);
+              setPending(false);
+              setOpen(false);
+            },
+            skipOnboarding: () => {
+              setPending(false);
+              setOpen(false);
+            },
+            openOnboarding: () => setOpen(true),
+            closeOnboarding: () => setOpen(false),
+            error: null,
+            busy: false,
+            captureBusy: false,
+            send: async () => {},
+            stop: async () => {},
+            refreshProvider: async () => {},
+            retryConnection: async () => {},
+            clearError: () => {},
+            errorKind: null,
+          }}
+          captureSource="window"
+          captureActionError={null}
+          reducedMotion
+          onCapture={() => {}}
+          onConfigureCapture={() => {}}
+          onMeasured={() => {}}
+        />
+      );
+    }
+
+    render(<TranscriptOnboardingHarness />);
+    expect(screen.getByRole("heading", { name: "Let Otto get to know you" })).toBeTruthy();
+    expect(document.getElementById("otto-prompt")).not.toBeNull();
+
+    fireEvent.change(screen.getByLabelText("What should Otto call you?"), {
+      target: { value: "Budi" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Student" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Finish setup" }));
+
+    expect(screen.queryByRole("heading", { name: "Let Otto get to know you" })).toBeNull();
+    expect(screen.queryByText(/what would you like to figure out/i)).toBeNull();
+    expect(screen.queryByText(/Tailored for/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit profile" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Learn step by step/ })).toBeTruthy();
   });
 
   test("empty state offers learning starters that select mode and prefill draft", () => {
@@ -295,7 +517,6 @@ describe("Profile settings and empty state starters", () => {
           errorKind: null,
         }}
         captureSource="window"
-        captureShortcut="Ctrl+Alt+S"
         captureActionError={null}
         onCapture={() => {}}
         onConfigureCapture={() => {}}
@@ -303,8 +524,7 @@ describe("Profile settings and empty state starters", () => {
       />,
     );
 
-    expect(screen.getByText(/What would you like to learn or figure out/)).toBeTruthy();
-    expect(screen.getByText(/Ctrl\+Alt\+S/)).toBeTruthy();
+    expect(screen.queryByText(/What would you like to learn or figure out/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Learn step by step/ }));
     expect(mode).toBe("mentor");
     expect(draft).toContain("Guide me step by step");

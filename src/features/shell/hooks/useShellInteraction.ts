@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { Page, Placement, Preferences } from "../model/preferences";
+import type { Page, PanelPosition, Placement, Preferences } from "../model/preferences";
 import { useShellFocus } from "./useShellFocus";
 import { useShellHover } from "./useShellHover";
 import { usePanelDrag } from "./usePanelDrag";
@@ -15,9 +15,11 @@ function prefersReducedMotion(motion: Preferences["motion"]): boolean {
 export function useShellInteraction({
   prefs,
   surfaceKey = "floating",
+  onDragEnd,
 }: {
   prefs: Preferences;
   surfaceKey?: Placement;
+  onDragEnd?: (position: PanelPosition) => void;
 }) {
   const [page, setPage] = useState<Page>("agent");
   const [mode, setMode] = useState<"compact" | "preview" | "pinned">("compact");
@@ -56,7 +58,7 @@ export function useShellInteraction({
     hover.clearTimers();
     setMode((current) => (current === "preview" ? "pinned" : current));
   }, [hover.clearTimers]);
-  const panelDrag = usePanelDrag({ surfaceKey, expanded, pinned, pin });
+  const panelDrag = usePanelDrag({ surfaceKey, expanded, pinned, pin, onDragEnd });
   const back = useCallback(() => {
     setPage("agent");
   }, []);

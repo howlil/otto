@@ -41,7 +41,7 @@ export function ProviderChoice({
     <button
       type="button"
       data-active-key={command}
-      className={`group relative z-[1] flex min-h-[48px] min-w-0 items-center gap-2.5 rounded-otto-card border px-2.5 text-left text-otto-text transition-[background,border-color] duration-[var(--otto-selection-duration)] ease-otto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-otto-input-selected ${selected ? "border-transparent bg-transparent" : "border-otto-line bg-otto-control hover:border-otto-line-hover hover:bg-otto-control-hover"} ${installed ? "" : "opacity-60"}`}
+      className={`group relative z-[1] flex h-11 min-w-0 items-center gap-2.5 rounded-otto-card border px-2.5 text-left text-otto-text transition-[background,border-color] duration-[var(--otto-selection-duration)] ease-otto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-otto-input-selected ${selected ? "border-transparent bg-transparent" : "border-otto-line bg-otto-control hover:border-otto-line-hover hover:bg-otto-control-hover"} ${installed ? "" : "opacity-60"}`}
       disabled={locked && installed}
       aria-disabled={!installed || undefined}
       aria-pressed={selected}

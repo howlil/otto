@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { AgentViewModel } from "../features/agent";
 import type { AppUpdateViewModel, ShellViewModel } from "../features/shell";
-import type { VoiceViewModel } from "../features/voice";
+import type { HostAnchor } from "../platform/tauri/shell";
 import { SurfaceBody } from "./ShellSurfaces";
 import { TransitionContent } from "../shared/ui";
 
@@ -32,17 +32,17 @@ function transitionDirection(previousKey: string | null, currentKey: string): Di
 export function ShellContent({
   agent,
   shell,
-  voice,
   onContentMeasured,
   appUpdate,
   frameSize,
+  anchor,
 }: {
   agent: AgentViewModel;
   shell: ShellViewModel;
-  voice?: VoiceViewModel;
   onContentMeasured: (height: number) => void;
   appUpdate: AppUpdateViewModel;
   frameSize?: FrameSize;
+  anchor?: HostAnchor;
 }) {
   const { expanded, page, compactCircle } = shell;
   const currentKey = surfaceKey(expanded, page, compactCircle);
@@ -67,11 +67,11 @@ export function ShellContent({
       reducedMotion={shell.reducedMotion}
       className="h-full w-full"
       frameSize={frameSize}
+      anchor={anchor}
     >
       <SurfaceBody
         agent={agent}
         shell={shell}
-        voice={voice}
         appUpdate={appUpdate}
         onContentMeasured={onContentMeasured}
       />

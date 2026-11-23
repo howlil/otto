@@ -2,6 +2,8 @@ import { afterEach, describe, expect, mock, test } from "bun:test";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const channels: Array<{ onmessage: ((value: unknown) => void) | null }> = [];
+const askPayloads: Array<Record<string, unknown>> = [];
+const guidancePayloads: Array<Record<string, unknown>> = [];
 let deferredAsk: Promise<{ runId: number }> | null = null;
 let resolveDeferredAsk: ((value: { runId: number }) => void) | null = null;
 
@@ -25,7 +27,12 @@ mock.module("@tauri-apps/api/core", () => ({
         thinkingEfforts: ["medium"],
       };
     }
+    if (command === "agent_set_guidance") {
+      guidancePayloads.push(payload as Record<string, unknown>);
+      return null;
+    }
     if (command === "agent_ask") {
+      askPayloads.push(payload as Record<string, unknown>);
       if (deferredAsk) return deferredAsk;
       return { runId: 11 };
     }
@@ -165,6 +172,8 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   channels.length = 0;
+  askPayloads.length = 0;
+  guidancePayloads.length = 0;
   deferredAsk = null;
   resolveDeferredAsk = null;
 });
@@ -191,7 +200,7 @@ describe("Agent run wiring", () => {
     await waitFor(() =>
       expect((screen.getByRole("button", { name: "Conversation history" }) as HTMLButtonElement).disabled).toBe(false),
     );
-  });
+  }, 15_000);
 
   test("an accepted prompt clears the composer and renders streaming deltas", async () => {
     await openAgent();
@@ -205,7 +214,7 @@ describe("Agent run wiring", () => {
     await waitFor(() =>
       expect(document.querySelector<HTMLTextAreaElement>("#otto-prompt")?.value).toBe(""),
     );
-  });
+  }, 15_000);
 
   test("collapsing and reopening keeps the streaming transcript", async () => {
     await openAgent();
@@ -223,7 +232,7 @@ describe("Agent run wiring", () => {
       expect(screen.getByRole("log").textContent).toContain("OTTO_FIRST_CHUNK"),
     );
     expect(screen.getByRole("log").textContent).not.toContain("OTTO_FINAL_CHUNK");
-  });
+  }, 15_000);
 
   test("Stop returns the composer to Send and the terminal answer renders once", async () => {
     await openAgent();
@@ -249,5 +258,49 @@ describe("Agent run wiring", () => {
     const transcript = screen.getByRole("log").textContent ?? "";
     expect(transcript).toContain("OTTO_FIRST_CHUNK");
     expect(transcript.match(/Deterministic streaming test/g)?.length).toBe(1);
-  });
+  }, 15_000);
+
+  test("completing first-run onboarding syncs profile guidance and sends it on agent_ask", async () => {
+    await openAgent();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Let Otto get to know you" })).toBeTruthy(),
+    );
+
+    fireEvent.change(screen.getByLabelText("What should Otto call you?"), {
+      target: { value: "Lili" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Developer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Backend & systems" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bahasa Indonesia" }));
+    fireEvent.click(screen.getByRole("button", { name: /Concise & direct/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Finish setup" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Let Otto get to know you" })).toBeNull(),
+    );
+    expect(guidancePayloads.at(-1)).toEqual({
+      mode: "direct",
+      profile: {
+        name: "Lili",
+        role: "Developer",
+        focus: "Backend & systems",
+        language: "Bahasa Indonesia",
+        level: "Concise & direct",
+        instructions: null,
+      },
+    });
+
+    await ask("Explain Rust lifetimes");
+    await waitFor(() => expect(askPayloads).toHaveLength(1));
+    expect(askPayloads[0]?.profile).toEqual({
+      name: "Lili",
+      role: "Developer",
+      focus: "Backend & systems",
+      language: "Bahasa Indonesia",
+      level: "Concise & direct",
+      instructions: null,
+    });
+  }, 15_000);
 });

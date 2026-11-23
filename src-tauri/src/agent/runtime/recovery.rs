@@ -82,7 +82,13 @@ impl AgentRuntime {
         let updates = self.updates.clone();
         Some(async move {
             while receiver.changed().await.is_ok() {
-                let snapshot = receiver.borrow_and_update().clone();
+                let snapshot = {
+                    let state = receiver.borrow_and_update();
+                    if !is_terminal_phase(state.status) {
+                        continue;
+                    }
+                    state.clone()
+                };
                 if snapshot.status == RunPhase::Failed
                     && should_invalidate_cache_for_error(snapshot.error.as_deref())
                 {
@@ -98,6 +104,13 @@ impl AgentRuntime {
             }
         })
     }
+}
+
+pub(crate) fn is_terminal_phase(phase: RunPhase) -> bool {
+    matches!(
+        phase,
+        RunPhase::Completed | RunPhase::Failed | RunPhase::Stopped
+    )
 }
 
 pub(crate) fn should_invalidate_cache_for_error(error: Option<&str>) -> bool {
@@ -125,11 +138,7 @@ pub(crate) fn persist_terminal_outcome(
     updates: &watch::Sender<Snapshot>,
     snapshot: &Snapshot,
 ) {
-    if !matches!(
-        snapshot.status,
-        RunPhase::Completed | RunPhase::Failed | RunPhase::Stopped
-    ) || updates.borrow().run_id != snapshot.run_id
-    {
+    if !is_terminal_phase(snapshot.status) || updates.borrow().run_id != snapshot.run_id {
         return;
     }
     let interrupted = snapshot.status != RunPhase::Completed;
@@ -256,5 +265,16 @@ mod tests {
             "Codex turn did not complete."
         )));
         assert!(!should_invalidate_cache_for_error(None));
+    }
+
+    #[test]
+    fn terminal_phase_filter_skips_streaming_updates() {
+        assert!(!is_terminal_phase(RunPhase::Idle));
+        assert!(!is_terminal_phase(RunPhase::Starting));
+        assert!(!is_terminal_phase(RunPhase::Streaming));
+        assert!(!is_terminal_phase(RunPhase::Stopping));
+        assert!(is_terminal_phase(RunPhase::Completed));
+        assert!(is_terminal_phase(RunPhase::Failed));
+        assert!(is_terminal_phase(RunPhase::Stopped));
     }
 }

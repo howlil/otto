@@ -3,7 +3,7 @@ use crate::agent::{ChatMessage, ProviderId, RunPhase, Snapshot, error::AgentErro
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io::Write,
+    io::{BufReader, BufWriter, Write},
     path::{Path, PathBuf},
     sync::Mutex,
     time::{SystemTime, UNIX_EPOCH},
@@ -194,22 +194,30 @@ impl HistoryStore {
                 conversations: Vec::new(),
             });
         };
-        let bytes = match fs::read(path) {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(HistoryFile {
-                    version: CURRENT_VERSION,
-                    conversations: Vec::new(),
-                });
-            }
-            Err(_) => {
+        let parsed = {
+            let file = match fs::File::open(path) {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    return Ok(HistoryFile {
+                        version: CURRENT_VERSION,
+                        conversations: Vec::new(),
+                    });
+                }
+                Err(_) => {
+                    return Err(AgentError::persistence_failed(
+                        "Conversation history could not be read.",
+                    ));
+                }
+            };
+            serde_json::from_reader::<_, HistoryFile>(BufReader::new(file))
+        };
+        let mut data: HistoryFile = match parsed {
+            Ok(data) => data,
+            Err(error) if error.is_io() => {
                 return Err(AgentError::persistence_failed(
                     "Conversation history could not be read.",
                 ));
             }
-        };
-        let mut data: HistoryFile = match serde_json::from_slice(&bytes) {
-            Ok(data) => data,
             Err(_) => {
                 recover_corrupt(path);
                 HistoryFile {
@@ -241,18 +249,28 @@ impl HistoryStore {
             AgentError::persistence_failed("History directory could not be created.")
         })?;
         let temporary = path.with_extension(format!("json.tmp-{}", std::process::id()));
-        let bytes = serde_json::to_vec_pretty(data)
-            .map_err(|_| AgentError::persistence_failed("History could not be encoded."))?;
         let result = (|| {
-            let mut file = fs::File::create(&temporary).map_err(|_| {
+            let file = fs::File::create(&temporary).map_err(|_| {
                 AgentError::persistence_failed("History temporary file could not be created.")
             })?;
-            file.write_all(&bytes).map_err(|_| {
+            let mut writer = BufWriter::new(file);
+            serde_json::to_writer(&mut writer, data).map_err(|error| {
+                if error.is_io() {
+                    AgentError::persistence_failed("History temporary file could not be written.")
+                } else {
+                    AgentError::persistence_failed("History could not be encoded.")
+                }
+            })?;
+            writer.flush().map_err(|_| {
                 AgentError::persistence_failed("History temporary file could not be written.")
+            })?;
+            let file = writer.into_inner().map_err(|_| {
+                AgentError::persistence_failed("History temporary file could not be flushed.")
             })?;
             file.sync_all().map_err(|_| {
                 AgentError::persistence_failed("History temporary file could not be flushed.")
             })?;
+            drop(file);
             commit_file(&temporary, path)?;
             Ok(())
         })();

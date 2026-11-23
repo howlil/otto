@@ -1,15 +1,24 @@
 export type Page = "agent" | "settings";
-export type SettingsTab = "assistant" | "capture" | "voice" | "behavior" | "position" | "general";
+export type SettingsTab = "assistant" | "capture" | "behavior" | "position" | "general";
 export type SettingsFocus = "capture-shortcut";
 export type Motion = "fluid" | "gentle" | "reduced";
 export type Placement = "floating" | "attached";
 export type CompactStyle = "capsule" | "circle";
-export type BackgroundStyle = "solid" | "transparent";
-export type PanelPosition = { x: number; y: number };
+export type BackgroundStyle = "solid" | "blur" | "liquid-glass";
+export type HorizontalAnchor = "left" | "center" | "right";
+export type VerticalAnchor = "top" | "bottom";
+export type PanelPosition = {
+  x: number;
+  y: number;
+  anchorX?: HorizontalAnchor;
+  anchorY?: VerticalAnchor;
+  height?: number;
+};
 
 export type Preferences = {
   placement: Placement;
   compactStyle: CompactStyle;
+  dockWithOttoOs: boolean;
   hoverExpand: boolean;
   hoverDelay: number;
   leaveDelay: number;
@@ -25,6 +34,7 @@ export type Preferences = {
 export const defaults: Preferences = {
   placement: "floating",
   compactStyle: "capsule",
+  dockWithOttoOs: true,
   hoverExpand: true,
   hoverDelay: 150,
   leaveDelay: 340,
@@ -49,21 +59,40 @@ const choices: Partial<Record<keyof Preferences, readonly string[]>> = {
   motion: ["fluid", "gentle", "reduced"],
   placement: ["floating", "attached"],
   compactStyle: ["capsule", "circle"],
-  backgroundStyle: ["solid", "transparent"],
+  backgroundStyle: ["solid", "blur", "liquid-glass"],
 };
 
+const horizontalAnchors = ["left", "center", "right"] as const;
+const verticalAnchors = ["top", "bottom"] as const;
+
+function validInt32(value: unknown): boolean {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= -2147483648 &&
+    value <= 2147483647
+  );
+}
+
+function validOptionalHeight(value: unknown): boolean {
+  if (value === undefined) return true;
+  return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 16384;
+}
+
+function validPosition(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const position = value as Record<string, unknown>;
+  if (!validInt32(position.x) || !validInt32(position.y)) return false;
+  const validX =
+    position.anchorX === undefined ||
+    horizontalAnchors.includes(position.anchorX as HorizontalAnchor);
+  const validY =
+    position.anchorY === undefined || verticalAnchors.includes(position.anchorY as VerticalAnchor);
+  return validX && validY && validOptionalHeight(position.height);
+}
+
 function validPreference(key: keyof Preferences, value: unknown): boolean {
-  if (key === "position") {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-    const position = value as Record<string, unknown>;
-    return [position.x, position.y].every(
-      (coordinate) =>
-        typeof coordinate === "number" &&
-        Number.isInteger(coordinate) &&
-        coordinate >= -2147483648 &&
-        coordinate <= 2147483647,
-    );
-  }
+  if (key === "position") return validPosition(value);
   if (typeof value !== typeof defaults[key]) return false;
   if (typeof value === "number") {
     const range = limits[key];
@@ -80,7 +109,8 @@ function validPreference(key: keyof Preferences, value: unknown): boolean {
 export function surfaceOpacityPercent(
   prefs?: Partial<Pick<Preferences, "backgroundStyle" | "backgroundOpacity">> | null,
 ): number {
-  if (prefs?.backgroundStyle !== "transparent") return 100;
+  const style = prefs?.backgroundStyle;
+  if (!style || style === "solid") return 100;
   const raw = prefs.backgroundOpacity;
   if (typeof raw !== "number" || !Number.isFinite(raw)) return defaults.backgroundOpacity;
   const [min, max] = BACKGROUND_OPACITY_RANGE;
@@ -91,7 +121,10 @@ export function readPreferences(): Preferences {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem("otto.preferences.v1") || "{}");
     if (!saved || typeof saved !== "object" || Array.isArray(saved)) return { ...defaults };
-    const persisted = saved as Record<string, unknown>;
+    const persisted = { ...(saved as Record<string, unknown>) };
+    if (persisted.backgroundStyle === "transparent") {
+      persisted.backgroundStyle = "blur";
+    }
     const result = { ...defaults };
     for (const key of Object.keys(defaults) as Array<keyof Preferences>) {
       if (validPreference(key, persisted[key])) {

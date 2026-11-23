@@ -7,21 +7,22 @@ import {
   SettingRow,
   StatusMessage,
   Text,
+  Toggle,
 } from "../../../../shared/ui";
 import type { CompactStyle, Preferences } from "../../model/preferences";
 import type { PlacementStatus } from "../../hooks/useNotchShell";
 import { PlacementChoice } from "./PlacementChoice";
 
 const compactStyleChoices = [
-  { value: "capsule" as const, label: "Capsule" },
-  { value: "circle" as const, label: "Circle" },
+  { value: "capsule" as const, label: "Capsule", icon: "capsuleCompact" as const },
+  { value: "circle" as const, label: "Circle", icon: "circleCompact" as const },
 ];
 
 function attachedDisabledTitle(
   placement: PlacementStatus,
   compactStyle: CompactStyle,
 ): string | undefined {
-  if (placement.ottoOs) return "Otto OS owns the top edge, so Otto stays floating.";
+  if (placement.ottoOsDetected) return "Otto OS owns the top edge, so Otto stays floating.";
   if (compactStyle === "circle") {
     return "Circle mode floats automatically. Switch to Capsule to use Attached.";
   }
@@ -41,11 +42,6 @@ function PositionNotices({
       {!placement.ottoOs && compactStyle === "circle" && placement.requested === "attached" && (
         <StatusMessage tone="info" className="text-otto-label-muted">
           Circle mode floats automatically. Switch back to Capsule to restore Attached.
-        </StatusMessage>
-      )}
-      {placement.ottoOs && (
-        <StatusMessage tone="info" className="text-otto-label-muted">
-          Otto OS is running. Otto shows as a circle beside its notch.
         </StatusMessage>
       )}
       {!placement.supported && (
@@ -76,49 +72,60 @@ export function PositionSettings({
   placement: PlacementStatus;
 }) {
   const circleSelected = placement.ottoOs || prefs.compactStyle === "circle";
-  const floating = placement.requested === "floating" || circleSelected;
-  const attachedBlocked = !placement.supported || circleSelected;
+  const floating = placement.requested === "floating" || circleSelected || placement.ottoOsDetected;
+  const attachedBlocked = !placement.supported || circleSelected || placement.ottoOsDetected;
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {placement.ottoOsDetected && (
+        <Toggle
+          icon={placement.dockWithOttoOs ? "link" : "unlink"}
+          title="Dock with Otto OS"
+          help={placement.dockWithOttoOs ? "Beside the Otto OS notch" : "Detached · free floating"}
+          checked={placement.dockWithOttoOs}
+          onChange={placement.setDockWithOttoOs}
+        />
+      )}
       <SettingRow
+        icon={circleSelected ? "circleCompact" : "capsuleCompact"}
         title="Compact style"
-        help={placement.ottoOs ? "Managed by Otto OS" : "Pill bar or 40 px mascot circle"}
+        help={placement.ottoOs ? "Managed by Otto OS" : undefined}
       >
         <ChoiceGroup<CompactStyle>
           value={circleSelected ? "circle" : "capsule"}
           choices={compactStyleChoices}
           disabled={placement.ottoOs}
-          disabledReason="Otto OS keeps Otto in Circle mode"
+          disabledReason="Detach from Otto OS to switch to Capsule"
           onChange={(compactStyle) => change({ compactStyle })}
         />
       </SettingRow>
-      <SettingBlock title="Placement">
+      <SettingBlock title="Placement" icon="position">
         <ActiveIndicatorGroup
-          activeKey={circleSelected ? "floating" : placement.requested}
+          activeKey={floating ? "floating" : placement.requested}
           className="grid grid-cols-2 gap-2"
-          indicatorClassName="rounded-otto-card border border-otto-slider-outline bg-otto-raised-deep"
+          indicatorClassName="rounded-otto-card border border-otto-line-focused bg-otto-selected"
         >
           <PlacementChoice
             value="floating"
             selected={floating}
             label="Floating"
-            hint="Below the top edge, movable"
+            icon="appWindow"
+            title="Floating window you can drag anywhere"
             onSelect={() => placement.change("floating")}
           />
           <PlacementChoice
             value="attached"
-            selected={!circleSelected && placement.requested === "attached"}
+            selected={!floating && placement.requested === "attached"}
             label="Attached"
-            hint="Joined to the top edge"
-            attached
+            icon="position"
             disabled={attachedBlocked}
-            title={attachedDisabledTitle(placement, prefs.compactStyle)}
+            title={attachedDisabledTitle(placement, prefs.compactStyle) ?? "Joined to the top edge"}
             onSelect={() => placement.change("attached")}
           />
         </ActiveIndicatorGroup>
       </SettingBlock>
-      {floating && prefs.position === null && (
+      {floating && !placement.ottoOs && prefs.position === null && (
         <Range
+          icon="moveVertical"
           label="Distance from top"
           value={prefs.topOffset}
           min={0}
@@ -133,8 +140,8 @@ export function PositionSettings({
         </Text>
       )}
       {floating && prefs.position !== null && (
-        <SettingRow title="Custom position" help="You moved Otto by dragging it">
-          <Button variant="quiet" size="xs" onClick={placement.resetPosition}>
+        <SettingRow icon="move" title="Custom position">
+          <Button variant="secondary" size="xs" icon="reset" onClick={placement.resetPosition}>
             Reset
           </Button>
         </SettingRow>

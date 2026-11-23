@@ -30,3 +30,17 @@ pub fn overlay_set_capture_protection(
         Err("Capture protection requires Windows.".into())
     }
 }
+
+#[tauri::command]
+pub fn overlay_set_memory_mode(window: WebviewWindow, low: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        crate::platform::windows::memory::set_webview_low_memory(&window, low)
+            .map_err(|_| "Windows memory mode could not be updated.".into())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, low);
+        Ok(())
+    }
+}

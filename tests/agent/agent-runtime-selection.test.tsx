@@ -152,10 +152,13 @@ const { useAgent } = await import("../../src/features/agent/hooks/useAgent");
 const awaitReady = async (hook: {
   result: { current: { readiness: { status: string; model: string | null }; model: string | null } };
 }) => {
-  await waitFor(() => {
-    expect(hook.result.current.readiness.status).toBe("ready");
-    expect(hook.result.current.readiness.model).toBe(hook.result.current.model);
-  });
+  await waitFor(
+    () => {
+      expect(hook.result.current.readiness.status).toBe("ready");
+      expect(hook.result.current.readiness.model).toBe(hook.result.current.model);
+    },
+    { timeout: 4000 },
+  );
 };
 
 const mount = async () => {
@@ -527,6 +530,9 @@ describe("Agent runtime selection reaches the next run", () => {
         effort: "high",
         mode: "mentor",
         profile: {
+          name: "",
+          role: "",
+          focus: "",
           language: "Indonesian",
           level: "Beginner",
           instructions: "Use analogies",

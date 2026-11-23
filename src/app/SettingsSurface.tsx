@@ -3,22 +3,19 @@ import type { AgentViewModel } from "../features/agent";
 import { AssistantSettings, CaptureSettings } from "../features/agent";
 import type { AppUpdateViewModel, ShellViewModel } from "../features/shell";
 import { BehaviorSettings, GeneralSettings, PositionSettings } from "../features/shell";
-import { VoiceSettings, type VoiceViewModel } from "../features/voice";
 import { IconButton, Text, TransitionContent, useTransitionActive } from "../shared/ui";
 import { SettingsNav, settingsTabs } from "./SettingsNav";
 
-const HEADER_HEIGHT = 51;
+const HEADER_HEIGHT = 48;
 
 export function SettingsSurface({
   agent,
   shell,
-  voice,
   appUpdate,
   onMeasured,
 }: {
   agent: AgentViewModel;
   shell: ShellViewModel;
-  voice?: VoiceViewModel;
   appUpdate: AppUpdateViewModel;
   onMeasured: (height: number) => void;
 }) {
@@ -50,8 +47,16 @@ export function SettingsSurface({
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col">
-      <header className="flex h-[51px] shrink-0 items-center gap-[10px] border-b border-otto-line-soft px-[15px]">
-        <IconButton icon="back" label="Back to Agent" ref={back} onClick={shell.back} />
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-otto-line-soft px-4">
+        <IconButton
+          icon="back"
+          label="Back to Agent"
+          title="Back to Agent"
+          variant="quiet"
+          size={16}
+          ref={back}
+          onClick={shell.back}
+        />
         <Text as="strong" variant="display">
           Settings
         </Text>
@@ -66,17 +71,24 @@ export function SettingsSurface({
           ref={pane}
           className="otto-scrollbar-hidden min-h-0 min-w-0 overflow-y-auto [overscroll-behavior:contain]"
         >
-          <div className="px-[18px] pb-5 pt-3 text-otto-text">
+          <div className="px-4 py-3 text-otto-text">
             <h2 className="sr-only">{heading}</h2>
             <TransitionContent transitionKey={tab} kind="tab" reducedMotion={shell.reducedMotion}>
-              {tab === "assistant" && <AssistantSettings agent={agent} />}
+              {tab === "assistant" && (
+                <AssistantSettings
+                  agent={agent}
+                  onStartOnboarding={() => {
+                    agent.openOnboarding?.();
+                    shell.back();
+                  }}
+                />
+              )}
               {tab === "capture" && (
                 <CaptureSettings
                   agent={agent}
                   focusShortcut={shell.settingsFocus === "capture-shortcut"}
                 />
               )}
-              {tab === "voice" && voice && <VoiceSettings voice={voice} />}
               {tab === "behavior" && <BehaviorSettings prefs={shell.prefs} change={shell.change} />}
               {tab === "position" && (
                 <PositionSettings

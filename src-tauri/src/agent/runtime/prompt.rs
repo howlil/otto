@@ -2,6 +2,9 @@ use crate::agent::ChatMessage;
 use serde::{Deserialize, Serialize};
 
 pub(crate) const MAX_PROMPT_BYTES: usize = 12_000;
+const MAX_PROFILE_NAME_CHARS: usize = 40;
+const MAX_PROFILE_ROLE_CHARS: usize = 60;
+const MAX_PROFILE_FOCUS_CHARS: usize = 160;
 const MAX_PROFILE_FIELD_CHARS: usize = 80;
 const MAX_PROFILE_INSTRUCTIONS_CHARS: usize = 800;
 
@@ -67,6 +70,12 @@ impl LearningMode {
 #[serde(rename_all = "camelCase")]
 pub struct AssistantProfile {
     #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub role: Option<String>,
+    #[serde(default)]
+    pub focus: Option<String>,
+    #[serde(default)]
     pub language: Option<String>,
     #[serde(default)]
     pub level: Option<String>,
@@ -77,6 +86,9 @@ pub struct AssistantProfile {
 impl AssistantProfile {
     pub fn sanitized(&self) -> Self {
         Self {
+            name: clean_single_line(self.name.as_deref(), MAX_PROFILE_NAME_CHARS),
+            role: clean_single_line(self.role.as_deref(), MAX_PROFILE_ROLE_CHARS),
+            focus: clean_single_line(self.focus.as_deref(), MAX_PROFILE_FOCUS_CHARS),
             language: clean_single_line(self.language.as_deref(), MAX_PROFILE_FIELD_CHARS),
             level: clean_single_line(self.level.as_deref(), MAX_PROFILE_FIELD_CHARS),
             instructions: clean_multiline(
@@ -144,6 +156,104 @@ fn clean_multiline(value: Option<&str>, max_chars: usize) -> Option<String> {
     Some(trimmed.chars().take(max_chars).collect())
 }
 
+fn matches_any(haystack: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| haystack.contains(needle))
+}
+
+fn role_adaptation_line(role: &str) -> String {
+    let lower = role.to_ascii_lowercase();
+    let guidance = if matches_any(
+        &lower,
+        &[
+            "developer",
+            "engineer",
+            "programmer",
+            "coder",
+            "software",
+            "backend",
+            "frontend",
+            "fullstack",
+            "devops",
+        ],
+    ) {
+        "Adapt for a technical builder: be precise with terminology, highlight edge cases, trade-offs, and practical implementation patterns, and skip basic boilerplate explanations unless asked."
+    } else if matches_any(
+        &lower,
+        &[
+            "student",
+            "college",
+            "university",
+            "high school",
+            "pelajar",
+            "mahasiswa",
+        ],
+    ) {
+        "Adapt explanations for a student: build clear fundamentals and intuition first, connect theory to concrete examples, and avoid assuming unspoken industry jargon."
+    } else if matches_any(&lower, &["designer", "ux", "ui", "creative", "illustrator"]) {
+        "Adapt for a designer: frame ideas clearly around user experience, visual hierarchy, structure, and craft trade-offs using concrete examples."
+    } else if matches_any(
+        &lower,
+        &[
+            "researcher",
+            "scientist",
+            "academic",
+            "phd",
+            "analyst",
+            "scholar",
+        ],
+    ) {
+        "Adapt for a researcher: prioritize analytical rigor, explicit assumptions, methodology, clear definitions, and structured synthesis."
+    } else if matches_any(
+        &lower,
+        &[
+            "professional",
+            "founder",
+            "manager",
+            "executive",
+            "business",
+            "entrepreneur",
+            "marketer",
+        ],
+    ) {
+        "Adapt for a busy professional: lead with key takeaways, practical implications, and clear structured options for decision-making."
+    } else if matches_any(&lower, &["everyday", "general", "explorer", "curious"]) {
+        "Adapt for an everyday learner: keep explanations friendly, approachable, practical, and free of unnecessary technical jargon."
+    } else {
+        "Tailor depth, vocabulary, framing, and examples to fit this background."
+    };
+    format!("User role: {role}. {guidance}")
+}
+
+fn style_adaptation_line(level: &str) -> String {
+    let lower = level.to_ascii_lowercase();
+    let extra = match lower.as_str() {
+        "concise & direct" => {
+            Some("Lead with the answer, keep wording tight, and avoid unnecessary filler.")
+        }
+        "warm & guided" => {
+            Some("Use an encouraging, collaborative tone and walk through reasoning step by step.")
+        }
+        "deep & technical" => Some(
+            "Provide thorough mechanics, edge cases, and deeper reasoning rather than surface summaries.",
+        ),
+        "simple & everyday" => Some(
+            "Use plain everyday wording, intuitive analogies, and briefly unpack unavoidable jargon.",
+        ),
+        _ => None,
+    };
+    match extra {
+        Some(detail) => format!("Learner level & tone: {level}. {detail}"),
+        None => format!("Learner level & tone: {level}"),
+    }
+}
+
+fn is_auto_language(language: &str) -> bool {
+    matches!(
+        language.trim().to_ascii_lowercase().as_str(),
+        "auto" | "match my message"
+    )
+}
+
 pub(crate) fn compose_guidance_prompt(
     body: &str,
     guidance: &AssistantGuidance,
@@ -158,11 +268,30 @@ pub(crate) fn compose_guidance_prompt(
         "Role: Personal AI assistant and learning mentor. Do not modify local files or run system commands unless the user explicitly asks.".to_owned(),
         format!("Mode ({}): {}", clean.mode.label(), clean.mode.instruction()),
     ];
-    if let Some(language) = clean.profile.language {
-        lines.push(format!("Preferred answer language: {language}"));
+    if let Some(name) = clean.profile.name {
+        lines.push(format!(
+            "User name: {name}. Address them naturally when fitting, without repeating it unnecessarily."
+        ));
+    }
+    if let Some(role) = clean.profile.role {
+        lines.push(role_adaptation_line(&role));
+    }
+    if let Some(focus) = clean.profile.focus {
+        lines.push(format!(
+            "User focus & interests: {focus}. Prefer examples, analogies, and framing connected to these areas when relevant."
+        ));
+    }
+    if let Some(language) = clean
+        .profile
+        .language
+        .filter(|value| !is_auto_language(value))
+    {
+        lines.push(format!(
+            "Preferred answer language: {language}. Respond in {language} unless the user explicitly asks for another language."
+        ));
     }
     if let Some(level) = clean.profile.level {
-        lines.push(format!("Learner level & tone: {level}"));
+        lines.push(style_adaptation_line(&level));
     }
     if let Some(instructions) = clean.profile.instructions {
         lines.push(format!("User learning preferences: {instructions}"));
@@ -311,11 +440,24 @@ mod tests {
     #[test]
     fn profile_sanitizes_control_characters_and_enforces_character_bounds() {
         let profile = AssistantProfile {
+            name: Some(format!("  Lili\u{0007}\n  {}", "n".repeat(60))),
+            role: Some(format!("Developer\t\n{}", "r".repeat(90))),
+            focus: Some(format!("Rust\nTypeScript {}", "f".repeat(200))),
             language: Some(format!("  Indonesian\u{0007}\n  {}", "x".repeat(120))),
             level: Some("   \t\n ".into()),
             instructions: Some(format!("Line 1\r\nLine 2\u{0000} {}", "y".repeat(900))),
         }
         .sanitized();
+        let name = profile.name.unwrap();
+        assert_eq!(name.chars().count(), MAX_PROFILE_NAME_CHARS);
+        assert!(!name.contains('\u{0007}'));
+        assert!(!name.contains('\n'));
+        let role = profile.role.unwrap();
+        assert_eq!(role.chars().count(), MAX_PROFILE_ROLE_CHARS);
+        assert!(!role.contains('\n'));
+        let focus = profile.focus.unwrap();
+        assert_eq!(focus.chars().count(), MAX_PROFILE_FOCUS_CHARS);
+        assert!(!focus.contains('\n'));
         let language = profile.language.unwrap();
         assert_eq!(language.chars().count(), MAX_PROFILE_FIELD_CHARS);
         assert!(!language.contains('\u{0007}'));
@@ -332,6 +474,9 @@ mod tests {
         let guidance = AssistantGuidance {
             mode: LearningMode::Mentor,
             profile: AssistantProfile {
+                name: Some("Lili".into()),
+                role: Some("Developer".into()),
+                focus: Some("Rust, system design".into()),
                 language: Some("Indonesian".into()),
                 level: Some("University beginner".into()),
                 instructions: Some("Use short concrete analogies.".into()),
@@ -342,7 +487,10 @@ mod tests {
         assert!(composed.contains("Personal AI assistant and learning mentor"));
         assert!(composed.contains("Do not modify local files or run system commands"));
         assert!(composed.contains("Mode (Mentor):"));
-        assert!(composed.contains("Preferred answer language: Indonesian"));
+        assert!(composed.contains("User name: Lili."));
+        assert!(composed.contains("User role: Developer. Adapt for a technical builder:"));
+        assert!(composed.contains("User focus & interests: Rust, system design."));
+        assert!(composed.contains("Preferred answer language: Indonesian."));
         assert!(composed.contains("Learner level & tone: University beginner"));
         assert!(composed.contains("User learning preferences: Use short concrete analogies."));
         assert!(composed.ends_with("\n\nExplain recursion"));
@@ -351,5 +499,49 @@ mod tests {
             compose_guidance_prompt("Follow-up", &guidance, false),
             "Follow-up"
         );
+    }
+
+    #[test]
+    fn compose_guidance_prompt_adapts_persona_for_student_custom_role_style_and_auto_language() {
+        let student = compose_guidance_prompt(
+            "What is a matrix?",
+            &AssistantGuidance {
+                mode: LearningMode::Direct,
+                profile: AssistantProfile {
+                    name: Some("Budi".into()),
+                    role: Some("Student".into()),
+                    focus: Some("Linear algebra".into()),
+                    language: Some("Auto".into()),
+                    level: Some("Concise & direct".into()),
+                    instructions: None,
+                },
+            },
+            true,
+        );
+        assert!(student.contains("User role: Student. Adapt explanations for a student:"));
+        assert!(student.contains("Learner level & tone: Concise & direct. Lead with the answer"));
+        assert!(!student.contains("Preferred answer language:"));
+
+        let custom = compose_guidance_prompt(
+            "Explain pharmacology",
+            &AssistantGuidance {
+                mode: LearningMode::Direct,
+                profile: AssistantProfile {
+                    role: Some("Medical resident".into()),
+                    ..AssistantProfile::default()
+                },
+            },
+            true,
+        );
+        assert!(custom.contains(
+            "User role: Medical resident. Tailor depth, vocabulary, framing, and examples to fit this background."
+        ));
+
+        let legacy: AssistantProfile =
+            serde_json::from_str(r#"{"language":"English","level":"Beginner"}"#).unwrap();
+        assert_eq!(legacy.name, None);
+        assert_eq!(legacy.role, None);
+        assert_eq!(legacy.focus, None);
+        assert_eq!(legacy.language.as_deref(), Some("English"));
     }
 }

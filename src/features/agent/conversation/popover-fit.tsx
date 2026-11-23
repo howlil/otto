@@ -56,6 +56,7 @@ export function AgentPopoverFitProvider({
 
 function resolveReserve(
   anchor: "top" | "bottom",
+  panel: HTMLElement,
   panelRect: DOMRect,
   triggerRect: DOMRect | undefined,
 ): number {
@@ -64,8 +65,13 @@ function resolveReserve(
     const offset = triggerRect ? Math.ceil(triggerRect.bottom - panelRect.top + 8) : 56;
     return Math.max(56, offset) + edgeGap;
   }
+  const headerRect = panel.querySelector("header")?.getBoundingClientRect();
+  const topClearance =
+    headerRect && headerRect.height > 0
+      ? Math.max(56, Math.ceil(headerRect.bottom - panelRect.top + 6))
+      : 56;
   const offset = triggerRect ? Math.ceil(panelRect.bottom - triggerRect.top + 10) : 66;
-  return Math.max(66, offset) + edgeGap;
+  return Math.max(66, offset) + topClearance;
 }
 
 export function usePopoverFit(
@@ -98,7 +104,7 @@ export function usePopoverFit(
       }
       const panelRect = panel.getBoundingClientRect();
       const triggerRect = node.parentElement?.getBoundingClientRect();
-      const reserve = resolveReserve(anchor, panelRect, triggerRect);
+      const reserve = resolveReserve(anchor, panel, panelRect, triggerRect);
       context?.report(id, contentHeight + reserve);
       if (panelRect.height > 0) {
         const available = Math.max(120, Math.floor(panelRect.height - reserve));

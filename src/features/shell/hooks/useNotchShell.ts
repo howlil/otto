@@ -5,23 +5,26 @@ import { useShellPlacement, type PlacementStatus } from "./useShellPlacement";
 import { useShellPreferences } from "./useShellPreferences";
 import { useOttoOs, useOttoOsDock } from "./useOttoOs";
 import { useShellShortcut } from "./useShellShortcut";
-import { surfaceOpacityPercent } from "../model/preferences";
+import { surfaceOpacityPercent, type PanelPosition } from "../model/preferences";
 import type { ShellViewModel } from "../model/view-model";
 
 export type { PlacementStatus } from "./useShellPlacement";
 
-export function useNotchShell() {
+export function useNotchShell(options?: { onDragEnd?: (position: PanelPosition) => void }) {
   const preferences = useShellPreferences();
-  const ottoOs = useOttoOs();
+  const ottoOsDetected = useOttoOs();
+  const ottoOs = ottoOsDetected && preferences.prefs.dockWithOttoOs;
   const circleMode = preferences.prefs.compactStyle === "circle";
   const compactCircle = ottoOs || circleMode;
-  const placement = useShellPlacement(
-    preferences.prefs,
-    nativeAvailable,
-    preferences.setPlacementPreference,
-    preferences.resetPanelPosition,
+  const placement = useShellPlacement({
+    prefs: preferences.prefs,
+    supported: nativeAvailable,
+    setPlacementPreference: preferences.setPlacementPreference,
+    resetPosition: preferences.resetPanelPosition,
+    setDockWithOttoOs: preferences.setDockWithOttoOs,
     ottoOs,
-  );
+    ottoOsDetected,
+  });
   const docked = ottoOs && preferences.prefs.position === null;
   const interactionPrefs = useMemo(
     () => (docked ? { ...preferences.prefs, hoverExpand: false } : preferences.prefs),
@@ -44,6 +47,7 @@ export function useNotchShell() {
   const interaction = useShellInteraction({
     prefs: interactionPrefs,
     surfaceKey: placement.placement.applied,
+    onDragEnd: options?.onDragEnd,
   });
   useShellShortcut(() => {
     if (interaction.expanded) interaction.dismiss();
@@ -55,15 +59,19 @@ export function useNotchShell() {
         "otto.preferences.v1",
         JSON.stringify({
           ...preferences.prefs,
-          placement: compactCircle ? preferences.prefs.placement : placement.placement.applied,
+          placement:
+            compactCircle || ottoOsDetected
+              ? preferences.prefs.placement
+              : placement.placement.applied,
         }),
       );
     } catch {}
-  }, [compactCircle, placement.placement.applied, preferences.prefs]);
+  }, [compactCircle, ottoOsDetected, placement.placement.applied, preferences.prefs]);
   return {
     ...interaction,
     ...preferences,
     ottoOs,
+    ottoOsDetected,
     compactCircle,
     toggleCompactStyle,
     placement: placement.placement satisfies PlacementStatus,

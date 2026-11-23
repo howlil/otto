@@ -13,7 +13,8 @@ use serde_json::{Value, json};
 use std::{path::Path, sync::atomic::Ordering, time::Duration};
 use tokio::{sync::mpsc, time::timeout};
 
-const IDLE_STANDBY_TIMEOUT: Duration = Duration::from_secs(300);
+const WARM_STANDBY_TIMEOUT: Duration = Duration::from_secs(60);
+const IDLE_STANDBY_TIMEOUT: Duration = Duration::from_secs(180);
 
 pub(super) async fn prompt_command(
     run_id: u64,
@@ -305,7 +306,12 @@ pub(in crate::agent::providers) async fn run(
     }
 
     loop {
-        let idle_deadline = tokio::time::sleep(IDLE_STANDBY_TIMEOUT);
+        let standby = if session.session_announced {
+            IDLE_STANDBY_TIMEOUT
+        } else {
+            WARM_STANDBY_TIMEOUT
+        };
+        let idle_deadline = tokio::time::sleep(standby);
         tokio::pin!(idle_deadline);
         tokio::select! {
             _ = &mut idle_deadline, if active.is_none() => {

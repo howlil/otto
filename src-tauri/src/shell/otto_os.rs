@@ -44,10 +44,7 @@ pub fn circle_slot(
         (i64::from(monitor.x) + i64::from(monitor.width) - i64::from(host_width)).max(min_left);
     Some(CircleSlot {
         diameter,
-        position: PositionPx {
-            x: host_left.clamp(min_left, max_left) as i32,
-            y: top as i32,
-        },
+        position: PositionPx::plain(host_left.clamp(min_left, max_left) as i32, top as i32),
     })
 }
 
@@ -126,6 +123,10 @@ impl SpringFollow {
             self.x.step(current.0, target.0, dt_seconds),
             self.y.step(current.1, target.1, dt_seconds),
         )
+    }
+
+    pub fn is_moving(&self) -> bool {
+        self.x.velocity.abs() > SPRING_STOP_VELOCITY || self.y.velocity.abs() > SPRING_STOP_VELOCITY
     }
 }
 

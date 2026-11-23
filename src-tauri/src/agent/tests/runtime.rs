@@ -2108,6 +2108,9 @@ fn assistant_guidance_tracks_mode_profile_changes_and_rejects_unknown_modes() {
         .resolve_guidance(
             Some("mentor".into()),
             Some(AssistantProfile {
+                name: Some("Lili".into()),
+                role: Some("Developer".into()),
+                focus: Some("Rust".into()),
                 language: Some("Indonesian".into()),
                 level: Some("Beginner".into()),
                 instructions: Some("Give examples first.".into()),
@@ -2115,15 +2118,31 @@ fn assistant_guidance_tracks_mode_profile_changes_and_rejects_unknown_modes() {
         )
         .unwrap();
     assert_eq!(mentor.mode, LearningMode::Mentor);
+    assert_eq!(mentor.profile.name.as_deref(), Some("Lili"));
+    assert_eq!(mentor.profile.role.as_deref(), Some("Developer"));
     assert!(runtime.should_include_guidance(&mentor, false));
     runtime.record_session_guidance(&mentor, false);
     assert!(!runtime.should_include_guidance(&mentor, true));
+
+    let updated_role = runtime
+        .resolve_guidance(
+            None,
+            Some(AssistantProfile {
+                role: Some("Researcher".into()),
+                ..mentor.profile.clone()
+            }),
+        )
+        .unwrap();
+    assert!(runtime.should_include_guidance(&updated_role, true));
+    runtime.record_session_guidance(&updated_role, false);
+    assert!(!runtime.should_include_guidance(&updated_role, true));
 
     let direct = runtime
         .resolve_guidance(Some("direct".into()), None)
         .unwrap();
     assert_eq!(direct.mode, LearningMode::Direct);
     assert_eq!(direct.profile.language.as_deref(), Some("Indonesian"));
+    assert_eq!(direct.profile.role.as_deref(), Some("Researcher"));
     assert!(runtime.should_include_guidance(&direct, true));
     runtime.clear_session_guidance();
     assert!(runtime.should_include_guidance(&direct, true));

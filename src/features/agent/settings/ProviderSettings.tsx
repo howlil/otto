@@ -1,6 +1,6 @@
 import {
   ActiveIndicatorGroup,
-  Button,
+  IconButton,
   SettingBlock,
   StatusMessage,
   Text,
@@ -38,17 +38,17 @@ function ProviderHeaderActions({
   onRefreshPath: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-1.5">
       <ReadinessBadge status={status} />
-      <Button
+      <IconButton
+        icon="refresh"
+        label="Check again"
+        title="Check installed engines"
         variant="quiet"
-        size="link"
-        className="text-otto-text-tertiary"
+        size={14}
         disabled={locked}
         onClick={onRefreshPath}
-      >
-        Check again
-      </Button>
+      />
     </div>
   );
 }
@@ -101,7 +101,7 @@ export function ProviderSettings({
   return (
     <SettingBlock
       title="AI Engine"
-      help="The AI app on this PC that writes Otto's answers"
+      icon="assistant"
       action={
         <ProviderHeaderActions
           status={readiness.status}

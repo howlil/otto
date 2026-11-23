@@ -6,12 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [1.4.0] - 2026-11-22
+## [1.4.0] - 2026-11-23
 
 ### Added
-- Standalone **Circle** compact mascot style (`40×40`, automatic temporary floating placement without overwriting a saved `Attached` preference) switchable via the Expanded header button, right-click on the Compact surface, or **Settings → Position**, with expressive live Otto eyes (`idle`, `thinking`/`working`, `listening`, `speaking`, `completed`, `attention`, `error`).
-- Offline **Voice Input** powered by on-demand local **Whisper** (`Small Q5_1` ~190 MB recommended for Indonesian + English, or `Base Q5_1` ~60 MB) with `0 MB` idle memory when not transcribing, Win32 `16 kHz` microphone capture, live volume ring feedback, silence auto-stop, global `Ctrl+Alt+V` shortcut, composer Mic control, and **Settings → Voice**.
-- **Read Aloud** speech output (`Listen / Stop`) on completed answers using Windows native speech synthesis (automatically stripping Markdown syntax and summarizing fenced code blocks) with `Auto-read answers` (`Off`, `Voice replies`, `Always`), selectable Windows voice, speaking speed (`75%`–`150%`), and continuous background playback when collapsed to Circle.
+- Standalone **Circle** compact mascot style (`40×40`, automatic temporary floating placement without overwriting a saved `Attached` preference) switchable via the Expanded header button, right-click on the Compact surface, or **Settings → Position**, with expressive live Otto eyes (`idle`, `thinking`/`working`, `completed`, `attention`, `error`).
+- **Notch logo studio** and **Background material** cards (`Solid`, `Blur`, `Liquid Glass` with manual opacity slider) in **Settings → General**, allowing badge shape, eye style/size/spacing/glow, color swatches, custom SVG upload, and SVG copy/export.
+
+### Changed
+- Redesigned the header **AI Engine · Model · Thinking effort · Usage limits** quick-switcher popover (`EngineQuickPopover`) with provider logos, model capability metadata, a full-width thinking effort bar with speed/depth hints, and 2-column remaining-quota cards whose progress bars align with `% left`.
+- Removed the experimental local Voice / TTS module to keep Otto's footprint minimal and focused.
 
 ## [1.3.1] - 2026-11-22
 

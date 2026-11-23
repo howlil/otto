@@ -1,6 +1,5 @@
 import type { LearningMode } from "../../../platform/tauri";
 import { Icon, Text } from "../../../shared/ui";
-import { ListenAnswerButton } from "../../voice";
 import type { LatencyDisplay } from "../settings/model-picker";
 import { CopyAnswerButton } from "./content/CopyAnswerButton";
 import { InsertAnswerButton } from "./content/InsertAnswerButton";
@@ -42,28 +41,22 @@ export const LEARNING_FOLLOWUP_CHIPS: readonly LearningFollowupChip[] = [
 ];
 
 export function AssistantTurnActions({
-  messageId,
   text,
   isLatest,
   stoppedPartial,
   canAct,
   showFollowupChips,
   latency,
-  speaking = false,
-  onToggleSpeak,
   onInsert,
   onRetry,
   onFollowupChip,
 }: {
-  messageId?: string;
   text: string;
   isLatest: boolean;
   stoppedPartial: boolean;
   canAct: boolean;
   showFollowupChips: boolean;
   latency?: LatencyDisplay | null;
-  speaking?: boolean;
-  onToggleSpeak?: (messageId: string, text: string) => void;
   onInsert?: (value: string) => Promise<void>;
   onRetry?: () => Promise<void>;
   onFollowupChip?: (mode: LearningMode, prompt: string) => Promise<void>;
@@ -81,9 +74,6 @@ export function AssistantTurnActions({
           </Text>
         )}
         <CopyAnswerButton value={text} label="Copy" />
-        {!stoppedPartial && onToggleSpeak && messageId && (
-          <ListenAnswerButton speaking={speaking} onToggle={() => onToggleSpeak(messageId, text)} />
-        )}
         {!stoppedPartial && onInsert && <InsertAnswerButton value={text} onInsert={onInsert} />}
         {isLatest && canAct && onRetry && (
           <button

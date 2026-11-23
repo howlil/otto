@@ -4,7 +4,7 @@ import type {
   AgentSnapshot,
   ProviderReadiness,
 } from "../../../platform/tauri";
-import { Button, Text } from "../../../shared/ui";
+import { Icon, IconButton, Text } from "../../../shared/ui";
 import { resolveRateLimits } from "../model/rate-limits";
 import { ModelContextUsage } from "./ModelContextUsage";
 import { ModelPicker } from "./ModelPicker";
@@ -40,30 +40,36 @@ function ModelSection({
   const selectable = models.length > 0;
   return (
     <div className="min-w-0">
-      <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <Text
-          as={selectable ? "label" : "span"}
-          variant="label"
-          className="text-otto-text-secondary"
-          htmlFor={selectable ? "otto-agent-model" : undefined}
-        >
-          Model
-        </Text>
-        <span className="flex shrink-0 items-baseline gap-2">
+      <div className="mb-1.5 flex min-h-7 items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="flex size-4 shrink-0 items-center justify-center text-otto-text-tertiary">
+            <Icon name="cpu" size={14} />
+          </span>
+          <Text
+            as={selectable ? "label" : "span"}
+            variant="label"
+            className="text-otto-text-secondary"
+            htmlFor={selectable ? "otto-agent-model" : undefined}
+          >
+            Model
+          </Text>
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
           {metadata && (
             <Text as="span" variant="meta" className="tabular-nums text-otto-text-tertiary">
               {metadata}
             </Text>
           )}
-          <Button
+          <IconButton
+            icon="refresh"
+            label="Refresh models"
+            title={refreshing ? "Refreshing models…" : "Refresh models"}
             variant="quiet"
-            size="link"
-            className="text-otto-text-tertiary"
+            size={14}
+            className={refreshing ? "[&_svg]:animate-spin" : ""}
             disabled={readinessStatus === "checking" || Boolean(refreshing)}
             onClick={onRetry}
-          >
-            {refreshing ? "Refreshing…" : "Refresh models"}
-          </Button>
+          />
         </span>
       </div>
       {selectable ? (

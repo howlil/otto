@@ -1,0 +1,19 @@
+---
+import CircleStates from "@/islands/CircleStates";
+---
+
+<section id="circle" class="mx-auto max-w-6xl px-4 py-28">
+  <div class="grid grid-cols-1 gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+    <div>
+      <h2 class="reveal font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+        Otto, shrunk to a small circle.
+      </h2>
+      <p class="reveal mt-5 max-w-md text-lg leading-relaxed text-otto-muted">
+        Keep it as a 40 px mascot when you want the screen back. The ring shows what it is doing.
+      </p>
+    </div>
+    <div class="reveal rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-10">
+      <CircleStates client:visible />
+    </div>
+  </div>
+</section>

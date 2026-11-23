@@ -297,76 +297,100 @@ fn append_rows(
     }
 }
 
-pub(super) fn stitch_frames(
-    frames: &[RgbaFrame],
-    max_height: usize,
-    max_pixels: usize,
-) -> Result<RgbaFrame, String> {
-    let first = frames
-        .first()
-        .ok_or_else(|| "No capture frames were collected.".to_string())?;
-    if first.width == 0 || first.height == 0 {
-        return Err("Capture size exceeds the supported image limit.".into());
-    }
-    if frames.len() == 1 {
-        return Ok(first.clone());
-    }
+struct IncrementalStitcher {
+    width: usize,
+    height: usize,
+    output_width: usize,
+    limits: ScrollLimits,
+    prev: RgbaFrame,
+    canvas: Vec<u8>,
+    total_height: usize,
+    footer_start: Option<usize>,
+}
 
-    let output_width = compare_span(first.width);
-    let mut canvas = Vec::new();
-    let mut total_height = 0_usize;
-    let mut footer: Option<(&RgbaFrame, usize)> = None;
-
-    for pair in frames.windows(2) {
-        let prev = &pair[0];
-        let next = &pair[1];
-        if next.width != first.width || next.height != first.height {
-            break;
+impl IncrementalStitcher {
+    fn new(first: RgbaFrame, limits: ScrollLimits) -> Result<Self, String> {
+        if first.width == 0 || first.height == 0 {
+            return Err("Capture size exceeds the supported image limit.".into());
         }
-        let Some(step) = find_scroll_overlap(prev, next) else {
-            break;
+        let width = first.width;
+        let height = first.height;
+        Ok(Self {
+            width,
+            height,
+            output_width: compare_span(width),
+            limits,
+            prev: first,
+            canvas: Vec::new(),
+            total_height: 0,
+            footer_start: None,
+        })
+    }
+
+    fn fits(&self, rows: usize) -> bool {
+        rows <= self.limits.max_height
+            && (rows as u64) * (self.output_width as u64) <= self.limits.max_pixels as u64
+    }
+
+    fn push(&mut self, next: RgbaFrame) -> bool {
+        if next.width != self.width || next.height != self.height {
+            return false;
+        }
+        let Some(step) = find_scroll_overlap(&self.prev, &next) else {
+            return false;
         };
-        if canvas.is_empty() {
-            let head_rows = step.scroll_bottom;
-            if head_rows > max_height
-                || (head_rows as u64) * (output_width as u64) > max_pixels as u64
-            {
-                return Ok(first.clone());
-            }
-            append_rows(&mut canvas, prev, 0, head_rows, output_width);
-            total_height = head_rows;
-        }
         let footer_rows = next.height - step.scroll_bottom;
-        let next_total = total_height + step.delta_y + footer_rows;
-        if next_total > max_height
-            || (next_total as u64) * (output_width as u64) > max_pixels as u64
-        {
-            break;
+        let base_rows = if self.canvas.is_empty() {
+            step.scroll_bottom
+        } else {
+            self.total_height
+        };
+        if !self.fits(base_rows + step.delta_y + footer_rows) {
+            return false;
+        }
+        if self.canvas.is_empty() {
+            append_rows(
+                &mut self.canvas,
+                &self.prev,
+                0,
+                step.scroll_bottom,
+                self.output_width,
+            );
+            self.total_height = step.scroll_bottom;
         }
         append_rows(
-            &mut canvas,
-            next,
+            &mut self.canvas,
+            &next,
             step.scroll_bottom - step.delta_y,
             step.scroll_bottom,
-            output_width,
+            self.output_width,
         );
-        total_height += step.delta_y;
-        footer = Some((next, step.scroll_bottom));
+        self.total_height += step.delta_y;
+        self.footer_start = Some(step.scroll_bottom);
+        self.prev = next;
+        true
     }
 
-    if canvas.is_empty() {
-        return Ok(first.clone());
+    fn finish(mut self) -> RgbaFrame {
+        if self.canvas.is_empty() {
+            return self.prev;
+        }
+        if let Some(start) = self.footer_start {
+            append_rows(
+                &mut self.canvas,
+                &self.prev,
+                start,
+                self.prev.height,
+                self.output_width,
+            );
+            self.total_height += self.prev.height - start;
+        }
+        RgbaFrame {
+            width: self.output_width,
+            height: self.total_height,
+            pixels: self.canvas,
+        }
     }
-    if let Some((frame, start)) = footer {
-        append_rows(&mut canvas, frame, start, frame.height, output_width);
-        total_height += frame.height - start;
-    }
-
-    Ok(RgbaFrame {
-        width: output_width,
-        height: total_height,
-        pixels: canvas,
-    })
 }
 
 fn send_wheel_down() -> bool {
@@ -386,7 +410,7 @@ fn send_wheel_down() -> bool {
     unsafe { SendInput(1, &input, size_of::<INPUT>() as i32) == 1 }
 }
 
-pub(super) fn capture_scrolling_frames<C, V>(
+pub(super) fn capture_scrolling_stitched<C, V>(
     hwnd: HWND,
     rect: RECT,
     own_pid: u32,
@@ -394,7 +418,7 @@ pub(super) fn capture_scrolling_frames<C, V>(
     window_pid: impl Fn(HWND) -> u32,
     verify_target: V,
     mut capture_frame: C,
-) -> Result<Vec<RgbaFrame>, String>
+) -> Result<RgbaFrame, String>
 where
     C: FnMut() -> Result<RgbaFrame, String>,
     V: Fn() -> bool,
@@ -403,11 +427,7 @@ where
         return Err("Capture target changed before capture. Focus it and retry.".into());
     }
     let _foreground = focus_target(hwnd, own_pid, window_pid, &verify_target)?;
-    let first = capture_frame()?;
-    let width = first.width;
-    let height = first.height;
-    let mut frames = vec![first];
-    let mut accumulated_height = height;
+    let mut stitcher = IncrementalStitcher::new(capture_frame()?, limits)?;
 
     let _cursor = CursorRestore::capture();
     let window_height = rect.bottom - rect.top;
@@ -431,30 +451,40 @@ where
         if !verify_target() || unsafe { GetForegroundWindow() } != hwnd {
             return Err("Capture target changed before capture. Focus it and retry.".into());
         }
-        let next = capture_frame()?;
-        if next.width != width || next.height != height {
+        if !stitcher.push(capture_frame()?) {
             break;
         }
-        let Some(step) = find_scroll_overlap(frames.last().expect("non-empty frames"), &next)
-        else {
-            break;
-        };
-        let next_height = accumulated_height + step.delta_y;
-        if next_height > limits.max_height
-            || (next_height as u64) * (width as u64) > limits.max_pixels as u64
-        {
-            break;
-        }
-        accumulated_height = next_height;
-        frames.push(next);
     }
 
-    Ok(frames)
+    Ok(stitcher.finish())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn stitch_frames(
+        frames: &[RgbaFrame],
+        max_height: usize,
+        max_pixels: usize,
+    ) -> Result<RgbaFrame, String> {
+        let first = frames
+            .first()
+            .ok_or_else(|| "No capture frames were collected.".to_string())?;
+        let mut stitcher = IncrementalStitcher::new(
+            first.clone(),
+            ScrollLimits {
+                max_height,
+                max_pixels,
+            },
+        )?;
+        for frame in &frames[1..] {
+            if !stitcher.push(frame.clone()) {
+                break;
+            }
+        }
+        Ok(stitcher.finish())
+    }
 
     fn synthetic_page(width: usize, total_height: usize) -> Vec<u8> {
         let mut pixels = vec![0_u8; width * total_height * 4];

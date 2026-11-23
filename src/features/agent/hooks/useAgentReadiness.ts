@@ -76,6 +76,7 @@ export function useProviderReadiness(
   provider: AgentProvider,
   model: string | null,
   active: boolean,
+  warmActive = active,
 ) {
   const activeTarget = useRef({ provider, model });
   activeTarget.current = { provider, model };
@@ -128,7 +129,7 @@ export function useProviderReadiness(
     if (active) void refreshCatalog();
   }, [active, refreshCatalog]);
 
-  useWarmReadyProvider(active, provider, readiness.status === "ready");
+  useWarmReadyProvider(warmActive, provider, readiness.status === "ready");
 
   const refreshProvider = useCallback(async () => {
     await Promise.all([refreshCatalog(), controller.current?.refresh()]);

@@ -3,14 +3,13 @@ import { Icon, OttoLogo, Text, VisuallyHidden } from "../../../shared/ui";
 import { Bars } from "../conversation/AgentControls";
 import { compactDetail, compactLabel } from "../model/surface";
 import { agentIsWorking, captureIsWorking } from "../model/status";
-import { AgentCircle, type AgentCircleVoiceProps } from "./AgentCircle";
+import { AgentCircle } from "./AgentCircle";
 
 export function AgentCapsule({
   snapshot,
   installed,
   readiness,
   error,
-  voice,
   circle = false,
   buttonRef,
   onOpen,
@@ -20,16 +19,12 @@ export function AgentCapsule({
   installed: boolean | null;
   readiness: ProviderReadiness;
   error: string | null;
-  voice?: AgentCircleVoiceProps;
   circle?: boolean;
   buttonRef: React.Ref<HTMLButtonElement>;
   onOpen: () => void;
   onToggleCompactStyle?: () => void;
 }) {
-  const thinking =
-    agentIsWorking(snapshot.status) ||
-    captureIsWorking(snapshot.capture.phase) ||
-    Boolean(voice?.listening || voice?.transcribing || voice?.speaking);
+  const thinking = agentIsWorking(snapshot.status) || captureIsWorking(snapshot.capture.phase);
   if (circle) {
     return (
       <AgentCircle
@@ -37,7 +32,6 @@ export function AgentCapsule({
         installed={installed}
         readiness={readiness}
         error={error}
-        voice={voice}
         buttonRef={buttonRef}
         onOpen={onOpen}
         onToggleCompactStyle={onToggleCompactStyle}

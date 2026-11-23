@@ -8,14 +8,41 @@ import type {
   SurfaceSize,
 } from "../features/shell";
 import type { AgentViewModel } from "../features/agent";
-import type { VoiceViewModel } from "../features/voice";
-import type { NotchHost, NotchPlacement } from "../platform/tauri/shell";
+import type { HostAnchor, NotchHost, NotchPlacement } from "../platform/tauri/shell";
 import { ShellContent } from "./ShellContent";
+
+function surfaceRadiusStyle(
+  recovery: RecoveryFrame | null | undefined,
+  compactRadius: number | undefined,
+): CSSProperties {
+  if (recovery) {
+    return {
+      borderTopLeftRadius: recovery.region.radius.top / recovery.scale,
+      borderTopRightRadius: recovery.region.radius.top / recovery.scale,
+      borderBottomLeftRadius: recovery.region.radius.bottom / recovery.scale,
+      borderBottomRightRadius: recovery.region.radius.bottom / recovery.scale,
+    };
+  }
+  return compactRadius !== undefined ? { borderRadius: compactRadius } : {};
+}
+
+function surfaceShapeClasses(attached: boolean, expanded: boolean): string {
+  const radius = attached
+    ? "rounded-t-none rounded-b-otto-attached border-t-transparent"
+    : expanded
+      ? "rounded-otto-expanded"
+      : "rounded-otto-island";
+  const press = expanded
+    ? ""
+    : attached
+      ? "origin-top active:scale-[0.97]"
+      : "origin-center active:scale-[0.97]";
+  return `${radius} ${press}`.trim();
+}
 
 export function ShellView({
   agent,
   shell,
-  voice,
   surfaceError,
   gutter,
   size,
@@ -26,6 +53,7 @@ export function ShellView({
   onContentMeasured,
   appUpdate,
   placement = shell.placement.applied,
+  anchor,
   recovery,
   onRetrySurface,
   sizingHost,
@@ -33,7 +61,6 @@ export function ShellView({
   sizingHost?: NotchHost | null;
   agent: AgentViewModel;
   shell: ShellViewModel;
-  voice?: VoiceViewModel;
   surfaceError: string | null;
   onContentMeasured: (height: number) => void;
   appUpdate: AppUpdateViewModel;
@@ -44,6 +71,7 @@ export function ShellView({
   morphMs: number;
   stageRef: RefObject<HTMLDivElement | null>;
   placement?: NotchPlacement;
+  anchor?: HostAnchor;
   recovery?: RecoveryFrame | null;
   onRetrySurface?: () => void;
 }) {
@@ -62,23 +90,12 @@ export function ShellView({
       recovery={recovery}
       expanded={shell.expanded}
       surfaceOpacity={surfaceOpacityPercent(shell.prefs)}
+      backgroundStyle={shell.prefs.backgroundStyle}
+      anchor={anchor}
     >
       <main
-        className={`otto-shell-surface relative isolate h-full w-full cursor-grab overflow-hidden border border-otto-line bg-otto-surface-glass text-otto-text active:cursor-grabbing ${attached ? "rounded-t-none rounded-b-otto-attached border-t-transparent" : shell.expanded ? "rounded-otto-expanded" : "rounded-otto-island"} ${shell.expanded ? "" : attached ? "origin-top active:scale-[0.97]" : "origin-center active:scale-[0.97]"}`}
-        style={
-          {
-            ...(recovery
-              ? {
-                  borderTopLeftRadius: recovery.region.radius.top / recovery.scale,
-                  borderTopRightRadius: recovery.region.radius.top / recovery.scale,
-                  borderBottomLeftRadius: recovery.region.radius.bottom / recovery.scale,
-                  borderBottomRightRadius: recovery.region.radius.bottom / recovery.scale,
-                }
-              : compactRadius !== undefined
-                ? { borderRadius: compactRadius }
-                : {}),
-          } as CSSProperties
-        }
+        className={`otto-shell-surface relative isolate h-full w-full cursor-grab overflow-hidden border border-otto-line bg-otto-surface-glass text-otto-text active:cursor-grabbing ${surfaceShapeClasses(attached, shell.expanded)}`}
+        style={surfaceRadiusStyle(recovery, compactRadius)}
         data-reduced={shell.reducedMotion ? "true" : undefined}
         onPointerEnter={shell.handleEnter}
         onPointerLeave={shell.handleLeave}
@@ -94,9 +111,9 @@ export function ShellView({
           <ShellContent
             agent={agent}
             shell={shell}
-            voice={voice}
             onContentMeasured={onContentMeasured}
             appUpdate={appUpdate}
+            anchor={attached ? undefined : anchor}
             frameSize={
               size
                 ? {

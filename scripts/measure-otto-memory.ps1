@@ -21,6 +21,9 @@ $measurements = @(
       }
     } while ($added -gt 0)
 
+    $byId = @{}
+    foreach ($entry in $processTable) { $byId[[int]$entry.ProcessId] = $entry }
+
     $owned = @(
       foreach ($processId in $processIds) {
         Get-Process -Id $processId -ErrorAction SilentlyContinue
@@ -28,6 +31,30 @@ $measurements = @(
     )
     $privateBytes = ($owned | Measure-Object -Property PrivateMemorySize64 -Sum).Sum
     $residentBytes = ($owned | Measure-Object -Property WorkingSet64 -Sum).Sum
+    $cpuSeconds = ($owned | Measure-Object -Property CPU -Sum).Sum
+
+    $roleBytes = @{
+      otto = 0L
+      gpu = 0L
+      renderer = 0L
+      browser = 0L
+      utility = 0L
+      cli = 0L
+    }
+    foreach ($proc in $owned) {
+      $cmd = $byId[$proc.Id].CommandLine
+      $priv = [int64]$proc.PrivateMemorySize64
+      if ($proc.ProcessName -ieq "Otto") {
+        $roleBytes.otto += $priv
+      } elseif ($proc.ProcessName -ieq "msedgewebview2") {
+        if ($cmd -match "--type=gpu-process") { $roleBytes.gpu += $priv }
+        elseif ($cmd -match "--type=renderer") { $roleBytes.renderer += $priv }
+        elseif ($cmd -match "--type=utility" -or $cmd -match "--type=crashpad-handler") { $roleBytes.utility += $priv }
+        else { $roleBytes.browser += $priv }
+      } else {
+        $roleBytes.cli += $priv
+      }
+    }
 
     [pscustomobject]@{
       Timestamp = (Get-Date).ToString("o")
@@ -36,6 +63,13 @@ $measurements = @(
       PrivateMiB = [math]::Round($privateBytes / 1MB, 1)
       WorkingSetMiB = [math]::Round($residentBytes / 1MB, 1)
       WebView2Processes = @($owned | Where-Object { $_.ProcessName -ieq "msedgewebview2" }).Count
+      OttoMiB = [math]::Round($roleBytes.otto / 1MB, 1)
+      GpuMiB = [math]::Round($roleBytes.gpu / 1MB, 1)
+      RendererMiB = [math]::Round($roleBytes.renderer / 1MB, 1)
+      BrowserMiB = [math]::Round($roleBytes.browser / 1MB, 1)
+      UtilityMiB = [math]::Round($roleBytes.utility / 1MB, 1)
+      CliMiB = [math]::Round($roleBytes.cli / 1MB, 1)
+      CpuSeconds = [math]::Round($cpuSeconds, 2)
     }
     if ($sample -lt ($Samples - 1)) { Start-Sleep -Seconds $IntervalSeconds }
   }

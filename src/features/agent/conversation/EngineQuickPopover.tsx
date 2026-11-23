@@ -5,11 +5,13 @@ import type {
   AgentRateLimit,
   ProviderReadiness,
 } from "../../../platform/tauri";
-import { Button, ChoiceGroup, Text } from "../../../shared/ui";
+import { ChoiceGroup, Icon, Text, type IconName } from "../../../shared/ui";
 import { ModelPicker } from "../settings/ModelPicker";
 import { ProviderRateLimits } from "../settings/ProviderRateLimits";
 import {
+  effortHint,
   formatEffortLabel,
+  modelMetadata,
   resolveSelectedEffort,
   resolveThinkingEfforts,
 } from "../settings/model-usage";
@@ -28,6 +30,43 @@ export type HeaderRuntimeSwitcher = {
   onSelectThinkingEffort: (effort: string | null) => void;
   onOpenSettings: () => void;
 };
+
+function SectionHeader({
+  icon,
+  title,
+  htmlFor,
+  meta,
+}: {
+  icon: IconName;
+  title: string;
+  htmlFor?: string;
+  meta?: string | null;
+}) {
+  return (
+    <div className="mb-1.5 flex items-center justify-between gap-2">
+      <span className="flex shrink-0 items-center gap-1.5">
+        <Icon name={icon} size={13} className="shrink-0 text-otto-text-tertiary" />
+        <Text
+          as={htmlFor ? "label" : "span"}
+          variant="meta"
+          htmlFor={htmlFor}
+          className="font-medium text-otto-text-secondary"
+        >
+          {title}
+        </Text>
+      </span>
+      {meta && (
+        <Text
+          as="span"
+          variant="caption"
+          className="min-w-0 truncate tabular-nums text-otto-text-tertiary"
+        >
+          {meta}
+        </Text>
+      )}
+    </div>
+  );
+}
 
 export function EngineQuickPopover({
   provider,
@@ -57,6 +96,8 @@ export function EngineQuickPopover({
     thinkingEffort,
     efforts,
   );
+  const metadata = modelMetadata(selectedOption, null);
+  const hint = selectedEffort ? effortHint(selectedEffort) : null;
 
   const popoverRef = useRef<HTMLDivElement>(null);
   const maxHeight = usePopoverFit(true, "top", popoverRef);
@@ -67,7 +108,7 @@ export function EngineQuickPopover({
       role="dialog"
       aria-labelledby="otto-quick-engine-title"
       style={maxHeight ? { maxHeight } : undefined}
-      className="otto-scrollbar-hidden absolute left-0 top-full z-30 mt-1.5 w-[336px] max-w-[calc(100vw-36px)] overflow-y-auto rounded-otto-card border border-otto-line-strong bg-otto-surface p-3 shadow-lg"
+      className="otto-scrollbar-hidden absolute left-0 top-full z-30 mt-1.5 w-[348px] max-w-[calc(100vw-36px)] overflow-y-auto rounded-otto-card border border-otto-line-strong bg-otto-surface p-3 shadow-lg"
     >
       <h2 id="otto-quick-engine-title" className="sr-only">
         Switch AI engine and model
@@ -79,9 +120,7 @@ export function EngineQuickPopover({
           </Text>
         )}
         <div className="min-w-0">
-          <Text as="span" variant="meta" className="mb-1.5 block text-otto-text-secondary">
-            AI Engine
-          </Text>
+          <SectionHeader icon="assistant" title="AI Engine" />
           <EngineChipList
             installed={installed}
             provider={provider}
@@ -91,14 +130,7 @@ export function EngineQuickPopover({
         </div>
         {models.length > 0 && (
           <div className="min-w-0">
-            <Text
-              as="label"
-              variant="meta"
-              htmlFor="otto-quick-model"
-              className="mb-1 block text-otto-text-secondary"
-            >
-              Model
-            </Text>
+            <SectionHeader icon="cpu" title="Model" htmlFor="otto-quick-model" meta={metadata} />
             <ModelPicker
               id="otto-quick-model"
               models={models}
@@ -114,9 +146,7 @@ export function EngineQuickPopover({
         )}
         {efforts.length > 0 && (
           <div className="min-w-0">
-            <Text as="span" variant="meta" className="mb-1.5 block text-otto-text-secondary">
-              Thinking effort
-            </Text>
+            <SectionHeader icon="brain" title="Thinking effort" meta={hint} />
             <ChoiceGroup
               value={selectedEffort}
               choices={efforts.map((effort) => ({
@@ -131,15 +161,18 @@ export function EngineQuickPopover({
           </div>
         )}
         <ProviderRateLimits rateLimits={switcher.rateLimits ?? []} compact />
-        <div className="flex items-center justify-end border-t border-otto-line-soft pt-2">
-          <Button
-            variant="quiet"
-            size="link"
-            className="text-otto-text-tertiary"
+        <div className="border-t border-otto-line-soft pt-2">
+          <button
+            type="button"
             onClick={onOpenSettings}
+            className="flex h-7 w-full items-center justify-between rounded-otto-chip border-0 bg-transparent px-2 text-otto-xs font-medium text-otto-text-secondary transition-colors duration-150 hover:bg-otto-control hover:text-otto-text-bright focus-visible:outline-1 focus-visible:outline-otto-line-focused"
           >
-            All engines & profile
-          </Button>
+            <span className="flex items-center gap-1.5">
+              <Icon name="settings" size={13} className="text-otto-text-tertiary" />
+              <span>All engines & profile</span>
+            </span>
+            <Icon name="chevronRight" size={13} className="text-otto-text-tertiary" />
+          </button>
         </div>
       </div>
     </div>

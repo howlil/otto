@@ -1,53 +1,44 @@
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { Button } from "@/components/arc/button/button";
-import { Switch } from "@/components/arc/switch/switch";
-
-type Decision = "none" | "declined" | "allowed";
-
-const messages: Record<Decision, string> = {
-  none: "Nothing is approved until you choose.",
-  declined: "Declined. The engine gets a graceful denial and can finish the answer in plain text.",
-  allowed: "Allowed once. This request only. Otto asks again the next time one comes in.",
-};
+import { PermissionCard } from "@/components/otto/Transcript";
 
 export default function Control() {
   const [hidden, setHidden] = useState(true);
-  const [decision, setDecision] = useState<Decision>("none");
+  const [result, setResult] = useState("");
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <div className="rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
-        <Switch label="Hide from screen capture" checked={hidden} onCheckedChange={setHidden} />
-        <p className="mt-4 leading-relaxed text-otto-muted">
-          On by default. This is best effort: some recorders may still capture Otto.
-        </p>
-      </div>
-      <div className="rounded-3xl border border-otto-line bg-otto-surface p-6 sm:p-8">
-        <p className="font-display text-lg font-semibold text-otto-text">Host permission request</p>
-        <p className="mt-2 leading-relaxed text-otto-muted">
-          The engine asks for a host permission decision mid-answer. Otto pauses and waits for your explicit choice.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => setDecision("declined")}>
-            Decline &amp; continue
-          </Button>
-          <Button variant="primary" onClick={() => setDecision("allowed")}>
-            Allow once
-          </Button>
-        </div>
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={decision}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
-            className="mt-5 text-sm leading-relaxed text-otto-body"
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="rounded-otto-card border border-otto-line bg-otto-surface p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-otto-md font-[590] text-otto-text">Hide from screen capture</p>
+            <p className="mt-1 text-otto-xs leading-[1.5] text-otto-text-tertiary">
+              Best effort. Some recorders may still see Otto.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={hidden}
+            aria-label="Hide from screen capture"
+            onClick={() => setHidden((current) => !current)}
+            className={`relative h-6 w-10 flex-none rounded-full transition-colors duration-150 ${hidden ? "bg-otto-switch-enabled" : "bg-otto-switch-track"}`}
           >
-            {messages[decision]}
-          </motion.p>
-        </AnimatePresence>
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-otto-knob transition-transform duration-150 ${hidden ? "translate-x-[18px]" : "translate-x-0.5"}`}
+            />
+          </button>
+        </div>
+      </div>
+      <div className="rounded-otto-card border border-otto-line bg-otto-surface p-5 sm:p-6">
+        <PermissionCard
+          engine="Gemini CLI"
+          title="Read notes.md from your Documents folder"
+          onDecline={() => setResult("Declined. The answer continues without that step.")}
+          onAllow={() => setResult("Allowed once. The next request asks again.")}
+        />
+        <p aria-live="polite" className="mt-3 min-h-[1.25rem] text-otto-xs text-otto-text-tertiary">
+          {result}
+        </p>
       </div>
     </div>
   );
